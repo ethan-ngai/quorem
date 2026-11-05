@@ -220,7 +220,19 @@
                 },
                 "max": {
                   "type": "number"
+                },
+                "minInclusive": {
+                  "type": "boolean",
+                  "description": "Include the lower bound. Omitted is inclusive; false is strict."
+                },
+                "maxInclusive": {
+                  "type": "boolean",
+                  "description": "Include the upper bound. Omitted is inclusive; false is strict."
                 }
+              },
+              "dependentRequired": {
+                "minInclusive": ["min"],
+                "maxInclusive": ["max"]
               },
               "required": ["kind", "target", "min"],
               "additionalProperties": false
@@ -240,7 +252,19 @@
                 },
                 "max": {
                   "type": "number"
+                },
+                "minInclusive": {
+                  "type": "boolean",
+                  "description": "Include the lower bound. Omitted is inclusive; false is strict."
+                },
+                "maxInclusive": {
+                  "type": "boolean",
+                  "description": "Include the upper bound. Omitted is inclusive; false is strict."
                 }
+              },
+              "dependentRequired": {
+                "minInclusive": ["min"],
+                "maxInclusive": ["max"]
               },
               "required": ["kind", "target", "max"],
               "additionalProperties": false

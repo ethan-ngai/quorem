@@ -41,11 +41,13 @@ export function formatConstraint(constraint: Constraint | string): string {
         constraint.target.projection === "nodeValues"
           ? ` (nodes in ${constraint.target.parameter})`
           : "";
+      const lower = constraint.minInclusive === false ? "<" : "≤";
+      const upper = constraint.maxInclusive === false ? "<" : "≤";
       if (constraint.min !== undefined && constraint.max !== undefined)
-        return `${formatBound(constraint.min)} ≤ ${target} ≤ ${formatBound(constraint.max)}${suffix}`;
+        return `${formatBound(constraint.min)} ${lower} ${target} ${upper} ${formatBound(constraint.max)}${suffix}`;
       return constraint.min !== undefined
-        ? `${target} ≥ ${formatBound(constraint.min)}${suffix}`
-        : `${target} ≤ ${formatBound(constraint.max!)}${suffix}`;
+        ? `${target} ${constraint.minInclusive === false ? ">" : "≥"} ${formatBound(constraint.min)}${suffix}`
+        : `${target} ${upper} ${formatBound(constraint.max!)}${suffix}`;
     }
     case "comparison":
       return `${formatTarget(constraint.left)} ${{ eq: "=", le: "≤", lt: "<", ge: "≥", gt: ">" }[constraint.operator]} ${formatTarget(constraint.right)}`;

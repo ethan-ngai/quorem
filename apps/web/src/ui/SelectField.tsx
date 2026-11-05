@@ -13,6 +13,7 @@ type SelectFieldProps = {
   onChange: (value: string) => void;
   disabled?: boolean;
   iconOnly?: boolean;
+  mono?: boolean;
   className?: string;
   triggerProps?: Pick<
     ComponentProps<"button">,
@@ -27,6 +28,7 @@ export function SelectField({
   onChange,
   disabled,
   iconOnly = false,
+  mono = false,
   className = "",
   triggerProps,
 }: SelectFieldProps) {
@@ -36,6 +38,7 @@ export function SelectField({
   const trigger = (
     <Select.Trigger
       {...triggerProps}
+      data-mono={mono || undefined}
       className={`${iconOnly ? "icon-button" : "select-field"} ${className}`}
       aria-label={iconOnly && selected ? `${label}: ${selected.label}` : label}
       // Radix blocks lower-layer pointer events while open; keep the trigger from clicking through its parent popover.
@@ -82,6 +85,7 @@ export function SelectField({
       <Select.Portal>
         <Select.Content
           className="select-field-menu"
+          data-mono={mono || undefined}
           position="popper"
           sideOffset={5}
           collisionPadding={12}

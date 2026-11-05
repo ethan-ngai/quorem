@@ -52,7 +52,9 @@ it("names SQL questions by type and PostgreSQL as the dialect", () => {
       onValidityChange={() => {}}
     />,
   );
-  expect(html).toContain("SQL question");
+  expect(html).toContain('role="radiogroup" aria-label="Question type"');
+  expect(html).toMatch(/role="radio" aria-label="SQL" aria-checked="true"/);
+  expect(html).toContain('aria-label="Question structure"');
   expect(html).toContain('aria-label="SQL dialect"');
   expect(html).toContain("postgresql.svg");
   expect(html).not.toContain("PostgreSQL question");

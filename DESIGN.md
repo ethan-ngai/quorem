@@ -58,7 +58,9 @@ Separate content through spacing, thin rules and tonal changes. Workspace panes 
 
 Fix shared behavior and appearance at the lowest reusable layer. React primitives live in `apps/web/src/ui`; cross-app CSS foundations live in `packages/ui`. Features own content, dimensions and domain policy. A feature must not supply missing primitive typography, padding, focus, disabled behavior, portal layering or motion through ancestor selectors.
 
-Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs, sharing, loading and recovery. Extend a primitive for a recurring need; avoid feature-specific copies and compatibility re-exports. Compose primitives without erasing their accessible semantics. Keep native text editing and disclosure controls where appropriate. Use the shared `disclosure` class on inline `details` so expanding and collapsing use the same motion throughout the app.
+For small, bounded choice sets, expose options directly with segmented controls, radio groups or selectable chips. Keep choices visible and easy to compare. Use switches for binary on/off states; reserve dropdowns for longer or variable option lists.
+
+Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs, sharing, loading and recovery. Extend a primitive for a recurring need; avoid feature-specific copies and compatibility re-exports. Compose primitives without erasing their accessible semantics. Prefer descriptive icons with tooltips over prose in controls. Choose symbols that communicate the action or value; tooltips and accessible names supply the full label. Keep native text editing and disclosure controls where appropriate. Use the shared `disclosure` class on inline `details` so expanding and collapsing use the same motion throughout the app.
 
 Application and marketing product previews consume the same components and styles. Preview containers own scale and composition, not substitute button/editor/test styling. A preview must work without an application page ancestor. Label illustrative data and keep previews separate from real judging, sessions and persistence.
 

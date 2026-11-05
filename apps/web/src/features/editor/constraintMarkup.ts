@@ -27,11 +27,13 @@ export function constraintMarkup(constraint: Constraint | string): string {
         constraint.target.projection === "nodeValues"
           ? ` (nodes in ${code(constraint.target.parameter)})`
           : "";
+      const lower = constraint.minInclusive === false ? "<" : "\\le";
+      const upper = constraint.maxInclusive === false ? "<" : "\\le";
       if (constraint.min !== undefined && constraint.max !== undefined)
-        return `${boundMarkup(constraint.min)} $\\le$ ${target} $\\le$ ${boundMarkup(constraint.max)}${suffix}`;
+        return `${boundMarkup(constraint.min)} $${lower}$ ${target} $${upper}$ ${boundMarkup(constraint.max)}${suffix}`;
       return constraint.min !== undefined
-        ? `${target} $\\ge$ ${boundMarkup(constraint.min)}${suffix}`
-        : `${target} $\\le$ ${boundMarkup(constraint.max!)}${suffix}`;
+        ? `${target} $${constraint.minInclusive === false ? ">" : "\\ge"}$ ${boundMarkup(constraint.min)}${suffix}`
+        : `${target} $${upper}$ ${boundMarkup(constraint.max!)}${suffix}`;
     }
     case "comparison": {
       const operator = { eq: "=", le: "\\le", lt: "<", ge: "\\ge", gt: ">" }[constraint.operator];

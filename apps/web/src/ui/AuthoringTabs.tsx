@@ -1,5 +1,5 @@
 import "./result-tabs.css";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 /** Shared authoring navigation preserves mounted drafts across keyboard-accessible panels. */
 export function AuthoringTabs({
@@ -13,7 +13,7 @@ export function AuthoringTabs({
   id?: string;
   label: string;
   appearance?: "plain" | "underline";
-  tabs: readonly { value: string; label: string }[];
+  tabs: readonly { value: string; label: string; icon?: ReactNode }[];
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -54,6 +54,7 @@ export function AuthoringTabs({
               ?.scrollIntoView({ block: "nearest", inline: "nearest" });
           }}
         >
+          {tab.icon}
           {tab.label}
         </button>
       ))}

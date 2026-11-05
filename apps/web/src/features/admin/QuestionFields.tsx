@@ -1,3 +1,6 @@
+import { TextInput } from "../../ui/TextControl";
+import { MarkdownField } from "../../ui/MarkdownField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { initialOdysseySource } from "../odyssey/methodStubs";
@@ -28,20 +31,66 @@ import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { ComplexityDetails } from "../editor/components/EditorialPanel";
 import { complexityMath } from "../editor/complexityMarkup";
-import { Clock3, Code2, FileText, LockKeyhole } from "lucide-react";
+import {
+  Clock3,
+  Code2,
+  FileText,
+  LockKeyhole,
+  ListFilter,
+  Settings2,
+  ChevronRight,
+  Braces,
+  FlaskConical,
+} from "lucide-react";
 import { inlineStatement, StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
 import { revisions, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
-const questionTypes = [
-  { value: "single", label: "Single question" },
-  { value: "staged", label: "Multi-stage question" },
-  { value: "sql-single", label: "SQL question" },
-  { value: "sql-staged", label: "SQL multi-stage question" },
-] as const;
-type QuestionType = (typeof questionTypes)[number]["value"];
+type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
+function QuestionTypeControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: QuestionType;
+  disabled: boolean;
+  onChange: (value: QuestionType) => void;
+}) {
+  const sql = value.startsWith("sql-");
+  const staged = value.endsWith("staged");
+  return (
+    <div className="admin-type-choices">
+      <SegmentedControl
+        label="Question type"
+        value={sql ? "sql" : "coding"}
+        disabled={disabled}
+        options={[
+          { value: "coding", label: "Coding", icon: <Code2 size={14} aria-hidden="true" /> },
+          { value: "sql", label: "SQL", icon: <Braces size={14} aria-hidden="true" /> },
+        ]}
+        onChange={(type) =>
+          onChange(
+            type === "sql" ? (staged ? "sql-staged" : "sql-single") : staged ? "staged" : "single",
+          )
+        }
+      />
+      <SegmentedControl
+        label="Question structure"
+        value={staged ? "staged" : "single"}
+        disabled={disabled}
+        options={[
+          { value: "single", label: "Single" },
+          { value: "staged", label: "Multi-stage" },
+        ]}
+        onChange={(structure) =>
+          onChange(sql ? (structure === "staged" ? "sql-staged" : "sql-single") : structure)
+        }
+      />
+    </div>
+  );
+}
 type PreviewLanguage = Exclude<Language, "postgresql">;
 
 type AuthoringSection = "question" | "interface" | "tests" | "solutions";
@@ -73,6 +122,7 @@ export function QuestionFields({
   onValidityChange: (label: string, invalid: boolean) => void;
 }) {
   const problem = content.problem;
+  const [codeSection, setCodeSection] = useState<"reference" | "editorial">("editorial");
   const [section, setSection] = useState<AuthoringSection>("question");
   const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
@@ -86,12 +136,22 @@ export function QuestionFields({
       ? "staged"
       : "single";
   const tabs = [
-    { value: "question", label: "Overview" },
+    { value: "question", label: "Overview", icon: <FileText aria-hidden="true" /> },
     ...(problem.sql || !problem.odyssey
-      ? [{ value: "interface", label: problem.sql ? "Schema" : "Signature" } as const]
+      ? [
+          {
+            value: "interface",
+            label: problem.sql ? "Schema" : "Signature",
+            icon: <Braces aria-hidden="true" />,
+          } as const,
+        ]
       : []),
-    { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
-    { value: "solutions", label: "Code & editorial" },
+    {
+      value: "tests",
+      label: problem.odyssey ? "Steps & tests" : "Tests",
+      icon: <FlaskConical aria-hidden="true" />,
+    },
+    { value: "solutions", label: "Code & editorial", icon: <Code2 aria-hidden="true" /> },
   ] as const;
   const previewLanguagePicker = onPreviewLanguageChange && (
     <SelectField
@@ -305,15 +365,14 @@ export function QuestionFields({
             onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
           />
           <div className="admin-overview-settings">
-            <Field label="Question type">
-              <SelectField
-                label="Question type"
+            <div className="admin-field">
+              <span>Question type</span>
+              <QuestionTypeControl
                 value={questionType}
                 disabled={disabled}
-                options={questionTypes}
                 onChange={(value) => {
-                  const next = questionTypes.find((option) => option.value === value)?.value;
-                  if (!next || next === questionType) return;
+                  const next = value;
+                  if (next === questionType) return;
                   const hasCases =
                     problem.examples.length ||
                     content.hiddenCases.length ||
@@ -340,7 +399,7 @@ export function QuestionFields({
                   }
                 }}
               />
-            </Field>
+            </div>
             <div className="admin-field">
               <span>Difficulty</span>
               <DifficultySegments
@@ -355,7 +414,11 @@ export function QuestionFields({
           </div>
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
           <details className="disclosure authoring-options">
-            <summary>Constraints ({problem.constraints.length})</summary>
+            <summary>
+              <ListFilter size={15} aria-hidden="true" /> Constraints{" "}
+              <span className="admin-count">{problem.constraints.length}</span>
+              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
             <ConstraintFields
               value={problem.constraints}
               signature={problem.sql ? undefined : problem.signature}
@@ -364,10 +427,14 @@ export function QuestionFields({
             />
           </details>
           <details className="disclosure authoring-options">
-            <summary>Advanced settings</summary>
+            <summary>
+              <Settings2 size={15} aria-hidden="true" /> Advanced settings
+              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
             <div className="admin-field-pair">
               <Field label="Slug">
-                <input
+                <TextInput
+                  mono
                   readOnly={lockSlug}
                   value={problem.slug}
                   onChange={(event) => setProblem({ slug: event.target.value })}
@@ -386,7 +453,7 @@ export function QuestionFields({
               onChange={(companies) => setProblem({ companies })}
             />
             <Field label="Attribution">
-              <input
+              <TextInput
                 value={content.attribution}
                 onChange={(event) => onChange({ ...content, attribution: event.target.value })}
               />
@@ -466,27 +533,40 @@ export function QuestionFields({
           aria-labelledby={`${id}-solutions`}
           hidden={section !== "solutions"}
         >
-          <div className="admin-authoring-compact">
-            <Field label={problem.sql ? "Dialect" : "Language"}>
-              <SelectField
-                label={problem.sql ? "SQL dialect" : "Question language"}
-                value={language}
-                disabled={disabled}
-                onChange={(value) => {
-                  const next = languages.find((item) => item === value);
-                  if (next) setLanguage(next);
-                }}
-                options={languages
-                  .filter((value) =>
-                    problem.sql ? value === "postgresql" : value !== "postgresql",
-                  )
-                  .map((value) => ({
-                    value,
-                    label: languageLabels[value],
-                    leading: <LanguageLogo language={value} />,
-                  }))}
-              />
-            </Field>
+          <div className="admin-code-toolbar">
+            <SegmentedControl
+              label="Code content"
+              value={codeSection}
+              onChange={setCodeSection}
+              options={[
+                {
+                  value: "reference",
+                  label: "Judge reference",
+                  icon: <LockKeyhole size={14} aria-hidden="true" />,
+                },
+                {
+                  value: "editorial",
+                  label: "Public editorial",
+                  icon: <FileText size={14} aria-hidden="true" />,
+                },
+              ]}
+            />
+            <SelectField
+              label={problem.sql ? "SQL dialect" : "Question language"}
+              value={language}
+              disabled={disabled}
+              onChange={(value) => {
+                const next = languages.find((item) => item === value);
+                if (next) setLanguage(next);
+              }}
+              options={languages
+                .filter((value) => (problem.sql ? value === "postgresql" : value !== "postgresql"))
+                .map((value) => ({
+                  value,
+                  label: languageLabels[value],
+                  leading: <LanguageLogo language={value} />,
+                }))}
+            />
           </div>
           {[language].map((language) => {
             const index = content.implementations.findIndex((item) => item.language === language);
@@ -531,96 +611,95 @@ export function QuestionFields({
                 )}
                 {implementation && (
                   <>
-                    <h3 className="admin-editorial-heading">
-                      <LockKeyhole size={15} /> Judge reference
-                    </h3>
-                    <AuthoringCodeField
-                      label={`${solutionLanguageLabel(language)} private judge reference`}
-                      language={language}
-                      source={implementation.referenceSource}
-                      disabled={disabled}
-                      onChange={(source) => setImplementation(index, { referenceSource: source })}
-                    />
-                    <div className="admin-editorial-header">
-                      <h3 className="admin-editorial-heading">
-                        <FileText size={15} /> Public editorial
-                      </h3>
-                      <ToggleSwitch
-                        label="Publish editorial solution"
+                    <div hidden={codeSection !== "reference"}>
+                      <p className="admin-authoring-hint">
+                        Private implementation used to verify test results.
+                      </p>
+                      <AuthoringCodeField
+                        label={`${solutionLanguageLabel(language)} private judge reference`}
+                        language={language}
+                        source={implementation.referenceSource}
                         disabled={disabled}
-                        checked={!!solution}
-                        onChange={(checked) =>
-                          checked
-                            ? setSolution(language, {})
-                            : onChange({
-                                ...content,
-                                solutions: content.solutions.filter(
-                                  (item) => item.language !== language,
-                                ),
-                              })
-                        }
+                        onChange={(source) => setImplementation(index, { referenceSource: source })}
                       />
                     </div>
-                    {solution && (
-                      <div className="admin-editorial-fields">
+                    <div hidden={codeSection !== "editorial"}>
+                      <div className="admin-editorial-header">
                         <h3 className="admin-editorial-heading">
-                          <Code2 size={15} /> Solution
+                          <FileText size={15} aria-hidden="true" /> Publish editorial
                         </h3>
-                        <AuthoringCodeField
-                          label={`${solutionLanguageLabel(language)} editorial code`}
-                          language={language}
-                          source={solution.source}
+                        <ToggleSwitch
+                          label="Publish editorial solution"
                           disabled={disabled}
-                          onChange={(source) => setSolution(language, { source })}
+                          checked={!!solution}
+                          onChange={(checked) =>
+                            checked
+                              ? setSolution(language, {})
+                              : onChange({
+                                  ...content,
+                                  solutions: content.solutions.filter(
+                                    (item) => item.language !== language,
+                                  ),
+                                })
+                          }
                         />
-                        <Field label={`${solutionLanguageLabel(language)} explanation`}>
-                          <textarea
-                            rows={5}
+                      </div>
+                      {solution && (
+                        <div className="admin-editorial-fields">
+                          <AuthoringCodeField
+                            label={`${solutionLanguageLabel(language)} editorial code`}
+                            language={language}
+                            source={solution.source}
+                            disabled={disabled}
+                            onChange={(source) => setSolution(language, { source })}
+                          />
+                          <MarkdownField
+                            label="Explanation"
                             value={solution.explanationMarkdown}
-                            onChange={(event) =>
-                              setSolution(language, { explanationMarkdown: event.target.value })
+                            onChange={(explanationMarkdown) =>
+                              setSolution(language, { explanationMarkdown })
                             }
                           />
-                        </Field>
-                        <section className="admin-editorial-complexity">
-                          <h3 className="admin-editorial-heading">
-                            <Clock3 size={15} /> Complexity
-                          </h3>
-                          <div className="admin-field-pair">
-                            {(
-                              [
-                                ["timeComplexity", "Time"],
-                                ["spaceComplexity", "Auxiliary space"],
-                              ] as const
-                            ).map(([field, label]) => (
-                              <Field label={label} key={field}>
-                                <input
-                                  value={solution[field]}
-                                  placeholder="O(n)"
-                                  onChange={(event) =>
-                                    setSolution(language, { [field]: event.target.value })
-                                  }
-                                />
-                                {solution[field].trim() && (
-                                  <span className="admin-complexity-preview">
-                                    {inlineStatement(complexityMath(solution[field]))}
-                                  </span>
-                                )}
-                              </Field>
-                            ))}
-                          </div>
-                          <Field label="Complexity notes">
-                            <textarea
-                              rows={3}
+                          <section className="admin-editorial-complexity">
+                            <h3 className="admin-editorial-heading">
+                              <Clock3 size={15} /> Complexity
+                            </h3>
+                            <div className="admin-field-pair">
+                              {(
+                                [
+                                  ["timeComplexity", "Time"],
+                                  ["spaceComplexity", "Auxiliary space"],
+                                ] as const
+                              ).map(([field, label]) => (
+                                <Field label={label} key={field}>
+                                  <TextInput
+                                    mono
+                                    value={solution[field]}
+                                    placeholder="O(n)"
+                                    onChange={(event) =>
+                                      setSolution(language, { [field]: event.target.value })
+                                    }
+                                  />
+                                  {solution[field].trim() && (
+                                    <span className="admin-complexity-preview">
+                                      {inlineStatement(complexityMath(solution[field]))}
+                                    </span>
+                                  )}
+                                </Field>
+                              ))}
+                            </div>
+                            <MarkdownField
+                              label="Complexity notes"
+                              compact
                               value={solution.complexityNotes}
-                              onChange={(event) =>
-                                setSolution(language, { complexityNotes: event.target.value })
+                              onChange={(complexityNotes) =>
+                                setSolution(language, { complexityNotes })
                               }
                             />
-                          </Field>
-                        </section>
-                      </div>
-                    )}
+                          </section>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>

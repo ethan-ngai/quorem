@@ -2,7 +2,7 @@
 import { nodeType } from "@quorem/contracts/node-type";
 import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
-import { validateConstraints } from "./constraints.ts";
+import { validateConstraints, rangeContains } from "./constraints.ts";
 import {
   compareUtf8,
   JsonNumber,
@@ -69,14 +69,7 @@ function applyConstraints(
   for (const c of constraints) {
     switch (c.kind) {
       case "range":
-        if (
-          project(c.target).some(
-            (n) =>
-              !finite(n) ||
-              (c.min !== undefined && n < c.min) ||
-              (c.max !== undefined && n > c.max),
-          )
-        )
+        if (project(c.target).some((value) => !rangeContains(c, value)))
           throw new Error(
             `argument ${c.target.parameter}: ${c.target.projection} outside allowed range`,
           );

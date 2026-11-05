@@ -1,0 +1,47 @@
+.text-control {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text);
+  font-family: var(--font-interface);
+  font-size: var(--text-small);
+  line-height: 1.5;
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
+.text-control:hover:not(:disabled):not(:read-only) {
+  border-color: var(--color-text-secondary);
+}
+.text-control:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.text-control:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.text-control::placeholder {
+  color: var(--color-text-disabled);
+}
+.text-control[data-mono],
+.mono-text {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+}
+textarea.text-control {
+  display: block;
+  field-sizing: content;
+  max-height: 24rem;
+  padding: var(--space-2);
+  resize: vertical;
+  overflow: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-control {
+    transition: none;
+  }
+}

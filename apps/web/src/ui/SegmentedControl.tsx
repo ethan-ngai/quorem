@@ -9,12 +9,14 @@ export function SegmentedControl<Value extends string>({
   options,
   disabled = false,
   iconOnly = false,
+  mono = false,
   onChange,
 }: {
   label: string;
   value: Value;
   options: readonly { value: Value; label: string; icon?: ReactNode }[];
   iconOnly?: boolean;
+  mono?: boolean;
   disabled?: boolean;
   onChange: (value: Value) => void;
 }) {
@@ -27,6 +29,7 @@ export function SegmentedControl<Value extends string>({
     <div
       className="segmented-control"
       data-icon-only={iconOnly || undefined}
+      data-mono={mono || undefined}
       role="radiogroup"
       aria-label={label}
       aria-disabled={disabled}

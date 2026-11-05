@@ -156,3 +156,9 @@
     animation: none;
   }
 }
+
+.select-field[data-mono],
+.select-field-menu[data-mono] {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+}

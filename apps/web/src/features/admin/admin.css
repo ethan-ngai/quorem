@@ -58,8 +58,8 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
 }
-.admin-field input,
-.admin-field textarea,
+.admin-field input:not(.text-control),
+.admin-field textarea:not(.text-control),
 .admin-field select,
 .admin-bulk-visibility select {
   width: 100%;
@@ -161,14 +161,18 @@
   min-width: 148px;
 }
 .admin-fields .authoring-options {
-  margin-top: var(--space-5);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 .authoring-options > summary {
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   cursor: pointer;
-  padding-block: var(--space-2);
-  margin-bottom: var(--space-3);
+  min-height: 44px;
+  padding-block: var(--space-3);
+  margin: 0;
   font-size: var(--text-small);
+  font-weight: 550;
+  list-style: none;
 }
 .admin-fields .stage-authoring {
   margin: 0;
@@ -397,8 +401,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  padding-bottom: var(--space-3);
 }
 
 .question-authoring .admin-editorial-header > h3 {
@@ -440,17 +443,6 @@
 .admin-form-pane .question-authoring > .result-tabs {
   margin-bottom: var(--space-5);
   flex-wrap: wrap;
-}
-
-.admin-overview-settings {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), max-content));
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.admin-authoring-compact {
-  max-width: 18rem;
 }
 
 .admin-authoring-hint {
@@ -695,17 +687,6 @@
   }
 }
 
-.authoring-constraint {
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.authoring-constraint legend {
-  color: var(--color-text-secondary);
-  font-size: var(--text-small);
-}
-
 @media (min-width: 601px) {
   .authoring-signature-fields {
     grid-template-columns: minmax(8rem, 1fr) minmax(0, 1.6fr);
@@ -778,4 +759,88 @@
 .authoring-type-menu [data-active="true"],
 .authoring-type-menu [aria-selected="true"] {
   background: var(--color-overlay);
+}
+
+.admin-icon-label,
+.authoring-options > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.authoring-options > summary::-webkit-details-marker {
+  display: none;
+}
+.authoring-options > summary .disclosure-chevron {
+  margin-inline-start: auto;
+}
+.authoring-options > summary::marker {
+  content: "";
+}
+.authoring-options[open] > summary {
+  margin-bottom: var(--space-2);
+}
+.authoring-options > summary > svg {
+  color: var(--color-text-secondary);
+}
+.admin-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.authoring-tag-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.authoring-tag-entry .authoring-inline-input {
+  flex: 1 1 14rem;
+  max-width: 20rem;
+}
+.admin-code-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.admin-code-toolbar > .select-field {
+  width: auto;
+  min-width: 10rem;
+}
+
+.admin-editorial-complexity .admin-field-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 32rem;
+}
+.admin-editorial-complexity .admin-field-pair > .admin-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.admin-editorial-complexity .admin-field-pair > .admin-field > span:first-child {
+  grid-column: 1 / -1;
+}
+.admin-editorial-complexity input {
+  min-width: 0;
+}
+
+.admin-type-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.admin-overview-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }

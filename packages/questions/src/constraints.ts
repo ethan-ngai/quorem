@@ -1,4 +1,5 @@
 /** @file constraints.ts @description Structured constraint metadata validation. @module questions */
+import { compareNumericValues } from "@quorem/contracts/long";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
 import { validQuestionType, validateInputConfig } from "./signature.ts";
@@ -34,6 +35,23 @@ function targetType(sig: Signature, target: ConstraintTarget): "scalar" | "seque
   );
 }
 
+/** Test numeric bounds without rounding integer projections to floating point. */
+export function rangeContains(
+  range: Extract<Constraint, { kind: "range" }>,
+  value: number | bigint,
+): boolean {
+  if (typeof value === "number" && !Number.isFinite(value)) return false;
+  if (range.min !== undefined) {
+    const comparison = compareNumericValues(value, range.min);
+    if (comparison < 0 || (comparison === 0 && range.minInclusive === false)) return false;
+  }
+  if (range.max !== undefined) {
+    const comparison = compareNumericValues(value, range.max);
+    if (comparison > 0 || (comparison === 0 && range.maxInclusive === false)) return false;
+  }
+  return true;
+}
+
 /** Validate constraint projections and bounds against a signature. */
 export function validateConstraints(sig: Signature, constraints: readonly Constraint[]): void {
   const names = new Set<string>();
@@ -57,6 +75,17 @@ export function validateConstraints(sig: Signature, constraints: readonly Constr
             (c.min === undefined && c.max === undefined)
           )
             throw new Error("invalid range");
+          if (
+            (c.minInclusive !== undefined && c.min === undefined) ||
+            (c.maxInclusive !== undefined && c.max === undefined)
+          )
+            throw new Error("inclusivity requires a corresponding bound");
+          if (
+            [c.minInclusive, c.maxInclusive].some(
+              (flag) => flag !== undefined && typeof flag !== "boolean",
+            )
+          )
+            throw new Error("invalid range inclusivity");
           const type = sig.parameters
             .find((p) => p.name === c.target.parameter)
             ?.type.replaceAll("array<", "list<");
@@ -76,6 +105,13 @@ export function validateConstraints(sig: Signature, constraints: readonly Constr
             throw new Error("nonfinite bound");
           if (c.min !== undefined && c.max !== undefined && c.min > c.max)
             throw new Error("reversed bounds");
+          if (
+            c.min !== undefined &&
+            c.max !== undefined &&
+            c.min === c.max &&
+            (c.minInclusive === false || c.maxInclusive === false)
+          )
+            throw new Error("empty range");
           break;
         }
         case "comparison":

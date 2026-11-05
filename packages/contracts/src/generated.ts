@@ -1291,12 +1291,20 @@ export interface components {
             target: components["schemas"]["ConstraintTarget"];
             min: number;
             max?: number;
+            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
+            minInclusive?: boolean;
+            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
+            maxInclusive?: boolean;
         } | {
             /** @constant */
             kind: "range";
             target: components["schemas"]["ConstraintTarget"];
             min?: number;
             max: number;
+            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
+            minInclusive?: boolean;
+            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
+            maxInclusive?: boolean;
         }) | {
             /** @constant */
             kind: "comparison";
