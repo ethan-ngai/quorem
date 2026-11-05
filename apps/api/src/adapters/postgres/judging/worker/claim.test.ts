@@ -14,6 +14,7 @@ import {
   decodeJudgeFrame,
   encodeManifestCheckpointFrame,
 } from "@quorem/execution";
+import { createVerificationSourceHandler } from "./verification-http.ts";
 import { postgresInputReader } from "../inputs/read.ts";
 import { localVerifier, sealFixture } from "./manifest-fixture.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
@@ -278,12 +279,38 @@ describe.skipIf(!url)("runner claim fences", () => {
     await staging.chunk(live!, actualChunk);
     await staging.seal(live!, "public", 0, "executed");
     await staging.seal(live!, "public", 0, "executed");
+    const challenge = (
+      await pool.query(
+        "SELECT id::text FROM execution_verification_challenges WHERE job_id=$1 AND ordinal=0",
+        [job],
+      )
+    ).rows[0].id as string;
+    const credential = new Uint8Array(32).fill(9);
+    const handleSource = createVerificationSourceHandler(run, credential);
+    const bundleRequest = () =>
+      new Request("https://api.test/internal/verification/bundle", {
+        method: "POST",
+        headers: { authorization: `Bearer ${Buffer.from(credential).toString("hex")}` },
+        body: JSON.stringify({ challenge }),
+      });
+    const bundled = await handleSource(bundleRequest());
+    expect(bundled.status).toBe(200);
+    const bundle = await bundled.json();
+    expect(bundle.frozen.job.attemptId).toBe(live!.attemptId);
+    expect(bundle.manifest).toEqual(await reader.inputManifest(live!));
+    expect(bundle.ref).toEqual(await reader.inputCaseRef(live!, 0));
+    expect(Buffer.from(bundle.pages.actual.bytes, "base64").toString()).toBe("123");
+    expect(bundle.pages.metadata).toBeTruthy();
+    expect(bundle.pages.case).toBeTruthy();
+    expect(bundle.pages.source).toBeUndefined();
+
     await expect(
       staging.chunk(live!, { ...actualChunk, bytes: new TextEncoder().encode("456") }),
     ).rejects.toThrow("sealed");
     await expect(staging.eof(live!, { ...live!, sandboxScope: "other" })).rejects.toThrow("fence");
     await staging.eof(live!, live!);
     await staging.eof(live!, live!);
+    expect((await handleSource(bundleRequest())).status).toBe(503);
     await checkpoints.yield(live!, live!);
     const row = (await pool.query("SELECT state FROM submissions WHERE id=$1", [submission]))
       .rows[0];

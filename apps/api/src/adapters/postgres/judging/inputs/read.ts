@@ -1,6 +1,6 @@
 /** @file read.ts @description Lease-fenced, byte-paged immutable runner input reads. @module judging */
 import { sql } from "drizzle-orm";
-import type { ConnectionScope } from "@quorem/database/core";
+import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
   encodeJob,
   type ExecutionInputReader,
@@ -78,52 +78,62 @@ export async function inputCheckpoint(run: Run, job: Job) {
   );
 }
 
+/** Read bounded initial pages inside the caller's fenced transaction. */
+export async function inputBundleInTransaction(
+  tx: Transaction,
+  job: Job,
+  ordinal: number,
+  includeSource: boolean,
+) {
+  if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= 2147483647)
+    throw new Error("Invalid input ordinal");
+  const row = (
+    await tx.execute<
+      ManifestRow & {
+        case_hash: string | null;
+        case_size: number;
+        channel: "public" | "sample" | "private";
+        source_data: Uint8Array | null;
+        metadata_data: Uint8Array | null;
+        case_data: Uint8Array | null;
+      }
+    >(sql`SELECT ${manifestFields},
+    encode(b.hash,'hex') AS case_hash,octet_length(b.data)::int AS case_size,c.channel,
+    CASE WHEN ${includeSource} AND octet_length(src.data)<=65536 THEN src.data END AS source_data,
+    CASE WHEN octet_length(meta.data)<=65536 THEN meta.data END AS metadata_data,
+    CASE WHEN octet_length(b.data)<=65536 THEN b.data END AS case_data
+    ${base} ${manifestBlobs}
+    LEFT JOIN runner_job_input_cases c ON c.job_id=i.job_id AND c.ordinal=${ordinal}
+    LEFT JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE ${authorized(job)}`)
+  ).rows[0];
+  if (!row) throw new Error("Runner input unavailable");
+  const manifest = manifestFrom(row);
+  const ref = row.case_hash
+    ? { hash: row.case_hash, size: row.case_size, channel: row.channel }
+    : null;
+  return {
+    manifest,
+    ref,
+    source: row.source_data
+      ? { ...manifest.source, bytes: row.source_data, channel: null }
+      : undefined,
+    metadata: row.metadata_data
+      ? { ...manifest.metadata, bytes: row.metadata_data, channel: null }
+      : undefined,
+    testcase: row.case_data && ref ? { ...ref, bytes: row.case_data } : undefined,
+  };
+}
+
 /** Every page rechecks the live fenced job; no transaction spans response streaming. */
 export function postgresInputReader(
   run: Run,
 ): ExecutionInputReader & Required<Pick<ExecutionInputReader, "inputBundle">> {
   return {
-    async inputBundle(job, ordinal, includeSource) {
-      if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= 2147483647)
-        throw new Error("Invalid input ordinal");
+    inputBundle(job, ordinal, includeSource) {
       return run((scope) =>
-        scope.transaction(readOptions, async (tx) => {
-          const row = (
-            await tx.execute<
-              ManifestRow & {
-                case_hash: string | null;
-                case_size: number;
-                channel: "public" | "sample" | "private";
-                source_data: Uint8Array | null;
-                metadata_data: Uint8Array | null;
-                case_data: Uint8Array | null;
-              }
-            >(sql`SELECT ${manifestFields},
-            encode(b.hash,'hex') AS case_hash,octet_length(b.data)::int AS case_size,c.channel,
-            CASE WHEN ${includeSource} AND octet_length(src.data)<=65536 THEN src.data END AS source_data,
-            CASE WHEN octet_length(meta.data)<=65536 THEN meta.data END AS metadata_data,
-            CASE WHEN octet_length(b.data)<=65536 THEN b.data END AS case_data
-            ${base} ${manifestBlobs}
-            LEFT JOIN runner_job_input_cases c ON c.job_id=i.job_id AND c.ordinal=${ordinal}
-            LEFT JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE ${authorized(job)}`)
-          ).rows[0];
-          if (!row) throw new Error("Runner input unavailable");
-          const manifest = manifestFrom(row);
-          const ref = row.case_hash
-            ? { hash: row.case_hash, size: row.case_size, channel: row.channel }
-            : null;
-          return {
-            manifest,
-            ref,
-            source: row.source_data
-              ? { ...manifest.source, bytes: row.source_data, channel: null }
-              : undefined,
-            metadata: row.metadata_data
-              ? { ...manifest.metadata, bytes: row.metadata_data, channel: null }
-              : undefined,
-            testcase: row.case_data && ref ? { ...ref, bytes: row.case_data } : undefined,
-          };
-        }),
+        scope.transaction(readOptions, (tx) =>
+          inputBundleInTransaction(tx, job, ordinal, includeSource),
+        ),
       );
     },
     async inputManifest(job) {

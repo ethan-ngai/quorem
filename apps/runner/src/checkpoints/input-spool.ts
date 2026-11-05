@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExecutionInputReader, InputBlobRef, InputKind, Job } from "@quorem/execution";
 
-/** Disk spooling bounds trusted Node memory and prevents execution before the final digest check. */
+/** Verify before execution; retain one-page inputs in memory, spool larger values to disk. */
 export async function spoolInput(options: {
   reader: ExecutionInputReader;
   job: Job;
@@ -17,11 +17,11 @@ export async function spoolInput(options: {
   expectedChannel?: "public" | "sample" | "private";
   signal?: AbortSignal;
 }) {
-  const directory = await mkdtemp(join(tmpdir(), "quorem-input-"));
-  const path = join(directory, "value");
+  let directory: string | undefined;
+  let path: string | undefined;
+  let memory: Uint8Array | undefined;
   let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    file = await open(path, "wx+", 0o600);
     let offset = 0,
       size: number | undefined,
       hash: string | undefined,
@@ -58,16 +58,24 @@ export async function spoolInput(options: {
       )
         throw new Error("Inconsistent runner input");
       digest.update(page.bytes);
-      let written = 0;
-      while (written < page.bytes.length) {
-        const result = await file.write(
-          page.bytes,
-          written,
-          page.bytes.length - written,
-          offset + written,
-        );
-        if (!result.bytesWritten) throw new Error("Input spool unavailable");
-        written += result.bytesWritten;
+      if (size <= 65536) memory = new Uint8Array(page.bytes);
+      else {
+        if (!file) {
+          directory = await mkdtemp(join(tmpdir(), "quorem-input-"));
+          path = join(directory, "value");
+          file = await open(path, "wx+", 0o600);
+        }
+        let written = 0;
+        while (written < page.bytes.length) {
+          const result = await file.write(
+            page.bytes,
+            written,
+            page.bytes.length - written,
+            offset + written,
+          );
+          if (!result.bytesWritten) throw new Error("Input spool unavailable");
+          written += result.bytesWritten;
+        }
       }
       offset += page.bytes.length;
     } while (offset < size!);
@@ -89,15 +97,17 @@ export async function spoolInput(options: {
         )
           throw new Error("Invalid input span");
         if (length === 0) return Readable.from([]);
-        return createReadStream(path, { start, end: start + length - 1 });
+        if (memory) return Readable.from([memory.slice(start, start + length)]);
+        return createReadStream(path!, { start, end: start + length - 1 });
       },
       async dispose() {
         if (disposed) return;
         disposed = true;
         try {
-          await ready.close();
+          memory = undefined;
+          await ready?.close();
         } finally {
-          await rm(directory, { recursive: true });
+          if (directory) await rm(directory, { recursive: true });
         }
       },
     };
@@ -105,7 +115,7 @@ export async function spoolInput(options: {
     try {
       await file?.close();
     } finally {
-      await rm(directory, { recursive: true });
+      if (directory) await rm(directory, { recursive: true });
     }
     throw error;
   }

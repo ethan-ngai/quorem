@@ -39,6 +39,36 @@ void test('commit, rollback, pinned client and classified wrapped constraints', 
   assert.equal((await pool.query('select count(*)::int as n from primitives_probe')).rows[0].n, 1);
 });
 
+void test('transaction settings stay local and invalid options never execute work', async () => {
+  const settings = "select current_setting('statement_timeout') as statement, current_setting('lock_timeout') as lock";
+  const baseline = (await pool.query(settings)).rows[0];
+  const local = await run(scope => scope.transaction(options, async tx => (await tx.execute(sql.raw(settings))).rows[0]));
+  assert.equal(local.statement, '1s');
+  assert.equal(local.lock, '100ms');
+  assert.deepEqual((await pool.query(settings)).rows[0], baseline);
+  for (const value of [0, -1, 1.5, Infinity, 2147483648, "1; SELECT 1"]) {
+    let invoked = false;
+    await assert.rejects(run(scope => scope.transaction({ ...options, statementTimeoutMs: value as number }, async () => { invoked = true; })), RangeError);
+    assert.equal(invoked, false);
+  }
+});
+
+void test('repeatable-read snapshot precedes the transaction callback', async () => {
+  const writer = new Client({ connectionString: url });
+  await writer.connect();
+  try {
+    const value = await run(scope => scope.transaction({ ...options, isolation: 'repeatable read', readOnly: true }, async tx => {
+      await writer.query("UPDATE primitives_probe SET value='changed' WHERE id=1");
+      return (await tx.execute(sql`select value from primitives_probe where id=1`)).rows[0].value;
+    }));
+    assert.equal(value, 'ok');
+    assert.equal((await writer.query('select value from primitives_probe where id=1')).rows[0].value, 'changed');
+  } finally {
+    await writer.query("UPDATE primitives_probe SET value='ok' WHERE id=1");
+    await writer.end();
+  }
+});
+
 void test('commit constraint failure remains a definite unique violation', async () => {
   await assert.rejects(run((scope) => scope.transaction(options, async (tx) => {
     await tx.execute(sql`insert into primitives_deferred values (1), (1)`);

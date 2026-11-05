@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { decodeJob } from "@quorem/execution";
+import { inputBundleInTransaction } from "../inputs/read.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 /** Each page and write rechecks the live attempt and wall clock after acquiring its locks. */
@@ -56,10 +57,15 @@ export function postgresVerificationSource(run: Run) {
         value?.bytes
           ? { size: value.size, hash: value.hash, bytes: value.bytes, channel: null }
           : null;
+      const job = decodeJob(row.job_data, row.sandbox_scope);
+      const bundle = includePages
+        ? await inputBundleInTransaction(tx, job, row.ordinal, false)
+        : undefined;
       return {
+        bundle,
         frozen: {
           challenge: id,
-          job: decodeJob(row.job_data, row.sandbox_scope),
+          job,
           ordinal: row.ordinal,
           frameHash: row.frame_hash,
           status: row.raw_status,
