@@ -1,0 +1,35 @@
+/** Private aggregate timings; arguments and results never enter telemetry. */
+export function judgingProfile() {
+  const started = performance.now();
+  const metrics: Record<string, { calls: number; totalMs: number; maxMs: number }> = {};
+  return {
+    wrap<T extends object>(owner: T, prefix: string): T {
+      return Object.fromEntries(
+        Object.entries(owner).map(([name, value]) => [
+          name,
+          typeof value !== "function"
+            ? value
+            : async (...args: unknown[]) => {
+                const start = performance.now();
+                try {
+                  return await Reflect.apply(value, owner, args);
+                } finally {
+                  const ms = Math.round(performance.now() - start);
+                  const metric = (metrics[`${prefix}.${name}`] ??= {
+                    calls: 0,
+                    totalMs: 0,
+                    maxMs: 0,
+                  });
+                  metric.calls++;
+                  metric.totalMs += ms;
+                  metric.maxMs = Math.max(metric.maxMs, ms);
+                }
+              },
+        ]),
+      ) as T;
+    },
+    header() {
+      return JSON.stringify({ elapsedMs: Math.round(performance.now() - started), metrics });
+    },
+  };
+}

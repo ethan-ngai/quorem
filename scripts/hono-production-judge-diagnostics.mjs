@@ -5,6 +5,14 @@ import {
   version,
 } from "../apps/api/src/runtime/composition/fixtures/staged-actor.ts";
 export async function diagnoseProductionJudge(database, keys, namespace, controls) {
+  const profileResponse = await fetch("https://runner-hono.quorem.app/internal/profile", {
+    method: "POST",
+    headers: { authorization: `Bearer ${keys.QUOREM_RUNNER_DRAIN_SECRET}` },
+    signal: AbortSignal.timeout(10000),
+    redirect: "error",
+  });
+  const profile = profileResponse.ok ? await profileResponse.json() : null;
+  await profileResponse.body?.cancel().catch(() => {});
   const { rows: jobs } = await database.query(`SELECT s.state,j.finished,j.attempts,
     j.attempt_id IS NOT NULL AS claimed,j.lease_until>clock_timestamp() AS live,
     i.case_count AS cases,count(*)::int AS count,
@@ -108,6 +116,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
     drain = { transport: "unavailable" };
   }
   return {
+    profile,
     release: controls.runner.release,
     generation: controls.runner.generation,
     active: controls.runner.status === "active" && !controls.cases.paused,

@@ -916,6 +916,25 @@ void test("runner pause persists across instances and rejects subsequent drains"
   assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
 });
 
+void test("runner timings require the drain credential and survive eviction", async () => {
+  const env = base();
+  const profile = {
+    elapsedMs: 42,
+    metrics: { "sandbox.runCase": { calls: 1, totalMs: 20, maxMs: 20 } },
+  };
+  const context = { storage: { get: async () => profile }, waitUntil() {} };
+  const request = (authorized) =>
+    new Request(`${env.DRAIN_ORIGIN}/internal/profile`, {
+      method: "POST",
+      headers: authorized ? { authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}` } : {},
+    });
+  assert.equal((await new RunnerService(context, env).fetch(request(false))).status, 401);
+  assert.deepEqual(
+    await (await new RunnerService(context, env).fetch(request(true))).json(),
+    profile,
+  );
+});
+
 void test("case diagnostic inventory is bounded and emits only safe metadata", async () => {
   const { caseDiagnostics } = await import("../../../scripts/hono-stage-role-diagnostics.mjs");
   let pages = 0;

@@ -136,10 +136,12 @@ export class RunnerService extends DurableObject {
       await this.ctx.storage.put("recovery-paused", true);
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
-    if (!["/internal/drain", "/internal/wake"].includes(path))
+    if (!["/internal/drain", "/internal/wake", "/internal/profile"].includes(path))
       return new Response(null, { status: 404 });
     if (request.headers.get("authorization") !== `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}`)
       return new Response(null, { status: 401 });
+    if (path === "/internal/profile")
+      return Response.json((await this.ctx.storage.get("last-profile")) ?? null);
     if (await this.ctx.storage.get("recovery-paused"))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     if (this.teardownFailure) return new Response(null, { status: 503 });
@@ -192,6 +194,12 @@ export class RunnerService extends DurableObject {
       ) {
         const value = await readControlJson(response.clone(), 2048).catch(() => null);
         if (value?.failure?.kind === "teardown") this.teardownFailure = true;
+      }
+      const profile = response.headers.get("x-quorem-judging-profile");
+      if (profile && profile.length <= 16384) {
+        const value = JSON.parse(profile);
+        if (value.metrics?.["sandbox.runCase"]?.calls > 0)
+          await this.ctx.storage.put("last-profile", value);
       }
       return response;
     } finally {
@@ -346,7 +354,7 @@ const ingress = {
       if (
         (directWake ||
           (url.origin === drain &&
-            ["/internal/drain", "/internal/pause"].includes(url.pathname))) &&
+            ["/internal/drain", "/internal/pause", "/internal/profile"].includes(url.pathname))) &&
         request.method === "POST" &&
         request.headers.get("authorization") === `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}`
       ) {
