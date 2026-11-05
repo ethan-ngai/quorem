@@ -13,9 +13,8 @@
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  transition: color var(--motion-fast) var(--motion-easing);
 }
-.navigation-group a:hover {
+.navigation-group a:is(:hover, :focus-visible) {
   color: var(--color-primary);
 }
 .navigation-play {
