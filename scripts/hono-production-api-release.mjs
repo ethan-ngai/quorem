@@ -10,6 +10,7 @@ import {
   judgingScopeCompatible,
 } from "./hono-judging-release.mjs";
 import { configureRestrictedRole } from "./hono-stage-database-role.mjs";
+import { JUDGING_DEFAULTS } from "../packages/execution/src/scheduling.ts";
 import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
@@ -92,6 +93,9 @@ async function release(env) {
       .map(({ name, text }) => [name, text]),
   );
   if (vars.APP_ENV !== "production") throw new Error("Worker is not configured for production");
+  // Coordinated topology releases adopt the tested case-lane policy.
+  if (env.HONO_JUDGING_SCOPE_UPDATE === "true" && vars.JUDGING_CASE_LANES !== undefined)
+    vars.JUDGING_CASE_LANES = String(JUDGING_DEFAULTS.caseLanes);
   const api = outputs(env, "hono-stage", "hono-production-api");
   const services = outputs(env, "hono-services", "hono-production-services");
   const temporary = await mkdtemp(join(tmpdir(), "quorem-api-release-"));

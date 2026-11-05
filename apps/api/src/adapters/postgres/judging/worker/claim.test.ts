@@ -174,6 +174,12 @@ describe.skipIf(!url)("runner claim fences", () => {
       reader = postgresInputReader(run),
       manifest = await reader.inputManifest(live!),
       ref = await reader.inputCaseRef(live!, 0);
+    const window = await reader.inputWindow!(live!, 0, 1);
+    expect(window[0].ref).toEqual(ref);
+    expect(window[0].page).toEqual(await reader.inputPage(live!, "case", 0, 0));
+    await expect(reader.inputWindow!({ ...live!, sandboxScope: "wrong" }, 0, 1)).rejects.toThrow();
+    await expect(reader.inputWindow!(live!, 0, 2)).rejects.toThrow();
+    await expect(reader.inputWindow!(live!, 0, 21)).rejects.toThrow("Invalid input window");
     const provenance = await manifestCheckpointProvenance(
       live!,
       manifest,

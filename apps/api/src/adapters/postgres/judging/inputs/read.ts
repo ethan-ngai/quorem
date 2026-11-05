@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
+  CASE_LANES,
   encodeJob,
   type ExecutionInputReader,
   type InputManifest,
@@ -135,6 +136,38 @@ export function postgresInputReader(
   run: Run,
 ): ExecutionInputReader & Required<Pick<ExecutionInputReader, "inputBundle">> {
   return {
+    async inputWindow(job, start, count) {
+      if (
+        !Number.isInteger(start) ||
+        start < 0 ||
+        !Number.isInteger(count) ||
+        count < 1 ||
+        count > CASE_LANES ||
+        start + count > 2147483647
+      )
+        throw new Error("Invalid input window");
+      return run((scope) =>
+        scope.transaction(readOptions, async (tx) => {
+          const { rows } = await tx.execute<{
+            ordinal: number;
+            hash: string;
+            size: number;
+            channel: "public" | "private" | "sample";
+            bytes: Uint8Array | null;
+          }>(sql`SELECT c.ordinal,encode(b.hash,'hex') AS hash,octet_length(b.data)::int AS size,c.channel,
+          CASE WHEN octet_length(b.data)<=65536 THEN b.data END AS bytes
+          ${base} JOIN runner_job_input_cases c ON c.job_id=i.job_id
+          JOIN runner_input_blobs b ON b.hash=c.blob_hash
+          WHERE ${authorized(job)} AND c.ordinal>=${start} AND c.ordinal<${start + count} ORDER BY c.ordinal`);
+          if (rows.length !== count || rows.some((row, index) => row.ordinal !== start + index))
+            throw new Error("Runner input unavailable");
+          return rows.map(({ ordinal: _ordinal, bytes, ...ref }) => ({
+            ref,
+            ...(bytes ? { page: { ...ref, bytes } } : {}),
+          }));
+        }),
+      );
+    },
     inputBundle(job, ordinal, includeSource) {
       return run((scope) =>
         scope.transaction(readOptions, (tx) =>
