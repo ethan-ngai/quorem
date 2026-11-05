@@ -119,13 +119,14 @@ export function verificationFetch(options: VerificationOptions) {
     const url = new URL(request.url);
     if (request.method !== "POST" || url.pathname !== "/internal/results/verify" || url.search)
       return new Response(null, { status: 404 });
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(options.timeoutMs)]);
+    const cancelled = new AbortController();
+    const signal = AbortSignal.any([
+      request.signal,
+      cancelled.signal,
+      AbortSignal.timeout(options.timeoutMs),
+    ]);
     const reader = request.body?.getReader();
     if (!reader) return new Response(null, { status: 503 });
-    let abort!: () => void;
-    const expired = new Promise<never>((_, reject) => {
-      abort = () => reject(signal.reason);
-    });
     const cancel = () => void reader.cancel().catch(() => {});
     signal.addEventListener("abort", cancel, { once: true });
     try {
@@ -146,22 +147,45 @@ export function verificationFetch(options: VerificationOptions) {
         new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(parts)),
       );
       signal.throwIfAborted();
-      signal.addEventListener("abort", abort, { once: true });
-      const result = await Promise.race([
-        options.verify(
-          challenge,
-          signal,
-          request.headers.get("x-quorem-verification-fields") === "inline",
-        ),
-        expired,
-      ]);
-      signal.throwIfAborted();
-      return Response.json(verificationJSON(result), { headers: { "cache-control": "no-store" } });
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let abort!: () => void;
+          const expired = new Promise<never>((_, reject) => {
+            abort = () => reject(signal.reason);
+          });
+          signal.addEventListener("abort", abort, { once: true });
+          // JSON whitespace releases the pending-header slot before independent verification.
+          controller.enqueue(new TextEncoder().encode(" "));
+          try {
+            signal.throwIfAborted();
+            const result = await Promise.race([
+              options.verify(
+                challenge,
+                signal,
+                request.headers.get("x-quorem-verification-fields") === "inline",
+              ),
+              expired,
+            ]);
+            signal.throwIfAborted();
+            controller.enqueue(new TextEncoder().encode(JSON.stringify(verificationJSON(result))));
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          } finally {
+            signal.removeEventListener("abort", abort);
+          }
+        },
+        cancel(reason) {
+          cancelled.abort(reason);
+        },
+      });
+      return new Response(body, {
+        headers: { "content-type": "application/json", "cache-control": "no-store" },
+      });
     } catch {
       return new Response(null, { status: 503 });
     } finally {
       signal.removeEventListener("abort", cancel);
-      signal.removeEventListener("abort", abort);
       reader.releaseLock();
     }
   };
