@@ -10,6 +10,7 @@ import { captureProductionSession } from "./hono-production-verify.mjs";
 
 export async function benchmarkProductionPython(env, send = fetch, delay = sleep) {
   const site = "https://quorem.app";
+  const colos = new Set();
   const call = async (path, status, headers, body) => {
     const result = await send(site + path, {
       method: body === undefined ? "GET" : "POST",
@@ -18,6 +19,8 @@ export async function benchmarkProductionPython(env, send = fetch, delay = sleep
       redirect: "error",
       signal: AbortSignal.timeout(10000),
     });
+    const colo = result.headers.get("cf-ray")?.split("-").at(-1);
+    if (colo && /^[A-Z]{3}$/.test(colo)) colos.add(colo);
     if (result.status !== status) {
       await result.body?.cancel();
       const error = new Error("Unexpected benchmark response");
@@ -68,5 +71,11 @@ export async function benchmarkProductionPython(env, send = fetch, delay = sleep
     if (index < 4) await delay(Math.max(0, 6500 - (performance.now() - start)));
   }
   const sorted = samples.map((sample) => sample.totalMs).sort((a, b) => a - b);
-  return { benchmark: "python-single-case", samples, p50Ms: sorted[2], maxMs: sorted[4] };
+  return {
+    benchmark: "python-single-case",
+    samples,
+    p50Ms: sorted[2],
+    maxMs: sorted[4],
+    colos: [...colos],
+  };
 }
