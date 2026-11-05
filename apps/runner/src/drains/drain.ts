@@ -76,8 +76,9 @@ export function drainer(options: {
         contentionMs = 200,
         retryAt = 0;
       const workers = new Set<Promise<void>>();
-      const start = () => {
+      const start = (available = options.slots) => {
         while (
+          available-- > 0 &&
           !failure &&
           !live.aborted &&
           running < options.slots &&
@@ -173,11 +174,12 @@ export function drainer(options: {
               if (wake !== beforeWake) {
                 contentionMs = 200;
                 retryAt = 0;
-                start();
+                // Poll ticks are not queued work; idle slots must not flood the claim owner.
+                if (state.queued > 0) start(state.queued);
               } else if (deadline !== null && deadlineDelay <= delay) {
                 retryAt = performance.now() + contentionMs;
                 contentionMs = Math.min(5000, contentionMs * 2);
-                start();
+                start(state.queued || 1);
               }
             }
             await notifications;
