@@ -1,7 +1,7 @@
 /** @file constraints.ts @description Structured constraint metadata validation. @module questions */
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
-import { validQuestionType, validateInputConfig } from "./signature.ts";
+import { validQuestionType } from "./signature.ts";
 
 function targetType(sig: Signature, target: ConstraintTarget): "scalar" | "sequence" | "string" {
   const type = sig.parameters
@@ -96,13 +96,12 @@ export function comparisonChoices(signature: Signature | undefined, rule: Compar
   };
 }
 
-/** Validate constraint projections and bounds against a signature. */
+/** Bind constraints to value types; signature validation owns editor preset compatibility. */
 export function validateConstraints(sig: Signature, constraints: readonly Constraint[]): void {
   const names = new Set<string>();
   for (const p of sig.parameters) {
     if (!p.name || names.has(p.name) || !validQuestionType(p.type))
       throw new Error(`invalid signature parameter ${JSON.stringify(p.name)}`);
-    validateInputConfig(p.type, p.input);
     names.add(p.name);
   }
   if (sig.returnType !== "void" && !validQuestionType(sig.returnType))
