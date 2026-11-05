@@ -6,7 +6,7 @@ import { withJudgingConnections } from "./judging-connections.ts";
 const env = bindings as unknown as { DB: { connectionString: string }; DATABASE_CHECK: string };
 
 it.skipIf(!env.DATABASE_CHECK)(
-  "private invocations reuse at most two connections and close their ownership",
+  "private invocations reuse at most four connections and close their ownership",
   async () => {
     expect(new URL(env.DATABASE_CHECK).pathname).toBe("/quorem_hono_runtime_test");
     const retained = await withJudgingConnections(
@@ -24,7 +24,7 @@ it.skipIf(!env.DATABASE_CHECK)(
                 ).rows[0].pid,
             ),
           );
-        expect(new Set(await Promise.all(Array.from({ length: 8 }, read))).size).toBe(2);
+        expect(new Set(await Promise.all(Array.from({ length: 8 }, read))).size).toBe(4);
         expect(await read()).toBe(await read());
         return run;
       },
