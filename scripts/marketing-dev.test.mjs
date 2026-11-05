@@ -1,11 +1,67 @@
 /** @file marketing-dev.test.mjs @description Verify Astro and workspace dev namespaces agree without changing production asset paths. @module tooling */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { fileURLToPath } from "node:url";
+import { createServer as createViteServer } from "vite-plus";
 import astro from "../apps/marketing/astro.config.mjs";
 import web from "../apps/web/vite.config.ts";
 import { marketingDevBase, marketingDevHtml } from "./marketing-dev.mjs";
 
 const integration = astro.integrations.find((item) => item.name === "quorem-marketing-dev");
+
+await test("Hono proxy shares auth origin and streams SSE before the backend closes", async () => {
+  const backend = createServer((req, res) => {
+    if (req.url === "/v1/events") {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.write("data: ready\n\n");
+      return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ path: req.url }));
+  });
+  backend.listen(0, "127.0.0.1");
+  await once(backend, "listening");
+  const previousApi = process.env.QUOREM_API_DEV_ORIGIN;
+  const previousAuth = process.env.QUOREM_AUTH_DEV_ORIGIN;
+  let vite;
+  const stream = new AbortController();
+  try {
+    process.env.QUOREM_API_DEV_ORIGIN = `http://127.0.0.1:${backend.address().port}`;
+    delete process.env.QUOREM_AUTH_DEV_ORIGIN;
+    // A fresh config import exercises the default auth target with a custom API origin.
+    const { default: config } = await import("../apps/web/vite.config.ts?proxy-test");
+    vite = await createViteServer({
+      ...config,
+      configFile: false,
+      root: fileURLToPath(new URL("../apps/web", import.meta.url)),
+      server: { ...config.server, port: 0 },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+    await vite.listen();
+    const origin = `http://127.0.0.1:${vite.httpServer.address().port}`;
+    const auth = await fetch(`${origin}/api/auth/get-session?refresh=1`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(auth.status, 200);
+    assert.deepEqual(await auth.json(), { path: "/api/auth/get-session?refresh=1" });
+    const response = await fetch(`${origin}/v1/events`, {
+      signal: AbortSignal.any([stream.signal, AbortSignal.timeout(5000)]),
+    });
+    assert.equal(response.headers.get("content-type"), "text/event-stream");
+    const { value } = await response.body.getReader().read();
+    assert.equal(new TextDecoder().decode(value), "data: ready\n\n");
+  } finally {
+    if (previousApi === undefined) delete process.env.QUOREM_API_DEV_ORIGIN;
+    else process.env.QUOREM_API_DEV_ORIGIN = previousApi;
+    if (previousAuth === undefined) delete process.env.QUOREM_AUTH_DEV_ORIGIN;
+    else process.env.QUOREM_AUTH_DEV_ORIGIN = previousAuth;
+    stream.abort();
+    backend.closeAllConnections();
+    await Promise.all([vite?.close(), new Promise((resolve) => backend.close(resolve))]);
+  }
+});
 
 await test("HTML rewriting namespaces islands and normalizes Astro script URLs without changing app links", () => {
   const html =

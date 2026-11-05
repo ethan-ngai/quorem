@@ -19,11 +19,11 @@
   },
   "dependencies": {
     "openapi-fetch": "0.17.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "ajv": "8.18.0",
-    "ajv-formats": "3.0.1",
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:",
     "openapi-typescript": "7.13.0"
   }
 }

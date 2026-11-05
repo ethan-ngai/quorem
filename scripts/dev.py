@@ -145,7 +145,7 @@ try:
         ["vp", "exec", "node", "--input-type=module", "-e", "import {localSqsFixture} from './apps/api/src/runtime/composition/fixtures/local-sqs.ts'; localSqsFixture().server.listen(Number(process.argv[1]),process.argv[2])", str(queue_port), queue_endpoint.hostname],
         ["vp", "-C", "apps/runner", "run", "verifier"],
         ["vp", "-C", "apps/marketing", "run", "dev", "--port", str(urlparse(ENV["QUOREM_MARKETING_DEV_ORIGIN"]).port or 4321)],
-        ["vp", "-C", "apps/api", "run", "start"],
+        ["vp", "-C", "apps/api", "run", "dev"],
         ["vp", "-C", "apps/runner", "run", "runner"],
         *language_services,
         ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],

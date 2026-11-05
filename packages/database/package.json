@@ -16,15 +16,15 @@
     "test:workers": "node test/worker-check.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "0.45.4",
-    "pg": "8.16.3"
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
   },
   "devDependencies": {
-    "@better-auth/passkey": "1.7.7",
-    "@types/node": "^24.0.0",
-    "@types/pg": "^8.15.0",
-    "better-auth": "1.7.7",
+    "@better-auth/passkey": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-auth": "catalog:",
     "drizzle-kit": "0.31.11",
-    "typescript": "6.0.3"
+    "typescript": "catalog:"
   }
 }
