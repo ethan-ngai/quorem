@@ -312,3 +312,27 @@ void test("attempt cleanup leaves connection headroom and still visits every lan
   assert.equal(visited, CASE_LANES - 1);
   assert.equal(peak, 3);
 });
+
+void test("attempt cleanup fans out bodyless commands from a streamed DELETE request", async () => {
+  const f = fixture();
+  let visited = 0;
+  const sandbox = newSandbox(f.context, {
+    CASES: {
+      getByName: () => ({
+        fetch: async (command) => {
+          assert.equal(command.body, null);
+          visited++;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    },
+  });
+  const incoming = new Request("https://case/attempt", {
+    method: "DELETE",
+    body: "",
+    duplex: "half",
+  });
+  assert.notEqual(incoming.body, null);
+  assert.equal((await sandbox.fetch(incoming)).status, 204);
+  assert.equal(visited, CASE_LANES - 1);
+});
