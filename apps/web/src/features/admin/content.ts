@@ -1,5 +1,6 @@
 /** @file content.ts @description Initial draft and pinned language configuration. @module admin */
 import type { QuestionContent } from "@quorem/contracts";
+import { blankSolution } from "@quorem/questions";
 export const revisions = {
   python: ["python-3.12-v1", "quorem-harness-v2"],
   java: ["java-21.0.9-v1", "quorem-java-v1"],
@@ -8,6 +9,22 @@ export const revisions = {
   postgresql: ["postgresql-17.6-v1", "quorem-postgresql-v2"],
 } as const;
 export type Language = keyof typeof revisions;
+/** Starter/runtime registration is independent of editorial availability. */
+export function languageImplementation(
+  language: Language,
+): QuestionContent["implementations"][number] {
+  return {
+    language,
+    starterSource: "",
+    runtimeRevision: revisions[language][0],
+    harnessRevision: revisions[language][1],
+  };
+}
+export function questionImplementations(sql = false): QuestionContent["implementations"] {
+  return (Object.keys(revisions) as Language[])
+    .filter((language) => (sql ? language === "postgresql" : language !== "postgresql"))
+    .map(languageImplementation);
+}
 /** @returns An incomplete draft; publication performs authoritative validation. */
 export function blankQuestion(): QuestionContent {
   return {
@@ -33,15 +50,8 @@ export function blankQuestion(): QuestionContent {
     },
     hiddenCases: [],
     attribution: "Original Quorem question.",
-    implementations: [
-      {
-        language: "python",
-        starterSource: "",
-        runtimeRevision: revisions.python[0],
-        harnessRevision: revisions.python[1],
-        referenceSource: "",
-      },
-    ],
+    implementations: questionImplementations(),
+    canonicalSolution: blankSolution(),
     solutions: [],
   };
 }

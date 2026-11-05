@@ -41,3 +41,4 @@ export {
   readAllowedObjectSpans,
 } from "./streaming-json.ts";
 export type { JsonSpan as StreamingJsonSpan } from "./streaming-json.ts";
+export { blankSolution, questionEditorials, selectEditorial, hasEditorial } from "./editorial.ts";

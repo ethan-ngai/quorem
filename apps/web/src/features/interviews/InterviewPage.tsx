@@ -1,3 +1,4 @@
+import { hasEditorial } from "@quorem/questions";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
@@ -505,9 +506,10 @@ function InterviewPad({
                         onChange={(monitoring) => void mutate("monitoring", monitoring)}
                       />
                       <QuestionHintsControls
-                        complexityAvailable={
-                          question.problem.complexityLanguages?.includes(language) ?? false
-                        }
+                        complexityAvailable={hasEditorial(
+                          question.problem.complexityLanguages,
+                          language,
+                        )}
                         value={snapshot.hints ?? {}}
                         disabled={busy}
                         onChange={(hints) => void mutate("hints", hints)}
@@ -591,7 +593,7 @@ function InterviewPad({
             allowTopics={snapshot.hints?.topics !== false}
           >
             {snapshot.hints?.complexity === true &&
-              question.problem.complexityLanguages?.includes(language) && (
+              hasEditorial(question.problem.complexityLanguages, language) && (
                 <EditorialPanel
                   theme={theme.theme}
                   colorScheme={preferences.editorSchemes[theme.theme]}
@@ -607,7 +609,7 @@ function InterviewPad({
             allowTopics={snapshot.hints?.topics !== false}
           >
             {snapshot.hints?.complexity === true &&
-              question.problem.complexityLanguages?.includes(language) && (
+              hasEditorial(question.problem.complexityLanguages, language) && (
                 <EditorialPanel
                   theme={theme.theme}
                   colorScheme={preferences.editorSchemes[theme.theme]}

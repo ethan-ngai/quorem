@@ -15,7 +15,7 @@ class QualityTest(unittest.TestCase):
         self.assertFalse(value_satisfies(rules[3], dict(args, k=10)))
 
     def test_unparsed_constraints_and_duplicates_are_never_silently_approved(self):
-        content = {'problem': {'leetcodeId': 1, 'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [{'args': [[2]], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '`1 <= nums.length <= 3`'}, {'kind': 'prose', 'text': 'All elements are distinct.'}]}, 'hiddenCases': [{'args': [[2]], 'expected': 1}, {'args': [[]], 'expected': 0}, {'args': [[3]], 'expected': 2}], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'leetcodeId': 1, 'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [{'args': [[2]], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '`1 <= nums.length <= 3`'}, {'kind': 'prose', 'text': 'All elements are distinct.'}]}, 'hiddenCases': [{'args': [[2]], 'expected': 1}, {'args': [[]], 'expected': 0}, {'args': [[3]], 'expected': 2}], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         report = assess(content)
         self.assertEqual(len(report['cases']), 1)
         self.assertEqual(len(report['rejected']), 2)
@@ -33,7 +33,7 @@ class QualityTest(unittest.TestCase):
         self.assertTrue(value_satisfies(parse_bound('cols == pizza[i].length', ['pizza']), {'pizza': ['A..', 'AAA']}))
 
     def test_conflicting_expected_outputs_require_review(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'n'}]}, 'examples': [{'args': [1], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '0 <= n <= 9'}]}, 'hiddenCases': [{'args': [1], 'expected': 2}], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'n'}]}, 'examples': [{'args': [1], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '0 <= n <= 9'}]}, 'hiddenCases': [{'args': [1], 'expected': 2}], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         report = assess(content)
         self.assertEqual(report['rejected'][0]['reason'], 'conflicting expected output')
         self.assertIn('conflicting expected output', report['unsupported'])
@@ -68,7 +68,7 @@ class QualityTest(unittest.TestCase):
         self.assertIsNone(parse_extra('words[i].length <= 3', ['words', 'i']))
 
     def test_square_shape_with_derived_size(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'grid'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == grid.length == grid[i].length'}]}, 'hiddenCases': [{'args': [[[1, 2], [3, 4]]], 'expected': 0}, {'args': [[[1, 2]]], 'expected': 0}], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'grid'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == grid.length == grid[i].length'}]}, 'hiddenCases': [{'args': [[[1, 2], [3, 4]]], 'expected': 0}, {'args': [[[1, 2]]], 'expected': 0}], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         result = assess(content)
         self.assertEqual(len(result['cases']), 1)
         self.assertEqual(len(result['rejected']), 1)
@@ -104,14 +104,14 @@ class QualityTest(unittest.TestCase):
         self.assertIsNone(parse_extra('The largest element in nums is unique.', names))
 
     def test_explicit_length_alias_is_bound_from_input(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums.length'}, {'kind': 'prose', 'text': '1 <= n <= 3'}]}, 'hiddenCases': [{'args': [[1, 2]], 'expected': 1}, {'args': [[1, 2, 3, 4]], 'expected': 2}], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'nums'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums.length'}, {'kind': 'prose', 'text': '1 <= n <= 3'}]}, 'hiddenCases': [{'args': [[1, 2]], 'expected': 1}, {'args': [[1, 2, 3, 4]], 'expected': 2}], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         report = assess(content)
         self.assertEqual(len(report['cases']), 1)
         self.assertEqual(report['unsupported'], [])
         self.assertEqual(report['rejected'][0]['reason'], 'violates parsed constraint')
 
     def test_element_bounds_and_chained_length_aliases(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'nums1'}, {'name': 'nums2'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums1.length == nums2.length'}, {'kind': 'prose', 'text': '1 <= nums1[i] <= n'}]}, 'hiddenCases': [{'args': [[1, 2], [3, 4]], 'expected': 1}, {'args': [[1, 3], [3, 4]], 'expected': 2}, {'args': [[1, 2], [3]], 'expected': 3}], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'nums1'}, {'name': 'nums2'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'n == nums1.length == nums2.length'}, {'kind': 'prose', 'text': '1 <= nums1[i] <= n'}]}, 'hiddenCases': [{'args': [[1, 2], [3, 4]], 'expected': 1}, {'args': [[1, 3], [3, 4]], 'expected': 2}, {'args': [[1, 2], [3]], 'expected': 3}], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         report = assess(content)
         self.assertEqual(len(report['cases']), 1)
         self.assertEqual(len(report['rejected']), 2)
@@ -126,7 +126,7 @@ class QualityTest(unittest.TestCase):
         self.assertFalse(value_satisfies(rule, {'hour': float('inf')}))
 
     def test_public_example_conflict_blocks_screen(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'x'}]}, 'examples': [{'args': [4], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '0 <= x < 4'}]}, 'hiddenCases': [], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'x'}]}, 'examples': [{'args': [4], 'expected': 1}], 'constraints': [{'kind': 'prose', 'text': '0 <= x < 4'}]}, 'hiddenCases': [], 'canonicalSolution': {'language': 'python', 'source': 'pass'}, 'implementations': []}
         report = assess(content)
         self.assertEqual(report['invalid_examples'][0]['index'], 0)
         self.assertIn('public example violates parsed constraint', report['unsupported'])

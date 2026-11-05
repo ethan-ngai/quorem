@@ -1,4 +1,4 @@
-/** @file seed-fingerprint.ts @description Go-compatible seed operation lock identity. @module cli */
+/** @file seed-fingerprint.ts @description Canonical seed operation lock identity. @module cli */
 import { createHash } from "node:crypto";
 import { markRawCases } from "../adapters/postgres/problems/case-literals.ts";
 import {
@@ -197,8 +197,8 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
     starterSource: "",
     runtimeRevision: str(i.runtimeRevision),
     harnessRevision: str(i.harnessRevision),
-    referenceSource: str(i.referenceSource),
   }));
+  out.canonicalSolution = c.canonicalSolution!;
   out.solutions = sorted(c.solutions).map((i) => ({
     language: str(i.language),
     source: str(i.source),

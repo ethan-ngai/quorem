@@ -1433,19 +1433,9 @@
         },
         "harnessRevision": {
           "type": "string"
-        },
-        "referenceSource": {
-          "type": "string",
-          "maxLength": 65536
         }
       },
-      "required": [
-        "language",
-        "starterSource",
-        "runtimeRevision",
-        "harnessRevision",
-        "referenceSource"
-      ]
+      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"]
     },
     "QuestionProblem": {
       "type": "object",
@@ -1636,9 +1626,20 @@
               "$ref": "#/$defs/CustomCase"
             }
           }
+        },
+        "canonicalSolution": {
+          "$ref": "#/$defs/EditorialSolution",
+          "description": "Canonical reference and default editorial. Python for coding, PostgreSQL for SQL."
         }
       },
-      "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
+      "required": [
+        "problem",
+        "hiddenCases",
+        "attribution",
+        "implementations",
+        "solutions",
+        "canonicalSolution"
+      ]
     },
     "QuestionDraft": {
       "type": "object",

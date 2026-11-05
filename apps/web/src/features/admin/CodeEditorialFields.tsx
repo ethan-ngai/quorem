@@ -1,9 +1,9 @@
-/** @file CodeEditorialFields.tsx @description Language implementations and optional public editorials. @module admin */
+/** @file CodeEditorialFields.tsx @description One canonical solution and optional language editorials. @module admin */
 import { useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
-import { Clock3, FileText, LockKeyhole, Plus, Trash2 } from "lucide-react";
+import { blankSolution } from "@quorem/questions";
+import { Clock3, Plus, Trash2 } from "lucide-react";
 import { SelectField } from "../../ui/SelectField";
-import { SegmentedControl } from "../../ui/SegmentedControl";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { Tooltip } from "../../ui/Tooltip";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -11,10 +11,9 @@ import { MarkdownField } from "../../ui/MarkdownField";
 import { TextInput } from "../../ui/TextControl";
 import { Field } from "./AuthoringFields";
 import { AuthoringCodeField } from "./AuthoringInputs";
-import { initialOdysseySource } from "../odyssey/methodStubs";
 import { inlineStatement } from "../editor/components/StatementMarkdown";
 import { complexityMath } from "../editor/complexityMarkup";
-import { revisions, type Language } from "./content";
+import { revisions, languageImplementation, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
 const languages = Object.keys(revisions) as Language[];
@@ -32,87 +31,60 @@ export function CodeEditorialFields({
   disabled: boolean;
   onChange: (content: QuestionContent) => void;
 }) {
-  const problem = content.problem;
-  const [codeSection, setCodeSection] = useState<"reference" | "editorial">("editorial");
-  const [removal, setRemoval] = useState<"language" | "editorial">();
+  const [removal, setRemoval] = useState(false);
   const removalTrigger = useRef<HTMLButtonElement>(null);
   const addContent = useRef<HTMLButtonElement>(null);
-  function setImplementation(
-    index: number,
-    patch: Partial<QuestionContent["implementations"][number]>,
-  ) {
-    onChange({
-      ...content,
-      implementations: content.implementations.map((item, position) =>
-        position === index ? { ...item, ...patch } : item,
-      ),
-    });
+  const implementation = content.implementations.find((item) => item.language === language);
+  const canonical = language === content.canonicalSolution.language;
+  const solution = canonical
+    ? content.canonicalSolution
+    : content.solutions.find((item) => item.language === language);
+  function setSolution(patch: Partial<QuestionContent["canonicalSolution"]>) {
+    const next = { ...blankSolution(language), ...solution, ...patch };
+    onChange(
+      canonical
+        ? { ...content, canonicalSolution: next }
+        : {
+            ...content,
+            implementations: content.implementations.some((item) => item.language === language)
+              ? content.implementations
+              : [...content.implementations, languageImplementation(language)],
+            solutions: [...content.solutions.filter((item) => item.language !== language), next],
+          },
+    );
   }
-  function setSolution(language: Language, patch: Partial<QuestionContent["solutions"][number]>) {
-    const current = content.solutions.find((item) => item.language === language);
-    const next = {
-      language,
-      source: "",
-      explanationMarkdown: "",
-      timeComplexity: "",
-      spaceComplexity: "",
-      complexityNotes: "",
-      ...current,
-      ...patch,
-    };
-    onChange({
-      ...content,
-      solutions: [...content.solutions.filter((item) => item.language !== language), next],
-    });
-  }
-
-  const index = content.implementations.findIndex((item) => item.language === language);
-  const implementation = content.implementations[index];
-  const solution = content.solutions.find((item) => item.language === language);
   return (
     <>
       <SessionDialog
-        open={!!removal}
-        returnFocus={() => {
-          const target = removalTrigger.current?.isConnected
+        open={removal}
+        returnFocus={() =>
+          (removalTrigger.current?.isConnected
             ? removalTrigger.current
-            : addContent.current;
-          target?.focus({ preventScroll: true });
-        }}
-        onOpenChange={(open) => {
-          if (!open) setRemoval(undefined);
-        }}
-        title={removal === "language" ? `Remove ${languageLabels[language]}?` : "Remove editorial?"}
-        description={
-          removal === "language"
-            ? "Discards its starter, reference and editorial."
-            : "Discards its code, explanation and complexity."
+            : addContent.current
+          )?.focus({ preventScroll: true })
         }
+        onOpenChange={setRemoval}
+        title={`Remove ${languageLabels[language]} editorial?`}
+        description="Discards its code, explanation and complexity."
       >
         <footer className="competitive-dialog-actions">
           <button
             type="button"
             className="button button-secondary"
-            onClick={() => setRemoval(undefined)}
+            onClick={() => setRemoval(false)}
           >
             Cancel
           </button>
           <button
             type="button"
             className="button button-danger"
+            disabled={disabled}
             onClick={() => {
               onChange({
                 ...content,
-                ...(removal === "language"
-                  ? {
-                      implementations: content.implementations.filter(
-                        (item) => item.language !== language,
-                      ),
-                    }
-                  : {}),
                 solutions: content.solutions.filter((item) => item.language !== language),
               });
-              setRemoval(undefined);
+              setRemoval(false);
             }}
           >
             Remove
@@ -120,44 +92,10 @@ export function CodeEditorialFields({
         </footer>
       </SessionDialog>
       <div className="admin-code-toolbar">
-        <div className="authoring-content-actions">
-          <SegmentedControl
-            label="Code content"
-            value={codeSection}
-            onChange={setCodeSection}
-            options={[
-              {
-                value: "reference",
-                label: "Judge reference",
-                icon: <LockKeyhole size={14} aria-hidden="true" />,
-              },
-              {
-                value: "editorial",
-                label: "Public editorial",
-                icon: <FileText size={14} aria-hidden="true" />,
-              },
-            ]}
-          />
-          {codeSection === "editorial" && solution && (
-            <Tooltip content="Remove editorial">
-              <button
-                type="button"
-                className="icon-button destructive-icon"
-                aria-label="Remove editorial"
-                disabled={disabled}
-                onClick={(event) => {
-                  removalTrigger.current = event.currentTarget;
-                  setRemoval("editorial");
-                }}
-              >
-                <Trash2 size={14} aria-hidden="true" />
-              </button>
-            </Tooltip>
-          )}
-        </div>
+        <span>{canonical ? "Canonical solution · default editorial" : "Additional editorial"}</span>
         <div className="authoring-language-actions">
           <SelectField
-            label={problem.sql ? "SQL dialect" : "Question language"}
+            label={content.problem.sql ? "SQL dialect" : "Editorial language"}
             value={language}
             disabled={disabled}
             onChange={(value) => {
@@ -165,145 +103,112 @@ export function CodeEditorialFields({
               if (next) onLanguageChange(next);
             }}
             options={languages
-              .filter((value) => (problem.sql ? value === "postgresql" : value !== "postgresql"))
+              .filter((value) =>
+                content.problem.sql ? value === "postgresql" : value !== "postgresql",
+              )
               .map((value) => ({
                 value,
                 label: languageLabels[value],
                 leading: <LanguageLogo language={value} />,
               }))}
           />
-          {language !== "python" &&
-            language !== "postgresql" &&
-            content.implementations.some((item) => item.language === language) && (
-              <Tooltip content={`Remove ${languageLabels[language]}`}>
-                <button
-                  type="button"
-                  className="icon-button destructive-icon"
-                  aria-label={`Remove ${languageLabels[language]}`}
-                  disabled={disabled}
-                  onClick={(event) => {
-                    removalTrigger.current = event.currentTarget;
-                    setRemoval("language");
-                  }}
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
-              </Tooltip>
-            )}
+          {!implementation && (
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={disabled}
+              onClick={() =>
+                onChange({
+                  ...content,
+                  implementations: [...content.implementations, languageImplementation(language)],
+                })
+              }
+            >
+              <Plus size={14} aria-hidden="true" /> Enable {languageLabels[language]} submissions
+            </button>
+          )}
+          {!canonical && solution && (
+            <Tooltip content="Remove editorial">
+              <button
+                ref={removalTrigger}
+                type="button"
+                className="icon-button destructive-icon"
+                aria-label="Remove editorial"
+                disabled={disabled}
+                onClick={() => setRemoval(true)}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          )}
         </div>
       </div>
       <div key={language}>
-        {!implementation && (
+        {!solution ? (
           <div className="authoring-content-action">
             <button
               type="button"
               className="button button-secondary"
               ref={addContent}
               disabled={disabled}
-              onClick={() =>
-                onChange({
-                  ...content,
-                  implementations: [
-                    ...content.implementations,
-                    {
-                      language,
-                      starterSource: problem.odyssey
-                        ? initialOdysseySource(problem.odyssey.levels[0]!.methods, language)
-                        : "",
-                      runtimeRevision: revisions[language][0],
-                      harnessRevision: revisions[language][1],
-                      referenceSource: "",
-                    },
-                  ],
-                })
-              }
+              onClick={() => setSolution({})}
             >
-              <Plus size={14} aria-hidden="true" /> Add {languageLabels[language]}
+              <Plus size={14} aria-hidden="true" /> Add {languageLabels[language]} editorial
             </button>
+            <p>
+              The canonical {languageLabels[content.canonicalSolution.language]} solution is shown
+              when this language has no editorial.
+            </p>
           </div>
-        )}
-        {implementation && (
-          <>
-            <div hidden={codeSection !== "reference"}>
-              <AuthoringCodeField
-                label={`${solutionLanguageLabel(language)} private judge reference`}
-                hideLabel
-                language={language}
-                source={implementation.referenceSource}
-                disabled={disabled}
-                onChange={(source) => setImplementation(index, { referenceSource: source })}
-              />
-            </div>
-            <div hidden={codeSection !== "editorial"}>
-              {!solution && (
-                <div className="authoring-content-action">
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    ref={addContent}
-                    disabled={disabled}
-                    onClick={() => setSolution(language, {})}
-                  >
-                    <Plus size={14} aria-hidden="true" /> Add editorial
-                  </button>
-                </div>
-              )}
-              {solution && (
-                <div>
-                  <AuthoringCodeField
-                    label={`${solutionLanguageLabel(language)} editorial code`}
-                    hideLabel
-                    language={language}
-                    source={solution.source}
-                    disabled={disabled}
-                    onChange={(source) => setSolution(language, { source })}
-                  />
-                  <MarkdownField
-                    label="Explanation"
-                    value={solution.explanationMarkdown}
-                    onChange={(explanationMarkdown) =>
-                      setSolution(language, { explanationMarkdown })
-                    }
-                  />
-                  <section className="admin-editorial-complexity">
-                    <h3 className="admin-editorial-heading">
-                      <Clock3 size={15} /> Complexity
-                    </h3>
-                    <div className="admin-field-pair">
-                      {(
-                        [
-                          ["timeComplexity", "Time"],
-                          ["spaceComplexity", "Auxiliary space"],
-                        ] as const
-                      ).map(([field, label]) => (
-                        <Field label={label} key={field}>
-                          <TextInput
-                            mono
-                            value={solution[field]}
-                            placeholder="O(n)"
-                            onChange={(event) =>
-                              setSolution(language, { [field]: event.target.value })
-                            }
-                          />
-                          {solution[field].trim() && (
-                            <span className="admin-complexity-preview">
-                              {inlineStatement(complexityMath(solution[field]))}
-                            </span>
-                          )}
-                        </Field>
-                      ))}
-                    </div>
-                    <MarkdownField
-                      label="Complexity notes"
-                      compact
-                      value={solution.complexityNotes}
-                      onChange={(complexityNotes) => setSolution(language, { complexityNotes })}
+        ) : (
+          <div>
+            <AuthoringCodeField
+              label={`${solutionLanguageLabel(language)} ${canonical ? "canonical solution" : "editorial code"}`}
+              hideLabel
+              language={language}
+              source={solution.source}
+              disabled={disabled}
+              onChange={(source) => setSolution({ source })}
+            />
+            <MarkdownField
+              label="Explanation"
+              value={solution.explanationMarkdown}
+              onChange={(explanationMarkdown) => setSolution({ explanationMarkdown })}
+            />
+            <section className="admin-editorial-complexity">
+              <h3 className="admin-editorial-heading">
+                <Clock3 size={15} /> Complexity
+              </h3>
+              <div className="admin-field-pair">
+                {(
+                  [
+                    ["timeComplexity", "Time"],
+                    ["spaceComplexity", "Auxiliary space"],
+                  ] as const
+                ).map(([field, label]) => (
+                  <Field label={label} key={field}>
+                    <TextInput
+                      mono
+                      value={solution[field]}
+                      placeholder="O(n)"
+                      onChange={(event) => setSolution({ [field]: event.target.value })}
                     />
-                  </section>
-                </div>
-              )}
-            </div>
-          </>
+                    {solution[field].trim() && (
+                      <span className="admin-complexity-preview">
+                        {inlineStatement(complexityMath(solution[field]))}
+                      </span>
+                    )}
+                  </Field>
+                ))}
+              </div>
+              <MarkdownField
+                label="Complexity notes"
+                compact
+                value={solution.complexityNotes}
+                onChange={(complexityNotes) => setSolution({ complexityNotes })}
+              />
+            </section>
+          </div>
         )}
       </div>
     </>

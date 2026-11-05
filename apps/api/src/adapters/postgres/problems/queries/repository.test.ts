@@ -86,7 +86,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           ],
         );
         await pool.query(
-          "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,'starter','runtime','harness','SECRET REFERENCE')",
+          "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,$2,'starter','runtime','harness')",
           [versions[i], i === 0 ? "postgresql" : "python"],
         );
         await pool.query(
@@ -107,7 +107,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [historical, versions[0]],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','old-starter','runtime','harness','SECRET OLD')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','old-starter','runtime','harness')",
         [historical],
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
@@ -163,7 +163,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       });
       try {
         await expect(
-          limited.query("SELECT reference_source FROM problem_languages LIMIT 1"),
+          limited.query("SELECT reference_source_hash FROM problem_languages LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         await expect(
           limited.query("SELECT lossless_fixture FROM problem_versions LIMIT 1"),

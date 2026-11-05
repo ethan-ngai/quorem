@@ -9,26 +9,24 @@ spec.loader.exec_module(iterative)
 
 class CandidateTest(unittest.TestCase):
     def test_reference_replaced_and_python2_compatibility_is_minimal(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python', 'referenceSource': 'original'}],
-                   'solutions': [{'language': 'python', 'source': 'original'}], 'attribution': 'source'}
+        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalSolution': {'language': 'python', 'source': 'original'}, 'solutions': [], 'attribution': 'source'}
         source = 'class Solution:\n    def f(self, x):\n        return sum(xrange(x))\n'
         result = iterative.candidate(fixture, source)
-        reference = result['implementations'][0]['referenceSource']
+        reference = result['canonicalSolution']['source']
         self.assertEqual(reference, 'xrange = range\n\n' + source)
-        self.assertEqual(result['solutions'][0]['source'], reference)
+        self.assertEqual(result['canonicalSolution']['source'], reference)
         self.assertIn(iterative.PIN_FILE + 'example.py', result['attribution'])
 
-    def test_refuses_overwriting_an_independent_editorial(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python', 'referenceSource': 'reference'}],
-                   'solutions': [{'language': 'python', 'source': 'independent'}], 'attribution': ''}
-        with self.assertRaises(ValueError):
-            iterative.candidate(fixture, 'class Solution: pass\n')
+    def test_preserves_additional_editorials(self):
+        fixture = {'problem': {'slug': 'lc-example'}, 'canonicalSolution': {'language': 'python', 'source': 'old'},
+                   'solutions': [{'language': 'java', 'source': 'independent'}], 'attribution': ''}
+        result = iterative.candidate(fixture, 'class Solution: pass\n')
+        self.assertEqual(result['solutions'], [{'language': 'java', 'source': 'independent'}])
 
     def test_only_needed_standard_bindings_are_added(self):
-        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python', 'referenceSource': 'original'}],
-                   'solutions': [{'language': 'python', 'source': 'original'}], 'attribution': ''}
+        fixture = {'problem': {'slug': 'lc-example'}, 'implementations': [{'language': 'python'}], 'canonicalSolution': {'language': 'python', 'source': 'original'}, 'solutions': [], 'attribution': ''}
         source = 'class Solution:\n    def f(self, values):\n        return Counter(values)\n'
-        reference = iterative.candidate(fixture, source)['solutions'][0]['source']
+        reference = iterative.candidate(fixture, source)['canonicalSolution']['source']
         self.assertEqual(reference, 'from typing import Counter\n\n' + source)
 
     def test_selects_first_upstream_solution_and_converts_only_izip(self):

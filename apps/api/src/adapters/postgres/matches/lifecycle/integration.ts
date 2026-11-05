@@ -129,7 +129,7 @@ before(async () => {
     (item: { language: string }) => item.language === "python",
   );
   fixture.implementations[0].starterSource = "class Solution:\n def f(self,x): pass\n";
-  fixture.implementations[0].referenceSource = "class Solution:\n def f(self,x): return x+1\n";
+  fixture.canonicalSolution.source = "class Solution:\n def f(self,x): return x+1\n";
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'lifecycle')`);
@@ -702,7 +702,7 @@ void test("selected SQL question gives each participant a PostgreSQL workspace",
     [v, p],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','','postgresql-17-v1','quorem-harness-v2','')",
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17-v1','quorem-harness-v2')",
     [v],
   );
   await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [p, v]);

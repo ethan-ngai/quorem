@@ -1397,7 +1397,6 @@ export interface components {
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
-            referenceSource: string;
         };
         QuestionProblem: {
             id: string;
@@ -1440,6 +1439,8 @@ export interface components {
             implementations: components["schemas"]["AuthoringImplementation"][];
             solutions: components["schemas"]["EditorialSolution"][];
             odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
+            /** @description Canonical reference and default editorial. Python for coding, PostgreSQL for SQL. */
+            canonicalSolution: components["schemas"]["EditorialSolution"];
         };
         QuestionDraft: {
             /** Format: uuid */

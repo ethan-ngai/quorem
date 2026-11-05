@@ -1,3 +1,4 @@
+import { blankSolution, questionEditorials } from "@quorem/questions";
 import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -38,7 +39,7 @@ import {
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
-import { revisions, type Language } from "./content";
+import { revisions, questionImplementations, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
 type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
@@ -205,15 +206,8 @@ export function QuestionFields({
         },
         hiddenCases: [],
         odysseyHiddenCases: staged ? [[]] : [],
-        implementations: [
-          {
-            language: nextLanguage,
-            starterSource: "",
-            runtimeRevision: revisions[nextLanguage][0],
-            harnessRevision: revisions[nextLanguage][1],
-            referenceSource: "",
-          },
-        ],
+        implementations: questionImplementations(isSQL),
+        canonicalSolution: blankSolution(nextLanguage),
         solutions: [],
       });
     } else {
@@ -349,10 +343,9 @@ export function QuestionFields({
                     content.odysseyHiddenCases?.some((cases) => cases.length);
                   const changesDialect = next.startsWith("sql-") !== !!problem.sql;
                   const hasCode =
+                    content.canonicalSolution.source ||
                     content.solutions.length ||
-                    content.implementations.some(
-                      (item) => item.starterSource || item.referenceSource,
-                    );
+                    content.implementations.some((item) => item.starterSource);
                   if (
                     invalidCases ||
                     hasCases ||
@@ -503,23 +496,25 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           )
         }
       />
-      {content.solutions.map((solution) => (
-        <section key={solution.language}>
-          <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>
-          {solution.explanationMarkdown && (
-            <StatementMarkdown source={solution.explanationMarkdown} />
-          )}
-          <CodeLiteral
-            block
-            source={solution.source}
-            language={solution.language}
-            className="editorial-source statement-code"
-          />
-          {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
-            <ComplexityDetails value={solution} />
-          )}
-        </section>
-      ))}
+      {questionEditorials(content)
+        .filter((item) => item.source.trim())
+        .map((solution) => (
+          <section key={solution.language}>
+            <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>
+            {solution.explanationMarkdown && (
+              <StatementMarkdown source={solution.explanationMarkdown} />
+            )}
+            <CodeLiteral
+              block
+              source={solution.source}
+              language={solution.language}
+              className="editorial-source statement-code"
+            />
+            {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
+              <ComplexityDetails value={solution} />
+            )}
+          </section>
+        ))}
     </div>
   );
 }

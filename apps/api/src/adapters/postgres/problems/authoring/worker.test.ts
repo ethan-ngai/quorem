@@ -1,4 +1,6 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
+import { blankSolution } from "@quorem/questions";
 import { env, SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
@@ -7,13 +9,7 @@ const url = (env as unknown as { AUTHORING_TEST_DATABASE_URL: string }).AUTHORIN
 const user = "quorem-author-worker";
 describe.skipIf(!url)("native worker authoring", () => {
   beforeAll(async () => {
-    const parsed = new URL(url);
-    if (
-      parsed.port !== "55447" ||
-      parsed.pathname !== "/quorem_hono_authoring_test" ||
-      !["127.0.0.1", "localhost"].includes(parsed.hostname)
-    )
-      throw new Error("disposable authoring database required");
+    assertRunnerFixture(url, ["/quorem_hono_authoring_test"]);
     await withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 10000 }, (scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, async (tx) => {
         await tx.execute(
@@ -60,9 +56,9 @@ describe.skipIf(!url)("native worker authoring", () => {
           starterSource: "old",
           runtimeRevision: "python-3.12-v1",
           harnessRevision: "quorem-harness-v2",
-          referenceSource: "class Solution: pass",
         },
       ],
+      canonicalSolution: { ...blankSolution(), source: "class Solution: pass" },
       solutions: [],
     };
     const create = await SELF.fetch("http://localhost/v1/admin/question-drafts", {

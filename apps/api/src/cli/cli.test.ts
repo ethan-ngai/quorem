@@ -81,17 +81,17 @@ describe("operator CLI contracts", () => {
       }),
     ).toBe("ea2ca038ea4f7666f6cc7245b2ca7d0d0981288fbd844e7c47fe4e778d579ec8");
   });
-  it("matches Go seed lock fingerprints, including raw JSON escapes", async () => {
+  it("pins canonical seed fingerprints, including raw JSON escapes", async () => {
     const raw = await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8");
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "a3f3bd4486fc0a73d718ffb7ce1a00ac51ad6b2fd36edd96239ebc0e86457ffc",
+      "27b270d7f18668344d055d4061fafb7c3ef10fa80451131c3dc1ace59de11972",
     );
     const escaped = raw.replaceAll('"a-bC!"', '"\\u0061-bC!"');
     expect(seedFingerprint(escaped, "cli-operator").fingerprint).toBe(
-      "69750a539703097f953b9ad6ce94a3658fa2e377b4792d4cb95dc75e363463c3",
+      "84fa80b8776fbd3d60a8a21fc4a17f2a391f838b441caf8aa516f6c6c3845b21",
     );
   });
-  it("matches Go seed locks for lossless SQL numeric input", async () => {
+  it("pins canonical seed identity for lossless SQL numeric input", async () => {
     const p = JSON.parse(
       await readFile(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
     );
@@ -114,15 +114,15 @@ describe("operator CLI contracts", () => {
       {
         language: "postgresql",
         starterSource: "select 1",
-        referenceSource: "select 1",
         runtimeRevision: "postgresql-17.6-v1",
         harnessRevision: "quorem-postgresql-v2",
       },
     ];
+    p.canonicalSolution = { ...p.canonicalSolution, language: "postgresql", source: "select 1" };
     p.solutions = [];
     const raw = JSON.stringify(p).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "c32de76d77451d3d30dc5df9f4c7bccde461d0558028a9899c6192a7fda80ac4",
+      "8a639146a5b62bd82abd8e616bc8f2cde6599ff9449abf1ceb68f7f4c8104e74",
     );
   });
   it("validates candidate fixtures with canonical publication rules", async () => {
@@ -421,11 +421,15 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
           {
             language: "postgresql",
             starterSource: "select 1",
-            referenceSource: "select 1",
             runtimeRevision: "postgresql-17.6-v1",
             harnessRevision: "quorem-postgresql-v2",
           },
         ];
+        fixture.canonicalSolution = {
+          ...fixture.canonicalSolution,
+          language: "postgresql",
+          source: "select 1",
+        };
         fixture.solutions = [];
       }
       const raw = mode.startsWith("sql")

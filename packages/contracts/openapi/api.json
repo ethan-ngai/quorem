@@ -4897,7 +4897,13 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+            "enum": [
+              "python",
+              "java",
+              "typescript",
+              "ocaml",
+              "postgresql"
+            ]
           },
           "starterSource": {
             "type": "string"
@@ -4907,18 +4913,13 @@
           },
           "harnessRevision": {
             "type": "string"
-          },
-          "referenceSource": {
-            "type": "string",
-            "maxLength": 65536
           }
         },
         "required": [
           "language",
           "starterSource",
           "runtimeRevision",
-          "harnessRevision",
-          "referenceSource"
+          "harnessRevision"
         ]
       },
       "QuestionProblem": {
@@ -5110,9 +5111,20 @@
                 "$ref": "#/components/schemas/CustomCase"
               }
             }
+          },
+          "canonicalSolution": {
+            "$ref": "#/components/schemas/EditorialSolution",
+            "description": "Canonical reference and default editorial. Python for coding, PostgreSQL for SQL."
           }
         },
-        "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
+        "required": [
+          "problem",
+          "hiddenCases",
+          "attribution",
+          "implementations",
+          "solutions",
+          "canonicalSolution"
+        ]
       },
       "QuestionDraft": {
         "type": "object",

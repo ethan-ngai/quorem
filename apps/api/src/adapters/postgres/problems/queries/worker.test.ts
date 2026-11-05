@@ -61,7 +61,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture,lossless_public) VALUES(${version},${problem},1,'Worker private','easy','statement',${JSON.stringify({ className: "Solution", methodName: "solve", parameters: [], returnType: "int" })}::jsonb,'[]'::jsonb,${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'fixture',convert_to('SECRET HIDDEN','UTF8'),convert_to('{"problem":{"examples":[{"args":["public\\u0000value"],"expected":9007199254740993}]}}','UTF8'))`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version},'python','starter','runtime','harness','SECRET REFERENCE')`,
+          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version},'python','starter','runtime','harness')`,
         );
         await tx.execute(
           sql`UPDATE problems SET current_version_id=${version} WHERE id=${problem}`,
@@ -114,7 +114,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     await expect(
       withWorkerConnection(restricted.toString(), opts, (scope) =>
         scope.transaction({ ...txopts, readOnly: true }, async (tx) => {
-          await tx.execute(sql`SELECT reference_source FROM problem_languages LIMIT 1`);
+          await tx.execute(sql`SELECT reference_source_hash FROM problem_languages LIMIT 1`);
         }),
       ),
     ).rejects.toThrow();

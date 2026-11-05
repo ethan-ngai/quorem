@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -18,9 +19,7 @@ const runtime = (language: string) =>
   )[language];
 describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
   it("publishes atomically, fences revisions and protects owner content", async () => {
-    const parsed = new URL(url!);
-    expect(parsed.port).toBe("55447");
-    expect(parsed.pathname).toBe("/quorem_hono_authoring_test");
+    assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
     const pool = createNodePool({
       connectionString: url!,
       max: 6,
@@ -138,6 +137,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.create(actor, undefined, published.publishedVersionId),
       );
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
+      expect(fork.content.canonicalSolution).toEqual(parsedContent.canonicalSolution);
+      expect(fork.content.solutions).toEqual(expect.arrayContaining(parsedContent.solutions));
+      expect(
+        fork.content.implementations.every((item: object) => !("referenceSource" in item)),
+      ).toBe(true);
+      expect(
+        JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
+          .items,
+      ).toEqual(expect.arrayContaining([parsedContent.canonicalSolution]));
 
       const nul = structuredClone(parsedContent);
       nul.problem.slug = `nul-${crypto.randomUUID().slice(0, 8)}`;
@@ -190,11 +198,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         {
           language: "postgresql",
           starterSource: "select 1",
-          referenceSource: "select 1",
           runtimeRevision: "postgresql-17.6-v1",
           harnessRevision: "quorem-postgresql-v2",
         },
       ];
+      sq.canonicalSolution = {
+        ...sq.canonicalSolution,
+        language: "postgresql",
+        source: "select 1",
+      };
       sq.solutions = [];
       const sqlRaw = JSON.stringify(sq).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
       const rawSqlDraft = await repository.create(actor, sqlRaw, undefined);

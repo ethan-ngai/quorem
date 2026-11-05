@@ -1,5 +1,6 @@
 /** @file draft-normalize.ts @description Normalize incomplete authoring drafts without losing case values. @module questions */
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
+import { blankSolution } from "./editorial.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import type { QuestionContent } from "./model.ts";
 import validateDraft from "./draft-validator.mjs";
@@ -149,27 +150,19 @@ export function normalizeQuestionDraft(rawJson: string): string {
   field(content, "attribution", "");
   content.implementations = array(content.implementations).map((value) => {
     const item = object(value);
-    fields(item, [
-      "language",
-      "starterSource",
-      "runtimeRevision",
-      "harnessRevision",
-      "referenceSource",
-    ]);
+    fields(item, ["language", "starterSource", "runtimeRevision", "harnessRevision"]);
     return item;
   });
-  content.solutions = array(content.solutions).map((value) => {
+  const normalizeSolution = (value: JsonValue | undefined): Obj => {
     const item = object(value);
-    fields(item, [
-      "language",
-      "source",
-      "explanationMarkdown",
-      "timeComplexity",
-      "spaceComplexity",
-      "complexityNotes",
-    ]);
+    for (const [key, value] of Object.entries({ ...blankSolution(), language: "" }))
+      field(item, key, value);
     return item;
-  });
+  };
+  content.canonicalSolution = normalizeSolution(content.canonicalSolution);
+  if (content.canonicalSolution.language === "")
+    content.canonicalSolution.language = p.sql ? "postgresql" : "python";
+  content.solutions = array(content.solutions).map(normalizeSolution);
   if (content.odysseyHiddenCases !== undefined && content.odysseyHiddenCases !== null)
     content.odysseyHiddenCases = array(content.odysseyHiddenCases).map(cases);
   else delete content.odysseyHiddenCases;

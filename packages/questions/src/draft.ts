@@ -1,4 +1,5 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
+import { questionEditorials } from "./editorial.ts";
 import type { QuestionContent } from "./model.ts";
 import { validSource } from "./source.ts";
 
@@ -77,14 +78,14 @@ export function validateQuestionDraft(content: QuestionContent): void {
     if (c.kind === "prose" && bytes(c.text) > 4096)
       throw new Error("constraint text limit exceeded");
   for (const v of content.implementations) {
-    if (!validSource(v.starterSource) || !validSource(v.referenceSource))
+    if (!validSource(v.starterSource))
       throw new Error(
         "language source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters",
       );
     if (bytes(v.runtimeRevision) > 128 || bytes(v.harnessRevision) > 128)
       throw new Error("language revision limit exceeded");
   }
-  for (const v of content.solutions) {
+  for (const v of questionEditorials(content)) {
     if (!validSource(v.source))
       throw new Error(
         "editorial source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters",

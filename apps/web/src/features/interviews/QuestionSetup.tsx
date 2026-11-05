@@ -1,3 +1,4 @@
+import { hasEditorial } from "@quorem/questions";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
 import type { InterviewMonitoring } from "@quorem/contracts";
@@ -352,7 +353,7 @@ export function QuestionSetup({
         {showHints && (
           <QuestionHintsControls
             complexityAvailable={
-              mode === "catalog" && !!selectedProblem?.complexityLanguages?.includes(language)
+              mode === "catalog" && hasEditorial(selectedProblem?.complexityLanguages, language)
             }
             value={hints}
             onChange={setHints}

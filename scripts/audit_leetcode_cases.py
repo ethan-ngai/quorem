@@ -308,7 +308,7 @@ def assess(content):
         else:
             keep.append(case)
         if key not in seen: seen[key] = case.get('expected')
-    reference = content['implementations'][0]['referenceSource']
+    reference = content['canonicalSolution']['source']
     bad = FAILING_REFERENCES.get(str(p.get('leetcodeId'))) == hashlib.sha256(reference.encode()).hexdigest()
     return {'unsupported': unsupported, 'invalid_examples': invalid_examples, 'rejected': rejected, 'cases': keep,
             'known_bad_reference': bad, 'verified_constraint_count': len(rules),

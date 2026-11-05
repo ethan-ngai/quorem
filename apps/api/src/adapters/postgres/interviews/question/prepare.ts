@@ -135,7 +135,7 @@ export async function writePublishedInterviewQuestion(
         'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
         'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',x.language,'starterSource',x.starter_source,'runtimeRevision',x.runtime_revision,'harnessRevision',x.harness_revision) ORDER BY x.language) FROM problem_languages x WHERE x.version_id=v.id),'[]'::jsonb),
         'odyssey',CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_set(v.odyssey,'{levels}',COALESCE((SELECT jsonb_agg(stage-'examples' ORDER BY n) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY z(stage,n)),'[]'::jsonb)) ELSE NULL END
-      )) AS metadata,l.starter_source,l.runtime_revision,l.harness_revision,l.reference_source,v.attribution
+      )) AS metadata,l.starter_source,l.runtime_revision,l.harness_revision,v.attribution
       FROM runner_version_inputs r JOIN problem_versions v ON v.id=r.version_id JOIN problems p ON p.id=v.problem_id
       JOIN problem_languages l ON l.version_id=v.id AND l.language=${language}
       WHERE r.version_id=${versionId}::uuid AND r.sealed AND v.sealed
@@ -149,7 +149,7 @@ export async function writePublishedInterviewQuestion(
     )
     UPDATE interviews i SET question = jsonb_build_object(
       'problem',jsonb_set(jsonb_set(jsonb_set(p.metadata,'{examples}',p.examples,true),'{starterSource}',to_jsonb(p.starter_source),true),'{runtimeRevision}',to_jsonb(p.runtime_revision),true),
-      'hiddenCases',p.hidden,'odysseyHiddenCases',p.suites,'harnessRevision',COALESCE(p.harness_revision,''),'referenceSource',COALESCE(p.reference_source,''),'attribution',COALESCE(p.attribution,'')
+      'hiddenCases',p.hidden,'odysseyHiddenCases',p.suites,'harnessRevision',COALESCE(p.harness_revision,''),'attribution',COALESCE(p.attribution,'')
     ) || CASE WHEN ${hint}::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('hints',${hint}::jsonb) END,
     lossless_question=NULL,source=p.starter_source,language=${language}
     FROM prepared p WHERE i.id=${sessionId}::uuid RETURNING i.id`);

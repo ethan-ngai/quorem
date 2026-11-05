@@ -1,4 +1,5 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
+import { selectEditorial } from "@quorem/questions";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +8,7 @@ import { api, requireData } from "../../../api/client";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Braces, Clock3 } from "lucide-react";
 import { EditorialCode } from "./EditorialCode";
-import type { EditorLanguage } from "../editorLanguages";
+import { solutionLanguageLabel } from "../editorLanguages";
 import type { EditorTheme } from "../PythonEditor";
 import type { EditorScheme } from "../editorSchemes";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
@@ -17,13 +18,6 @@ type Complexity = Pick<
   EditorialSolution,
   "language" | "timeComplexity" | "spaceComplexity" | "complexityNotes"
 >;
-const labels: Record<string, string> = {
-  python: "Python",
-  java: "Java",
-  typescript: "TypeScript",
-  ocaml: "OCaml",
-};
-
 /** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
@@ -80,8 +74,8 @@ export function EditorialPanel({
     retry: false,
   });
   if (inMatch || (!available && !solutionAvailable)) return null;
-  const selectedComplexity = complexity.data?.find((item) => item.language === language);
-  const selectedSolution = solutions.data?.find((item) => item.language === language);
+  const selectedComplexity = selectEditorial(complexity.data, language);
+  const selectedSolution = selectEditorial(solutions.data, language);
   const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
     <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
@@ -131,7 +125,7 @@ export function EditorialPanel({
             ) : selectedComplexity ? (
               <ComplexityDetails value={selectedComplexity} />
             ) : (
-              <p>No published complexity for {labels[language] ?? language}.</p>
+              <p>No published complexity for {language}.</p>
             )
           ) : solutions.isPending ? (
             <p role="status">Loading solution…</p>
@@ -141,18 +135,19 @@ export function EditorialPanel({
             </p>
           ) : selectedSolution ? (
             <>
+              <p>{solutionLanguageLabel(selectedSolution.language)} solution</p>
               {selectedSolution.explanationMarkdown && (
                 <StatementMarkdown source={selectedSolution.explanationMarkdown} />
               )}
               <EditorialCode
                 source={selectedSolution.source}
-                language={language as EditorLanguage}
+                language={selectedSolution.language}
                 theme={theme}
                 colorScheme={colorScheme}
               />
             </>
           ) : (
-            <p>No published solution for {labels[language] ?? language}.</p>
+            <p>No published solution for {language}.</p>
           )}
         </div>
       )}

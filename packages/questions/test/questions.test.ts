@@ -1,3 +1,4 @@
+import { blankSolution } from "@quorem/questions";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -121,6 +122,7 @@ describe("drafts", () => {
     hiddenCases: [],
     attribution: "",
     implementations: [],
+    canonicalSolution: { ...blankSolution(), source: "class Solution: pass" },
     solutions: [],
   };
   it("accepts incomplete drafts but rejects duplicate companies and NUL source", () => {
@@ -140,7 +142,6 @@ describe("drafts", () => {
             runtimeRevision: "r",
             harnessRevision: "h",
             starterSource: "a\0b",
-            referenceSource: "x",
           },
         ],
       }),

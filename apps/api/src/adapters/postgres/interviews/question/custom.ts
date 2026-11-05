@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { defaultLimits, languageRuntime } from "@quorem/execution";
 import {
+  blankSolution,
   generateStarter,
   parseLosslessJson,
   stringifyLosslessJson,
@@ -71,7 +72,6 @@ export async function prepareCustomInterviewQuestion(
       starterSource: starter,
       runtimeRevision: selected.revision,
       harnessRevision: selected.harness,
-      referenceSource: "Private question uses explicit expected values",
     });
   }
   const selected = implementations.map(object).find((item) => item.language === language);
@@ -97,6 +97,7 @@ export async function prepareCustomInterviewQuestion(
     odysseyHiddenCases: odyssey ? suites : [],
     attribution: "Private interview",
     implementations,
+    canonicalSolution: { ...blankSolution() },
     solutions: [],
   };
   try {
@@ -123,7 +124,6 @@ export async function prepareCustomInterviewQuestion(
     hiddenCases: content.hiddenCases,
     odysseyHiddenCases: content.odysseyHiddenCases,
     harnessRevision: selected.harnessRevision,
-    referenceSource: "",
     attribution: "Private interview",
   };
   const stored = storageProjection(stringifyLosslessJson(fixture));
@@ -159,6 +159,7 @@ export async function prepareCustomInterviewQuestion(
         1,
         actor.userId,
         languageRuntime,
+        { customInterview: true },
       );
     },
   };

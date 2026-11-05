@@ -97,8 +97,8 @@
       "expected": "c_b_a"
     },
     {
-      "args": ["\u03b1a\u03b2B"],
-      "expected": "\u03b1B\u03b2a"
+      "args": ["αaβB"],
+      "expected": "αBβa"
     },
     {
       "args": [
@@ -141,32 +141,61 @@
   "implementations": [
     {
       "language": "python",
-      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -\u003e str:\n        pass\n",
+      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def mirrorLetters(self, text: str) -> str:\n        pass\n",
       "runtimeRevision": "python-3.12-v1",
-      "harnessRevision": "quorem-harness-v2",
-      "referenceSource": "def solve(text):\n    letters = [c for c in text if c.isascii() and c.isalpha()]\n    return \"\".join(letters.pop() if c.isascii() and c.isalpha() else c for c in text)\nclass Solution:\n    def mirrorLetters(self, text):\n        return solve(text)\n"
+      "harnessRevision": "quorem-harness-v2"
     },
     {
       "language": "java",
       "starterSource": "class Solution {\n    public String mirrorLetters(String text) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
       "runtimeRevision": "java-21.0.9-v1",
-      "harnessRevision": "quorem-java-v1",
-      "referenceSource": "class Solution {\nprivate boolean letter(char c){return c\u003e='a'\u0026\u0026c\u003c='z'||c\u003e='A'\u0026\u0026c\u003c='Z';} public String mirrorLetters(String text){char[] a=text.toCharArray();int l=0,r=a.length-1;while(l\u003cr){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{char t=a[l];a[l++]=a[r];a[r--]=t;}}return new String(a);}\n}\n\n"
+      "harnessRevision": "quorem-java-v1"
     },
     {
       "language": "typescript",
       "starterSource": "class Solution {\n    mirrorLetters(text: string): string {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
       "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
-      "harnessRevision": "quorem-typescript-v1",
-      "referenceSource": "class Solution {\nmirrorLetters(text:string):string{const a=Array.from(text);const letter=(c:string)=\u003e/^[a-zA-Z]$/.test(c);let l=0,r=a.length-1;while(l\u003cr){if(!letter(a[l]))l++;else if(!letter(a[r]))r--;else{[a[l],a[r]]=[a[r],a[l]];l++;r--;}}return a.join('');}\n}\n\n"
+      "harnessRevision": "quorem-typescript-v1"
     },
     {
       "language": "ocaml",
       "starterSource": "let mirrorLetters (text:string) : string =\n    failwith \"Implement solution\"\n",
       "runtimeRevision": "ocaml-4.13.1-v1",
-      "harnessRevision": "quorem-ocaml-v1",
-      "referenceSource": "let mirrorLetters text = let a=Bytes.of_string text in let letter c = c\u003e='a' \u0026\u0026 c\u003c='z' || c\u003e='A' \u0026\u0026 c\u003c='Z' in let l=ref 0 and r=ref (Bytes.length a-1) in while !l \u003c !r do if not (letter (Bytes.get a !l)) then incr l else if not (letter (Bytes.get a !r)) then decr r else (let c=Bytes.get a !l in Bytes.set a !l (Bytes.get a !r);Bytes.set a !r c;incr l;decr r) done;Bytes.to_string a\n"
+      "harnessRevision": "quorem-ocaml-v1"
     }
   ],
-  "solutions": []
+  "solutions": [
+    {
+      "language": "java",
+      "source": "class Solution  {\n    private boolean letter(char c) {\n        return c>='a'&&c<='z'||c>='A'&&c<='Z';\n    }\n    public String mirrorLetters(String text) {\n        char[] a=text.toCharArray();\n        int l=0,r=a.length-1;\n        while(l<r) {\n            if(!letter(a[l]))l++;\n            else if(!letter(a[r]))r--;\n            else {\n                char t=a[l];\n                a[l++]=a[r];\n                a[r--]=t;\n            }\n        }\n        return new String(a);\n    }\n}\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    },
+    {
+      "language": "typescript",
+      "source": "class Solution  {\n    mirrorLetters(text:string):string {\n        const a=Array.from(text);\n        const letter=(c:string)=>/^[a-zA-Z]$/.test(c);\n        let l=0,r=a.length-1;\n        while(l<r) {\n            if(!letter(a[l]))l++;\n            else if(!letter(a[r]))r--;\n            else {\n                [a[l],a[r]]=[a[r],a[l]];\n                l++;\n                r--;\n            }\n        }\n        return a.join('');\n    }\n}\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    },
+    {
+      "language": "ocaml",
+      "source": "let mirrorLetters text = let a=Bytes.of_string text in let letter c = c>='a' && c<='z' || c>='A' && c<='Z' in let l=ref 0 and r=ref (Bytes.length a-1) in while !l < !r do if not (letter (Bytes.get a !l)) then incr l else if not (letter (Bytes.get a !r)) then decr r else (let c=Bytes.get a !l in Bytes.set a !l (Bytes.get a !r);Bytes.set a !r c;incr l;decr r) done;Bytes.to_string a\n",
+      "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(n)",
+      "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+    }
+  ],
+  "canonicalSolution": {
+    "language": "python",
+    "source": "class Solution:\n    def mirrorLetters(self, text: str) -> str:\n        chars = list(text)\n        left, right = 0, len(chars) - 1\n        def letter(char):\n            return \"A\" <= char <= \"Z\" or \"a\" <= char <= \"z\"\n        while left < right:\n            if not letter(chars[left]):\n                left += 1\n            elif not letter(chars[right]):\n                right -= 1\n            else:\n                chars[left], chars[right] = chars[right], chars[left]\n                left += 1\n                right -= 1\n        return \"\".join(chars)\n",
+    "explanationMarkdown": "Use two pointers over a mutable character array. Skip nonletters on both sides, then swap the next pair of ASCII letters. Each pointer moves only toward the center.",
+    "timeComplexity": "O(n)",
+    "spaceComplexity": "O(n)",
+    "complexityNotes": "n counts Unicode codepoints. Python strings are immutable, so the mutable buffer and returned string require linear storage."
+  }
 }

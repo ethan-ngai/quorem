@@ -13,7 +13,7 @@ def validate(path):
     digest = hashlib.sha256(data).hexdigest()
     draft = json.loads(data)
     sig = draft['problem']['signature']
-    source = draft['implementations'][0]['referenceSource']
+    source = draft['canonicalSolution']['source']
     for index, case in enumerate(draft['problem']['examples'] + draft['hiddenCases'], 1):
         request = {'source': source, 'signature': sig, 'args': case['args']}
         try:

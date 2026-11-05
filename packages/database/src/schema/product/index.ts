@@ -1552,7 +1552,10 @@ export const problem_languages = pgTable(
     starter_source: text().notNull(),
     runtime_revision: text().notNull(),
     harness_revision: text().notNull(),
-    reference_source: text().notNull(),
+    // Frozen reference leaf preserves admitted fixture identities after source consolidation.
+    reference_source_hash: bytea("reference_source_hash")
+      .default(sql`sha256(decode('01','hex'))`)
+      .notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
@@ -1561,6 +1564,7 @@ export const problem_languages = pgTable(
       name: "problem_languages_version_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.version_id, table.language], name: "problem_languages_pkey" }),
+    check("problem_language_reference_hash", sql`octet_length(reference_source_hash)=32`),
     check(
       "problem_languages_language_check",
       sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,

@@ -312,6 +312,7 @@ async function importItem(
       ["hidden tests", before.hiddenCases, after.hiddenCases],
       ["stage tests", before.odysseyHiddenCases, after.odysseyHiddenCases],
       ["language implementations", before.implementations, after.implementations],
+      ["canonical solution", before.canonicalSolution, after.canonicalSolution],
       ["solutions", before.solutions, after.solutions],
       ["attribution", before.attribution, after.attribution],
     ] as const;
@@ -428,7 +429,7 @@ async function editPublication(
     parent.version,
     parent.owner,
     runtime,
-    parent.current === versionId,
+    { updateCatalog: parent.current === versionId },
   );
   return replacement;
 }

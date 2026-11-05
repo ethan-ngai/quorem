@@ -1,4 +1,5 @@
 /** @file worker-fixture.ts @description Native authoring integration fixture. @module problems */
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { createApp } from "../../../../app.ts";
 import { developmentIdentity } from "../../identity/repository.ts";
@@ -10,12 +11,7 @@ interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(env.AUTHORING_TEST_DATABASE_URL);
-    if (
-      url.port !== "55447" ||
-      url.pathname !== "/quorem_hono_authoring_test" ||
-      !["localhost", "127.0.0.1"].includes(url.hostname)
-    )
-      return new Response("invalid fixture database", { status: 500 });
+    assertRunnerFixture(url.toString(), ["/quorem_hono_authoring_test"]);
     const options = { connectionTimeoutMs: 1000, lifetimeMs: 10000 };
     const run: AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) =>
       withWorkerConnection(url.toString(), options, action);

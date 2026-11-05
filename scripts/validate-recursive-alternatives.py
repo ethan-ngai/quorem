@@ -48,8 +48,7 @@ def validate(path):
     cases = item['problem']['examples'] + item['hiddenCases']
     checks = cases + [{'args': boundary_args, 'expected': boundary_expected}]
     for index, case in enumerate(checks):
-        implementation = next(value for value in item['implementations'] if value['language'] == 'python')
-        request = {'source': implementation['referenceSource'], 'signature': item['problem']['signature'], 'args': case['args']}
+        request = {'source': item['canonicalSolution']['source'], 'signature': item['problem']['signature'], 'args': case['args']}
         try:
             result = subprocess.run(['python', '-B', '/opt/quorem/harness.py'], input=json.dumps(request).encode(), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=3, check=True)
             output = json.loads(result.stdout.lstrip(b'\0'))

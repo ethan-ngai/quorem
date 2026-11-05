@@ -22,7 +22,7 @@ it("offers missing languages as content without an editorial or enablement toggl
   expect(markup).not.toContain('aria-label="Remove Java"');
 });
 
-it("keeps the required Python implementation and offers an optional editorial", () => {
+it("edits the canonical Python solution directly without a duplicate reference", () => {
   const markup = renderToStaticMarkup(
     <CodeEditorialFields
       content={blankQuestion()}
@@ -32,7 +32,9 @@ it("keeps the required Python implementation and offers an optional editorial", 
       onChange={() => {}}
     />,
   );
-  expect(markup).toContain("Add editorial");
+  expect(markup).toContain("Python canonical solution");
+  expect(markup).toContain("Canonical solution · default editorial");
+  expect(markup).not.toContain("Judge reference");
   expect(markup).not.toContain('aria-label="Remove Python"');
   expect(markup).not.toContain("Publish editorial");
   expect(markup).not.toContain("Private implementation used to verify test results.");

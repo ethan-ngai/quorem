@@ -79,7 +79,7 @@ before(async () => {
     [missingVersion, missingProblem, signature],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2',''),($2,'python','','python-3.12-v1','quorem-harness-v2','')",
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2'),($2,'python','','python-3.12-v1','quorem-harness-v2')",
     [version, missingVersion],
   );
   await pool.query(
@@ -353,7 +353,7 @@ void test("Odyssey admission binds cumulative unlocked stages and rejects stale 
     [v, p, JSON.stringify(signature), JSON.stringify({ levels })],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
     [v],
   );
   await pool.query(
@@ -448,7 +448,7 @@ void test("SQL custom input uses the canonical schema before storing its manifes
     [v, p, JSON.stringify(config)],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1','')",
+    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1')",
     [v],
   );
   await pool.query(

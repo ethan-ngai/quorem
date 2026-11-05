@@ -121,13 +121,12 @@ def main():
         root = Path(temp)
         for id, (url, expected_hash) in SOURCES.items():
             content = json.loads((args.fixtures / f'{id}.json').read_text())
-            old = content['implementations'][0]['referenceSource']
+            old = content['canonicalSolution']['source']
             if hashlib.sha256(old.encode()).hexdigest() != FAILING_REFERENCES[id]:
                 raise ValueError(f'{id}: original reference changed')
             source = python3_source(fetch(url, expected_hash))
             if id == '1254': source = 'from typing import List\n\n' + source
-            content['implementations'][0]['referenceSource'] = source
-            content['solutions'] = [{'language': 'python', 'source': source, 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': ''}]
+            content['canonicalSolution']['source'] = source
             content['attribution'] += f' Reference solution: {url}.'
             before = len(content['hiddenCases'])
             if not all(valid_case(id, c) for c in content['problem']['examples']): raise ValueError(f'invalid {id} public example')

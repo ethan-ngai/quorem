@@ -1,4 +1,5 @@
 /** @file publication.ts @description Definition and publication semantics over raw question JSON. @module questions */
+import { questionEditorials } from "./editorial.ts";
 import type { QuestionContent, Signature } from "./model.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import { validateSignature } from "./signature.ts";
@@ -162,6 +163,7 @@ export function validateQuestionPublication(
   rawJson: string,
   validateSchema: SchemaValidator,
   resolveRuntime: RuntimeResolver,
+  options: { requireCanonicalSource?: boolean } = {},
 ): void {
   const c = core(rawJson, validateSchema, true);
   const languages = new Set<string>();
@@ -172,8 +174,7 @@ export function validateQuestionPublication(
       languages.has(impl.language) ||
       runtime.revision !== impl.runtimeRevision ||
       runtime.harness !== impl.harnessRevision ||
-      !impl.starterSource.trim() ||
-      !impl.referenceSource.trim()
+      !impl.starterSource.trim()
     )
       throw new Error("invalid or duplicate language implementation");
     languages.add(impl.language);
@@ -188,12 +189,19 @@ export function validateQuestionPublication(
         ? "SQL problems require the PostgreSQL implementation"
         : "Python implementation required for coding problems",
     );
+  const canonicalLanguage = c.problem.sql ? "postgresql" : "python";
+  if (
+    c.canonicalSolution.language !== canonicalLanguage ||
+    (options.requireCanonicalSource !== false && !c.canonicalSolution.source.trim())
+  )
+    throw new Error(`${canonicalLanguage} canonical solution required`);
   const editorials = new Set<string>();
-  for (const solution of c.solutions) {
+  for (const solution of questionEditorials(c)) {
     if (
       !languages.has(solution.language) ||
       editorials.has(solution.language) ||
-      !solution.source.trim()
+      (!solution.source.trim() &&
+        (solution !== c.canonicalSolution || options.requireCanonicalSource !== false))
     )
       throw new Error("editorial language and code required");
     editorials.add(solution.language);
