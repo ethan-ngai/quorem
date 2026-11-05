@@ -95,10 +95,7 @@ void test(
         );
       return {
         type: "file",
-        path:
-          name === "apps/auth/package.json"
-            ? "apps/api/src/cli/fixtures/deployed-auth-package.json.txt"
-            : name,
+        path: name,
         size: bytes.length,
         encoding: "base64",
         content: bytes.toString("base64"),
