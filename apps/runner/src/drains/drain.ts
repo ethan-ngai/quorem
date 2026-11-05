@@ -41,10 +41,13 @@ export function drainer(options: {
   graceMs?: number;
   claimWindowMs?: number;
   attemptMs?: number;
+  singleAttempt?: boolean;
 }): Drainer {
   const { repository, sandbox, cancellations, engine, queue } = options;
   if (!Number.isInteger(options.slots) || options.slots < 1 || options.slots > 8)
     throw new Error("Invalid runner concurrency");
+  if (options.singleAttempt && options.slots !== 1)
+    throw new Error("Single-attempt drains require one slot");
   const graceMs = options.graceMs ?? 15000,
     claimWindowMs = options.claimWindowMs ?? 55000;
   if (
@@ -75,10 +78,12 @@ export function drainer(options: {
         wake = 0,
         contentionMs = 200,
         retryAt = 0;
+      let exhausted = false;
       const workers = new Set<Promise<void>>();
       const start = (available = options.slots) => {
         while (
           available-- > 0 &&
+          (!options.singleAttempt || !exhausted) &&
           !failure &&
           !live.aborted &&
           running < options.slots &&
@@ -94,7 +99,10 @@ export function drainer(options: {
                   scope: sandbox.scope,
                   signal: live,
                 });
-                if (!job) break;
+                if (!job) {
+                  exhausted = true;
+                  break;
+                }
                 worked = true;
                 try {
                   await runAttempt({
@@ -108,6 +116,10 @@ export function drainer(options: {
                   });
                 } catch (error) {
                   if (!(error instanceof LostLease)) throw error;
+                }
+                if (options.singleAttempt) {
+                  exhausted = true;
+                  break;
                 }
               }
             } catch (error) {
@@ -151,7 +163,7 @@ export function drainer(options: {
                 !running &&
                 state.queued === 0 &&
                 state.running === 0 &&
-                performance.now() >= graceUntil
+                (options.singleAttempt || performance.now() >= graceUntil)
               ) {
                 const before = epoch;
                 if ((await queue.confirmEmpty(live)) && before === epoch && beforeWake === wake)
@@ -159,6 +171,8 @@ export function drainer(options: {
                 wake++;
               }
               if (!running && performance.now() >= claimUntil) return { ...state, complete: false };
+              if (!running && options.singleAttempt && exhausted)
+                return { ...state, complete: false };
               const deadline = await queue.nextDeadline(live);
               const untilGrace =
                 graceUntil > performance.now() ? graceUntil - performance.now() : Infinity;

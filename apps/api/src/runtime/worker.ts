@@ -1,5 +1,5 @@
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
-import { judgingCapacity } from "@quorem/execution";
+import { judgingCapacity, CASE_LANES, JUDGING_DEFAULTS } from "@quorem/execution";
 // @ts-expect-error Workerd supplies this module.
 import { DurableObject } from "cloudflare:workers";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
@@ -37,6 +37,7 @@ import { composeHttp } from "./composition/http.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { localJudgingDrain } from "./composition/judging-drain.ts";
 import { judgingProfile } from "./composition/judging-profile.ts";
+import { withJudgingConnections } from "./composition/judging-connections.ts";
 import { composePrivate } from "./composition/private.ts";
 import {
   boundedInt,
@@ -348,6 +349,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 
 let budget: ReturnType<typeof requestBudget> | undefined;
 let streamBudget: ReturnType<typeof requestBudget> | undefined;
+let privateBudget: ReturnType<typeof requestBudget> | undefined;
 export default {
   async fetch(
     request: Request,
@@ -379,31 +381,42 @@ export default {
       budget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
       if (path === "/health")
         return await budget(request, async () => health(request, origins(env)));
-      return await budget(request, async () => {
+      const privatePath =
+        path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/");
+      const guard = privatePath
+        ? (privateBudget ??= requestBudget(JUDGING_DEFAULTS.slots * (CASE_LANES * 2 + 1)))
+        : budget;
+      return await guard(request, async () => {
         const run = runFor(env, request.signal);
-        if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
+        if (privatePath) {
           const profile = judgingProfile();
-          const handlers = await composePrivate(
-            run,
-            privateConfig(env),
-            (peer) =>
-              localJudgingDrain(
-                peer,
-                (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
-                judgingCapacity(env as unknown as Record<string, string | undefined>),
-                profile,
-              ),
-            profile,
-          );
-          const response = path.startsWith("/internal/runner/")
-            ? await handlers.runner(request)
-            : await handlers.source(request);
-          if (response.ok) {
-            if (path === "/internal/runner/promote") await publish(realtimeStreams);
-            else if (path === "/internal/runner/claim" || path === "/internal/runner/yield")
-              await publish(["submission"]);
-          }
-          return privateResponse(response);
+          const execute = async (privateRun: ReturnType<typeof runFor>) => {
+            const handlers = await composePrivate(
+              profile.connection(privateRun),
+              privateConfig(env),
+              (peer) =>
+                localJudgingDrain(
+                  peer,
+                  (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
+                  judgingCapacity(env as unknown as Record<string, string | undefined>),
+                  profile,
+                ),
+              profile,
+            );
+            const response = path.startsWith("/internal/runner/")
+              ? await handlers.runner(request)
+              : await handlers.source(request);
+            if (response.ok) {
+              if (path === "/internal/runner/promote") await publish(realtimeStreams);
+              else if (path === "/internal/runner/claim" || path === "/internal/runner/yield")
+                await publish(["submission"]);
+            }
+            return privateResponse(response);
+          };
+          // Replay reads checkpoint pages after returning its streaming response.
+          if (path !== "/internal/runner/replay")
+            return withJudgingConnections(env.DB.connectionString, request.signal, execute);
+          return execute(run);
         }
         const composed = makeHttp(env, request, undefined, defer);
         const incoming = path.startsWith("/api/auth/")

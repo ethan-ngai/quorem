@@ -166,7 +166,7 @@ for (const padding of [0, 1 << 20])
   });
 
 test(
-  "native runner drains through the private command API with no container binding",
+  "native runner queue fallback schedules alarms and confirms private queue state",
   { timeout: 25000 },
   async () => {
     const key = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" });
@@ -179,7 +179,10 @@ test(
         modules: modules("worker"),
         compatibilityDate,
         compatibilityFlags,
-        durableObjects: { RUNNERS: { className: "RunnerService", useSQLite: true } },
+        durableObjects: {
+          RUNNERS: { className: "RunnerService", useSQLite: true },
+          CASES: { className: "CaseSandbox", useSQLite: true },
+        },
         bindings: {
           QUOREM_CASE_ORIGIN: "https://case.example.test",
           QUOREM_CASE_NAMESPACE_ID: "a".repeat(64),
@@ -193,10 +196,10 @@ test(
           assert.equal(request.headers.get("authorization"), `Bearer ${commandSecret}`);
           const op = new URL(request.url).pathname.split("/").at(-1);
           calls.push(op);
-          assert.equal(op, "drain");
-          assert.equal((await request.json()).namespaceId, "a".repeat(64));
+          assert.ok(["state", "empty"].includes(op));
+          assert.deepEqual(await request.json(), {});
           if (fail) return Response.json({ failure: { kind: "other" } }, { status: 503 });
-          return Response.json({ queued: 0, running: 0 });
+          return Response.json(op === "empty" ? true : { queued: 0, running: 0 });
         },
       }),
     );
@@ -211,12 +214,12 @@ test(
       assert.equal((await send("drain", commandSecret)).status, 401);
       const response = await send("drain", drainSecret);
       assert.equal(response.status, 503);
-      assert.deepEqual(calls, ["drain"]);
+      assert.deepEqual(calls, ["state"]);
       fail = false;
       const drained = await send("drain", drainSecret);
       assert.equal(drained.status, 200);
       assert.deepEqual(await drained.json(), { queued: 0, running: 0 });
-      assert.deepEqual(calls, ["drain", "drain"]);
+      assert.deepEqual(calls, ["state", "state", "empty"]);
       assert.equal((await send("pause", drainSecret)).status, 204);
       calls.length = 0;
       assert.equal((await send("drain", drainSecret)).status, 503);
