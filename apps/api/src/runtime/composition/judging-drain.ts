@@ -11,9 +11,10 @@ export function localJudgingDrain(
   peer: PrivateConfig["runnerPeers"][number],
   onUpdate: (terminal: boolean) => Promise<void>,
   capacity = judgingCapacity({}),
+  measurement?: ReturnType<typeof judgingProfile>,
 ): RunnerPeer["drain"] {
   return async (request, config, repository) => {
-    const profile = judgingProfile();
+    const profile = measurement ?? judgingProfile();
     repository = profile.wrap(repository, "repository");
     const { origin, secret, namespaceId, ownerPublicKey } = config;
     if (
@@ -30,6 +31,10 @@ export function localJudgingDrain(
         namespaceId,
         ownerPublicKey,
         cleanupMs: 30000,
+        fetch: profile.wrap(
+          { headers: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init) },
+          "case",
+        ).headers,
       }),
       "sandbox",
     );

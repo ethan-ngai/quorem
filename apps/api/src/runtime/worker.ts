@@ -36,6 +36,7 @@ import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { localJudgingDrain } from "./composition/judging-drain.ts";
+import { judgingProfile } from "./composition/judging-profile.ts";
 import { composePrivate } from "./composition/private.ts";
 import {
   boundedInt,
@@ -381,12 +382,18 @@ export default {
       return await budget(request, async () => {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
-          const handlers = await composePrivate(run, privateConfig(env), (peer) =>
-            localJudgingDrain(
-              peer,
-              (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
-              judgingCapacity(env as unknown as Record<string, string | undefined>),
-            ),
+          const profile = judgingProfile();
+          const handlers = await composePrivate(
+            run,
+            privateConfig(env),
+            (peer) =>
+              localJudgingDrain(
+                peer,
+                (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
+                judgingCapacity(env as unknown as Record<string, string | undefined>),
+                profile,
+              ),
+            profile,
           );
           const response = path.startsWith("/internal/runner/")
             ? await handlers.runner(request)
