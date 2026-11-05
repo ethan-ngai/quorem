@@ -1,3 +1,5 @@
+import { PersistentNotice } from "../../../ui/PersistentNotice";
+import { ConstraintViolation } from "../constraintViolation";
 import { NodeReferenceScope } from "./NodePreview";
 import { CaseFields } from "./CaseFields";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
@@ -108,6 +110,7 @@ export function TestCases({
   const draft = drafts[customIndex];
   const example = problem.examples[sampleIndex];
   let currentValue;
+  let currentError: Error | undefined;
   try {
     currentValue =
       customMode && draft
@@ -115,9 +118,20 @@ export function TestCases({
         : example
           ? caseSnapshotValue(example)
           : undefined;
-  } catch {
+  } catch (cause) {
+    currentError = cause instanceof Error ? cause : new Error(String(cause));
     /* An edited invalid draft cannot inherit a previous result. */
   }
+  const errorFields =
+    currentError instanceof ConstraintViolation
+      ? [...currentError.parameters]
+      : problem.signature.parameters
+          .filter(({ name }) => currentError?.message.startsWith(`${name}:`))
+          .map(({ name }) => name);
+  if (currentError?.message.startsWith("Expected output:")) errorFields.push("Expected output");
+  const inputErrors = currentError
+    ? Object.fromEntries(errorFields.map((name) => [name, currentError.message]))
+    : undefined;
   const expectedExample = example && (
     <CaseValue
       name="Expected output"
@@ -321,7 +335,13 @@ export function TestCases({
         ) : customMode && draft ? (
           <>
             <div className="custom-case-heading">
-              <span>Case {customIndex + 1}</span>
+              <span>
+                Case {customIndex + 1}
+                <PersistentNotice
+                  label={`Check case ${customIndex + 1}`}
+                  message={currentError?.message}
+                />
+              </span>
               <Tooltip content="Remove case">
                 <button
                   type="button"
@@ -364,6 +384,7 @@ export function TestCases({
               <CaseFields
                 id={`custom-${draft.id}`}
                 signature={problem.signature}
+                inputErrors={inputErrors}
                 args={draft.args}
                 expected={draft.expectedEnabled ? draft.expected : undefined}
                 onChange={updateDraft}

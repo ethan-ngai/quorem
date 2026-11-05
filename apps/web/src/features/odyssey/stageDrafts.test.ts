@@ -103,7 +103,7 @@ describe("typed stage authoring", () => {
       tests: [sequenceDraft(later)],
     };
     second.examples[0]!.calls[0]!.values.args = ["0"];
-    expect(() => parseStages([first, second], { constraints })).toThrow("Constraint:");
+    expect(() => parseStages([first, second], { constraints })).toThrow(/Constraint \d+:/);
     second.examples[0]!.calls[0]!.values.args = ["2"];
     expect(() => parseStages([first, second], { constraints })).not.toThrow();
     expect(() =>
@@ -114,7 +114,7 @@ describe("typed stage authoring", () => {
     ];
     expect(() =>
       parseStages([first, second], { constraints: stricter, allowIncomplete: true }),
-    ).toThrow("Constraint:");
+    ).toThrow(/Constraint \d+:/);
     expect(() =>
       parseStages([first, second], { constraints, allowIncomplete: true }),
     ).not.toThrow();

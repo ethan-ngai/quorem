@@ -108,7 +108,7 @@ describe("typed custom cases", () => {
     } as unknown as ProblemVersion;
     const make = (calls: unknown[]) => [{ ...draft, args: [JSON.stringify(calls)] }];
     expect(() => parseProblemDrafts(make([{ methodName: "add", args: ["😀x"] }]), problem)).toThrow(
-      "Constraint:",
+      /Constraint \d+:/,
     );
     expect(() =>
       parseProblemDrafts(
@@ -127,7 +127,7 @@ describe("typed custom cases", () => {
         ]),
         problem,
       ),
-    ).toThrow("Constraint:");
+    ).toThrow(/Constraint \d+:/);
   });
   it("serializes declared argument order and optional expected output", () => {
     expect(parseCustomDrafts([draft], signature)).toEqual([{ args: [[1, 2], true] }]);

@@ -1,3 +1,6 @@
+import { authoringMessages } from "./authoringValidation";
+import { PersistentNotice } from "../../ui/PersistentNotice";
+import type { AuthoringIssue } from "./authoringValidation";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeftRight,
@@ -45,7 +48,7 @@ const operators = {
 } as const;
 
 const properties = {
-  ordered: { label: "Sorted values (equal values allowed)", icon: ListOrdered },
+  ordered: { label: "Sorted (ties allowed)", icon: ListOrdered },
   unique: { label: "Unique values", icon: Fingerprint },
 } as const;
 
@@ -55,8 +58,10 @@ export function ConstraintFields({
   disabled,
   onChange,
   onValidityChange,
+  validationIssues = [],
 }: {
-  onValidityChange?: (invalid: boolean) => void;
+  onValidityChange?: (invalid: boolean, issues?: readonly AuthoringIssue[]) => void;
+  validationIssues?: readonly AuthoringIssue[];
   value: Constraint[];
   signature?: Signature;
   disabled: boolean;
@@ -78,39 +83,41 @@ export function ConstraintFields({
       );
     }
   }
-  const invalid = value.some((rule) => rule.kind === "comparison" && !!comparisonError(rule));
+  const semanticIssues = value.flatMap((rule, constraintIndex): AuthoringIssue[] => {
+    const error = rule.kind === "comparison" ? comparisonError(rule) : undefined;
+    return error
+      ? [{ message: `Constraint ${constraintIndex + 1}: ${error}`, constraintIndex }]
+      : [];
+  });
+  const issueKey = JSON.stringify(semanticIssues);
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => {
-    validity.current?.(invalid);
-  }, [invalid]);
+    validity.current?.(semanticIssues.length > 0, semanticIssues);
+  }, [issueKey]);
   useEffect(() => () => validity.current?.(false), []);
   const addOptions = [
     {
       kind: "range",
       label: "Value range",
-      detail: "Lower and upper bounds",
       icon: ruleTypes.range.icon,
       enabled: numericTargets.length > 0,
     },
     {
       kind: "comparison",
       label: "Compare values",
-      detail: "Relate two input measurements",
       icon: ruleTypes.comparison.icon,
       enabled: comparisonTargets.length > 1,
     },
     {
       kind: "property",
       label: "Ordering & uniqueness",
-      detail: "Sorted or distinct elements",
       icon: ruleTypes.property.icon,
       enabled: sequenceTargets.length > 0,
     },
     {
       kind: "prose",
       label: "Written note",
-      detail: "Describe another input guarantee",
       icon: ruleTypes.prose.icon,
       enabled: true,
     },
@@ -293,7 +300,7 @@ export function ConstraintFields({
                         comparison.reflexiveSequence
                           ? comparison.modes.map(({ quantifier, operator }) => ({
                               value: `${quantifier}:${operator}`,
-                              label: `${quantifier === "any" ? "At least one pair" : "Every pair"}: ${operators[operator].label}`,
+                              label: `${quantifier === "any" ? "Any pair" : "All pairs"}: ${operators[operator].label}`,
                               display: (
                                 <MathOperator
                                   source={`${quantifier === "any" ? "\\exists" : "\\forall"}\\;${operators[operator].math}`}
@@ -337,8 +344,8 @@ export function ConstraintFields({
                         <Tooltip
                           content={
                             rule.quantifier === "any"
-                              ? "Against the same sequence, ∃ < or > requires at least two distinct values."
-                              : "Against the same sequence, ∀ =, ≤ or ≥ requires all values equal. Empty sequences pass."
+                              ? "∃ self: at least two distinct values."
+                              : "∀ self: all values equal; empty passes."
                           }
                         >
                           <span
@@ -424,11 +431,14 @@ export function ConstraintFields({
                   </>
                 )}
               </div>
-              {rule.kind === "comparison" && comparisonError(rule) && (
-                <p className="constraint-error admin-error" role="alert">
-                  {comparisonError(rule)}
-                </p>
-              )}
+              <PersistentNotice
+                label={`Check constraint ${index + 1}`}
+                message={authoringMessages(
+                  [...semanticIssues, ...validationIssues].filter(
+                    (issue) => issue.constraintIndex === index,
+                  ),
+                )}
+              />
               <Tooltip content="Remove constraint">
                 <button
                   type="button"
@@ -462,7 +472,7 @@ export function ConstraintFields({
             align="start"
             aria-label="Add constraint"
           >
-            {addOptions.map(({ kind, label, detail, icon: Icon, enabled }) => (
+            {addOptions.map(({ kind, label, icon: Icon, enabled }) => (
               <button
                 type="button"
                 className="constraint-add-option"
@@ -471,10 +481,7 @@ export function ConstraintFields({
                 onClick={() => add(kind)}
               >
                 <Icon size={16} aria-hidden="true" />
-                <span>
-                  {label}
-                  <small>{detail}</small>
-                </span>
+                <span>{label}</span>
               </button>
             ))}
           </Popover.Content>

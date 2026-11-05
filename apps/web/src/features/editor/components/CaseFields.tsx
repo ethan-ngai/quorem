@@ -14,6 +14,7 @@ export function CaseFields({
   onChange,
   children,
   preview = true,
+  inputErrors,
 }: {
   id: string;
   signature: Signature;
@@ -23,6 +24,7 @@ export function CaseFields({
   onChange: (patch: { args?: string[]; expected?: string }) => void;
   children?: ReactNode;
   preview?: boolean;
+  inputErrors?: Readonly<Record<string, string>>;
 }) {
   return (
     <CasePreviewLayout
@@ -39,6 +41,7 @@ export function CaseFields({
           type={type}
           input={caseFieldConfig(signature, type, input, false, { sources: args })}
           value={args[index] ?? ""}
+          validationError={inputErrors?.[name]}
           onChange={(value) =>
             onChange({
               args: signature.parameters.map((_, position) =>
@@ -59,6 +62,7 @@ export function CaseFields({
               sources: args,
             })}
             value={expected}
+            validationError={inputErrors?.["Expected output"]}
             action={expectedAction}
             onChange={(expected) => onChange({ expected })}
           />

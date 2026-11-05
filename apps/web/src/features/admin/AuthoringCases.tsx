@@ -1,3 +1,4 @@
+import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
 import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import { Icon } from "../../ui/Icon";
@@ -21,7 +22,7 @@ export function AuthoringCases({
 }: {
   content: QuestionContent;
   onChange: (content: QuestionContent) => void;
-  onValidityChange: (label: string, invalid: boolean) => void;
+  onValidityChange: ReportAuthoringValidity;
   stageIndex?: number;
 }) {
   const [collection, setCollection] = useState<"public" | "hidden">("public");
@@ -90,14 +91,9 @@ export function AuthoringCases({
   }));
   useEffect(() => {
     for (const tab of ["public", "hidden"] as const) {
-      try {
-        values[tab].forEach((test) =>
-          p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, p.signature, p.constraints),
-        );
-        validity.current(`${caseKey}:${tab}`, false);
-      } catch {
-        validity.current(`${caseKey}:${tab}`, true);
-      }
+      const label = `${stageIndex === undefined ? "" : `Step ${stageIndex + 1}, `}${tab === "public" ? "Example" : "Private test"}`;
+      const issues = caseValidationIssues(values[tab], p, label);
+      validity.current(`${caseKey}:${tab}`, issues.length > 0, issues);
     }
   }, [values, p.sql, p.signature, p.constraints, caseKey]);
   const [explanations, setExplanations] = useState<Record<string, string>>(() =>
@@ -142,10 +138,8 @@ export function AuthoringCases({
             ),
           });
       }
-      if (!p.sql) next.forEach((test) => parseCustomDraft(test, p.signature, p.constraints));
-      onValidityChange(`${caseKey}:${collection}`, false);
     } catch {
-      onValidityChange(`${caseKey}:${collection}`, true);
+      // Preserve incomplete local edits; the validation effect reports their exact origin.
     }
   }
   return (

@@ -1,3 +1,4 @@
+import type { ReportAuthoringValidity } from "./authoringValidation";
 import { Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
@@ -12,7 +13,7 @@ export function SqlStages({
 }: {
   content: QuestionContent;
   onChange: (content: QuestionContent) => void;
-  onValidityChange: (label: string, invalid: boolean) => void;
+  onValidityChange: ReportAuthoringValidity;
 }) {
   const id = useId();
   const levels = content.problem.odyssey!.levels;

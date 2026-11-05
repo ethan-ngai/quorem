@@ -20,6 +20,7 @@ export function TypedCaseInput({
   action,
   value,
   onChange,
+  validationError,
 }: {
   id: string;
   name: string;
@@ -28,6 +29,7 @@ export function TypedCaseInput({
   purpose?: "input" | "expected";
   action?: ReactNode;
   value: string;
+  validationError?: string;
   onChange: (value: string) => void;
 }) {
   const language = useQuestionLanguage();
@@ -54,7 +56,7 @@ export function TypedCaseInput({
   while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
   const control = optional ? resolveInputPreset(controlType, input) : preset;
   const framed = !!control.delimiters;
-  let error = rejected;
+  let error = rejected ?? validationError;
   if (touched && !error) {
     try {
       preset.parse(value);

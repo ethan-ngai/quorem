@@ -78,12 +78,12 @@ export function SignatureFields({
     <fieldset className="admin-fields" aria-labelledby={`${namesId}-method`}>
       <div className="admin-method-heading">
         <span id={`${namesId}-method`}>Method</span>
+        {previewControl}
         <PersistentNotice
           id={`${namesId}-error`}
           label="Check signature"
           message={invalidNames ? "Use valid identifiers and unique parameter names." : undefined}
         />
-        {previewControl}
       </div>
       <div className="authoring-signature-line">
         <MethodSignature signature={value} showDocumentation />

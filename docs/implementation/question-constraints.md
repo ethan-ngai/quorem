@@ -26,3 +26,7 @@ Identical scalar operands are rejected: every operator is a tautology or contrad
 The remaining self-combinations are rejected. For presence or emptiness, constrain length or node count directly. Authoring omits invalid operand/operator choices and explains invalid retained drafts. Browser validation and publication admission consume the same semantic rules.
 
 `constraintTargetOptions` builds the typed operand catalog. `comparisonChoices` derives each field's valid domain from its current partners using `comparisonRelations`, the same policy admission enforces. Choice derivation is linear in target count; it does not enumerate an n-variable Cartesian product. Reflexive sequences select quantifier and operator as one valid mode, avoiding impossible intermediate combinations.
+
+## Authoring conflict diagnostics
+
+An existential node-value rule fails for empty trees even when its bounds span the entire integer range. The editor identifies the conflicting rule, example/private test number, and participating input fields. One diagnostic feeds the constraint notice, case/input notices, and page-wide saving summary. Origins are registered independently, so resolving one case does not hide other conflicts.

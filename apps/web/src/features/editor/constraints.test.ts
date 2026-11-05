@@ -36,7 +36,7 @@ describe("structured constraints", () => {
     const stricter: Constraint[] = [
       { kind: "range", target: { parameter: "values", projection: "length" }, max: 1 },
     ];
-    expect(() => parseCustomDraft(draft, signature, stricter)).toThrow("Constraint:");
+    expect(() => parseCustomDraft(draft, signature, stricter)).toThrow(/Constraint \d+:/);
     expect(() => parseCustomDraft(draft, signature, [])).not.toThrow();
   });
   it("formats data without inspecting prose", () => {
@@ -69,7 +69,7 @@ describe("structured constraints", () => {
       [[1, 2], 1],
       [[2, 1], 2],
     ])
-      expect(() => validateConstraints(signature, args, constraints)).toThrow("Constraint:");
+      expect(() => validateConstraints(signature, args, constraints)).toThrow(/Constraint \d+:/);
   });
   it("counts Unicode codepoints and excludes null tree slots", () => {
     const nodes: Signature = {
@@ -112,7 +112,7 @@ describe("structured constraints", () => {
     ];
     expect(() => validateConstraints(signature, ["😀😁", null], constraints)).not.toThrow();
     expect(() => validateConstraints(signature, ["😀😀", null], constraints)).toThrow(
-      "Constraint:",
+      /Constraint \d+:/,
     );
     expect(() =>
       validateConstraints(
@@ -141,7 +141,7 @@ describe("structured constraints", () => {
         signature,
         [sum],
       ),
-    ).toThrow("Constraint:");
+    ).toThrow(/Constraint \d+:/);
     const comparison: Constraint = {
       kind: "comparison",
       left: { parameter: "values", projection: "sum" },
@@ -149,7 +149,9 @@ describe("structured constraints", () => {
       operator: "le",
     };
     expect(() => validateConstraints(signature, [[1, 2], 3], [comparison])).not.toThrow();
-    expect(() => validateConstraints(signature, [[1, 2], 2], [comparison])).toThrow("Constraint:");
+    expect(() => validateConstraints(signature, [[1, 2], 2], [comparison])).toThrow(
+      /Constraint \d+:/,
+    );
   });
   it("validates admitted custom drafts", () => {
     expect(() =>
@@ -158,7 +160,7 @@ describe("structured constraints", () => {
         signature,
         constraints,
       ),
-    ).toThrow("Constraint:");
+    ).toThrow(/Constraint \d+:/);
   });
 });
 
@@ -200,7 +202,7 @@ it("uses strict range boundaries in client validation and diagnostic text", () =
     minInclusive: false,
   };
   expect(() => validateConstraints(long, ["9007199254740992"], [lower])).not.toThrow();
-  expect(() => validateConstraints(long, ["9007199254740991"], [lower])).toThrow("Constraint:");
+  expect(() => validateConstraints(long, ["9007199254740991"], [lower])).toThrow(/Constraint \d+:/);
 });
 
 it("matches quantified comparisons and DESC ordering with server semantics", () => {

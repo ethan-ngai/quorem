@@ -169,12 +169,12 @@ export function validateConstraints(sig: Signature, constraints: readonly Constr
           if (!comparisonRelations(c).includes(c.operator)) {
             if (!sequenceTarget(c.left))
               throw new Error(
-                "a scalar compared with itself is always true or always false; choose a different operand",
+                "A scalar cannot meaningfully compare with itself. Choose another operand.",
               );
             throw new Error(
               c.quantifier === "any"
-                ? "an existential reflexive comparison only tests whether values exist; use < or > to test for differing values"
-                : "every value cannot be strictly less/greater than itself; use =, ≤ or ≥ to require all values equal",
+                ? "∃ self-comparison: use < or > for distinct values."
+                : "∀ self-comparison: use =, ≤ or ≥ for all-equal values.",
             );
           }
           if (!["eq", "le", "lt", "ge", "gt"].includes(c.operator))
