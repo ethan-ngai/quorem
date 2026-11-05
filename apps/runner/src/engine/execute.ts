@@ -287,6 +287,21 @@ export async function executeAndStage(
         return { frame, ref, artifact, compilation, fatal };
       }
       const pending: Promise<void>[] = [];
+      const storedFrame = (ordinal: number, frame: JudgeFrame): JudgeFrame => ({
+        ...frame,
+        artifact: undefined,
+        ...(manifest.kind === "submit" && !manifest.privateDetails && ordinal < manifest.caseCount
+          ? { stdout: "", stderr: "", line: 0 }
+          : {}),
+      });
+      const enqueueStage = (ordinal: number, frame: JudgeFrame) => {
+        const staged = stage(ordinal, frame).catch((error) => {
+          controller.abort(error);
+          throw error;
+        });
+        void staged.catch(() => {});
+        pending.push(staged);
+      };
       try {
         for (let start = checkpoint.nextOrdinal; start < total;) {
           signal.throwIfAborted();
@@ -316,13 +331,19 @@ export async function executeAndStage(
             Math.max(1, ...refs.map((ref) => ref.size)) +
             (artifact ? Buffer.byteLength(artifact) : 0);
           const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
+          const atomicFinal = !!repository.finalizeCompletion && start + width === total;
           const runs = Array.from({ length: width }, (_, index) =>
-            executeCase(start + index, { artifact, compilation, fatal }, refs[index]).catch(
-              (error) => {
+            executeCase(start + index, { artifact, compilation, fatal }, refs[index])
+              .then((result) => {
+                // Final windows need no ordered checkpoint; verify each stopped case immediately.
+                if (atomicFinal)
+                  enqueueStage(start + index, storedFrame(start + index, result.frame));
+                return result;
+              })
+              .catch((error) => {
                 controller.abort(error);
                 throw error;
-              },
-            ),
+              }),
           );
           const outcomes = await Promise.allSettled(runs);
           const failed = outcomes.find((value) => value.status === "rejected");
@@ -338,17 +359,9 @@ export async function executeAndStage(
             artifact = results[index].artifact ?? artifact;
             if (results[index].compilation > compilation) compilation = results[index].compilation;
             fatal ??= results[index].fatal;
-            const stored: JudgeFrame = {
-              ...frame,
-              artifact: undefined,
-              ...(manifest.kind === "submit" &&
-              !manifest.privateDetails &&
-              ordinal < manifest.caseCount
-                ? { stdout: "", stderr: "", line: 0 }
-                : {}),
-            };
             // Atomic finalization can retry the bounded final window without a resume checkpoint.
-            if (!(repository.finalizeCompletion && start + width === total)) {
+            if (!atomicFinal) {
+              const stored = storedFrame(ordinal, frame);
               const fatalRaw = fatal
                 ? encodeJudgeFrame({ ...fatal, artifact: undefined })
                 : undefined;
@@ -372,13 +385,8 @@ export async function executeAndStage(
                 },
                 signal,
               );
+              enqueueStage(ordinal, stored);
             }
-            const staged = stage(ordinal, stored).catch((error) => {
-              controller.abort(error);
-              throw error;
-            });
-            void staged.catch(() => {});
-            pending.push(staged);
           }
           start += width;
           // At most two windows of result staging can overlap native execution.

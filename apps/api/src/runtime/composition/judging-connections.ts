@@ -2,7 +2,7 @@
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 type Run = <T>(operation: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 
-/** Reuse two connections inside one invocation; never retain clients across requests. */
+/** Reuse four connections inside one invocation; reserve headroom for private HTTP calls. */
 export async function withJudgingConnections<T>(
   connectionString: string,
   signal: AbortSignal,
@@ -10,7 +10,7 @@ export async function withJudgingConnections<T>(
 ): Promise<T> {
   const pool = createNodePool({
     connectionString,
-    max: 2,
+    max: 4,
     connectionTimeoutMs: 5000,
     idleTimeoutMs: 240000,
     onIdleError: () => {},
