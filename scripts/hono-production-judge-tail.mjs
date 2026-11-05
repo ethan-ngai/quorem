@@ -40,7 +40,7 @@ export async function tailProductionJudge(keys) {
             .filter(
               (message) =>
                 typeof message === "string" &&
-                (/^case-lifecycle [a-z-]+$/.test(message) ||
+                (/^case-lifecycle [a-z0-9-]+$/.test(message) ||
                   /^Case started language=(python|java|typescript|ocaml|postgresql) duration_ms=\d+$/.test(
                     message,
                   )),

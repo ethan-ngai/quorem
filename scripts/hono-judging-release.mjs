@@ -8,6 +8,17 @@ export async function judgingScopeIdle(database) {
   );
   return row?.idle === true;
 }
+/** A repair may preserve attempts only when every retained fence uses the exact protocol scope. */
+export async function judgingScopeCompatible(database, scope) {
+  if (!/^remote:[a-f0-9]{64}$/.test(scope ?? "")) throw new Error("Invalid preserved scope");
+  const {
+    rows: [row],
+  } = await database.query(
+    "SELECT NOT EXISTS(SELECT 1 FROM execution_jobs j WHERE NOT j.finished AND j.sandbox_scope IS NOT NULL AND j.sandbox_scope<>$1) AS compatible",
+    [scope],
+  );
+  return row?.compatible === true;
+}
 export function judgingPeerSecret(keys, service, release) {
   if (
     !/^[a-f0-9]{40}$/.test(release ?? "") ||

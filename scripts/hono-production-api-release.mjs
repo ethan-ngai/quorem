@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createRequire } from "node:module";
-import { judgingScopeIdle, judgingPeerSecret } from "./hono-judging-release.mjs";
+import {
+  judgingScopeIdle,
+  judgingPeerSecret,
+  judgingScopeCompatible,
+} from "./hono-judging-release.mjs";
 import { configureRestrictedRole } from "./hono-stage-database-role.mjs";
 import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
@@ -150,8 +154,13 @@ async function release(env) {
         existing: true,
       });
       if (env.HONO_JUDGING_SCOPE_UPDATE === "true") {
-        if (!(await judgingScopeIdle(operator)))
-          throw new Error("Prior judging scope is not drained");
+        const scope = JSON.parse(judgingPeerSecret(keys, services.origins.value, env.GITHUB_SHA))[0]
+          .scope;
+        const compatible =
+          env.HONO_PRESERVE_JUDGING_SCOPE === "true"
+            ? await judgingScopeCompatible(operator, scope)
+            : await judgingScopeIdle(operator);
+        if (!compatible) throw new Error("Prior judging scope is not drained or compatible");
       }
       await operator.query("COMMIT");
     } catch (error) {

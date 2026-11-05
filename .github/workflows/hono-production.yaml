@@ -14,6 +14,10 @@ on:
         description: Resume the already fenced native production setup
         type: boolean
         default: false
+      preserve_execution_scope:
+        description: Repair the current protocol without discarding stranded attempt fences
+        type: boolean
+        default: false
       judge_validation_run:
         description: Successful CI run for changed judge image sources
         type: string
@@ -90,6 +94,7 @@ jobs:
     env:
       HONO_RELEASE_SHA: ${{ inputs.release_sha }}
       HONO_JUDGE_VALIDATION_RUN: ${{ inputs.judge_validation_run }}
+      HONO_PRESERVE_JUDGING_SCOPE: ${{ inputs.preserve_execution_scope }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
       AUTH_BOOTSTRAP_USERNAME: ${{ vars.AUTH_BOOTSTRAP_USERNAME }}
       AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}

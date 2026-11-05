@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { judgingPeerSecret, judgingScopeIdle } from "./hono-judging-release.mjs";
+import {
+  judgingPeerSecret,
+  judgingScopeIdle,
+  judgingScopeCompatible,
+} from "./hono-judging-release.mjs";
 void test("scope changes bind the deployed private release, namespace and runner credential", () => {
   const keys = {
     QUOREM_CASE_SECRET: "c".repeat(64),
@@ -42,4 +46,24 @@ void test("scope transition fails closed unless the authoritative database confi
     }),
     true,
   );
+});
+
+void test("same-protocol recovery rejects any foreign attempt scope and missing database proof", async () => {
+  const scope = `remote:${"a".repeat(64)}`;
+  for (const rows of [[], [{ compatible: false }], [{ compatible: null }]])
+    assert.equal(await judgingScopeCompatible({ query: async () => ({ rows }) }, scope), false);
+  assert.equal(
+    await judgingScopeCompatible(
+      {
+        query: async (text, values) => {
+          assert.deepEqual(values, [scope]);
+          assert.match(text, /sandbox_scope<>\$1/);
+          return { rows: [{ compatible: true }] };
+        },
+      },
+      scope,
+    ),
+    true,
+  );
+  await assert.rejects(judgingScopeCompatible({}, "invalid"));
 });

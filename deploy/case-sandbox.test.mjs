@@ -288,3 +288,27 @@ void test(
     await response.arrayBuffer();
   },
 );
+
+void test("attempt cleanup leaves connection headroom and still visits every lane", async () => {
+  const f = fixture();
+  let running = 0,
+    peak = 0,
+    visited = 0;
+  const sandbox = newSandbox(f.context, {
+    CASES: {
+      getByName: () => ({
+        fetch: async () => {
+          running++;
+          peak = Math.max(peak, running);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          running--;
+          visited++;
+          return new Response(null, { status: 204 });
+        },
+      }),
+    },
+  });
+  assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+  assert.equal(visited, CASE_LANES - 1);
+  assert.equal(peak, 3);
+});
