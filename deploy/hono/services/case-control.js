@@ -134,6 +134,7 @@ export class CaseControl extends DurableObject {
           const prior = await tx.get(`attempt:${value.attempt}`);
           if (prior && (prior.generation !== value.generation || prior.release !== value.release))
             return 409;
+          if (prior) return 204;
           await tx.put(`attempt:${value.attempt}`, {
             generation: value.generation,
             release: value.release,
