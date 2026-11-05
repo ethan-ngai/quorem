@@ -76,6 +76,8 @@ export async function tailProductionJudge(keys) {
     }),
   );
   return async () => {
+    // Provider tails deliver the completed request after its response has returned.
+    await new Promise((resolve) => setTimeout(resolve, 5000));
     for (const child of children) {
       try {
         process.kill(-child.pid, "SIGTERM");
