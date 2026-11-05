@@ -40,36 +40,63 @@ const base = () => {
   };
   return env;
 };
-void test("direct wake coalesces and its alarm honors release and pause fences", async (t) => {
-  const env = base();
-  const name = `runner:${env.SERVICES_RELEASE}:1`;
+function runnerNamespace() {
+  const env = base(),
+    contexts = new Map(),
+    objects = new Map();
   env.QUOREM_CASE_NAMESPACE_ID = "namespace";
   env.CASES = { idFromName: () => env.QUOREM_CASE_NAMESPACE_ID };
-  const active = env.RUNNER_CONTROL;
-  let alarm = null,
-    paused = false,
-    arms = 0;
-  const runner = new RunnerService(
-    {
-      id: name,
-      storage: {
-        get: async () => paused,
-        put: async () => {
-          paused = true;
-        },
-        getAlarm: async () => alarm,
-        setAlarm: async (when) => {
-          alarm = when;
-          arms++;
-        },
-      },
-    },
-    env,
-  );
-  env.RUNNERS = { idFromName: (id) => id, getByName: () => runner };
   env.QUOREM_RUNNER_COMMAND_ORIGIN = "https://api.example.test";
-  const dispatch = t.mock.method(globalThis, "fetch", async (url) => {
+  const name = `runner:${env.SERVICES_RELEASE}:1`;
+  const get = (name) => {
+    if (!contexts.has(name)) {
+      const values = new Map();
+      const context = {
+        id: name,
+        alarm: null,
+        arms: 0,
+        values,
+        storage: {
+          get: async (key) => values.get(key),
+          put: async (key, value) => {
+            values.set(key, value);
+          },
+          getAlarm: async () => context.alarm,
+          setAlarm: async (when) => {
+            context.alarm = when;
+            context.arms++;
+          },
+        },
+      };
+      contexts.set(name, context);
+    }
+    if (!objects.has(name)) objects.set(name, new RunnerService(contexts.get(name), env));
+    return objects.get(name);
+  };
+  env.RUNNERS = { idFromName: (id) => id, getByName: get };
+  return {
+    env,
+    name,
+    get,
+    contexts,
+    evict(name) {
+      objects.delete(name);
+    },
+    async alarm(name) {
+      const object = get(name);
+      contexts.get(name).alarm = null;
+      await object.alarm();
+    },
+  };
+}
+
+void test("direct wakes durably fan out independent single-attempt alarms and honor pause", async (t) => {
+  const f = runnerNamespace(),
+    root = f.get(f.name),
+    active = f.env.RUNNER_CONTROL;
+  const dispatch = t.mock.method(globalThis, "fetch", async (url, init) => {
     assert.equal(new URL(url).pathname, "/internal/runner/drain");
+    assert.equal(JSON.parse(init.body).singleAttempt, true);
     return Response.json({ queued: 0, running: 0 });
   });
   const wake = (origin, token) =>
@@ -78,26 +105,88 @@ void test("direct wake coalesces and its alarm honors release and pause fences",
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
       }),
-      env,
+      f.env,
     );
   const direct = "https://runner-wake.internal";
   assert.equal((await wake(direct, secret("x"))).status, 404);
-  assert.equal((await wake(env.DRAIN_ORIGIN, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
-  assert.equal((await wake(direct, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
-  assert.equal((await wake(direct, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
-  assert.equal(arms, 1);
-  assert.equal(dispatch.mock.callCount(), 0);
-  env.RUNNER_CONTROL = {
+  assert.equal((await wake(f.env.DRAIN_ORIGIN, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
+  assert.equal((await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
+  assert.equal((await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
+  assert.equal(f.contexts.get(f.name).arms, 1);
+  f.contexts.get(f.name).alarm = Date.now() + 30000;
+  await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET);
+  assert.ok(f.contexts.get(f.name).alarm <= Date.now());
+  f.env.RUNNER_CONTROL = {
     getByName: () => ({ fetch: async () => new Response(null, { status: 503 }) }),
   };
-  await runner.alarm();
+  await f.alarm(f.name);
+  assert.equal(f.contexts.size, 1);
+  f.env.RUNNER_CONTROL = active;
+  await f.alarm(f.name);
+  const slots = [...f.contexts.keys()].filter((name) => name !== f.name);
+  assert.equal(slots.length, 8);
   assert.equal(dispatch.mock.callCount(), 0);
-  env.RUNNER_CONTROL = active;
-  await runner.alarm();
+  await Promise.all(slots.map((name) => f.alarm(name)));
+  assert.equal(dispatch.mock.callCount(), 8);
+  await root.fetch(new Request(`${f.env.DRAIN_ORIGIN}/internal/pause`, { method: "POST" }));
+  f.evict(f.name);
+  await f.alarm(f.name);
+  await f.alarm(slots[0]);
+  assert.equal(dispatch.mock.callCount(), 8);
+});
+
+void test("a failed slot durably halts future namespace work after eviction", async (t) => {
+  const f = runnerNamespace();
+  await f.alarm(f.name);
+  const slot = [...f.contexts.keys()].find((name) => name !== f.name);
+  const dispatch = t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ failure: { kind: "teardown" } }, { status: 503 }),
+  );
+  await assert.rejects(f.alarm(slot), /Runner wake drain failed/);
+  assert.equal(f.contexts.get(f.name).values.get("teardown-failed"), true);
+  f.evict(f.name);
+  f.evict(slot);
+  await f.alarm(f.name);
+  await f.alarm(slot);
   assert.equal(dispatch.mock.callCount(), 1);
-  await runner.fetch(new Request(`${env.DRAIN_ORIGIN}/internal/pause`, { method: "POST" }));
-  await runner.alarm();
-  assert.equal(dispatch.mock.callCount(), 1);
+});
+
+void test("an incomplete slot persists its next alarm before returning", async (t) => {
+  const f = runnerNamespace();
+  await f.alarm(f.name);
+  const slot = [...f.contexts.keys()].find((name) => name !== f.name);
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ queued: 1, running: 0 }, { status: 202 }),
+  );
+  await f.alarm(slot);
+  assert.ok(f.contexts.get(slot).alarm !== null);
+});
+
+void test("queue fallback schedules slots without an aggregate drain and confirms authoritative emptiness", async (t) => {
+  const f = runnerNamespace(),
+    root = f.get(f.name);
+  let state = { queued: 8, running: 0 },
+    empty = false;
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    const operation = new URL(url).pathname.split("/").pop();
+    calls.push(operation);
+    assert.equal(init.headers.authorization, `Bearer ${f.env.QUOREM_RUNNER_COMMAND_SECRET}`);
+    assert.equal(init.body, "{}");
+    assert.ok(f.contexts.get(f.name).alarm !== null);
+    assert.ok(["state", "empty"].includes(operation));
+    return Response.json(operation === "state" ? state : empty);
+  });
+  const request = () => root.command("drain");
+  assert.equal((await root.fetch(request())).status, 202);
+  assert.deepEqual(calls, ["state"]);
+  state = { queued: 0, running: 0 };
+  assert.equal((await root.fetch(request())).status, 202);
+  empty = true;
+  assert.equal((await root.fetch(request())).status, 200);
+  assert.deepEqual(calls, ["state", "state", "empty", "state", "empty"]);
+  state = { queued: -1, running: 0 };
+  assert.equal((await root.fetch(request())).status, 503);
 });
 
 void test("control authority gates drains and registers authorized case attempts first", async () => {
@@ -924,7 +1013,10 @@ void test("runner timings require the drain credential and survive eviction", as
     elapsedMs: 42,
     metrics: { "sandbox.runCase": { calls: 1, totalMs: 20, maxMs: 20 } },
   };
-  const context = { storage: { get: async () => profile }, waitUntil() {} };
+  const context = {
+    storage: { get: async (key) => (key === "last-profile" ? profile : undefined) },
+    waitUntil() {},
+  };
   const request = (authorized) =>
     new Request(`${env.DRAIN_ORIGIN}/internal/profile`, {
       method: "POST",

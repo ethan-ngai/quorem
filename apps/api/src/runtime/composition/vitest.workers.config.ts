@@ -39,6 +39,7 @@ export default defineConfig({
       "src/runtime/composition/worker.integration.test.ts",
       "src/runtime/composition/worker.queue.test.ts",
       "src/runtime/composition/worker.peer.test.ts",
+      "src/runtime/composition/judging-connections.workerd.test.ts",
     ],
   },
 });

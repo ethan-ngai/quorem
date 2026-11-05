@@ -24,6 +24,9 @@ export function localJudgingDrain(
       typeof ownerPublicKey !== "string"
     )
       return new Response(null, { status: 400 });
+    if (config.singleAttempt !== undefined && config.singleAttempt !== true)
+      return new Response(null, { status: 400 });
+    const singleAttempt = config.singleAttempt === true;
     const sandbox = profile.wrap(
       remoteSandbox({
         origin,
@@ -33,7 +36,7 @@ export function localJudgingDrain(
         cleanupMs: 30000,
         fetch: profile.wrap(
           {
-            async headers(input: RequestInfo | URL, init?: RequestInit) {
+            headers: async (input: RequestInfo | URL, init?: RequestInit) => {
               const sent = Date.now();
               const response = await fetch(input, init);
               const received = Number(response.headers.get("x-quorem-case-received-at"));
@@ -63,7 +66,8 @@ export function localJudgingDrain(
       {
         sandbox,
         drainSecret: peer.secret,
-        slots: capacity.slots,
+        slots: singleAttempt ? 1 : capacity.slots,
+        singleAttempt,
         graceMs: 1,
         resumable: peer.resumable,
         engine: (commands, isolated) => ({

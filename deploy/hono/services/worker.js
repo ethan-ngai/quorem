@@ -1,5 +1,8 @@
 /** Staged, purpose-scoped ingress for trusted services and attested cases. */
-import { CASE_SCOPE_REVISION } from "../../../packages/execution/src/scheduling.ts";
+import {
+  CASE_SCOPE_REVISION,
+  JUDGING_DEFAULTS,
+} from "../../../packages/execution/src/scheduling.ts";
 import { DurableObject } from "cloudflare:workers";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
@@ -129,6 +132,69 @@ async function activeRunner(env) {
 }
 
 export class RunnerService extends DurableObject {
+  children(runner) {
+    return Array.from({ length: JUDGING_DEFAULTS.slots }, (_, index) => `${runner}:slot:${index}`);
+  }
+  command(path) {
+    return new Request(`https://runner.internal/internal/${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}` },
+    });
+  }
+  async wakeChildren(runner) {
+    if (!(await this.ctx.storage.get("shards-started")))
+      await this.ctx.storage.put("shards-started", true);
+    const children = this.children(runner);
+    for (let start = 0; start < children.length; start += 3)
+      await Promise.all(
+        children.slice(start, start + 3).map(async (name) => {
+          const response = await this.env.RUNNERS.getByName(name, { locationHint: "enam" }).fetch(
+            this.command("wake"),
+          );
+          await response.body?.cancel();
+          if (response.status !== 204) throw new Error("Runner slot wake unavailable");
+        }),
+      );
+  }
+  async haltParent(parent) {
+    const response = await parent.fetch(this.command("slot-failed"));
+    await response.body?.cancel();
+    if (response.status !== 204) throw new Error("Runner failure propagation unavailable");
+  }
+  async queueState(signal) {
+    const command = async (operation) => {
+      const response = await fetch(
+        new URL(`/internal/runner/${operation}`, this.env.QUOREM_RUNNER_COMMAND_ORIGIN),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.env.QUOREM_RUNNER_COMMAND_SECRET}`,
+            "content-type": "application/json",
+          },
+          body: "{}",
+          redirect: "manual",
+          signal,
+        },
+      );
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error("Runner queue state unavailable");
+      }
+      return readControlJson(response, 2048);
+    };
+    const state = await command("state");
+    if (
+      !state ||
+      !Number.isSafeInteger(state.queued) ||
+      state.queued < 0 ||
+      !Number.isSafeInteger(state.running) ||
+      state.running < 0
+    )
+      throw new Error("Invalid runner queue state");
+    const empty = state.queued === 0 && state.running === 0 ? await command("empty") : false;
+    if (typeof empty !== "boolean") throw new Error("Invalid runner empty confirmation");
+    return Response.json(state, { status: empty ? 200 : 202 });
+  }
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (request.method !== "POST") return new Response(null, { status: 404 });
@@ -136,37 +202,86 @@ export class RunnerService extends DurableObject {
       await this.ctx.storage.put("recovery-paused", true);
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
-    if (!["/internal/drain", "/internal/wake", "/internal/profile"].includes(path))
+    if (
+      ![
+        "/internal/drain",
+        "/internal/wake",
+        "/internal/profile",
+        "/internal/slot-gate",
+        "/internal/slot-failed",
+      ].includes(path)
+    )
       return new Response(null, { status: 404 });
     if (request.headers.get("authorization") !== `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}`)
       return new Response(null, { status: 401 });
-    if (path === "/internal/profile")
-      return Response.json((await this.ctx.storage.get("last-profile")) ?? null);
-    if (await this.ctx.storage.get("recovery-paused"))
-      return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-    if (this.teardownFailure) return new Response(null, { status: 503 });
-    if (path === "/internal/wake") {
-      if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now());
+    if (path === "/internal/profile") {
+      if (!(await this.ctx.storage.get("shards-started")))
+        return Response.json((await this.ctx.storage.get("last-profile")) ?? null);
+      const runner = `runner:${this.env.SERVICES_RELEASE}:${this.env.SERVICES_GENERATION}`;
+      const profiles = [];
+      for (const name of this.children(runner)) {
+        const response = await this.env.RUNNERS.getByName(name).fetch(this.command("profile"));
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new Error("Runner profile unavailable");
+        }
+        const profile = await response.json();
+        if (profile) profiles.push(profile);
+      }
+      return Response.json({ shards: profiles });
+    }
+    if (path === "/internal/slot-failed") {
+      await this.ctx.storage.put("teardown-failed", true);
       return new Response(null, { status: 204 });
     }
-    return this.drain(request.signal);
+    if (
+      (await this.ctx.storage.get("recovery-paused")) ||
+      (await this.ctx.storage.get("teardown-failed"))
+    )
+      return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+    if (this.teardownFailure) return new Response(null, { status: 503 });
+    if (path === "/internal/slot-gate") return new Response(null, { status: 204 });
+    // Queue fallback schedules the same slots; it must never add a second execution pool.
+    const pending = await this.ctx.storage.getAlarm();
+    if (pending === null || pending > Date.now()) await this.ctx.storage.setAlarm(Date.now());
+    if (path === "/internal/wake") return new Response(null, { status: 204 });
+    try {
+      return await this.queueState(request.signal);
+    } catch {
+      return new Response(null, { status: 503 });
+    }
   }
 
   async alarm() {
     const runner = await activeRunner(this.env);
-    if (
-      !runner ||
-      this.ctx.id.toString() !== this.env.RUNNERS.idFromName(runner).toString() ||
-      (await this.ctx.storage.get("recovery-paused")) ||
-      this.teardownFailure
-    )
+    const own = this.ctx.id.toString();
+    const root = runner && this.env.RUNNERS.idFromName(runner).toString() === own;
+    const slot =
+      runner &&
+      this.children(runner).some((name) => this.env.RUNNERS.idFromName(name).toString() === own);
+    if (!runner || (!root && !slot) || (await this.ctx.storage.get("recovery-paused"))) return;
+    const failed = this.teardownFailure || (await this.ctx.storage.get("teardown-failed"));
+    if (root) {
+      if (!failed) await this.wakeChildren(runner);
       return;
-    const response = await this.drain(AbortSignal.timeout(210000));
-    await response.body?.cancel();
+    }
+    const parent = this.env.RUNNERS.getByName(runner);
+    if (failed) return this.haltParent(parent);
+    const gate = await parent.fetch(this.command("slot-gate"));
+    await gate.body?.cancel();
+    if (gate.status !== 204) return;
+    // An alarm is an independent top-level invocation; one user gets its own I/O budget.
+    const response = await this.drain(AbortSignal.timeout(210000), true);
+    const pending = response.status === 202 ? await response.json() : null;
+    if (!pending) await response.body?.cancel();
+    if (this.teardownFailure) {
+      await this.haltParent(parent);
+    }
     if (!response.ok) throw new Error("Runner wake drain failed");
+    if (pending) await this.ctx.storage.setAlarm(Date.now() + (pending.queued > 0 ? 1 : 1000));
   }
 
-  async drain(signal) {
+  async drain(signal, singleAttempt = false) {
     if (this.draining) return Response.json({ queued: 0, running: 0 }, { status: 202 });
     this.draining = true;
     try {
@@ -183,6 +298,7 @@ export class RunnerService extends DurableObject {
             secret: this.env.QUOREM_CASE_SECRET,
             namespaceId: this.env.QUOREM_CASE_NAMESPACE_ID,
             ownerPublicKey: this.env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
+            ...(singleAttempt ? { singleAttempt: true } : {}),
           }),
           redirect: "manual",
           signal,
@@ -193,7 +309,10 @@ export class RunnerService extends DurableObject {
         response.headers.get("content-type")?.includes("application/json")
       ) {
         const value = await readControlJson(response.clone(), 2048).catch(() => null);
-        if (value?.failure?.kind === "teardown") this.teardownFailure = true;
+        if (value?.failure?.kind === "teardown") {
+          this.teardownFailure = true;
+          await this.ctx.storage.put("teardown-failed", true);
+        }
       }
       const profile = response.headers.get("x-quorem-judging-profile");
       if (profile && profile.length <= 16384) {
