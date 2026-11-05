@@ -7,21 +7,32 @@ import {
   type VerificationReceipt,
 } from "@quorem/execution";
 import { postgresInputReader } from "../inputs/read.ts";
-import { lockVerificationChallenge, postgresVerificationSource } from "./verification-source.ts";
+import {
+  lockVerificationChallenge,
+  postgresVerificationSource,
+  writeVerificationChunks,
+} from "./verification-source.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
+import type { VerifiedField } from "./verification-client.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encode = new TextEncoder();
 /** Network and signature verification finish before this function acquires its commit locks. */
 export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
   const source = postgresVerificationSource(run),
     inputs = postgresInputReader(run);
-  return async (receipt: VerificationReceipt, signature: Uint8Array): Promise<void> => {
+  return async (
+    receipt: VerificationReceipt,
+    signature: Uint8Array,
+    inline?: readonly VerifiedField[],
+  ): Promise<void> => {
     if (!(await verifyResultReceipt(receipt, signature, publicKey)))
       throw new Error("Invalid verification signature");
     const frozen = await source.frozenCase(receipt.challenge);
     const job = frozen.job;
-    const manifest = await inputs.inputManifest(job);
-    const ref = await inputs.inputCaseRef(job, frozen.ordinal);
+    const [manifest, ref] = await Promise.all([
+      inputs.inputManifest(job),
+      inputs.inputCaseRef(job, frozen.ordinal),
+    ]);
     const binding = await manifestCaseBinding(job, manifest, ref, frozen.ordinal, job);
     if (
       receipt.jobId !== job.jobId ||
@@ -61,6 +72,13 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
           row.frame_hash !== receipt.frameHash
         )
           throw new Error("Stale verification");
+        if (inline)
+          await writeVerificationChunks(
+            tx,
+            receipt.challenge,
+            row,
+            inline.map((field) => ({ ...field, ordinal: 0 })),
+          );
         const fields = await tx.execute<{
           field: string;
           hash: string;

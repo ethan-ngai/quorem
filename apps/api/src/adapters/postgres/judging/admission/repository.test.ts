@@ -145,7 +145,12 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     return admitWithRecovery({
       receipts,
       coordinator: { prearm: async () => {}, wake: async () => {} },
-      publisher: { send: async () => {} },
+      publisher: {
+        send: async () => {
+          throw new Error("wake lost");
+        },
+      },
+      defer: () => {},
       shard: 0,
       commit: (fence) => admit(principal, key, value, fence),
     });
@@ -165,6 +170,8 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     );
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0].cases).toEqual([]);
+    const recovered = await postgresDispatch(run).claim("execution", 1, 30000);
+    expect(recovered).toMatchObject([{ jobId: rows.rows[0].job }]);
     expect(
       (
         await pool.query(

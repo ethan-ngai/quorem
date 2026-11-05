@@ -54,6 +54,7 @@ export interface HttpPorts {
   deadline: Coordinator;
   execution: Coordinator;
   wake: ExecutionWakePublisher;
+  deferExecution?: (work: Promise<unknown>) => void;
   inviteKey: Uint8Array;
   shards: number;
   guestCreation: boolean;
@@ -72,6 +73,7 @@ export function composeHttp(ports: HttpPorts) {
     receipts: prearmReceipts(run, "execution"),
     coordinator: ports.execution,
     publisher: ports.wake,
+    defer: ports.deferExecution,
     shard: 0,
   };
   const matches = matchLifecycle(run, {

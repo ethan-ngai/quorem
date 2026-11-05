@@ -9,7 +9,12 @@ type VerificationOptions = {
   verify: (
     challenge: string,
     signal: AbortSignal,
-  ) => Promise<{ receipt: VerificationReceipt; signature: Uint8Array }>;
+    inlineFields?: boolean,
+  ) => Promise<{
+    receipt: VerificationReceipt;
+    signature: Uint8Array;
+    fields?: readonly { field: "actual" | "expected"; bytes: Uint8Array }[];
+  }>;
   timeoutMs: number;
 };
 
@@ -32,6 +37,10 @@ function verificationJSON(result: Awaited<ReturnType<VerificationOptions["verify
   return {
     receipt: result.receipt,
     signature: Buffer.from(result.signature).toString("base64"),
+    fields: result.fields?.map(({ field, bytes }) => ({
+      field,
+      bytes: Buffer.from(bytes).toString("base64"),
+    })),
   };
 }
 
@@ -138,7 +147,14 @@ export function verificationFetch(options: VerificationOptions) {
       );
       signal.throwIfAborted();
       signal.addEventListener("abort", abort, { once: true });
-      const result = await Promise.race([options.verify(challenge, signal), expired]);
+      const result = await Promise.race([
+        options.verify(
+          challenge,
+          signal,
+          request.headers.get("x-quorem-verification-fields") === "inline",
+        ),
+        expired,
+      ]);
       signal.throwIfAborted();
       return Response.json(verificationJSON(result), { headers: { "cache-control": "no-store" } });
     } catch {

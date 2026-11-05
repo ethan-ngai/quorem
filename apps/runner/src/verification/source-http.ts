@@ -8,6 +8,7 @@ export function httpVerificationSource(options: {
   challenge: string;
   timeoutMs: number;
   fetch?: typeof fetch;
+  bundle?: boolean;
 }): VerificationSource {
   let origin: URL;
   try {
@@ -59,7 +60,7 @@ export function httpVerificationSource(options: {
         const part = await reader.read();
         if (part.done) break;
         size += part.value.length;
-        if (size > 100000) {
+        if (size > (path === "bundle" ? 360000 : 100000)) {
           await reader.cancel();
           throw new Error("Invalid verification response");
         }
@@ -83,34 +84,55 @@ export function httpVerificationSource(options: {
     const result = value as Record<string, unknown>;
     return { ...result, bytes: Buffer.from(value.bytes, "base64") } as unknown as InputPage;
   }
+  type Bundle = {
+    frozen: FrozenCase;
+    manifest: Awaited<ReturnType<ExecutionInputReader["inputManifest"]>>;
+    ref: Awaited<ReturnType<ExecutionInputReader["inputCaseRef"]>>;
+    pages?: Record<"metadata" | "case" | "actual" | "sqlTypes", unknown>;
+  };
+  let bundle: Bundle | undefined;
   const inputs: ExecutionInputReader = {
     async inputManifest(job, signal) {
       encodeJob(job);
-      return (await call("manifest", {}, signal)) as Awaited<
-        ReturnType<ExecutionInputReader["inputManifest"]>
-      >;
+      return (
+        bundle?.manifest ??
+        ((await call("manifest", {}, signal)) as Awaited<
+          ReturnType<ExecutionInputReader["inputManifest"]>
+        >)
+      );
     },
     async inputCaseRef(job, _ordinal, signal) {
       encodeJob(job);
-      return (await call("ref", {}, signal)) as Awaited<
-        ReturnType<ExecutionInputReader["inputCaseRef"]>
-      >;
+      return (
+        bundle?.ref ??
+        ((await call("ref", {}, signal)) as Awaited<
+          ReturnType<ExecutionInputReader["inputCaseRef"]>
+        >)
+      );
     },
     async inputPage(job, kind, _ordinal, offset, signal) {
       encodeJob(job);
       if (kind !== "case" && kind !== "metadata") throw new Error("Invalid verification input");
-      return page(await call("page", { kind, offset }, signal));
+      return page(
+        (offset === 0 ? bundle?.pages?.[kind] : undefined) ??
+          (await call("page", { kind, offset }, signal)),
+      );
     },
   };
-  return {
+  const source: VerificationSource = {
     inputs,
     async frozenCase(challenge, signal) {
       if (challenge !== options.challenge) throw new Error("Invalid challenge");
-      return (await call("frozen", {}, signal)) as FrozenCase;
+      if (!options.bundle) return (await call("frozen", {}, signal)) as FrozenCase;
+      bundle = (await call("bundle", {}, signal)) as Bundle;
+      return bundle.frozen;
     },
     async fieldPage(challenge, field, offset, signal) {
       if (challenge !== options.challenge) throw new Error("Invalid challenge");
-      return page(await call("field", { field, offset }, signal));
+      return page(
+        (offset === 0 ? bundle?.pages?.[field] : undefined) ??
+          (await call("field", { field, offset }, signal)),
+      );
     },
     async putField(challenge, field, bytes, signal) {
       if (challenge !== options.challenge) throw new Error("Invalid challenge");
@@ -123,4 +145,5 @@ export function httpVerificationSource(options: {
         );
     },
   };
+  return source;
 }

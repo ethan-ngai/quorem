@@ -39,7 +39,8 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
   ): Promise<AdmissionResult> =>
     run((scope) =>
       scope.transaction(options, async (tx) => {
-        await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
+        if (fence.receiptId !== null)
+          await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
         const user = (
           await tx.execute<{ kind: string }>(
             sql`SELECT kind FROM users WHERE id=${principal.userId} AND NOT disabled FOR NO KEY UPDATE`,

@@ -40,6 +40,11 @@ export interface VerificationSource {
     offset: number,
     signal?: AbortSignal,
   ): Promise<InputPage>;
+  putFields?(
+    challenge: string,
+    fields: readonly { field: "actual" | "expected"; bytes: Uint8Array }[],
+    signal?: AbortSignal,
+  ): Promise<void>;
   putField(
     challenge: string,
     field: "actual" | "expected",
@@ -158,23 +163,30 @@ export function nodeResultVerifier(source: VerificationSource, privateKey: Crypt
             result = compareCodingCase(problem.signature, methods, input, "executed", actual);
           }
         }
-        async function field(
-          name: "actual" | "expected",
-          value: string | undefined,
-        ): Promise<string | null> {
-          if (value === undefined) return null;
-          const bytes = new TextEncoder().encode(value);
-          const hash = createHash("sha256").update(bytes).digest("hex");
-          await source.putField(
-            challenge,
-            name,
-            (async function* () {
-              for (let i = 0; i < bytes.length; i += 65536) yield bytes.subarray(i, i + 65536);
-            })(),
-            signal,
-          );
-          return hash;
-        }
+        const fields = (["actual", "expected"] as const).flatMap((field) => {
+          const value = result[field];
+          return value === undefined ? [] : [{ field, bytes: new TextEncoder().encode(value) }];
+        });
+        if (
+          fields.length &&
+          source.putFields &&
+          fields.every(({ bytes }) => bytes.length > 0 && bytes.length <= 65536)
+        )
+          await source.putFields(challenge, fields, signal);
+        else
+          for (const { field, bytes } of fields)
+            await source.putField(
+              challenge,
+              field,
+              (async function* () {
+                for (let i = 0; i < bytes.length; i += 65536) yield bytes.subarray(i, i + 65536);
+              })(),
+              signal,
+            );
+        const hash = (field: "actual" | "expected") => {
+          const value = fields.find((entry) => entry.field === field);
+          return value ? createHash("sha256").update(value.bytes).digest("hex") : null;
+        };
         const receipt: VerificationReceipt = {
           challenge,
           jobId: job.jobId,
@@ -187,8 +199,8 @@ export function nodeResultVerifier(source: VerificationSource, privateKey: Crypt
           channel: ref.channel,
           status: result.status,
           typeMismatch: result.typeMismatch ?? false,
-          actualHash: await field("actual", result.actual),
-          expectedHash: await field("expected", result.expected),
+          actualHash: hash("actual"),
+          expectedHash: hash("expected"),
         };
         const signature = new Uint8Array(
           await crypto.subtle.sign(

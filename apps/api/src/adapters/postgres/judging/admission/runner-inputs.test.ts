@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { createServer } from "node:http";
-import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseLosslessJson } from "@quorem/questions";
@@ -19,8 +17,7 @@ import { postgresVerificationSource } from "../worker/verification-source.ts";
 import { postgresVerificationCommit } from "../worker/verification-commit.ts";
 import { createVerificationSourceHandler } from "../worker/verification-http.ts";
 import { httpResultVerifier } from "../worker/verification-client.ts";
-import { httpVerificationSource } from "../../../../../../runner/src/verification/source-http.ts";
-import { verificationHandler } from "../../../../../../runner/src/verification/http.ts";
+import { createVerificationFetch } from "../../../../../../runner/src/verification/service.ts";
 import { verifiedMatchProgress } from "../worker/verified-progress.ts";
 import { nodeResultVerifier } from "../../../../../../runner/src/verification/verifier.ts";
 import { verificationReceiptBytes, verifyResultReceipt } from "@quorem/execution";
@@ -661,61 +658,51 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const verifierCredential = new Uint8Array(32).fill(3);
             const sourceCredential = new Uint8Array(32).fill(4);
             const sourceHandler = createVerificationSourceHandler(scoped, sourceCredential);
-            const sourceHttp = httpVerificationSource({
-              origin: "https://fixture",
-              credential: sourceCredential,
-              challenge,
+            const verify = createVerificationFetch({
+              sourceOrigin: "https://fixture",
+              sourceCredential,
+              serviceCredential: verifierCredential,
+              signingKey: keys.privateKey,
+              bundle: true,
               timeoutMs: 5000,
               fetch: async (input, init) => sourceHandler(new Request(input, init)),
             });
-            const server = createServer(
-              verificationHandler({
-                credential: verifierCredential,
-                timeoutMs: 5000,
-                verify: nodeResultVerifier(sourceHttp, keys.privateKey),
-              }),
+            const verifier = httpResultVerifier({
+              origin: "https://verifier.fixture",
+              credential: verifierCredential,
+              timeoutMs: 5000,
+              fetch: async (input, init) => verify(new Request(input, init)),
+            });
+            const verified = await verifier.verify(challenge);
+            expect(verified.fields?.map(({ field }) => field)).toEqual(["actual", "expected"]);
+            await tx.execute(sql`SAVEPOINT mismatch_assembly`);
+            const mismatch = { ...verified.receipt, typeMismatch: true };
+            const mismatchSignature = new Uint8Array(
+              await crypto.subtle.sign(
+                "Ed25519",
+                keys.privateKey,
+                new Uint8Array(verificationReceiptBytes(mismatch)),
+              ),
             );
-            server.listen(0, "127.0.0.1");
-            await once(server, "listening");
-            const address = server.address();
-            if (!address || typeof address === "string")
-              throw new Error("Missing verifier address");
-            let verified: Awaited<ReturnType<ReturnType<typeof httpResultVerifier>["verify"]>>;
-            try {
-              const verifier = httpResultVerifier({
-                origin: `http://127.0.0.1:${address.port}`,
-                credential: verifierCredential,
-                timeoutMs: 5000,
-              });
-              verified = await verifier.verify(challenge);
-              await tx.execute(sql`SAVEPOINT mismatch_assembly`);
-              const mismatch = { ...verified.receipt, typeMismatch: true };
-              const mismatchSignature = new Uint8Array(
-                await crypto.subtle.sign(
-                  "Ed25519",
-                  keys.privateKey,
-                  new Uint8Array(verificationReceiptBytes(mismatch)),
-                ),
-              );
-              await postgresVerificationCommit(scoped, keys.publicKey)(mismatch, mismatchSignature);
-              const diagnosticFrame = (
-                await tx.execute<{ raw: string }>(
-                  sql`SELECT convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
-                )
-              ).rows[0].raw;
-              expect(JSON.parse(diagnosticFrame).diagnostics).toEqual([
-                { message: "n\u0000l" },
-                { message: "Output column types do not match the SQL schema." },
-              ]);
-              await tx.execute(sql`ROLLBACK TO SAVEPOINT mismatch_assembly`);
-              await postgresCompletionStaging(scoped, {
-                verifier,
-                verificationPublicKey: keys.publicKey,
-              }).seal(fence, "sample", 0, "accepted");
-            } finally {
-              server.close();
-              await once(server, "close");
-            }
+            await postgresVerificationCommit(scoped, keys.publicKey)(
+              mismatch,
+              mismatchSignature,
+              verified.fields,
+            );
+            const diagnosticFrame = (
+              await tx.execute<{ raw: string }>(
+                sql`SELECT convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
+              )
+            ).rows[0].raw;
+            expect(JSON.parse(diagnosticFrame).diagnostics).toEqual([
+              { message: "n\u0000l" },
+              { message: "Output column types do not match the SQL schema." },
+            ]);
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT mismatch_assembly`);
+            await postgresCompletionStaging(scoped, {
+              verifier,
+              verificationPublicKey: keys.publicKey,
+            }).seal(fence, "sample", 0, "accepted");
             expect(verified.receipt.status).toBe("wrong_answer");
             expect(
               await verifyResultReceipt(verified.receipt, verified.signature, keys.publicKey),

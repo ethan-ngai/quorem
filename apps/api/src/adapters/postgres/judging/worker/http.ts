@@ -13,6 +13,11 @@ import {
 } from "@quorem/execution";
 
 export interface RunnerPeer {
+  readonly drain?: (
+    request: Request,
+    config: Record<string, unknown>,
+    repository: ReturnType<RunnerPeer["repository"]>,
+  ) => Promise<Response>;
   readonly inputProtocol: "manifest-v1";
   readonly secret: string;
   readonly scope: string;
@@ -87,6 +92,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
       scope: p.scope,
       resumable: p.resumable,
       repository: p.repository,
+      drain: p.drain,
       hash: await sha(p.secret),
     })),
   );
@@ -140,6 +146,7 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
           new TextDecoder("utf-8", { fatal: true }).decode(await readBounded(request, 65536)),
         ),
       );
+      if (operation === "drain" && peer.drain) return await peer.drain(request, body, repository);
       const job = () => decodeJob(str(body.job), peer!.scope);
       const fence = (): AttemptFence | null =>
         body.attemptId === null

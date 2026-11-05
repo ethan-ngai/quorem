@@ -1,10 +1,14 @@
 /** @file verification-client.ts @description Private independent result verification transport. @module judging */
 import { verificationReceiptBytes, type VerificationReceipt } from "@quorem/execution";
+export interface VerifiedField {
+  field: "actual" | "expected";
+  bytes: Uint8Array;
+}
 export interface ResultVerifier {
   verify(
     challenge: string,
     signal?: AbortSignal,
-  ): Promise<{ receipt: VerificationReceipt; signature: Uint8Array }>;
+  ): Promise<{ receipt: VerificationReceipt; signature: Uint8Array; fields?: VerifiedField[] }>;
 }
 /** HTTPS is mandatory outside loopback; redirects and oversized responses fail closed. */
 export function httpResultVerifier(options: {
@@ -44,7 +48,11 @@ export function httpResultVerifier(options: {
       const response = await send(new URL("/internal/results/verify", origin), {
         method: "POST",
         redirect: "manual",
-        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "x-quorem-verification-fields": "inline",
+        },
         body: JSON.stringify({ challenge }),
         signal: combined,
       });
@@ -60,7 +68,7 @@ export function httpResultVerifier(options: {
           const part = await reader.read();
           if (part.done) break;
           size += part.value.length;
-          if (size > 16384) {
+          if (size > 192000) {
             await reader.cancel();
             throw new Error("Invalid verifier response");
           }
@@ -89,7 +97,30 @@ export function httpResultVerifier(options: {
       verificationReceiptBytes(receipt);
       const raw = atob(value.signature),
         signature = Uint8Array.from(raw, (c) => c.charCodeAt(0));
-      return { receipt, signature };
+      let fields: VerifiedField[] | undefined;
+      if ("fields" in value) {
+        if (!Array.isArray(value.fields) || value.fields.length < 1 || value.fields.length > 2)
+          throw new Error("Invalid verified fields");
+        fields = value.fields.map((entry): VerifiedField => {
+          if (
+            (entry?.field !== "actual" && entry?.field !== "expected") ||
+            typeof entry.bytes !== "string" ||
+            entry.bytes.length > 87384 ||
+            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(entry.bytes)
+          )
+            throw new Error("Invalid verified field");
+          return {
+            field: entry.field,
+            bytes: Uint8Array.from(atob(entry.bytes), (c) => c.charCodeAt(0)),
+          };
+        });
+        if (
+          new Set(fields.map(({ field }) => field)).size !== fields.length ||
+          fields.some(({ bytes }) => !bytes.length || bytes.length > 65536)
+        )
+          throw new Error("Invalid verified fields");
+      }
+      return { receipt, signature, fields };
     },
   };
 }

@@ -76,12 +76,38 @@ export function createVerificationSourceHandler(run: Run, credential: Uint8Array
         !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.challenge)
       )
         throw new Error("Invalid challenge");
-      const id = data.challenge,
-        frozen = await source.frozenCase(id);
+      const id = data.challenge;
       let result: unknown;
-      switch (new URL(request.url).pathname) {
+      switch (url.pathname) {
+        case "/internal/verification/bundle": {
+          const frozen = await source.frozenCase(id);
+          const encoded = <T extends { bytes: Uint8Array }>(value: T) => ({
+            ...value,
+            bytes: base64(value.bytes),
+          });
+          const [bundle, actual, sqlTypes] = await Promise.all([
+            inputs.inputBundle(frozen.job, frozen.ordinal, false),
+            frozen.actual && frozen.actual.size <= 65536 ? source.fieldPage(id, "actual", 0) : null,
+            frozen.sqlTypes && frozen.sqlTypes.size <= 65536
+              ? source.fieldPage(id, "sqlTypes", 0)
+              : null,
+          ]);
+          if (!bundle.ref) throw new Error("Verification input unavailable");
+          result = {
+            frozen,
+            manifest: bundle.manifest,
+            ref: bundle.ref,
+            pages: {
+              metadata: bundle.metadata && encoded(bundle.metadata),
+              case: bundle.testcase && encoded(bundle.testcase),
+              actual: actual && encoded(actual),
+              sqlTypes: sqlTypes && encoded(sqlTypes),
+            },
+          };
+          break;
+        }
         case "/internal/verification/frozen":
-          result = frozen;
+          result = await source.frozenCase(id);
           break;
         case "/internal/verification/field": {
           if (
@@ -94,14 +120,18 @@ export function createVerificationSourceHandler(run: Run, credential: Uint8Array
           break;
         }
         case "/internal/verification/manifest":
-          result = await inputs.inputManifest(frozen.job);
+          result = await inputs.inputManifest((await source.frozenCase(id)).job);
           break;
         case "/internal/verification/ref":
-          result = await inputs.inputCaseRef(frozen.job, frozen.ordinal);
+          {
+            const frozen = await source.frozenCase(id);
+            result = await inputs.inputCaseRef(frozen.job, frozen.ordinal);
+          }
           break;
         case "/internal/verification/page": {
           if ((data.kind !== "metadata" && data.kind !== "case") || typeof data.offset !== "number")
             throw new Error("Invalid page");
+          const frozen = await source.frozenCase(id);
           const page = await inputs.inputPage(
             frozen.job,
             data.kind,

@@ -70,36 +70,54 @@ export function postgresVerificationSource(run: Run) {
       });
     },
     async putChunk(id: string, field: "actual" | "expected", ordinal: number, bytes: Uint8Array) {
-      if (
-        !["actual", "expected"].includes(field) ||
-        !Number.isSafeInteger(ordinal) ||
-        ordinal < 0 ||
-        bytes.length < 1 ||
-        bytes.length > 65536
-      )
-        throw new Error("Invalid verification output");
       await transact(async (tx) => {
         const row = await lockVerificationChallenge(tx, id);
-        const previous = (
-          await tx.execute<{ same: boolean }>(
-            sql`SELECT data=${bytes}::bytea AS same FROM execution_verification_output_chunks WHERE challenge_id=${id}::uuid AND field=${field} AND ordinal=${ordinal}`,
-          )
-        ).rows[0];
-        if (previous) {
-          if (!previous.same) throw new Error("Verification output conflict");
-          return;
-        }
-        const sealed =
-          (
-            await tx.execute(
-              sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${row.job_id}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal}`,
-            )
-          ).rows.length > 0;
-        if (sealed) throw new Error("Verification frame sealed");
-        await tx.execute(
-          sql`INSERT INTO execution_verification_output_chunks(challenge_id,field,ordinal,data,hash) VALUES(${id}::uuid,${field},${ordinal},${bytes}::bytea,sha256(${bytes}::bytea))`,
-        );
+        await writeVerificationChunks(tx, id, row, [{ field, ordinal, bytes }]);
       });
     },
   };
+}
+
+export async function writeVerificationChunks(
+  tx: Transaction,
+  id: string,
+  row: Awaited<ReturnType<typeof lockVerificationChallenge>>,
+  chunks: readonly { field: "actual" | "expected"; ordinal: number; bytes: Uint8Array }[],
+) {
+  if (!chunks.length || chunks.length > 2) throw new Error("Invalid verification output");
+  for (const { field, ordinal, bytes } of chunks)
+    if (
+      !["actual", "expected"].includes(field) ||
+      !Number.isSafeInteger(ordinal) ||
+      ordinal < 0 ||
+      bytes.length < 1 ||
+      bytes.length > 65536
+    )
+      throw new Error("Invalid verification output");
+  const values = sql.join(
+    chunks.map(
+      ({ field, ordinal, bytes }) => sql`(${field}::text,${ordinal}::int,${bytes}::bytea)`,
+    ),
+    sql`,`,
+  );
+  const {
+    rows: [result],
+  } = await tx.execute<{ matched: number }>(
+    sql`WITH incoming(field,ordinal,data) AS (VALUES ${values}),
+        inserted AS (
+          INSERT INTO execution_verification_output_chunks(challenge_id,field,ordinal,data,hash)
+          SELECT ${id}::uuid,i.field,i.ordinal,i.data,sha256(i.data) FROM incoming i
+          WHERE NOT EXISTS (
+            SELECT 1 FROM execution_completion_frames
+            WHERE job_id=${row.job_id}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal}
+          )
+          ON CONFLICT DO NOTHING RETURNING 1
+        )
+        SELECT ((SELECT count(*) FROM inserted) +
+          (SELECT count(*) FROM incoming i JOIN execution_verification_output_chunks e
+            ON e.challenge_id=${id}::uuid AND e.field=i.field AND e.ordinal=i.ordinal AND e.data=i.data)
+        )::int AS matched`,
+  );
+  if (result.matched !== chunks.length)
+    throw new Error("Verification output conflict or sealed frame");
 }

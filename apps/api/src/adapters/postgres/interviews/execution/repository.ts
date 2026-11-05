@@ -35,7 +35,8 @@ export function postgresInterviewAdmission(
     const hash = await interviewExecutionFingerprint(id, command);
     return run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, async (tx) => {
-        await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
+        if (fence.receiptId !== null)
+          await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
         const user = (
           await tx.execute<{ kind: string }>(
             sql`SELECT kind FROM users WHERE id=${actor.userId} AND NOT disabled FOR NO KEY UPDATE`,

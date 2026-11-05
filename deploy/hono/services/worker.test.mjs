@@ -818,7 +818,11 @@ void test("runner pause persists across instances and rejects subsequent drains"
   };
   const context = { storage, container: {}, waitUntil() {} };
   const pause = () => new Request(`${env.DRAIN_ORIGIN}/internal/pause`, { method: "POST" });
-  const drain = () => new Request(`${env.DRAIN_ORIGIN}/internal/drain`, { method: "POST" });
+  const drain = () =>
+    new Request(`${env.DRAIN_ORIGIN}/internal/drain`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}` },
+    });
   assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);
   assert.equal((await new RunnerService(context, env).fetch(drain())).status, 503);
   assert.equal((await new RunnerService(context, env).fetch(pause())).status, 204);

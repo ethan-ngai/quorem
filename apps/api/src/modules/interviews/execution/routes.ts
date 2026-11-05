@@ -40,6 +40,7 @@ export function interviewExecutionRoutes(deps: {
   coordinator: Coordinator;
   publisher: ExecutionWakePublisher;
   shard: number;
+  defer?: (work: Promise<unknown>) => void;
   commit(
     actor: Principal,
     id: string,
@@ -69,6 +70,7 @@ export function interviewExecutionRoutes(deps: {
       coordinator: deps.coordinator,
       publisher: deps.publisher,
       shard: deps.shard,
+      defer: deps.defer,
       commit: (fence) => deps.commit(actor, id, key, command, fence),
     });
     return c.json(result, 202);

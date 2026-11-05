@@ -9,6 +9,7 @@ export async function finishAfterTeardown(
 ): Promise<void> {
   const fence = { attemptId: job.attemptId, sandboxScope: job.sandboxScope };
   await sandbox.teardownAttempt(fence, signal);
+  if (repository.finalizeCompletion) return repository.finalizeCompletion(job, fence, signal);
   await repository.finishCompletionStream(job, fence, signal);
   await repository.promoteCompletion(job, fence, signal);
 }

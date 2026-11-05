@@ -1,6 +1,5 @@
 /** Staged, purpose-scoped ingress for trusted services and attested cases. */
 import { DurableObject } from "cloudflare:workers";
-import { workerRunner } from "../../../apps/runner/src/runtime/worker-runner.ts";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
 import { signedCaseProbe, validRunnerControlState } from "../../case-proof.js";
@@ -103,12 +102,43 @@ export class RunnerService extends DurableObject {
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
     if (path !== "/internal/drain") return new Response(null, { status: 404 });
+    if (request.headers.get("authorization") !== `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}`)
+      return new Response(null, { status: 401 });
     if (await this.ctx.storage.get("recovery-paused"))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-    this.drain ??= workerRunner(this.env, (url, init) =>
-      ingress.fetch(new Request(url, init), this.env),
-    );
-    return this.drain(request);
+    if (this.teardownFailure) return new Response(null, { status: 503 });
+    if (this.draining) return Response.json({ queued: 0, running: 0 }, { status: 202 });
+    this.draining = true;
+    try {
+      const response = await fetch(
+        new URL("/internal/runner/drain", this.env.QUOREM_RUNNER_COMMAND_ORIGIN),
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.env.QUOREM_RUNNER_COMMAND_SECRET}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            origin: this.env.QUOREM_CASE_ORIGIN,
+            secret: this.env.QUOREM_CASE_SECRET,
+            namespaceId: this.env.QUOREM_CASE_NAMESPACE_ID,
+            ownerPublicKey: this.env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
+          }),
+          redirect: "manual",
+          signal: request.signal,
+        },
+      );
+      if (
+        response.status === 503 &&
+        response.headers.get("content-type")?.includes("application/json")
+      ) {
+        const value = await readControlJson(response.clone(), 2048).catch(() => null);
+        if (value?.failure?.kind === "teardown") this.teardownFailure = true;
+      }
+      return response;
+    } finally {
+      this.draining = false;
+    }
   }
 }
 export class ImageService extends DurableObject {

@@ -138,6 +138,7 @@ export interface ExecutionRepository {
   ): Promise<void>;
   sealCompletionDiagnostics(job: Job, signal?: AbortSignal): Promise<void>;
   finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
+  finalizeCompletion?(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   promoteCompletion(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   loadCheckpoint(job: Job, signal?: AbortSignal): Promise<Checkpoint>;
   replayCheckpoint(
@@ -191,6 +192,18 @@ export interface InputPage extends InputBlobRef {
   readonly channel: "public" | "sample" | "private" | null;
 }
 export interface ExecutionInputReader {
+  inputBundle?(
+    job: Job,
+    ordinal: number,
+    includeSource: boolean,
+    signal?: AbortSignal,
+  ): Promise<{
+    manifest: InputManifest;
+    ref: InputCaseRef | null;
+    source?: InputPage;
+    metadata?: InputPage;
+    testcase?: InputPage;
+  }>;
   inputManifest(job: Job, signal?: AbortSignal): Promise<InputManifest>;
   inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal): Promise<InputCaseRef>;
   inputPage(

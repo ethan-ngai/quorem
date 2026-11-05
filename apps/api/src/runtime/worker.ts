@@ -34,6 +34,7 @@ import { browserSocketObject } from "./worker/socket/durable.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
 import { composeIdentity } from "./composition/identity.ts";
+import { localJudgingDrain } from "./composition/judging-drain.ts";
 import { composePrivate } from "./composition/private.ts";
 import {
   boundedInt,
@@ -95,7 +96,7 @@ function notices(env: Env) {
       socketStub(env, stream, notice.aggregateId).publish(notice),
   };
 }
-const realtimeStreams = ["interview", "match", "submission"] as const;
+const realtimeStreams = ["submission", "interview", "match"] as const;
 async function publishNotices(
   env: Env,
   run: ReturnType<typeof runFor>,
@@ -162,7 +163,12 @@ function makeSecurity(env: Env, signal?: AbortSignal) {
   };
   return { auth, verifier, sessions };
 }
-function makeHttp(env: Env, request: Request, submissionNotices?: FanoutSubscriber) {
+function makeHttp(
+  env: Env,
+  request: Request,
+  submissionNotices?: FanoutSubscriber,
+  deferExecution?: (work: Promise<unknown>) => void,
+) {
   const run = runFor(env, request.signal),
     security = makeSecurity(env, request.signal),
     allowed = origins(env);
@@ -172,6 +178,7 @@ function makeHttp(env: Env, request: Request, submissionNotices?: FanoutSubscrib
     ...identity,
     origins: allowed,
     submissionNotices,
+    deferExecution,
     trustedPeer: () => cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER),
     deadline: cloudflareCoordinator(env.DEADLINES),
     execution: cloudflareCoordinator(env.EXECUTION_RECOVERY),
@@ -312,7 +319,17 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 let budget: ReturnType<typeof requestBudget> | undefined;
 let streamBudget: ReturnType<typeof requestBudget> | undefined;
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx?: { waitUntil(work: Promise<unknown>): void },
+  ): Promise<Response> {
+    const defer = ctx ? (work: Promise<unknown>) => ctx.waitUntil(work) : undefined;
+    const publish = async (streams: readonly NoticeStream[]) => {
+      const work = publishNotices(env, runFor(env), streams);
+      if (defer) defer(work);
+      else await work;
+    };
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
@@ -335,35 +352,52 @@ export default {
       return await budget(request, async () => {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
-          const handlers = await composePrivate(run, privateConfig(env));
+          const handlers = await composePrivate(run, privateConfig(env), (peer) =>
+            localJudgingDrain(peer, (terminal) =>
+              publish(terminal ? realtimeStreams : ["submission"]),
+            ),
+          );
           const response = path.startsWith("/internal/runner/")
             ? await handlers.runner(request)
             : await handlers.source(request);
           if (response.ok) {
-            if (path === "/internal/runner/promote") await publishNotices(env, run, realtimeStreams);
+            if (path === "/internal/runner/promote") await publish(realtimeStreams);
             else if (path === "/internal/runner/claim" || path === "/internal/runner/yield")
-              await publishNotices(env, run, ["submission"]);
+              await publish(["submission"]);
           }
           return privateResponse(response);
         }
-        const composed = makeHttp(env, request);
+        const composed = makeHttp(env, request, undefined, defer);
         const incoming = path.startsWith("/api/auth/")
           ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
           : request;
         const response = await composed.app.fetch(incoming);
         if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method))
-          await publishNotices(env, run, realtimeStreams);
+          await publish(realtimeStreams);
         return response;
       });
     } catch (error) {
-      console.error(JSON.stringify({
-        event: "runtime-composition-failed",
-        kind: error instanceof Error ? error.name : "unknown",
-        frames: error instanceof Error ? error.stack?.split("\n").slice(1, 7)
-          .map((line) => line.match(/at ([A-Za-z0-9_.]+)/)?.[1]).filter(Boolean) : [],
-        reason: error instanceof Error && /^(?:Invalid runtime (?:key|flag|limit)|Missing runtime configuration)$/.test(error.message)
-          ? error.message : undefined,
-      }));
+      console.error(
+        JSON.stringify({
+          event: "runtime-composition-failed",
+          kind: error instanceof Error ? error.name : "unknown",
+          frames:
+            error instanceof Error
+              ? error.stack
+                  ?.split("\n")
+                  .slice(1, 7)
+                  .map((line) => line.match(/at ([A-Za-z0-9_.]+)/)?.[1])
+                  .filter(Boolean)
+              : [],
+          reason:
+            error instanceof Error &&
+            /^(?:Invalid runtime (?:key|flag|limit)|Missing runtime configuration)$/.test(
+              error.message,
+            )
+              ? error.message
+              : undefined,
+        }),
+      );
       return unavailable();
     }
   },
@@ -377,9 +411,7 @@ export default {
     const deadlines = cloudflareCoordinator(env.DEADLINES),
       recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
     await recoverAll([
-      ...realtimeStreams.map(
-        (stream) => () => dispatchBatch(store, publisher, wake(env), stream),
-      ),
+      ...realtimeStreams.map((stream) => () => dispatchBatch(store, publisher, wake(env), stream)),
       async () => {
         await recoverExecutionIntents(run);
         await dispatchBatch(store, publisher, wake(env), "execution");
