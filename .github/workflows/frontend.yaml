@@ -67,6 +67,8 @@ jobs:
       - if: ${{ !inputs.skip_tests }}
         run: vp check --no-fmt
       - if: ${{ !inputs.skip_tests }}
+        run: vp -C apps/web run typecheck
+      - if: ${{ !inputs.skip_tests }}
         run: vp -C apps/web test
       - if: ${{ !inputs.skip_tests }}
         run: vp node --test scripts/prepare-pages.test.mjs

@@ -1,9 +1,9 @@
 name: CI
 on:
   pull_request:
-    branches: [main, "feat/hono-*", "fix/hono-*", "test/hono-*", "refactor/hono-*"]
+    branches: [dev, main]
   push:
-    branches: [feat/hono-migration]
+    branches: [dev]
   workflow_dispatch:
 permissions:
   contents: read
@@ -59,6 +59,7 @@ jobs:
           echo 'Formatting check failed. See the formatting step output; run `vp fmt` locally to fix it. This does not block CI.' >> "$GITHUB_STEP_SUMMARY"
       - name: Lint and type checks
         run: vp check --no-fmt
+      - run: vp -C apps/web run typecheck
       - run: vp run contracts:check
       - run: vp -C apps/api run typecheck
       - run: vp -C apps/api run check:boundaries
@@ -78,7 +79,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_runtime_test quorem_hono_benchmark_test; do
+          for database in quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_catalog_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_canonical_test quorem_hono_approaches_test quorem_hono_runtime_test quorem_hono_benchmark_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -160,8 +161,10 @@ jobs:
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
       - run: vp run build
-      - name: Canonical operator fixtures
+      - name: Canonical operator and migration fixtures
         env:
+          QUOREM_APPROACHES_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_approaches_test?sslmode=disable
+          QUOREM_CANONICAL_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_canonical_test?sslmode=disable
           QUOREM_CLI_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_cli_test?sslmode=disable
         run: vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
       - run: docker build -f apps/language/Dockerfile -t quorem-language:local .

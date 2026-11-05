@@ -7,24 +7,42 @@ patchedDependencies:
   # Upstream node-postgres PR 3806: close must not surface its cancelled read.
   pg-cloudflare@1.4.1: patches/pg-cloudflare@1.4.1.patch
 overrides:
-  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
-  vitest: 5.0.3
+  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
+  vitest: 5.1.0
 allowBuilds:
   esbuild: true
   sharp: true
   workerd: true
-minimumReleaseAgeExclude:
-  - "@aws-sdk/checksums@3.1001.3"
-  - "@aws-sdk/client-s3@3.1150.0"
-  - "@aws-sdk/core@3.978.3"
-  - "@aws-sdk/credential-provider-env@3.972.74"
-  - "@aws-sdk/credential-provider-http@3.972.76"
-  - "@aws-sdk/credential-provider-ini@3.973.19"
-  - "@aws-sdk/credential-provider-login@3.972.81"
-  - "@aws-sdk/credential-provider-node@3.972.86"
-  - "@aws-sdk/credential-provider-process@3.972.74"
-  - "@aws-sdk/credential-provider-sso@3.973.18"
-  - "@aws-sdk/credential-provider-web-identity@3.972.80"
-  - "@aws-sdk/middleware-sdk-s3@3.972.79"
-  - "@aws-sdk/nested-clients@3.997.48"
-  - "@aws-sdk/token-providers@3.1150.0"
+
+catalog:
+  "@better-auth/passkey": "1.7.17"
+  "@cloudflare/vitest-plugin": "1.5.1"
+  "@codemirror/state": "6.7.6"
+  "@fontsource-variable/geist": "5.3.0"
+  "@fontsource/jetbrains-mono": "5.3.0"
+  "@tanstack/react-query": "5.105.3"
+  "@types/node": "24.19.2"
+  "@types/pg": "8.23.1"
+  "@types/react": "19.3.0"
+  "@types/react-dom": "19.3.0"
+  "@types/ws": "8.18.2"
+  "ajv": "8.20.0"
+  "ajv-formats": "3.0.1"
+  "better-auth": "1.7.17"
+  "drizzle-orm": "0.45.4"
+  "hono": "4.13.16"
+  "pg": "8.23.1"
+  "react": "19.3.1"
+  "react-dom": "19.3.1"
+  "typescript": "6.0.3"
+  "vite-plus": "1.5.0"
+  "vitest": "5.1.0"
+  "wrangler": "4.157.0"
+  "ws": "8.22.1"
+
+peerDependencyRules:
+  allowedVersions:
+    # Vite+ publishes Vite 8.3.5 with its own package version.
+    vite: "1.5.0"
+    # Contract generation and reproducibility checks validate this compiler API.
+    "openapi-typescript@7.13.0>typescript": "6.0.3"

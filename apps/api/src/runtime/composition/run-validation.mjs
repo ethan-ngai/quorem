@@ -39,7 +39,7 @@ async function run(command, args) {
   child = undefined;
   if (code !== 0 || interrupted) throw new Error("Validation suite failed");
 }
-async function suite(config, report) {
+async function suite(config, report, files = []) {
   await run("vp", [
     "exec",
     "vitest",
@@ -49,6 +49,7 @@ async function suite(config, report) {
     "--reporter=default",
     "--reporter=json",
     `--outputFile.json=${report}`,
+    ...files,
   ]);
   const summary = JSON.parse(await readFile(report, "utf8"));
   if (
@@ -84,7 +85,25 @@ try {
   await run(process.execPath, ["--test", "src/runtime/composition/fixture.test.ts"]);
   cleanup = await bootstrapRuntimeFixture(database);
   await suite("src/runtime/composition/vitest.config.ts", join(temporary, "node.json"));
-  await suite("src/runtime/composition/vitest.workers.config.ts", join(temporary, "worker.json"));
+  // Fresh processes bound Vitest's module transfer below the Worker WebSocket limit.
+  const config = "src/runtime/composition/vitest.workers.config.ts";
+  const listed = spawnSync(
+    "vp",
+    ["exec", "vitest", "list", "--config", config, "--filesOnly", "--json"],
+    {
+      encoding: "utf8",
+    },
+  );
+  if (listed.status !== 0) throw new Error("Worker test discovery failed");
+  const files = JSON.parse(listed.stdout);
+  if (
+    !Array.isArray(files) ||
+    files.length === 0 ||
+    files.some(({ file }) => typeof file !== "string" || !file)
+  )
+    throw new Error("Worker tests missing");
+  for (const [index, { file }] of files.entries())
+    await suite(config, join(temporary, `worker-${index}.json`), [file]);
   process.stdout.write("Runtime release validation passed.\n");
 } catch {
   console.error("Runtime release validation failed; check prerequisites and test output.");

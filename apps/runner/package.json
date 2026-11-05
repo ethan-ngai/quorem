@@ -12,7 +12,7 @@
     "@quorem/questions": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "24.19.2",
-    "typescript": "6.0.3"
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
   }
 }

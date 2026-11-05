@@ -54,6 +54,7 @@ async function fixture() {
     "apps/auth/migrations/001_schema.sql",
   ];
   const frozen = {
+    "apps/auth/package.json": "apps/api/src/cli/fixtures/deployed-auth-package.json.txt",
     ".github/workflows/deploy.yaml": "apps/api/src/cli/fixtures/deployed-workflow.yaml.txt",
     "apps/api/cmd/provision/main.go": "apps/api/src/cli/fixtures/deployed-provision.go.txt",
     "apps/api/internal/adapters/postgres/store.go":

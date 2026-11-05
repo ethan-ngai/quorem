@@ -88,7 +88,9 @@ void test(
                   ? "apps/api/src/cli/fixtures/deployed-auth-migrations.ts.txt"
                   : name === "apps/api/internal/adapters/postgres/store.go"
                     ? "apps/api/src/cli/fixtures/deployed-postgres-store.go.txt"
-                    : name,
+                    : name === "apps/auth/package.json"
+                      ? "apps/api/src/cli/fixtures/deployed-auth-package.json.txt"
+                      : name,
           ),
         );
       return {
