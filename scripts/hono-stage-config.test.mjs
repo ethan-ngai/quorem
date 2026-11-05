@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageConfig } from "./hono-stage-config.mjs";
+import { stageConfig, workerConfig } from "./hono-stage-config.mjs";
 const input = () => ({
   stageZone: "example",
   vars: {
@@ -114,4 +114,19 @@ void test("profile binding must use the actual provisioned bucket and explicit p
       "/tmp/wrangler.json",
     ),
   );
+});
+
+void test("production places sequential database work in the production database region", () => {
+  const publicInput = input();
+  publicInput.stageZone = "quorem.app";
+  publicInput.vars.APP_ENV = "production";
+  publicInput.vars.AUTH_ORIGIN = "https://quorem.app";
+  publicInput.vars.ALLOWED_ORIGINS = "https://quorem.app";
+  const resources = outputs();
+  resources.worker_name.value = "quorem-hono-production";
+  resources.queue_name.value = "quorem-hono-production-execution";
+  resources.stage_hostname.value = "api-hono.quorem.app";
+  const config = workerConfig(publicInput, resources, "/tmp/wrangler.json", "production");
+  assert.deepEqual(config.placement, { region: "aws:us-east-1" });
+  assert.equal(stageConfig(input(), outputs(), "/tmp/wrangler.json").placement, undefined);
 });
