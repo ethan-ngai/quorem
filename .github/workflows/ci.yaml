@@ -1,9 +1,9 @@
 name: CI
 on:
   pull_request:
-    branches: [main, "feat/hono-*", "fix/hono-*", "test/hono-*", "refactor/hono-*"]
+    branches: [dev, main]
   push:
-    branches: [feat/hono-migration]
+    branches: [dev]
   workflow_dispatch:
 permissions:
   contents: read
@@ -59,6 +59,7 @@ jobs:
           echo 'Formatting check failed. See the formatting step output; run `vp fmt` locally to fix it. This does not block CI.' >> "$GITHUB_STEP_SUMMARY"
       - name: Lint and type checks
         run: vp check --no-fmt
+      - run: vp -C apps/web run typecheck
       - run: vp run contracts:check
       - run: vp -C apps/api run typecheck
       - run: vp -C apps/api run check:boundaries

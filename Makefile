@@ -39,7 +39,7 @@ dev:
 	python3 scripts/dev.py
 
 api:
-	vp -C apps/api run start
+	vp -C apps/api run dev
 
 runner:
 	vp -C apps/runner run runner
@@ -57,6 +57,7 @@ language:
 
 check:
 	vp check
+	vp -C apps/web run typecheck
 	vp run contracts:check
 	vp -C apps/auth test
 	vp -C apps/web test

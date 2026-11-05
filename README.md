@@ -94,12 +94,17 @@ Sign in as `alice` (admin) or `bob` using the generated `AUTH_SEED_PASSWORD` in 
 | Command | Purpose |
 | --- | --- |
 | `make dev` | Run the integrated local stack with live HMR |
+| `vp -C apps/api run dev` | Run Hono with watched TypeScript imports and graceful restarts |
 | `vp -C apps/web dev` | Run workspace Vite against existing local services |
 | `vp -C apps/marketing run dev` | Run marketing Astro with live HMR |
 | `make check` | Check types, contracts and tests |
 | `make build` | Build the site and check native services |
 | `make seed` | Seed the local problem catalog |
 | `make reset` | Recreate only the native local database and reseed |
+
+Shared dependency versions live in `pnpm-workspace.yaml` under `catalog`; package manifests reference `catalog:`. TypeScript 6 supplies the browser editor’s compiler API. Keep Node types on the runtime’s major version.
+
+Vite forwards `/v1` (HTTP, SSE and WebSockets) and `/api/auth` to the same Hono origin. Override `QUOREM_API_DEV_ORIGIN` when needed; `QUOREM_AUTH_DEV_ORIGIN` is an explicit auth override. Marketing uses `QUOREM_MARKETING_DEV_ORIGIN` and `WEB_ORIGIN` for its proxied HMR port. The marketing dev script uses `--ignore-lock` to stay in the foreground under the supervisor, including agent sessions. Servers fail on occupied ports; use matching overrides when running several checkouts.
 
 PostgreSQL integration tests require `QUOREM_TEST_DATABASE_URL` pointing to a **separate disposable database**. Tests truncate data; never point them at your running development database.
 

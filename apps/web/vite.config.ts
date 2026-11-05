@@ -52,6 +52,7 @@ function marketingPages(): Plugin {
         try {
           const response = await fetch(
             `${marketingOrigin}${marketingEntry}${new URL(req.url ?? "/", "http://localhost").search}`,
+            { signal: AbortSignal.timeout(5000) },
           );
           res.statusCode = response.status;
           res.setHeader("Content-Type", response.headers.get("Content-Type") ?? "text/html");
@@ -68,20 +69,22 @@ function marketingPages(): Plugin {
   };
 }
 
+const apiOrigin = process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080";
 const marketingOrigin = process.env.QUOREM_MARKETING_DEV_ORIGIN ?? "http://127.0.0.1:4321";
 const marketingEntry = marketingDevBase(process.env.QUOREM_MARKETING_BASE);
 
 export default defineConfig({
   cacheDir: process.env.QUOREM_VITE_CACHE_DIR,
   plugins: [marketingPages(), react()],
+  resolve: { dedupe: ["react", "react-dom"] },
   server: {
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
     proxy: {
       [marketingEntry.replace(/\/$/, "")]: { target: marketingOrigin, ws: true },
-      "/v1": { target: process.env.QUOREM_API_DEV_ORIGIN ?? "http://127.0.0.1:8080", ws: true },
-      "/api/auth": process.env.QUOREM_AUTH_DEV_ORIGIN ?? "http://127.0.0.1:8082",
+      "/v1": { target: apiOrigin, ws: true },
+      "/api/auth": process.env.QUOREM_AUTH_DEV_ORIGIN ?? apiOrigin,
     },
   },
 });

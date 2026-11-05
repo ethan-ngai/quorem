@@ -14,12 +14,12 @@
   },
   "dependencies": {
     "@quorem/contracts": "workspace:*",
-    "ajv": "8.18.0",
-    "ajv-formats": "3.0.1"
+    "ajv": "catalog:",
+    "ajv-formats": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-plugin": "1.4.11",
-    "@types/node": "24.19.2",
-    "vitest": "5.0.3"
+    "@cloudflare/vitest-plugin": "catalog:",
+    "@types/node": "catalog:",
+    "vitest": "catalog:"
   }
 }
