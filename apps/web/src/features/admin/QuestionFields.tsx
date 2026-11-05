@@ -1,4 +1,4 @@
-import { blankApproach, approachTitle } from "@quorem/questions";
+import { blankApproach } from "@quorem/questions";
 import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -22,10 +22,11 @@ import { CodeEditorialFields } from "./CodeEditorialFields";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { ConstraintFields } from "./ConstraintFields";
 import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
-import { CodeLiteral } from "../editor/components/CodeLiteral";
+import { SolutionDisplay } from "../editor/components/SolutionDisplay";
+import type { EditorTheme } from "../editor/PythonEditor";
+import { defaultEditorSchemes, type EditorScheme } from "../editor/editorSchemes";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
-import { ComplexityDetails } from "../editor/components/EditorialPanel";
 import {
   Code2,
   FileText,
@@ -36,11 +37,10 @@ import {
   Braces,
   FlaskConical,
 } from "lucide-react";
-import { StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
 import { revisions, questionImplementations, type Language } from "./content";
-import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
+import { languageLabels } from "../editor/editorLanguages";
 
 type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
 function QuestionTypeControl({
@@ -474,7 +474,17 @@ export function QuestionFields({
   );
 }
 
-export function PublicPreview({ content }: { content: QuestionContent }) {
+export function PublicPreview({
+  content,
+  theme = "light",
+  colorScheme = defaultEditorSchemes[theme],
+  preferredLanguage,
+}: {
+  content: QuestionContent;
+  theme?: EditorTheme;
+  colorScheme?: EditorScheme;
+  preferredLanguage?: string;
+}) {
   return (
     <div className="admin-preview">
       <ProblemStatement
@@ -496,30 +506,16 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           )
         }
       />
-      {content.approaches.map((approach) => (
-        <section key={approach.id}>
-          <h2>{approachTitle(approach, content.canonicalApproachId)}</h2>
-          {approach.explanationMarkdown && (
-            <StatementMarkdown source={approach.explanationMarkdown} />
-          )}
-          {approach.implementations
-            .filter((item) => item.source.trim())
-            .map((variant) => (
-              <div key={variant.language}>
-                <h3>{solutionLanguageLabel(variant.language)} code</h3>
-                <CodeLiteral
-                  block
-                  source={variant.source}
-                  language={variant.language}
-                  className="editorial-source statement-code"
-                />
-              </div>
-            ))}
-          {(approach.timeComplexity || approach.spaceComplexity || approach.complexityNotes) && (
-            <ComplexityDetails value={approach} />
-          )}
-        </section>
-      ))}
+      <section className="problem-section" aria-label="Solution">
+        <h2>Solution</h2>
+        <SolutionDisplay
+          approaches={content.approaches}
+          canonicalApproachId={content.canonicalApproachId}
+          preferredLanguage={preferredLanguage}
+          theme={theme}
+          colorScheme={colorScheme}
+        />
+      </section>
     </div>
   );
 }

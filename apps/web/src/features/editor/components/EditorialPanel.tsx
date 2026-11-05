@@ -1,24 +1,18 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
-import { selectApproach, approachCode } from "@quorem/questions";
+import { selectApproach } from "@quorem/questions";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DevelopmentIdentity, ApproachComplexity } from "@quorem/contracts";
+import type { DevelopmentIdentity } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
-import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Braces, Clock3 } from "lucide-react";
 import { ApproachPicker } from "./ApproachPicker";
-import { EditorialCode } from "./EditorialCode";
-import { solutionLanguageLabel } from "../editorLanguages";
+import { SolutionDisplay } from "./SolutionDisplay";
+import { ComplexityDetails } from "./ComplexityDetails";
 import type { EditorTheme } from "../PythonEditor";
 import type { EditorScheme } from "../editorSchemes";
-import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import "./editorial.css";
 
-type Complexity = Pick<
-  ApproachComplexity,
-  "timeComplexity" | "spaceComplexity" | "complexityNotes"
->;
 /** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
@@ -81,14 +75,6 @@ export function EditorialPanel({
     selectedId,
     complexity.data?.canonicalApproachId ?? "",
   );
-  const selectedSolution = selectApproach(
-    solutions.data?.items,
-    selectedId,
-    solutions.data?.canonicalApproachId ?? "",
-  );
-  const selectedCode = selectedSolution && approachCode(selectedSolution, language);
-  const choices = displayed === "complexity" ? complexity.data : solutions.data;
-  const selected = displayed === "complexity" ? selectedComplexity : selectedSolution;
   const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
     <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
@@ -125,14 +111,17 @@ export function EditorialPanel({
             if (!visible) setDisplayed(null);
           }}
         >
-          {choices && choices.items.length > 1 && selected && (
-            <ApproachPicker
-              approaches={choices.items}
-              canonicalId={choices.canonicalApproachId}
-              selectedId={selected.id}
-              onChange={setSelectedId}
-            />
-          )}
+          {displayed === "complexity" &&
+            complexity.data &&
+            complexity.data.items.length > 1 &&
+            selectedComplexity && (
+              <ApproachPicker
+                approaches={complexity.data.items}
+                canonicalId={complexity.data.canonicalApproachId}
+                selectedId={selectedComplexity.id}
+                onChange={setSelectedId}
+              />
+            )}
           {displayed === "complexity" ? (
             complexity.isPending ? (
               <p role="status">Loading complexity…</p>
@@ -154,61 +143,21 @@ export function EditorialPanel({
             <p role="alert">
               {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}
             </p>
-          ) : selectedSolution && selectedCode ? (
-            <>
-              <p>{solutionLanguageLabel(selectedCode.language)} solution</p>
-              {selectedSolution.explanationMarkdown && (
-                <StatementMarkdown source={selectedSolution.explanationMarkdown} />
-              )}
-              <EditorialCode
-                source={selectedCode.source}
-                language={selectedCode.language}
-                theme={theme}
-                colorScheme={colorScheme}
-              />
-              {(selectedSolution.timeComplexity ||
-                selectedSolution.spaceComplexity ||
-                selectedSolution.complexityNotes) && <ComplexityDetails value={selectedSolution} />}
-            </>
+          ) : solutions.data?.items.length ? (
+            <SolutionDisplay
+              approaches={solutions.data.items}
+              canonicalApproachId={solutions.data.canonicalApproachId}
+              selectedId={selectedId}
+              onApproachChange={setSelectedId}
+              preferredLanguage={language}
+              theme={theme}
+              colorScheme={colorScheme}
+            />
           ) : (
             <p>No published solution.</p>
           )}
         </div>
       )}
     </section>
-  );
-}
-
-export function ComplexityDetails({ value }: { value: Complexity }) {
-  return (
-    <div className="editorial-complexity">
-      <dl>
-        <div>
-          <dt>Time</dt>
-          <dd>
-            {value.timeComplexity
-              ? inlineStatement(complexityMath(value.timeComplexity))
-              : "Not specified"}
-          </dd>
-        </div>
-        <div>
-          <dt>Auxiliary space</dt>
-          <dd>
-            {value.spaceComplexity
-              ? inlineStatement(complexityMath(value.spaceComplexity))
-              : "Not specified"}
-          </dd>
-        </div>
-      </dl>
-      {value.complexityNotes && (
-        <StatementMarkdown
-          source={complexityNotesMarkup(
-            value.complexityNotes,
-            value.timeComplexity,
-            value.spaceComplexity,
-          )}
-        />
-      )}
-    </div>
   );
 }

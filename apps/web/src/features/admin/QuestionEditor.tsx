@@ -21,6 +21,8 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
+import type { EditorTheme } from "../editor/PythonEditor";
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { useTheme } from "../editor/useTheme";
 import {
   createDraft,
@@ -84,6 +86,7 @@ export function QuestionEditor() {
         <QuestionSelection
           admin={session.data.user.role === "admin"}
           userId={session.data.user.id}
+          theme={theme.theme}
         />
       )}
     </>
@@ -94,7 +97,15 @@ function questionKey(userId: string, draft?: string, publication?: string) {
   return ["admin-open-question", "approaches", userId, draft, publication] as const;
 }
 
-function QuestionSelection({ admin, userId }: { admin: boolean; userId: string }) {
+function QuestionSelection({
+  admin,
+  userId,
+  theme,
+}: {
+  admin: boolean;
+  userId: string;
+  theme: EditorTheme;
+}) {
   const search = useSearch({ from: "/admin/questions" });
   const { draft, publication } = search;
   const question = useQuery({
@@ -131,6 +142,7 @@ function QuestionSelection({ admin, userId }: { admin: boolean; userId: string }
       userId={userId}
       admin={admin}
       initialDraft={question.data}
+      theme={theme}
     />
   );
 }
@@ -140,11 +152,14 @@ function AuthoringWorkspace({
   admin,
   initialDraft,
   userId,
+  theme,
 }: {
   admin: boolean;
   userId: string;
   initialDraft?: QuestionDraft;
+  theme: EditorTheme;
 }) {
+  const preferences = useLocalEditorPreferences();
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
   const search = useSearch({ from: "/admin/questions" });
@@ -629,7 +644,12 @@ function AuthoringWorkspace({
               <QuestionLanguage.Provider
                 value={content.problem.sql ? "postgresql" : previewLanguage}
               >
-                <PublicPreview content={content} />
+                <PublicPreview
+                  content={content}
+                  preferredLanguage={content.problem.sql ? "postgresql" : previewLanguage}
+                  theme={theme}
+                  colorScheme={preferences.editorSchemes[theme]}
+                />
               </QuestionLanguage.Provider>
             </PreviewBoundary>
           ) : (

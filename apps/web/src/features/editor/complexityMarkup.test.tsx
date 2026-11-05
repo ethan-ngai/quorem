@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { complexityMath, complexityNotesMarkup } from "./complexityMarkup";
-import { ComplexityDetails } from "./components/EditorialPanel";
+import { ComplexityDetails } from "./components/ComplexityDetails";
 
 describe("complexity mathematics", () => {
   it("renders costs and defined variables with KaTeX", () => {
