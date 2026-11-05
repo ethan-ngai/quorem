@@ -174,6 +174,7 @@ export function workerConfig(input, outputs, output, scope) {
     throw new Error("Invalid profile bucket");
   return {
     name: workerName,
+    ...(scope === "production" ? { placement: { region: "aws:us-east-1" } } : {}),
     main: relative(dirname(resolve(output)), resolve(root, "apps/api/src/runtime/worker.ts")),
     compatibility_date: "2026-10-23",
     compatibility_flags: ["nodejs_compat"],
