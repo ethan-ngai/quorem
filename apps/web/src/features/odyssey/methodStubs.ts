@@ -4,7 +4,7 @@ import { methodDocumentation } from "./methodDocumentation";
 
 import { questionTypeName as typeName } from "../editor/questionTypes";
 
-export function methodStub(method: Signature, language: EditorLanguage, indent = "    "): string {
+export function methodDeclaration(method: Signature, language: EditorLanguage): string {
   const parameters = method.parameters.map(({ name, type }) => {
     const t = typeName(type, language);
     return language === "java"
@@ -15,13 +15,20 @@ export function methodStub(method: Signature, language: EditorLanguage, indent =
   });
   const result = typeName(method.returnType, language);
   if (language === "python")
-    return `${indent}def ${method.methodName}(${["self", ...parameters].join(", ")}) -> ${result}:\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
+    return `def ${method.methodName}(${["self", ...parameters].join(", ")}) -> ${result}:`;
   if (language === "ocaml")
-    return `${methodDocumentation(method, language, "")}let ${method.methodName} ${parameters.join(" ") || "()"} : ${result} =\n    failwith "Implement solution"\n`;
-  const head =
-    language === "java"
-      ? `public ${result} ${method.methodName}(${parameters.join(", ")})`
-      : `${method.methodName}(${parameters.join(", ")}): ${result}`;
+    return `let ${method.methodName} ${parameters.join(" ") || "()"} : ${result} =`;
+  return language === "java"
+    ? `public ${result} ${method.methodName}(${parameters.join(", ")})`
+    : `${method.methodName}(${parameters.join(", ")}): ${result}`;
+}
+
+export function methodStub(method: Signature, language: EditorLanguage, indent = "    "): string {
+  const head = methodDeclaration(method, language);
+  if (language === "python")
+    return `${indent}${head}\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
+  if (language === "ocaml")
+    return `${methodDocumentation(method, language, "")}${head}\n    failwith "Implement solution"\n`;
   const error =
     language === "java"
       ? 'new UnsupportedOperationException("Implement solution")'
