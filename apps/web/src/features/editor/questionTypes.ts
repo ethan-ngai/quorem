@@ -1,16 +1,15 @@
 import { javaQuestionType } from "@quorem/contracts/java-type";
-import { nodeType } from "@quorem/contracts/node-type";
+import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
 import type { EditorLanguage } from "./editorLanguages";
 
 /** Wire types stay language-neutral; only presentation and generated source use these spellings. */
 export function questionTypeName(type: string, language: EditorLanguage): string {
   if (language === "java") return javaQuestionType(type) ?? type;
   const node = nodeType(type);
-  if (node?.generic) {
+  if (node && (node.generic || node.kind === "NaryTreeNode")) {
     const inner = questionTypeName(node.payload, language);
     if (language === "python") return `${node.kind}[${inner}]`;
-    if (language === "ocaml")
-      return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
+    if (language === "ocaml") return `${inner} ${ocamlNodeNames[node.kind]} option`;
     return `${node.kind}<${inner}> | null`;
   }
   if (type.startsWith("optional<")) {

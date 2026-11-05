@@ -26,6 +26,7 @@ function box(type: string) {
 /** Source and previews use the short names provided by the Java judge's imports. */
 export function javaQuestionType(type: string): string | undefined {
   const node = nodeType(type);
+  if (node?.kind === "NaryTreeNode") return `NaryTreeNode<${box(scalarTypes.get(node.payload)!)}>`;
   if (node?.generic) {
     const payload = scalarTypes.get(node.payload)!;
     return `Typed${node.kind}<${box(payload)}>`;

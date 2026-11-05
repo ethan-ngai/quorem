@@ -6,7 +6,7 @@ import "./code-literal.css";
 
 const containers: ReadonlySet<string> = new Set([...valueWrappers, "List", "option"]);
 const atoms: ReadonlySet<string> = new Set([
-  ...valueAtoms.filter((type) => type !== "ListNode" && type !== "TreeNode"),
+  ...valueAtoms.filter((type) => !type.endsWith("Node")),
   "void",
 ]);
 

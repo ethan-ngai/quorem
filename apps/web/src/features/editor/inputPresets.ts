@@ -1,9 +1,15 @@
+import type { Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
 import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
-export type InputConfig = { preset: string; placeholder?: string; rows?: number };
+export type InputConfig = {
+  preset: string;
+  placeholder?: string;
+  rows?: number;
+  nodeReference?: true;
+};
 export type InputKind =
   | "number"
   | "text"
@@ -27,7 +33,7 @@ export abstract class InputPreset {
   parse(source: string): WireValue {
     if (source.length > MAX_CUSTOM_CASE_BYTES) throw new Error("Input exceeds 2 MiB.");
     const value = this.parseValue(source);
-    validateTypedValue(this.type, value);
+    if (!this.config?.nodeReference) validateTypedValue(this.type, value);
     return value;
   }
   format(value: WireValue): string {
@@ -94,7 +100,7 @@ function scalarSource(type: string, source: string, depth = 0): WireValue {
     if (!contents.trim()) return [];
     return splitEntries(contents).map((item) =>
       scalarSource(
-        list ?? (node?.kind === "TreeNode" ? `optional<${node.payload}>` : node!.payload),
+        list ?? (node && node.kind !== "ListNode" ? `optional<${node.payload}>` : node!.payload),
         item,
         depth + 1,
       ),
@@ -148,7 +154,7 @@ export class SequencePreset extends InputPreset {
       escaped = false;
     const allowStrings = /(?:^|<)(?:str|long|datetime)(?:>|$)/.test(this.type);
     const allowBoolean = /(?:^|<)bool(?:>|$)/.test(this.type);
-    const allowNull = /(?:optional|TreeNode|ListNode)(?:<|>|$)/.test(this.type);
+    const allowNull = /(?:optional|NaryTreeNode|TreeNode|ListNode)(?:<|>|$)/.test(this.type);
     let outside = "";
     for (const character of source) {
       if (quoted) {
@@ -258,13 +264,28 @@ for (const [id, Preset] of Object.entries({
 })) {
   registerInputPreset(id, (type, config) => new Preset(type, config));
 }
+/** Use JSON fields when a node can be represented by a reference object. */
+export function caseFieldConfig(
+  signature: Signature,
+  type: string,
+  input?: InputConfig,
+  expected = false,
+): InputConfig | undefined {
+  if (
+    !nodeType(type) ||
+    (expected ? signature.nodeReferences !== "return" : !signature.nodeReferences)
+  )
+    return input;
+  return { ...input, preset: "structured", nodeReference: true };
+}
+
 export function resolveInputPreset(type: string, config?: InputConfig): InputPreset {
   let id: string;
   if (innerType(type, "optional")) return new NullablePreset(type, config);
   else if (type === "int" || type === "long" || type === "float") id = "number";
   else if (type === "str" || type === "datetime") id = "text";
   else if (type === "bool") id = "boolean";
-  else if (nodeType(type)?.kind === "TreeNode") id = "tree";
+  else if (nodeType(type)?.kind.endsWith("TreeNode")) id = "tree";
   else if (nodeType(type)?.kind === "ListNode") id = "linkedList";
   else if (innerType(type, "list"))
     id = innerType(innerType(type, "list")!, "list") ? "matrix" : "sequence";

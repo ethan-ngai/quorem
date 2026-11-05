@@ -34,6 +34,7 @@ const methodNames = new Set([
   "parameters",
   "returnType",
   "outputOrder",
+  "nodeReferences",
   "description",
   "returns",
   "throws",

@@ -996,6 +996,11 @@ export interface components {
             parameters: components["schemas"]["Parameter"][];
             returnType: string;
             /**
+             * @description Enable call-local node references. Return mode also compares the returned node by identity.
+             * @enum {string}
+             */
+            nodeReferences?: "arguments" | "return";
+            /**
              * @description Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant.
              * @enum {string}
              */

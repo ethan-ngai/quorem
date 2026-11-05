@@ -6,9 +6,8 @@ import { Tooltip } from "../../../ui/Tooltip";
 import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
 import { useState, type ReactNode } from "react";
-import type { InputPresetConfig } from "@quorem/contracts";
 import { innerType } from "../customCases";
-import { resolveInputPreset } from "../inputPresets";
+import { resolveInputPreset, type InputConfig } from "../inputPresets";
 
 export function TypedCaseInput({
   id,
@@ -23,7 +22,7 @@ export function TypedCaseInput({
   id: string;
   name: string;
   type: string;
-  input?: InputPresetConfig;
+  input?: InputConfig;
   purpose?: "input" | "expected";
   action?: ReactNode;
   value: string;

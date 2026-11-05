@@ -1,3 +1,4 @@
+import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import { Icon } from "../../ui/Icon";
 import "../../ui/result-tabs.css";
@@ -62,12 +63,22 @@ export function AuthoringCases({
     args: p.sql
       ? [JSON.stringify(test.args[0] ?? { tables: [] })]
       : p.signature.parameters.map((parameter, index) =>
-          format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
+          format(
+            parameter.type,
+            test.args[index]!,
+            defaults.args[index]!,
+            caseFieldConfig(p.signature, parameter.type, parameter.input),
+          ),
         ),
     expectedEnabled: true,
     expected: p.sql
       ? JSON.stringify(test.expected ?? { rows: [] })
-      : format(p.signature.returnType, test.expected ?? null, defaults.expected),
+      : format(
+          p.signature.returnType,
+          test.expected ?? null,
+          defaults.expected,
+          caseFieldConfig(p.signature, p.signature.returnType, undefined, true),
+        ),
   });
   const [values, setValues] = useState(() => ({
     public: examples.map(draft),

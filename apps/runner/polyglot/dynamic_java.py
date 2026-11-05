@@ -44,9 +44,81 @@ static Object decodeTypedNode(String type, Object value) {
     }
     return root;
 }
+static Object decodeNary(String payload, Object value) {
+    if (value == null) return null;
+    java.util.List<?> values = (java.util.List<?>) value;
+    if (values.isEmpty() || values.get(0) == null) return null;
+    NaryTreeNode<Object> root = new NaryTreeNode<>(decode(payload, values.get(0)));
+    java.util.ArrayList<NaryTreeNode<Object>> parents = new java.util.ArrayList<>();
+    parents.add(root);
+    for (int i = 2, parent = 0; i < values.size(); i++) {
+        Object item = values.get(i);
+        if (item == null) { parent++; continue; }
+        NaryTreeNode<Object> child = new NaryTreeNode<>(decode(payload, item));
+        parents.get(parent).children.add(child);
+        parents.add(child);
+    }
+    return root;
+}
+static java.util.ArrayList<Object> originalNodes(Object root) {
+    java.util.ArrayList<Object> nodes = new java.util.ArrayList<>();
+    addNode(nodes, root);
+    for (int i = 0; i < nodes.size(); i++) {
+        Object node = nodes.get(i);
+        if (node instanceof ListNode list) addNode(nodes, list.next);
+        else if (node instanceof TypedListNode<?> list) addNode(nodes, list.next);
+        else if (node instanceof TreeNode tree) { addNode(nodes, tree.left); addNode(nodes, tree.right); }
+        else if (node instanceof TypedTreeNode<?> tree) { addNode(nodes, tree.left); addNode(nodes, tree.right); }
+        else if (node instanceof NaryTreeNode<?> tree) nodes.addAll(tree.children);
+    }
+    return nodes;
+}
+static void addNode(java.util.ArrayList<Object> nodes, Object node) {
+    if (node != null) nodes.add(node);
+}
+static String invokeCase(Object solution, String name, String[] types, java.util.List<Object> raw,
+                         String returnType, boolean reference) throws Exception {
+    Object[] args = new Object[types.length];
+    boolean needsSeeds = reference;
+    for (int i = 0; i < args.length; i++) {
+        Object input = raw.get(i);
+        if (input instanceof java.util.Map<?,?> record) { input = record.get("values"); needsSeeds = true; }
+        args[i] = decode(types[i], input);
+    }
+    java.util.ArrayList<java.util.ArrayList<Object>> seeds = new java.util.ArrayList<>();
+    if (needsSeeds) {
+        for (int i = 0; i < args.length; i++)
+            seeds.add(originalNodes(types[i].matches("(ListNode|TreeNode|NaryTreeNode)(<.*>)?") ? args[i] : null));
+        for (int i = 0; i < args.length; i++) {
+            if (!(raw.get(i) instanceof java.util.Map<?,?> record)) continue;
+            boolean alias = record.containsKey("ref");
+            java.util.List<?> ref = (java.util.List<?>) record.get(alias ? "ref" : "tail");
+            Object target = seeds.get((Integer) ref.get(0)).get((Integer) ref.get(1));
+            if (alias) args[i] = target;
+            else {
+                Object last = seeds.get(i).get(seeds.get(i).size() - 1);
+                if (last instanceof ListNode list) list.next = (ListNode) target;
+                else ((TypedListNode<Object>) last).next = (TypedListNode<Object>) target;
+            }
+        }
+    }
+    Object value = invoke(solution, name, args);
+    if (returnType.equals("void")) return "null";
+    if (!reference) return encodeResult(returnType, value);
+    if (value == null) return "null";
+    for (int argument = 0; argument < args.length; argument++) {
+        if (!types[argument].equals(returnType)) continue;
+        java.util.ArrayList<Object> nodes = seeds.get(argument);
+        for (int index = 0; index < nodes.size(); index++)
+            if (nodes.get(index) == value) return "{\"ref\":[" + argument + "," + index + "]}";
+    }
+    System.exit(42);
+    return "";
+}
 static Object decode(String t,Object v){
  if(t.startsWith("optional<"))return v==null?null:decode(t.substring(9,t.length()-1),v);
  if(t.startsWith("list<")||t.startsWith("array<")){java.util.List<?>xs=(java.util.List<?>)v;Object[]a=new Object[xs.size()];String inner=t.substring(t.startsWith("list<")?5:6,t.length()-1);for(int i=0;i<a.length;i++)a[i]=decode(inner,xs.get(i));return a;}
+ if(t.equals("NaryTreeNode")||t.startsWith("NaryTreeNode<"))return decodeNary(t.contains("<")?t.substring(13,t.length()-1):"int",v);
  if(t.startsWith("ListNode<")||t.startsWith("TreeNode<"))return decodeTypedNode(t,v);
  if(t.equals("ListNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;ListNode node=null;for(int i=xs.size()-1;i>=0;i--)node=new ListNode(((Number)xs.get(i)).intValue(),node);return node;}
  if(t.equals("TreeNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;if(xs.isEmpty()||xs.get(0)==null)return null;TreeNode root=new TreeNode(((Number)xs.get(0)).intValue());java.util.ArrayList<TreeNode>q=new java.util.ArrayList<>();q.add(root);int i=1;for(int p=0;p<q.size()&&i<xs.size();p++){TreeNode n=q.get(p);Object left=xs.get(i++);if(left!=null){n.left=new TreeNode(((Number)left).intValue());q.add(n.left);}if(i<xs.size()){Object right=xs.get(i++);if(right!=null){n.right=new TreeNode(((Number)right).intValue());q.add(n.right);}}}return root;}
@@ -61,12 +133,12 @@ def source(r, h):
     signatures[r['signature']['methodName']] = r['signature']
     branches = []
     for name, sig in signatures.items():
-        args = ','.join('decode('+json.dumps(p['type'])+',args.get('+str(i)+'))' for i,p in enumerate(sig['parameters']))
-        encoded = '"null"' if sig['returnType']=='void' else 'encodeResult('+json.dumps(sig['returnType'])+',value)'
-        branches.append('case '+json.dumps(name)+':{if(args.size()!='+str(len(sig['parameters']))+')throw new IllegalArgumentException();Object value=invoke(solution,'+json.dumps(name)+',new Object[]{'+args+'});count=0;seen.clear();return '+encoded+';}')
+        types = ','.join(json.dumps(p['type']) for p in sig['parameters'])
+        reference = json.dumps(sig.get('nodeReferences') == 'return')
+        branches.append(f'case {json.dumps(name)}:return invokeCase(solution,name,new String[]{{{types}}},args,{json.dumps(sig["returnType"])},{reference});')
     call = 'static String call(Object solution,String name,java.util.List<Object>args)throws Exception{switch(name){'+''.join(branches)+'default:throw new IllegalArgumentException();}}'
     # Catch codec failures after invocation; contestant exceptions retain runtime_error.
-    call += 'static String encodeResult(String type,Object value){try{return encode(type,value,0);}catch(RuntimeException e){System.exit(42);return "";}}'
+    call += 'static String encodeResult(String type,Object value){try{count=0;seen.clear();return encode(type,value,0);}catch(RuntimeException e){System.exit(42);return "";}}'
     main = '''public static void main(String[] argv)throws Exception {
  java.util.Map<String,Object>request=(java.util.Map<String,Object>)new Json(new String(System.in.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8)).value(0);
  Object solution=new CLASS();java.util.List<?>calls=(java.util.List<?>)request.get("calls");String output;

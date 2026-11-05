@@ -1,5 +1,6 @@
 import {
   nodeType,
+  treeEntryCount,
   nodeKinds,
   nodePayloadTypes,
   type NodeKind,
@@ -73,22 +74,12 @@ export function validateTypedValue(
     if (value === null) return;
     if (!Array.isArray(value)) throw new Error("Enter a node array or null.");
     if (value.length > MAX_INPUT_ELEMENTS) throw new Error("At most 100,000 node entries.");
-    let length = value.length;
-    if (node.kind === "TreeNode") while (length > 0 && value[length - 1] === null) length--;
-    let slots = 1;
+    const length = node.kind === "ListNode" ? value.length : treeEntryCount(node.kind, value);
     for (let index = 0; index < length; index++) {
       const item: unknown = value[index];
-      if (node.kind === "TreeNode") {
-        if (slots === 0) throw new Error("Tree contains an orphan node.");
-        slots--;
-        if (item === null) continue;
-        if (index === 0 && item === null) throw new Error("A null root cannot have children.");
-        slots += 2;
-      }
+      if (node.kind !== "ListNode" && item === null) continue;
       validateTypedValue(node.payload, item, depth + 1, count);
     }
-    if (node.kind === "TreeNode" && length > 0 && value[0] === null)
-      throw new Error("A null root cannot have children.");
     return;
   }
   if (type === "int") {

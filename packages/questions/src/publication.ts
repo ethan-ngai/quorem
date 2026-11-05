@@ -25,6 +25,7 @@ function signatureIdentity(sig: Signature): string {
     returns: sig.returns || "",
     throws: (sig.throws ?? []).map((t) => ({ type: t.type, description: t.description })),
     outputOrder: sig.outputOrder || "",
+    nodeReferences: sig.nodeReferences ?? "",
     className: sig.className,
     methodName: sig.methodName,
     parameters: sig.parameters.map((p) => ({

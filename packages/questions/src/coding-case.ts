@@ -10,6 +10,7 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "./json.ts";
+import { normalizeNodeArguments, normalizeNodeReference } from "./node-references.ts";
 import { normalizeQuestionValue } from "./value-codec.ts";
 
 type JsonObject = { [key: string]: JsonValue };
@@ -18,37 +19,32 @@ function object(value: JsonValue): JsonObject {
     throw new Error("expected object");
   return value;
 }
-function rawCase(sig: Signature, data: JsonObject, required: boolean, limit: number): JsonValue[] {
+function rawCase(sig: Signature, data: JsonObject, required: boolean, limit: number) {
   if (!Array.isArray(data.args) || data.args.length !== sig.parameters.length)
     throw new Error("wrong argument count");
-  const args = data.args.map((arg, i) => {
-    try {
-      return normalizeQuestionValue(sig.parameters[i].type, arg, limit);
-    } catch (error) {
-      throw new Error(
-        `argument ${sig.parameters[i].name}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  });
+  const { projected, resolve } = normalizeNodeArguments(sig, data.args, limit);
   if (Object.hasOwn(data, "expected")) {
     try {
-      normalizeQuestionValue(sig.returnType, data.expected);
+      if (sig.nodeReferences === "return") {
+        const expected = normalizeNodeReference(data.expected);
+        if (expected !== null) resolve(sig.returnType, expected.ref);
+      } else normalizeQuestionValue(sig.returnType, data.expected);
     } catch (error) {
       throw new Error(`expected: ${error instanceof Error ? error.message : String(error)}`);
     }
   } else if (required) throw new Error("missing expected value");
-  return args;
+  return projected;
 }
 function applyConstraints(
   sig: Signature,
   constraints: readonly Constraint[],
-  args: JsonValue[],
+  argumentValue: (index: number) => JsonValue,
 ): void {
   validateConstraints(sig, constraints);
   const project = (target: ConstraintTarget): (number | bigint)[] => {
     const index = sig.parameters.findIndex((p) => p.name === target.parameter);
     const type = sig.parameters[index].type.replaceAll("array<", "list<");
-    const value = args[index];
+    const value = argumentValue(index);
     if (target.projection === "length")
       return [typeof value === "string" ? Array.from(value).length : (value as JsonValue[]).length];
     if (type === "long") return [BigInt(value as string)];
@@ -163,7 +159,16 @@ export function validateCodingSequence(
     if (sig.methodName === primary.methodName) applyConstraints(primary, constraints, args);
   }
 }
-function normalizeOutput(sig: Signature, value: JsonValue): JsonValue {
+function normalizeOutput(sig: Signature, value: JsonValue, data: JsonObject): JsonValue {
+  if (sig.nodeReferences === "return") {
+    const normalized = normalizeNodeReference(value);
+    if (normalized !== null)
+      normalizeNodeArguments(sig, data.args as JsonValue[], 100000).resolve(
+        sig.returnType,
+        normalized.ref,
+      );
+    return normalized;
+  }
   const result = normalizeQuestionValue(sig.returnType, value);
   if (sig.outputOrder !== "unordered") return result;
   if (!Array.isArray(result)) throw new Error("expected list");
@@ -185,14 +190,14 @@ export function compareCodingCase(
   const calls = Array.isArray(data.calls) ? data.calls : [];
   const byName = new Map(methods.map((method) => [method.methodName, method]));
   const normalize = (value: JsonValue): JsonValue => {
-    if (!calls.length) return normalizeOutput(sig, value);
+    if (!calls.length) return normalizeOutput(sig, value, data);
     if (!Array.isArray(value) || value.length !== calls.length)
       throw new Error("invalid sequence result");
     return value.map((item, i) => {
       const call = object(calls[i]);
       const method = byName.get(typeof call.methodName === "string" ? call.methodName : "");
       if (!method) throw new Error("unknown method");
-      return method.returnType === "void" ? null : normalizeOutput(method, item);
+      return method.returnType === "void" ? null : normalizeOutput(method, item, call);
     });
   };
   let actual: string;

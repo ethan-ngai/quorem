@@ -159,6 +159,11 @@
         "returnType": {
           "type": "string"
         },
+        "nodeReferences": {
+          "type": "string",
+          "enum": ["arguments", "return"],
+          "description": "Enable call-local node references. Return mode also compares the returned node by identity."
+        },
         "outputOrder": {
           "type": "string",
           "enum": ["ordered", "unordered"],

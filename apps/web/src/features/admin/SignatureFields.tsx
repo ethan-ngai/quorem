@@ -9,6 +9,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
+import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -18,7 +19,7 @@ import { MethodSignature } from "../editor/components/MethodSignature";
 import { ValueTypeField } from "./ValueTypeField";
 export function SignatureFields({
   value,
-  onChange,
+  onChange: onSignatureChange,
   allowVoid = false,
   disabled = false,
   onValidityChange,
@@ -31,6 +32,17 @@ export function SignatureFields({
   previewControl?: ReactNode;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
+  const nodeParameters = value.parameters.filter(({ type }) => nodeType(type));
+  const canReturnReference = nodeParameters.some(({ type }) => type === value.returnType);
+  const onChange = (next: Signature) => {
+    const nodes = next.parameters.filter(({ type }) => nodeType(type));
+    const mode = !nodes.length
+      ? undefined
+      : next.nodeReferences === "return" && !nodes.some(({ type }) => type === next.returnType)
+        ? "arguments"
+        : next.nodeReferences;
+    onSignatureChange({ ...next, nodeReferences: mode });
+  };
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
@@ -117,6 +129,26 @@ export function SignatureFields({
                   label: "Any order",
                   icon: <Shuffle size={15} aria-hidden="true" />,
                 },
+              ]}
+            />
+          </div>
+        )}
+        {nodeParameters.length > 0 && (
+          <div className="admin-field">
+            <span>Node references</span>
+            <SegmentedControl<"off" | NonNullable<Signature["nodeReferences"]>>
+              label="Node references"
+              disabled={disabled}
+              value={value.nodeReferences ?? "off"}
+              onChange={(mode) =>
+                onChange({ ...value, nodeReferences: mode === "off" ? undefined : mode })
+              }
+              options={[
+                { value: "off", label: "Off" },
+                { value: "arguments", label: "Inputs" },
+                ...(canReturnReference
+                  ? [{ value: "return" as const, label: "Inputs and return" }]
+                  : []),
               ]}
             />
           </div>

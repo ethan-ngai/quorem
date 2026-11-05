@@ -1,6 +1,6 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
 import { javaQuestionType } from "@quorem/contracts/java-type";
-import { nodeType } from "@quorem/contracts/node-type";
+import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
 import type { Signature } from "./model.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
@@ -53,10 +53,10 @@ function languageType(
     return type;
   }
   const node = nodeType(kind);
-  if (node?.generic) {
+  if (node && (node.generic || node.kind === "NaryTreeNode")) {
     const inner = languageType(node.payload, language);
     if (language === "typescript") return `${node.kind}<${inner}> | null`;
-    return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
+    return `${inner} ${ocamlNodeNames[node.kind]} option`;
   }
   for (const wrapper of ["optional", "array", "list"] as const) {
     if (kind.startsWith(`${wrapper}<`) && kind.endsWith(">")) {
@@ -104,8 +104,8 @@ function starter(sig: Signature, language: Exclude<StarterLanguage, "postgresql"
   const note = !node
     ? ""
     : language === "ocaml"
-      ? "(* Judge supplies mutable list_node {value:int; next:list_node option} and tree_node {value:int; left:tree_node option; right:tree_node option}. *)\n"
-      : "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\n";
+      ? "(* Judge supplies mutable list_node, tree_node and nary_tree_node records. *)\n"
+      : "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n";
   const result = languageType(sig.returnType, language);
   const params = sig.parameters.map((p) => {
     const t = languageType(p.type, language);

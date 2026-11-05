@@ -32,3 +32,9 @@ class TreeNode(Generic[T]):
         self.val = val
         self.left = left
         self.right = right
+
+
+class NaryTreeNode(Generic[T]):
+    def __init__(self, val: T = 0, children: list[NaryTreeNode[T]] | None = None) -> None:  # type: ignore[assignment]
+        self.val = val
+        self.children = [] if children is None else children

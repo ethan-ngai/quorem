@@ -6,7 +6,7 @@ import json
 import math
 import sys
 import traceback
-from quorem_types import ListNode, TreeNode
+from quorem_types import ListNode, TreeNode, NaryTreeNode
 
 MAX_ELEMENTS = 10000
 MAX_DEPTH = 100
@@ -33,7 +33,7 @@ class Capture(io.TextIOBase):
 
 def node_type(kind):
     name, separator, payload = kind.partition('<')
-    if name in ('ListNode', 'TreeNode'):
+    if name in ('ListNode', 'TreeNode', 'NaryTreeNode'):
         return name, payload[:-1] if separator else 'int'
     return None, None
 
@@ -55,6 +55,20 @@ def decode(kind, value):
             tail.next = ListNode(decode(payload, item))
             tail = tail.next
         return dummy.next
+    if node_kind == 'NaryTreeNode':
+        if not value or value[0] is None:
+            return None
+        root = NaryTreeNode(decode(payload, value[0]))
+        parents = [root]
+        parent = 0
+        for item in value[2:]:
+            if item is None:
+                parent += 1
+            else:
+                child = NaryTreeNode(decode(payload, item))
+                parents[parent].children.append(child)
+                parents.append(child)
+        return root
     if node_kind == 'TreeNode':
         if not value:
             return None
@@ -96,6 +110,8 @@ def encode(kind, value, depth=0, count=None, seen=None):
     if node_kind:
         if value is None:
             return None
+        if node_kind == 'NaryTreeNode':
+            return encode_nary(payload, value, depth, count, seen)
         result = []
         queue = collections.deque([value])
         while queue:
@@ -146,6 +162,76 @@ def encode(kind, value, depth=0, count=None, seen=None):
         raise InvalidOutput()
     return value
 
+def encode_nary(payload, root, depth, count, seen):
+    def payload_of(node):
+        if not isinstance(node, NaryTreeNode) or id(node) in seen:
+            raise InvalidOutput()
+        seen.add(id(node))
+        return encode(payload, node.val, depth + 1, count, seen)
+
+    result = [payload_of(root)]
+    parents = [root]
+    separators = 0
+    for parent in parents:
+        separators += 1
+        if not isinstance(parent.children, list):
+            raise InvalidOutput()
+        if not parent.children:
+            continue
+        if len(result) + separators + len(parent.children) > MAX_ELEMENTS:
+            raise InvalidOutput()
+        result.extend([None] * separators)
+        separators = 0
+        for child in parent.children:
+            result.append(payload_of(child))
+            parents.append(child)
+    return result
+
+
+def original_nodes(root):
+    if root is None:
+        return []
+    nodes = [root]
+    for node in nodes:
+        if isinstance(node, ListNode):
+            children = [node.next]
+        elif isinstance(node, TreeNode):
+            children = [node.left, node.right]
+        else:
+            children = node.children
+        nodes.extend(child for child in children if child is not None)
+    return nodes
+
+
+def invoke(solution, signature, raw):
+    types = [parameter['type'] for parameter in signature['parameters']]
+    args = [decode(kind, item.get('values') if isinstance(item, dict) else item)
+            for kind, item in zip(types, raw)]
+    references = signature.get('nodeReferences') == 'return' or any(isinstance(item, dict) for item in raw)
+    if references:
+        seeds = [original_nodes(arg) if node_type(kind)[0] else [] for kind, arg in zip(types, args)]
+        for index, item in enumerate(raw):
+            if not isinstance(item, dict):
+                continue
+            if 'ref' in item:
+                argument, node = item['ref']
+                args[index] = seeds[argument][node]
+            else:
+                argument, node = item['tail']
+                seeds[index][-1].next = seeds[argument][node]
+    result = getattr(solution, signature['methodName'])(*args)
+    if signature.get('nodeReferences') != 'return':
+        return encode(signature['returnType'], result)
+    if result is None:
+        return None
+    for argument, nodes in enumerate(seeds):
+        if types[argument] == signature['returnType']:
+            for index, node in enumerate(nodes):
+                if result is node:
+                    return {'ref': [argument, index]}
+    raise InvalidOutput()
+
+
 def main():
     # Signal process readiness before contestant execution; Docker startup has its own deadline.
     sys.__stdout__.write('\0')
@@ -155,22 +241,18 @@ def main():
     result = {}
     try:
         code = compile(request['source'], '<solution>', 'exec')
-        namespace = {'ListNode': ListNode, 'TreeNode': TreeNode, '__name__': '__solution__'}
+        namespace = {'ListNode': ListNode, 'TreeNode': TreeNode, 'NaryTreeNode': NaryTreeNode, '__name__': '__solution__'}
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             exec(code, namespace)
             signature = request['signature']
             solution = namespace['Solution']()
             if request.get('calls'):
-                values = []
-                for call in request['calls']:
-                    method = request['methods'][call['methodName']]
-                    args = [decode(p['type'], v) for p, v in zip(method['parameters'], call['args'])]
-                    values.append(encode(method['returnType'], getattr(solution, call['methodName'])(*args)))
-                result['actual'] = values
+                result['actual'] = [
+                    invoke(solution, request['methods'][call['methodName']], call['args'])
+                    for call in request['calls']
+                ]
             else:
-                args = [decode(p['type'], v) for p, v in zip(signature['parameters'], request['args'])]
-                value = getattr(solution, signature['methodName'])(*args)
-                result['actual'] = encode(signature['returnType'], value)
+                result['actual'] = invoke(solution, signature, request['args'])
         encoded = json.dumps(result['actual'], ensure_ascii=False, allow_nan=False).encode()
         if len(encoded) > MAX_OUTPUT:
             raise OutputLimit()

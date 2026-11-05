@@ -1,5 +1,5 @@
 /** @file value-codec.ts @description Typed coding question JSON values. @module questions */
-import { nodeType } from "@quorem/contracts/node-type";
+import { nodeType, treeEntryCount } from "@quorem/contracts/node-type";
 import { isLongValue } from "@quorem/contracts/long";
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
 import { validQuestionType } from "./signature.ts";
@@ -40,23 +40,16 @@ export function normalizeQuestionValue(type: string, value: JsonValue, limit = 1
     if (node) {
       if (current === null) return null;
       if (!Array.isArray(current)) throw new Error("node requires array or null");
-      const arr = [...current];
-      if (!arr.length) return null;
-      if (arr.length > limit) throw new Error("too many nodes");
-      if (node.kind === "TreeNode") while (arr.length && arr.at(-1) === null) arr.pop();
-      if (!arr.length) return null;
-      if (node.kind === "TreeNode" && arr[0] === null) throw new Error("null root with children");
-      let slots = 1;
-      for (let i = 0; i < arr.length; i++) {
-        if (node.kind === "TreeNode") {
-          if (slots === 0) throw new Error("orphan tree node");
-          slots--;
-          if (arr[i] === null) continue;
-          slots += 2;
-        }
-        arr[i] = normalize(node.payload, arr[i], depth + 1);
-      }
-      return arr;
+      if (current.length > limit) throw new Error("too many nodes");
+      const length = node.kind === "ListNode" ? current.length : treeEntryCount(node.kind, current);
+      if (!length) return null;
+      return current
+        .slice(0, length)
+        .map((item) =>
+          item === null && node.kind !== "ListNode"
+            ? null
+            : normalize(node.payload, item, depth + 1),
+        );
     }
     if (kind.startsWith("list<")) {
       if (!Array.isArray(current)) throw new Error("expected list");

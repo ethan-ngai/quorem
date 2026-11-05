@@ -1,3 +1,4 @@
+import { caseFieldConfig } from "../editor/inputPresets";
 /** @file SequenceTestsEditor.tsx @description Typed call-sequence authoring inside the shared case browser. @module odyssey */
 import { SelectField } from "../../ui/SelectField";
 import { CaseBrowserLayout } from "../editor/components/CaseBrowserLayout";
@@ -145,7 +146,11 @@ export function SequenceTestsEditor({
                             id={`${call.id}-${index}`}
                             name={parameter.name}
                             type={parameter.type}
-                            input={parameter.input}
+                            input={caseFieldConfig(
+                              method.signature,
+                              parameter.type,
+                              parameter.input,
+                            )}
                             value={call.values.args[index] ?? ""}
                             onChange={(source) =>
                               patchCall(call.id, {
@@ -167,6 +172,12 @@ export function SequenceTestsEditor({
                             name="Expected output"
                             purpose="expected"
                             type={method.signature.returnType}
+                            input={caseFieldConfig(
+                              method.signature,
+                              method.signature.returnType,
+                              undefined,
+                              true,
+                            )}
                             value={call.values.expected}
                             onChange={(expected) =>
                               patchCall(call.id, { values: { ...call.values, expected } })

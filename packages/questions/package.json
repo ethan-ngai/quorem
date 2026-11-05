@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./coding-case": "./src/coding-case.ts"
   },
   "scripts": {
     "test": "vp test run && node test/node-import.mjs",

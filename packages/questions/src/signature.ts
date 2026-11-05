@@ -35,7 +35,7 @@ export function validateInputConfig(type: string, config?: InputPresetConfig): v
     boolean: normalized === "bool",
     sequence: element !== undefined && primitive(element),
     matrix: inner !== undefined && primitive(inner),
-    tree: nodeType(normalized)?.kind === "TreeNode",
+    tree: nodeType(normalized)?.kind.endsWith("TreeNode") === true,
     linkedList: nodeType(normalized)?.kind === "ListNode",
   };
   if (!Object.hasOwn(compatible, config.preset))
@@ -79,5 +79,12 @@ export function validateSignature(sig: Signature, allowVoid = false): void {
     names.add(p.name);
     validateInputConfig(p.type, p.input);
   }
+  if (sig.nodeReferences && !sig.parameters.some(({ type }) => nodeType(type)))
+    throw new Error("node references require a node parameter");
+  if (
+    sig.nodeReferences === "return" &&
+    (!nodeType(sig.returnType) || !sig.parameters.some(({ type }) => type === sig.returnType))
+  )
+    throw new Error("node reference return requires a matching node parameter");
   if (!(allowVoid && sig.returnType === "void")) validateInputConfig(sig.returnType);
 }

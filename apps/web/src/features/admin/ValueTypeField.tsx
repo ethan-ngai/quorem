@@ -20,6 +20,7 @@ const names: Record<Choice, string> = {
   datetime: "Date and time",
   ListNode: "Linked list node",
   TreeNode: "Binary tree node",
+  NaryTreeNode: "N-ary tree node",
   list: "List of",
   array: "Array of",
   optional: "Optional",
@@ -63,7 +64,7 @@ function TypeBlock({
         names={names}
         disabled={disabled}
         onChange={(kind) => {
-          if (kind === "ListNode" || kind === "TreeNode") {
+          if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
             if (type?.kind === kind) return;
             const payload =
               nodePayloadTypes.find((atom) => atom === (element ?? type)?.kind) ?? "int";

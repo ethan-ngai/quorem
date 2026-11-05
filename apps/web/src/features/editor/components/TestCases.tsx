@@ -1,3 +1,4 @@
+import { caseFieldConfig } from "../inputPresets";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { QuestionProblem, PublicCaseResult, Submission } from "@quorem/contracts";
@@ -351,7 +352,7 @@ export function TestCases({
                 id={`custom-${draft.id}-${index}`}
                 name={name}
                 type={type}
-                input={input}
+                input={caseFieldConfig(problem.signature, type, input)}
                 value={draft.args[index] ?? ""}
                 onChange={(value) =>
                   updateDraft({
@@ -392,6 +393,12 @@ export function TestCases({
                       )
                     }
                     type={problem.signature.returnType}
+                    input={caseFieldConfig(
+                      problem.signature,
+                      problem.signature.returnType,
+                      undefined,
+                      true,
+                    )}
                     value={draft.expected}
                     onChange={(expected) => updateDraft({ expected })}
                   />

@@ -1,3 +1,4 @@
+import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import type { CustomCase, QuestionContent } from "@quorem/contracts";
 import { formatTypedField } from "../editor/customCases";
@@ -40,12 +41,20 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
             id: randomUUID(),
             expectedEnabled: true,
             args: method.signature.parameters.map((parameter, i) =>
-              formatTypedField(parameter.type, call.args[i]!, parameter.input),
+              formatTypedField(
+                parameter.type,
+                call.args[i]!,
+                caseFieldConfig(method.signature, parameter.type, parameter.input),
+              ),
             ),
             expected:
               method.signature.returnType === "void"
                 ? "null"
-                : formatTypedField(method.signature.returnType, call.expected ?? null),
+                : formatTypedField(
+                    method.signature.returnType,
+                    call.expected ?? null,
+                    caseFieldConfig(method.signature, method.signature.returnType, undefined, true),
+                  ),
           },
         };
       }),

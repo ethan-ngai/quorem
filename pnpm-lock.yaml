@@ -446,6 +446,9 @@ importers:
       '@quorem/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@quorem/questions':
+        specifier: workspace:*
+        version: link:../../packages/questions
       '@quorem/ui':
         specifier: workspace:*
         version: link:../../packages/ui

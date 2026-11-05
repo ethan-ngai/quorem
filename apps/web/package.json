@@ -27,6 +27,7 @@
     "@lezer/highlight": "1.2.5",
     "@noble/hashes": "2.4.0",
     "@quorem/contracts": "workspace:*",
+    "@quorem/questions": "workspace:*",
     "@quorem/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-dismissable-layer": "1.1.20",

@@ -21,6 +21,11 @@ export function createBrowserTypeScriptEnvironment() {
       val: T;
       next: ListNode<T> | null;
     }
+    declare class NaryTreeNode<T = number> {
+      constructor(val?: T, children?: NaryTreeNode<T>[]);
+      val: T;
+      children: NaryTreeNode<T>[];
+    }
     declare class TreeNode<T = number> {
       constructor(val?: T, left?: TreeNode<T> | null, right?: TreeNode<T> | null);
       val: T;

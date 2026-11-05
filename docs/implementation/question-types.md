@@ -32,3 +32,11 @@ A collection-returning signature may set `outputOrder: "unordered"`. The judge c
 Frontend mappings and literal rendering: `apps/web/src/features/editor/questionTypes.ts`. Validation and codecs: `packages/questions/src`. Language execution codecs: `apps/runner/{python,polyglot}/harness.py`. Cross-language parity tests cover shared wire values. Adding a pseudotype requires updating all these boundaries together.
 
 Odyssey starters contain a constructor and first-step methods. Unlocks append missing method stubs inside the existing `Solution` class using the selected language's parser. Existing code and methods are preserved. Collaborative insertions use the shared document's current version so simultaneous unlocks cannot duplicate stubs.
+
+`NaryTreeNode` and `NaryTreeNode<T>` expose ordered `children` and use the same scalar payloads. Encode them as level-order child groups separated by `null`, with the root as the first group. In `[1,null,3,2,4,null,5,6]`, node 1 has children 3, 2 and 4, and node 3 has children 5 and 6. Consecutive separators mark empty child groups. Trailing separators can be omitted. OCaml exposes the `'a nary_tree_node` record.
+
+Set a method's `nodeReferences` to `"arguments"` for reference inputs, or to `"return"` to also compare the returned node by identity. A reference pair holds a zero-based argument index and a zero-based node index in the argument's original value. Tree indices count actual nodes in breadth-first order. Indices refer to nodes before any tail links are attached and stay local to one call. References require matching declared node types.
+
+- `{"ref":[0,1]}` as an argument passes the second node of the first argument. That argument must contain its own node values.
+- `{"values":[3,2,0,-4],"tail":[0,1]}` as the first list argument connects its tail to its second node. Target another list argument to share a tail.
+- In return mode, `{"ref":[0,1]}` as the expected output checks the original node instance. `null` expects no node.
