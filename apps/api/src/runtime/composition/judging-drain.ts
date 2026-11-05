@@ -32,7 +32,25 @@ export function localJudgingDrain(
         ownerPublicKey,
         cleanupMs: 30000,
         fetch: profile.wrap(
-          { headers: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init) },
+          {
+            async headers(input: RequestInfo | URL, init?: RequestInit) {
+              const sent = Date.now();
+              const response = await fetch(input, init);
+              const received = Number(response.headers.get("x-quorem-case-received-at"));
+              const admitted = Number(response.headers.get("x-quorem-case-admitted-at"));
+              if (
+                received > 0 &&
+                admitted > 0 &&
+                Number.isSafeInteger(received) &&
+                Number.isSafeInteger(admitted)
+              ) {
+                profile.record("case.dispatch", received - sent);
+                profile.record("case.admission", admitted - received);
+                profile.record("case.headersTransit", Date.now() - admitted);
+              }
+              return response;
+            },
+          },
           "case",
         ).headers,
       }),

@@ -257,6 +257,7 @@ export class MailRelayService extends DurableObject {
 }
 const ingress = {
   async fetch(request, env) {
+    const receivedAt = Date.now();
     try {
       const [drain, , cases, image] = config(env),
         url = new URL(request.url);
@@ -425,7 +426,10 @@ const ingress = {
           await registered.body?.cancel();
           if (registered.status !== 204) return new Response(null, { status: 503 });
         }
-        return caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET);
+        const response = await caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET);
+        const headers = new Headers(response.headers);
+        headers.set("x-quorem-case-received-at", String(receivedAt));
+        return new Response(response.body, { status: response.status, headers });
       }
       return new Response(null, { status: 404 });
     } catch {
