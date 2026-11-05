@@ -186,7 +186,7 @@ void test("queue fallback schedules slots without an aggregate drain and confirm
   assert.equal((await root.fetch(request())).status, 200);
   assert.deepEqual(calls, ["state", "state", "empty", "state", "empty"]);
   state = { queued: -1, running: 0 };
-  await assert.rejects(root.fetch(request()), /Invalid runner queue state/);
+  assert.equal((await root.fetch(request())).status, 503);
 });
 
 void test("control authority gates drains and registers authorized case attempts first", async () => {

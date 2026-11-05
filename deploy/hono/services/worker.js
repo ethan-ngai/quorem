@@ -244,9 +244,12 @@ export class RunnerService extends DurableObject {
     // Queue fallback schedules the same slots; it must never add a second execution pool.
     const pending = await this.ctx.storage.getAlarm();
     if (pending === null || pending > Date.now()) await this.ctx.storage.setAlarm(Date.now());
-    return path === "/internal/wake"
-      ? new Response(null, { status: 204 })
-      : this.queueState(request.signal);
+    if (path === "/internal/wake") return new Response(null, { status: 204 });
+    try {
+      return await this.queueState(request.signal);
+    } catch {
+      return new Response(null, { status: 503 });
+    }
   }
 
   async alarm() {
