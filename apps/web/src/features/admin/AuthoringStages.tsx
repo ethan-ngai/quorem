@@ -1,3 +1,5 @@
+import { authoringIssue } from "./authoringValidation";
+import type { ReportAuthoringValidity } from "./authoringValidation";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { initialOdysseySource } from "../odyssey/methodStubs";
 import { useEffect, useRef, useState } from "react";
@@ -14,7 +16,7 @@ export function AuthoringStages({
 }: {
   content: QuestionContent;
   onChange: (content: QuestionContent) => void;
-  onValidityChange: (label: string, invalid: boolean) => void;
+  onValidityChange: ReportAuthoringValidity;
 }) {
   const [stages, setStages] = useState(() => hydrateStages(content));
   const [error, setError] = useState<string>();
@@ -30,7 +32,7 @@ export function AuthoringStages({
       validity.current("stages", false);
       setError(undefined);
     } catch (cause) {
-      validity.current("stages", true);
+      validity.current("stages", true, [authoringIssue(cause, "Steps")]);
       setError((cause as Error).message);
     }
   }, [stages, invalidTypes, content.problem.constraints]);
@@ -56,7 +58,7 @@ export function AuthoringStages({
       onValidityChange("stages", false);
       setError(undefined);
     } catch (cause) {
-      onValidityChange("stages", true);
+      onValidityChange("stages", true, [authoringIssue(cause, "Steps")]);
       setError((cause as Error).message);
     }
   }

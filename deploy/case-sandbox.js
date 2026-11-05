@@ -80,6 +80,15 @@ export class CaseSandbox extends DurableObject {
     );
   }
 
+  async visitChildren(request, visit) {
+    const children = this.children(request),
+      outcomes = [];
+    // Leave connection headroom for the ingress and each lane's container RPCs.
+    for (let start = 0; start < children.length; start += 3)
+      outcomes.push(...(await Promise.allSettled(children.slice(start, start + 3).map(visit))));
+    return outcomes;
+  }
+
   async fetch(request) {
     const child = request.headers.get("x-quorem-child-lane") === "true";
     if (
@@ -102,14 +111,17 @@ export class CaseSandbox extends DurableObject {
       if (!child) {
         const headers = new Headers(request.headers);
         headers.set("x-quorem-child-lane", "true");
-        const children = await Promise.all(
-          this.children(request).map(async (stub) => {
-            const response = await stub.fetch(new Request(request, { headers }));
-            if (!response.ok) throw new Error("Case lane probe unavailable");
-            return response.json();
-          }),
-        );
-        const active = children.find((value) => value.active);
+        const outcomes = await this.visitChildren(request, async (stub) => {
+          const response = await stub.fetch(new Request(request, { headers }));
+          if (!response.ok) {
+            await response.body?.cancel();
+            throw new Error("Case lane probe unavailable");
+          }
+          return response.json();
+        });
+        if (outcomes.some((value) => value.status === "rejected"))
+          throw new Error("Case lane probe unavailable");
+        const active = outcomes.map((value) => value.value).find((value) => value.active);
         if (active) return Response.json(active);
       }
       const running = this.ctx.container?.running === true;
@@ -141,6 +153,7 @@ export class CaseSandbox extends DurableObject {
       });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
+      console.log(`case-lifecycle delete-${child ? "child" : "root"}`);
       const token = request.headers.get("x-case-token");
       if (token && !/^[A-Za-z0-9-]{16,128}$/.test(token))
         return new Response(null, { status: 400 });
@@ -151,14 +164,28 @@ export class CaseSandbox extends DurableObject {
         if (!child) {
           const headers = new Headers(request.headers);
           headers.set("x-quorem-child-lane", "true");
-          for (const stub of this.children(request))
-            stops.push(
-              (async () => {
+          stops.push(
+            (async () => {
+              const outcomes = await this.visitChildren(request, async (stub) => {
                 const response = await stub.fetch(new Request(request, { headers }));
                 await response.body?.cancel();
-                if (response.status !== 204) throw new Error("Case lane teardown unconfirmed");
-              })(),
-            );
+                if (response.status !== 204) {
+                  console.log(`case-lifecycle child-status-${response.status}`);
+                  throw new Error("Case lane teardown unconfirmed");
+                }
+              });
+              if (outcomes.some((value) => value.status === "rejected")) {
+                for (const result of outcomes)
+                  if (result.status === "rejected") {
+                    const message = String(result.reason?.message ?? "");
+                    console.log(
+                      `case-lifecycle child-failure-${/Too many|limit/i.test(message) ? "limit" : /time|cancel|abort/i.test(message) ? "timeout" : "other"}`,
+                    );
+                  }
+                throw new Error("Case lane teardown unconfirmed");
+              }
+            })(),
+          );
         }
         if (!token || (await this.ctx.storage.get("started")) === token) stops.push(this.stop());
         const outcomes = await Promise.allSettled(stops);

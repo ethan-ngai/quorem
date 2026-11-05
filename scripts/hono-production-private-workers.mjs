@@ -1,4 +1,4 @@
-/** Update the active judge generation without reprovisioning the API or database. */
+/** Coordinate judging generations, API rollout and fenced production validation. */
 import { createHash, createPublicKey } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -11,7 +11,7 @@ import { productionTerraform } from "./hono-production-terraform.mjs";
 import { productionImages, validatedJudgeImages } from "./hono-production-images.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
-import { judgingScopeIdle } from "./hono-judging-release.mjs";
+import { judgingScopeIdle, judgingScopeCompatible } from "./hono-judging-release.mjs";
 import { benchmarkProductionWorkload } from "./hono-production-workload.mjs";
 import { benchmarkProductionPython } from "./hono-production-benchmark.mjs";
 
@@ -111,6 +111,11 @@ async function rollout(env, benchmarkOnly) {
       });
     const current = await controls(priorOutput.SERVICES_RELEASE, priorOutput.SERVICES_BINDINGS);
     const { runner, cases } = await current.observe();
+    if (env.JUDGING_DIAGNOSTICS === "true") {
+      await current.requireActive(runner.generation);
+      const { diagnoseProductionJudge } = await import("./hono-production-judge-diagnostics.mjs");
+      return { diagnostics: await diagnoseProductionJudge(db, keys, namespace, { runner, cases }) };
+    }
     const benchmarkEnv = { ...env };
     if (env.JUDGING_WORKLOAD === "true") {
       benchmarkEnv.DATABASE_URL = database.href;
@@ -223,13 +228,24 @@ async function rollout(env, benchmarkOnly) {
         mode: "private-workers",
         async beforeApply() {
           if (caseAdvanced || runner.status === "prepared") return;
-          if (!cases.paused && runner.status === "active") {
+          if (
+            env.HONO_PRESERVE_JUDGING_SCOPE !== "true" &&
+            !cases.paused &&
+            runner.status === "active"
+          ) {
             report("wait-for-idle-judge");
             await quiesce(db);
           }
-          report("pause-and-quiesce-judge");
+          report(
+            env.HONO_PRESERVE_JUDGING_SCOPE === "true"
+              ? "pause-and-verify-judge-scope"
+              : "pause-and-quiesce-judge",
+          );
           await current.pausePinned({ prior, runnerOperation, caseOperation: pauseCase });
-          await quiesce(db);
+          if (env.HONO_PRESERVE_JUDGING_SCOPE === "true") {
+            if (!(await judgingScopeCompatible(db, namespace.scope)))
+              throw new Error("Existing attempts use another execution scope");
+          } else await quiesce(db);
         },
       })
     ).origins.value;
@@ -260,6 +276,7 @@ async function rollout(env, benchmarkOnly) {
     runStageCommand("vp", ["exec", "node", "scripts/hono-production-api-release.mjs"], {
       ...env,
       HONO_JUDGING_SCOPE_UPDATE: "true",
+      HONO_PRESERVE_JUDGING_SCOPE: env.HONO_PRESERVE_JUDGING_SCOPE,
     });
     report("activate-private-workers");
     const next = await controls(release, result.SERVICES_BINDINGS);
@@ -287,13 +304,17 @@ async function rollout(env, benchmarkOnly) {
 if (import.meta.main) {
   try {
     const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
-    report("benchmark-python");
-    const result =
-      process.env.JUDGING_WORKLOAD === "true"
-        ? await benchmarkProductionWorkload(benchmarkEnv)
-        : await benchmarkProductionPython(benchmarkEnv);
-    console.log(JSON.stringify(result));
-    if (result.meetsTarget === false) process.exitCode = 1;
+    if (process.env.JUDGING_DIAGNOSTICS === "true") {
+      console.log(JSON.stringify(benchmarkEnv));
+    } else {
+      report("benchmark-python");
+      const result =
+        process.env.JUDGING_WORKLOAD === "true"
+          ? await benchmarkProductionWorkload(benchmarkEnv)
+          : await benchmarkProductionPython(benchmarkEnv);
+      console.log(JSON.stringify(result));
+      if (result.meetsTarget === false) process.exitCode = 1;
+    }
   } catch (error) {
     console.error(
       JSON.stringify({

@@ -1,3 +1,4 @@
+import { ConstraintViolation } from "./constraintViolation";
 import {
   rangeMatches,
   comparisonMatches,
@@ -14,7 +15,14 @@ export function validateConstraints(
   args: unknown[],
   constraints: Constraint[],
 ) {
-  validateDefinitions(signature, constraints);
+  try {
+    validateDefinitions(signature, constraints);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const match = /^constraint (\d+): (.*)$/.exec(message);
+    if (match) throw new ConstraintViolation(Number(match[1]) - 1, [], match[2]);
+    throw cause;
+  }
   const bindings = bindArguments(signature, args);
   const project = (target: ConstraintTarget): unknown[] => {
     const binding = bindings.find(({ name }) => name === target.parameter);
@@ -67,7 +75,7 @@ export function validateConstraints(
       }
     }
   };
-  for (const constraint of constraints) {
+  for (const [index, constraint] of constraints.entries()) {
     let valid = true;
     if (constraint.kind === "range") valid = rangeMatches(constraint, project(constraint.target));
     if (constraint.kind === "comparison")
@@ -85,7 +93,29 @@ export function validateConstraints(
           : projected;
       valid = propertyMatches(constraint, values);
     }
-    if (!valid) throw new Error(`Constraint: ${formatConstraint(constraint)}.`);
+    if (!valid) {
+      const targets =
+        constraint.kind === "comparison"
+          ? [constraint.left, constraint.right]
+          : constraint.kind === "range" || constraint.kind === "property"
+            ? [constraint.target]
+            : [];
+      const parameters = [...new Set(targets.map((target) => target.parameter))];
+      if (
+        (constraint.kind === "range" || constraint.kind === "comparison") &&
+        constraint.quantifier === "any"
+      ) {
+        const empty = targets.find((target) => project(target).length === 0);
+        if (empty) {
+          throw new ConstraintViolation(
+            index,
+            parameters,
+            `${empty.parameter} is empty; ∃ needs a matching ${constraint.kind === "comparison" ? "pair" : "value"}. Use ∀ to allow empty inputs.`,
+          );
+        }
+      }
+      throw new ConstraintViolation(index, parameters, `Requires ${formatConstraint(constraint)}.`);
+    }
   }
 }
 

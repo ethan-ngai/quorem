@@ -31,16 +31,18 @@
   margin-top: var(--space-5);
 }
 .question-authoring .authoring-case-browser {
-  height: 320px;
-  margin: var(--space-3) 0 0;
+  height: var(--authoring-cases-height, 320px);
+  margin: var(--space-1) 0 0;
+  background: var(--color-field);
   --workspace-control-inset: 18px;
 }
 .question-authoring .case-details {
   gap: 12px;
-  padding: 12px;
+  padding: var(--space-2) 0 0 var(--space-4);
 }
 .question-authoring .case-rail {
-  padding-top: 8px;
+  padding-top: var(--space-2);
+  border: 0;
 }
 .sequence-call-editor {
   display: grid;
@@ -91,7 +93,7 @@
   --narrow-case-rail-width: 104px;
 }
 .question-authoring .case-rail {
-  padding-inline: 6px;
+  padding-inline: 0;
 }
 .question-authoring .case-selector.add-case {
   white-space: nowrap;

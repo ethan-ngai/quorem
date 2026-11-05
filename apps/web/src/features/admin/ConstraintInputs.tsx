@@ -82,12 +82,12 @@ export function Quantifier({
         options={[
           {
             value: "all",
-            label: pairs ? "Every value pair (∀)" : "Every value (∀)",
+            label: pairs ? "All pairs (∀)" : "All values (∀)",
             icon: <MathOperator source={"\\forall"} />,
           },
           {
             value: "any",
-            label: pairs ? "At least one value pair (∃)" : "At least one value (∃)",
+            label: pairs ? "Any pair (∃)" : "Any value (∃)",
             icon: <MathOperator source={"\\exists"} />,
           },
         ]}
@@ -124,7 +124,7 @@ export function Target({
 }) {
   if (!targets.length)
     return (
-      <Tooltip content="No compatible input for this comparison">
+      <Tooltip content="No compatible input">
         <span
           role="img"
           aria-label="No compatible input"

@@ -142,7 +142,7 @@ it("exposes quantifiers, both node measurements, and sort direction", () => {
       ]}
     />,
   );
-  expect(html).toContain('aria-label="At least one value (∃)" aria-checked="true"');
+  expect(html).toContain('aria-label="Any value (∃)" aria-checked="true"');
   expect(html).toContain('aria-label="Descending (DESC)" aria-checked="true"');
   expect(html).toContain('aria-label="Node values"');
   expect(html).toContain('aria-label="Node count"');
@@ -165,7 +165,7 @@ it("omits scalar self-operands and explains existing invalid comparisons", () =>
       ]}
     />,
   );
-  expect(html).toContain("a scalar compared with itself is always true or always false");
+  expect(html).toContain("A scalar cannot meaningfully compare with itself.");
   expect(html).not.toContain('aria-label="Node count"');
   expect(html).toContain('aria-label="Node values" aria-checked="false"');
 });

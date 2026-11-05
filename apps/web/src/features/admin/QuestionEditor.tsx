@@ -1,3 +1,8 @@
+import {
+  updateAuthoringIssues,
+  authoringMessages,
+  type AuthoringIssue,
+} from "./authoringValidation";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import * as Popover from "../../ui/Popover";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
@@ -221,7 +226,9 @@ function AuthoringWorkspace({
   });
   const saveStatus = dirty ? "Unsaved edits" : draft?.publishedVersionId ? "Published" : "Draft";
   const saveStatusElement = useChangeMotion<HTMLSpanElement>(saveStatus);
-  const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
+  const [invalidFields, setInvalidFields] = useState<Map<string, readonly AuthoringIssue[]>>(
+    () => new Map(),
+  );
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -238,7 +245,7 @@ function AuthoringWorkspace({
     setPreview(false);
     setError("");
     setNotice("");
-    setInvalidFields(new Set());
+    setInvalidFields(new Map());
   }
   function closeEditor() {
     void navigate({
@@ -438,12 +445,7 @@ function AuthoringWorkspace({
               <span role="status">{saveStatus}</span>
               <PersistentNotice
                 label={invalidFields.size ? "Saving blocked" : "Question update failed"}
-                message={[
-                  ...(invalidFields.size
-                    ? ["Fix invalid fields before saving or previewing."]
-                    : []),
-                  error,
-                ]}
+                message={[...authoringMessages([...invalidFields.values()].flat()), error]}
               />
             </span>
             <Tooltip content={preview ? "Edit content" : "Preview public content"}>
@@ -638,15 +640,13 @@ function AuthoringWorkspace({
               onPreviewLanguageChange={setPreviewLanguage}
               disabled={locked}
               lockSlug={!!(draft.publishedVersionId || draft.editVersionId)}
-              invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
-              onValidityChange={(label, invalid) => (
+              invalidCases={[...invalidFields.keys()].some((key) => key.startsWith("cases:"))}
+              validationIssues={[...invalidFields.values()].flat()}
+              onValidityChange={(label, invalid, issues) => (
                 invalid && setDirty(true),
-                setInvalidFields((previous) => {
-                  const next = new Set(previous);
-                  if (invalid) next.add(label);
-                  else next.delete(label);
-                  return next;
-                })
+                setInvalidFields((previous) =>
+                  updateAuthoringIssues(previous, label, invalid, issues),
+                )
               )}
               onChange={(next) => {
                 setContent(next);

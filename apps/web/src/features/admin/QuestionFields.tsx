@@ -1,3 +1,4 @@
+import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { TextInput } from "../../ui/TextControl";
 import { MarkdownField } from "../../ui/MarkdownField";
@@ -115,15 +116,17 @@ export function QuestionFields({
   lockSlug = false,
   onChange,
   onValidityChange,
+  validationIssues = [],
 }: {
   content: QuestionContent;
+  validationIssues?: readonly AuthoringIssue[];
   previewLanguage?: PreviewLanguage;
   onPreviewLanguageChange?: (language: PreviewLanguage) => void;
   disabled: boolean;
   invalidCases?: boolean;
   lockSlug?: boolean;
   onChange: (content: QuestionContent) => void;
-  onValidityChange: (label: string, invalid: boolean) => void;
+  onValidityChange: ReportAuthoringValidity;
 }) {
   const problem = content.problem;
   const [codeSection, setCodeSection] = useState<"reference" | "editorial">("editorial");
@@ -424,7 +427,10 @@ export function QuestionFields({
               <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
             </summary>
             <ConstraintFields
-              onValidityChange={(invalid) => onValidityChange("constraints", invalid)}
+              onValidityChange={(invalid, issues) =>
+                onValidityChange("constraints", invalid, issues)
+              }
+              validationIssues={validationIssues}
               value={problem.constraints}
               signature={problem.sql ? undefined : problem.signature}
               disabled={disabled}
@@ -509,6 +515,7 @@ export function QuestionFields({
         <div
           role="tabpanel"
           id={`${id}-tests-panel`}
+          className="authoring-tests-panel"
           aria-labelledby={`${id}-tests`}
           hidden={section !== "tests"}
         >
