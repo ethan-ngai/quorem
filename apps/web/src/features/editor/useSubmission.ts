@@ -151,15 +151,18 @@ export function useSubmission({
     if (!submissionQuery.isError || !activeSubmissionId || !workspace || scopeRef.current !== scope)
       return;
     const cause = submissionQuery.error;
-    setError(errorMessage(cause));
     if (
       !forgetMissingSubmission(
         cause,
         submissionStorageKey(identity, workspace.id),
         activeSubmissionId,
       )
-    )
+    ) {
+      setError(errorMessage(cause));
       return;
+    }
+    setError(undefined);
+    setRunSnapshot(undefined);
     setActive((current) =>
       current?.scope === scope && current.id === activeSubmissionId ? undefined : current,
     );

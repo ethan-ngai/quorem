@@ -31,9 +31,11 @@ it("clears only the same saved ID after an authoritative 404", () => {
     expect(forgetMissingSubmission(new SubmissionReadError(401), "saved", "job")).toBe(false);
     expect(storage.removeItem).not.toHaveBeenCalled();
     expect(forgetMissingSubmission(new SubmissionReadError(404), "saved", "other")).toBe(true);
-    expect(storage.removeItem).not.toHaveBeenCalled();
+    expect(storage.removeItem).not.toHaveBeenCalledWith("saved");
+    expect(storage.removeItem).toHaveBeenCalledWith("saved:snapshot:other");
     expect(forgetMissingSubmission(new SubmissionReadError(404), "saved", "job")).toBe(true);
     expect(storage.removeItem).toHaveBeenCalledWith("saved");
+    expect(storage.removeItem).toHaveBeenCalledWith("saved:snapshot:job");
     storage.getItem.mockImplementation(() => {
       throw new Error("disabled");
     });

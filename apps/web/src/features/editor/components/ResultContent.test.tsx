@@ -20,6 +20,38 @@ const result: Submission = {
 };
 
 describe("result presentation boundaries", () => {
+  it.each(["run", "submit"] as const)(
+    "uses a shared notice for a failed %s without exposing infrastructure details",
+    (kind) => {
+      const markup = renderToStaticMarkup(
+        <ResultContent
+          submission={{
+            ...result,
+            kind,
+            state: "failed",
+            infrastructureError: "private infrastructure detail",
+          }}
+          busy={false}
+        />,
+      );
+      expect(markup).toContain('class="persistent-notice"');
+      expect(markup).toContain(`aria-label="${kind === "run" ? "Run" : "Submit"} failed"`);
+      expect(markup).toContain("This execution could not be judged.");
+      expect(markup).not.toContain("Judge unavailable");
+      expect(markup).not.toContain("private infrastructure detail");
+      expect(markup).not.toContain("cases passed");
+    },
+  );
+  it("reserves the shared notice slot after recovery and hides stale failures during admission", () => {
+    const healthy = renderToStaticMarkup(<ResultContent submission={result} busy={false} />);
+    const pending = renderToStaticMarkup(
+      <ResultContent submission={{ ...result, state: "failed" }} busy />,
+    );
+    expect(healthy).toContain('class="persistent-notice"');
+    expect(healthy).not.toContain('aria-label="Submit failed"');
+    expect(pending).toContain("Starting");
+    expect(pending).not.toContain("could not be judged");
+  });
   it("does not insert a transient error banner or show an old verdict after admission fails", () => {
     const markup = renderToStaticMarkup(
       <ResultContent submission={result} busy={false} error="Request failed" />,
