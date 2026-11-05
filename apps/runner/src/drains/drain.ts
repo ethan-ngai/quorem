@@ -78,12 +78,10 @@ export function drainer(options: {
         wake = 0,
         contentionMs = 200,
         retryAt = 0;
-      let exhausted = false;
       const workers = new Set<Promise<void>>();
       const start = (available = options.slots) => {
         while (
           available-- > 0 &&
-          (!options.singleAttempt || !exhausted) &&
           !failure &&
           !live.aborted &&
           running < options.slots &&
@@ -99,10 +97,7 @@ export function drainer(options: {
                   scope: sandbox.scope,
                   signal: live,
                 });
-                if (!job) {
-                  exhausted = true;
-                  break;
-                }
+                if (!job) break;
                 worked = true;
                 try {
                   await runAttempt({
@@ -117,10 +112,7 @@ export function drainer(options: {
                 } catch (error) {
                   if (!(error instanceof LostLease)) throw error;
                 }
-                if (options.singleAttempt) {
-                  exhausted = true;
-                  break;
-                }
+                if (options.singleAttempt) break;
               }
             } catch (error) {
               if (error instanceof UnconfirmedTeardown) teardownFailure = error;
@@ -137,6 +129,19 @@ export function drainer(options: {
       try {
         return await (async () => {
           try {
+            if (options.singleAttempt) {
+              // This invocation cannot claim again; only the attempt's lease checks remain live.
+              start();
+              await Promise.all(workers);
+              if (failure) throw failure;
+              if (live.aborted) throw signal.reason ?? new Error("Drain stopped");
+              const state = await queue.state(live);
+              return {
+                ...state,
+                complete:
+                  state.queued === 0 && state.running === 0 && (await queue.confirmEmpty(live)),
+              };
+            }
             watch = await queue.subscribe(live);
             const notifications = (async () => {
               try {
@@ -163,7 +168,7 @@ export function drainer(options: {
                 !running &&
                 state.queued === 0 &&
                 state.running === 0 &&
-                (options.singleAttempt || performance.now() >= graceUntil)
+                performance.now() >= graceUntil
               ) {
                 const before = epoch;
                 if ((await queue.confirmEmpty(live)) && before === epoch && beforeWake === wake)
@@ -171,8 +176,6 @@ export function drainer(options: {
                 wake++;
               }
               if (!running && performance.now() >= claimUntil) return { ...state, complete: false };
-              if (!running && options.singleAttempt && exhausted)
-                return { ...state, complete: false };
               const deadline = await queue.nextDeadline(live);
               const untilGrace =
                 graceUntil > performance.now() ? graceUntil - performance.now() : Infinity;

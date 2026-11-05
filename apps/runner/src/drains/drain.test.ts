@@ -102,6 +102,41 @@ void test("single-attempt invocations retain continuation instead of claiming th
   assert.equal(f.count(), 2);
 });
 
+void test("a single-attempt drain never polls global state during execution", async () => {
+  const f = fixture();
+  f.add();
+  let executing = false,
+    states = 0;
+  const state = f.queue.state.bind(f.queue);
+  f.queue.state = async (signal) => {
+    assert.equal(executing, false);
+    states++;
+    return state(signal);
+  };
+  f.queue.subscribe = async () => {
+    throw new Error("No queue subscription needed");
+  };
+  f.queue.nextDeadline = async () => {
+    throw new Error("No global deadline needed");
+  };
+  const d = drainer({
+    ...f,
+    slots: 1,
+    resumable: true,
+    singleAttempt: true,
+    engine: {
+      execute: async () => {
+        executing = true;
+        await sleep(250);
+        executing = false;
+        return "complete";
+      },
+    },
+  });
+  assert.equal((await d.drain(AbortSignal.timeout(1000))).complete, true);
+  assert.equal(states, 1);
+});
+
 void test(
   "idle slots do not retry claims on periodic control ticks",
   { timeout: 2000 },
