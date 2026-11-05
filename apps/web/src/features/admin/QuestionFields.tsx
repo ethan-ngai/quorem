@@ -515,6 +515,7 @@ export function QuestionFields({
         <div
           role="tabpanel"
           id={`${id}-tests-panel`}
+          className="authoring-tests-panel"
           aria-labelledby={`${id}-tests`}
           hidden={section !== "tests"}
         >

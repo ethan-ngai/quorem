@@ -437,8 +437,41 @@
 }
 
 .admin-form-pane .question-authoring > .result-tabs {
-  margin-bottom: var(--space-3);
+  margin-bottom: 0;
   flex-wrap: wrap;
+}
+
+.page-content:has(.admin-form-pane .authoring-tests-panel:not([hidden])) {
+  background: var(--color-field);
+}
+.admin-workspace[data-editing="true"] {
+  --authoring-page-inset: var(--space-5);
+  background: var(--color-background);
+  max-width: none;
+  padding-inline: 0;
+  padding-bottom: 0;
+}
+.admin-workspace[data-editing="true"] > .admin-heading,
+.admin-form-pane > .admin-edit-toolbar,
+.admin-form-pane .question-authoring > .result-tabs {
+  width: calc(100% - 2 * var(--authoring-page-inset));
+  max-width: 58rem;
+  margin-inline: auto;
+}
+.admin-workspace[data-editing="true"] > .admin-form-pane {
+  max-width: none;
+}
+.admin-form-pane .question-authoring > [role="tabpanel"] {
+  padding: var(--space-4) max(var(--authoring-page-inset), calc((100% - 58rem) / 2))
+    var(--space-6);
+}
+.admin-form-pane .authoring-tests-panel {
+  background: var(--color-field);
+}
+@media (max-width: 900px) {
+  .admin-workspace[data-editing="true"] {
+    --authoring-page-inset: var(--space-4);
+  }
 }
 
 .admin-authoring-hint {
