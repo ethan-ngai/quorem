@@ -40,6 +40,66 @@ const base = () => {
   };
   return env;
 };
+void test("direct wake coalesces and its alarm honors release and pause fences", async (t) => {
+  const env = base();
+  const name = `runner:${env.SERVICES_RELEASE}:1`;
+  env.QUOREM_CASE_NAMESPACE_ID = "namespace";
+  env.CASES = { idFromName: () => env.QUOREM_CASE_NAMESPACE_ID };
+  const active = env.RUNNER_CONTROL;
+  let alarm = null,
+    paused = false,
+    arms = 0;
+  const runner = new RunnerService(
+    {
+      id: name,
+      storage: {
+        get: async () => paused,
+        put: async () => {
+          paused = true;
+        },
+        getAlarm: async () => alarm,
+        setAlarm: async (when) => {
+          alarm = when;
+          arms++;
+        },
+      },
+    },
+    env,
+  );
+  env.RUNNERS = { idFromName: (id) => id, getByName: () => runner };
+  env.QUOREM_RUNNER_COMMAND_ORIGIN = "https://api.example.test";
+  const dispatch = t.mock.method(globalThis, "fetch", async (url) => {
+    assert.equal(new URL(url).pathname, "/internal/runner/drain");
+    return Response.json({ queued: 0, running: 0 });
+  });
+  const wake = (origin, token) =>
+    worker.fetch(
+      new Request(`${origin}/internal/wake`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      env,
+    );
+  const direct = "https://runner-wake.internal";
+  assert.equal((await wake(direct, secret("x"))).status, 404);
+  assert.equal((await wake(env.DRAIN_ORIGIN, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
+  assert.equal((await wake(direct, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
+  assert.equal((await wake(direct, env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
+  assert.equal(arms, 1);
+  assert.equal(dispatch.mock.callCount(), 0);
+  env.RUNNER_CONTROL = {
+    getByName: () => ({ fetch: async () => new Response(null, { status: 503 }) }),
+  };
+  await runner.alarm();
+  assert.equal(dispatch.mock.callCount(), 0);
+  env.RUNNER_CONTROL = active;
+  await runner.alarm();
+  assert.equal(dispatch.mock.callCount(), 1);
+  await runner.fetch(new Request(`${env.DRAIN_ORIGIN}/internal/pause`, { method: "POST" }));
+  await runner.alarm();
+  assert.equal(dispatch.mock.callCount(), 1);
+});
+
 void test("control authority gates drains and registers authorized case attempts first", async () => {
   const env = base(),
     keys = generateKeyPairSync("ed25519"),

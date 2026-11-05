@@ -102,9 +102,17 @@ async function release(env) {
       })),
       ...(config.r2_buckets ?? []).map(({ binding: name }) => ({ name, type: "r2_bucket" })),
     ];
+    const wake = before.find(({ name }) => name === "RUNNER_WAKE");
+    if (wake && (wake.type !== "service" || wake.service !== config.services[0].service))
+      throw new Error("Unexpected runner wake binding");
     if (
       bindingSet(expected) !==
-      bindingSet(before.filter(({ type }) => type !== "secret_text" && type !== "secret_key"))
+      bindingSet(
+        before.filter(
+          ({ name, type }) =>
+            name !== "RUNNER_WAKE" && type !== "secret_text" && type !== "secret_key",
+        ),
+      )
     )
       throw new Error("Active Worker bindings differ from the deployment configuration");
     await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
@@ -124,7 +132,15 @@ async function release(env) {
       ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", configFile, "--keep-vars"],
       env,
     );
-    if (bindingSet(await bindings(env)) !== bindingSet(before))
+    const after = await bindings(env);
+    const expectedBindings = [
+      ...before.filter(({ name }) => name !== "RUNNER_WAKE"),
+      { name: "RUNNER_WAKE", type: "service" },
+    ];
+    if (
+      bindingSet(after) !== bindingSet(expectedBindings) ||
+      after.find(({ name }) => name === "RUNNER_WAKE")?.service !== config.services[0].service
+    )
       throw new Error("Deployed Worker bindings differ from the previous version");
     await verify();
     console.log(JSON.stringify({ phase: "active-api-verified", release: env.GITHUB_SHA }));
