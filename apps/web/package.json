@@ -43,8 +43,6 @@
     "@valtown/codemirror-continue": "^2.3.2",
     "@valtown/codemirror-ts": "^2.3.1",
     "@xyflow/react": "^12.12.1",
-    "ajv": "catalog:",
-    "ajv-formats": "catalog:",
     "better-auth": "catalog:",
     "comlink": "^4.4.2",
     "d3-flextree": "^2.1.2",
