@@ -5,6 +5,7 @@ import { checkpointedEngine } from "../../../../runner/src/orchestration/engine.
 import { remoteSandbox } from "../../../../runner/src/sandbox/remote.ts";
 import type { PrivateConfig } from "./private.ts";
 import type { RunnerPeer } from "../../adapters/postgres/judging/worker/http.ts";
+import { judgingProfile } from "./judging-profile.ts";
 
 export function localJudgingDrain(
   peer: PrivateConfig["runnerPeers"][number],
@@ -12,6 +13,8 @@ export function localJudgingDrain(
   capacity = judgingCapacity({}),
 ): RunnerPeer["drain"] {
   return async (request, config, repository) => {
+    const profile = judgingProfile();
+    repository = profile.wrap(repository, "repository");
     const { origin, secret, namespaceId, ownerPublicKey } = config;
     if (
       typeof origin !== "string" ||
@@ -20,13 +23,16 @@ export function localJudgingDrain(
       typeof ownerPublicKey !== "string"
     )
       return new Response(null, { status: 400 });
-    const sandbox = remoteSandbox({
-      origin,
-      secret,
-      namespaceId,
-      ownerPublicKey,
-      cleanupMs: 30000,
-    });
+    const sandbox = profile.wrap(
+      remoteSandbox({
+        origin,
+        secret,
+        namespaceId,
+        ownerPublicKey,
+        cleanupMs: 30000,
+      }),
+      "sandbox",
+    );
     if (sandbox.scope !== peer.scope) return new Response(null, { status: 403 });
     const finalize = repository.finalizeCompletion?.bind(repository);
     if (!finalize) throw new Error("Transactional finalization required");
@@ -69,12 +75,15 @@ export function localJudgingDrain(
         },
       },
     );
-    return runner.handler(
+    const response = await runner.handler(
       new Request(new URL("/internal/drain", request.url), {
         method: "POST",
         headers: { authorization: request.headers.get("authorization") ?? "" },
         signal: request.signal,
       }),
     );
+    const headers = new Headers(response.headers);
+    headers.set("x-quorem-judging-profile", profile.header());
+    return new Response(response.body, { status: response.status, headers });
   };
 }
