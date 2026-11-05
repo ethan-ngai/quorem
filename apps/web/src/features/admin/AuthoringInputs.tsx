@@ -1,7 +1,7 @@
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import "../../ui/topic-chip.css";
 import { formatLabel } from "../../ui/formatLabel";
-import { X } from "lucide-react";
+import { Plus, Tags, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { Field } from "./AuthoringFields";
@@ -74,43 +74,54 @@ export function TopicField({
   }
   return (
     <div className="admin-field">
-      <label htmlFor={id}>{label}</label>
-      <AnimatedRows
-        as="ul"
-        inline
-        className="authoring-chips"
-        label={label}
-        items={tags}
-        focusFallback={field}
-        getKey={(tag) => tag}
-        renderRow={(tag, index) => (
-          <span className="topic-chip">
-            {formatLabel(tag)}
-            <button
-              type="button"
-              aria-label={`Remove ${formatLabel(tag)}`}
-              onClick={() => onChange(tags.filter((_, position) => position !== index))}
-            >
-              <X size={12} aria-hidden="true" />
-            </button>
-          </span>
-        )}
-      />
-      <div className="authoring-inline-input">
-        <input
-          id={id}
-          ref={field}
-          value={source}
-          onChange={(event) => setSource(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            add();
-          }}
+      <label htmlFor={id} className="admin-icon-label">
+        <Tags size={14} aria-hidden="true" />
+        {label}
+      </label>
+      <div className="authoring-tag-entry">
+        <AnimatedRows
+          as="ul"
+          inline
+          className="authoring-chips"
+          label={label}
+          items={tags}
+          focusFallback={field}
+          getKey={(tag) => tag}
+          renderRow={(tag, index) => (
+            <span className="topic-chip">
+              {formatLabel(tag)}
+              <button
+                type="button"
+                aria-label={`Remove ${formatLabel(tag)}`}
+                onClick={() => onChange(tags.filter((_, position) => position !== index))}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          )}
         />
-        <button type="button" className="button button-secondary" disabled={!canAdd} onClick={add}>
-          Add
-        </button>
+        <div className="authoring-inline-input">
+          <input
+            id={id}
+            ref={field}
+            placeholder={label === "Topics" ? "Add topic…" : "Add company…"}
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              add();
+            }}
+          />
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={!canAdd}
+            onClick={add}
+          >
+            <Plus size={14} aria-hidden="true" /> Add
+          </button>
+        </div>
       </div>
     </div>
   );

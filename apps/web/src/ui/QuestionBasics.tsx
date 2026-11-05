@@ -1,3 +1,4 @@
+import { MarkdownField } from "./MarkdownField";
 /** Shared question copy fields for interview setup and library authoring. */
 export function QuestionBasics({
   title,
@@ -25,14 +26,11 @@ export function QuestionBasics({
           onChange={(event) => onTitleChange(event.target.value)}
         />
       </label>
-      <label className="admin-field">
-        <span>{staged ? "Introduction" : "Statement"}</span>
-        <textarea
-          rows={4}
-          value={statement}
-          onChange={(event) => onStatementChange(event.target.value)}
-        />
-      </label>
+      <MarkdownField
+        label={staged ? "Introduction" : "Statement"}
+        value={statement}
+        onChange={onStatementChange}
+      />
     </>
   );
 }

@@ -1,0 +1,65 @@
+.markdown-field {
+  min-width: 0;
+  margin-bottom: var(--space-4);
+}
+.markdown-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.markdown-field-heading label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+.markdown-field-heading label svg {
+  color: var(--color-text-secondary);
+}
+.markdown-field textarea,
+.markdown-field-preview {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 5.5rem;
+  max-height: 24rem;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  padding: var(--space-3);
+  color: var(--color-text);
+  font-family: var(--font-interface);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.markdown-field textarea {
+  display: block;
+  field-sizing: content;
+  resize: vertical;
+}
+.markdown-field textarea[hidden] {
+  display: none;
+}
+.markdown-field textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.markdown-field[data-compact] :is(textarea, .markdown-field-preview) {
+  min-height: 4.5rem;
+}
+.markdown-field-preview {
+  max-width: none;
+}
+.markdown-field-preview > :first-child {
+  margin-top: 0;
+}
+.markdown-field-preview > :last-child {
+  margin-bottom: 0;
+}
+.markdown-field-empty {
+  color: var(--color-text-secondary);
+}

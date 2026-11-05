@@ -161,7 +161,8 @@
   min-width: 148px;
 }
 .admin-fields .authoring-options {
-  margin-top: var(--space-5);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
 .authoring-options > summary {
   color: var(--color-text-secondary);
@@ -397,8 +398,7 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--space-3);
-  padding-block: var(--space-3);
-  border-top: 1px solid var(--color-border);
+  padding-bottom: var(--space-3);
 }
 
 .question-authoring .admin-editorial-header > h3 {
@@ -447,10 +447,6 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), max-content));
   gap: var(--space-4);
   align-items: start;
-}
-
-.admin-authoring-compact {
-  max-width: 18rem;
 }
 
 .admin-authoring-hint {
@@ -778,4 +774,59 @@
 .authoring-type-menu [data-active="true"],
 .authoring-type-menu [aria-selected="true"] {
   background: var(--color-overlay);
+}
+
+.admin-icon-label,
+.authoring-options > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.authoring-options > summary::-webkit-details-marker {
+  display: none;
+}
+.authoring-options > summary .disclosure-chevron {
+  margin-inline-start: auto;
+}
+.admin-count {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.authoring-tag-entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.authoring-tag-entry .authoring-inline-input {
+  flex: 1 1 14rem;
+  max-width: 20rem;
+}
+.admin-code-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.admin-code-toolbar > .select-field {
+  width: auto;
+  min-width: 10rem;
+}
+
+.admin-editorial-complexity .admin-field-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 32rem;
+}
+.admin-editorial-complexity .admin-field-pair > .admin-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+.admin-editorial-complexity .admin-field-pair > .admin-field > span:first-child {
+  grid-column: 1 / -1;
+}
+.admin-editorial-complexity input {
+  min-width: 0;
 }
