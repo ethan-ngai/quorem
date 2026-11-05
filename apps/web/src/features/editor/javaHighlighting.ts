@@ -37,15 +37,20 @@ function javaDocumentationTags(state: EditorState, after: number) {
 const language = javaLanguage.configure({
   props: [
     styleTags({
+      "record permits": tags.definitionKeyword,
+      "sealed non": tags.modifier,
       Definition: tags.definition(tags.variableName),
-      "ClassDeclaration/Definition InterfaceDeclaration/Definition EnumDeclaration/Definition RecordDeclaration/Definition":
+      "ClassDeclaration/Definition InterfaceDeclaration/Definition EnumDeclaration/Definition RecordDeclaration/Definition TypeParameter/Definition":
         tags.definition(tags.className),
-      "MethodDeclaration/Definition ConstructorDeclaration/Definition": tags.function(
-        tags.definition(tags.variableName),
-      ),
-      "FormalParameter/Definition SpreadParameter/Definition CatchFormalParameter/Definition":
+      "MethodDeclaration/Definition ConstructorDeclaration/Definition CompactConstructorDeclaration/Definition":
+        tags.function(tags.definition(tags.variableName)),
+      "FormalParameter/Definition SpreadParameter/Definition CatchFormalParameter/Definition RecordComponent/Definition InferredParameters/Definition LambdaExpression/Definition SpreadParameter/VariableDeclarator/Definition":
         parameterTag,
       Identifier: tags.variableName,
+      "AnnotationTypeDeclaration/Identifier": tags.definition(tags.className),
+      "AnnotationTypeElementDeclaration/Identifier": tags.function(
+        tags.definition(tags.variableName),
+      ),
       "MethodName/Identifier": tags.function(tags.variableName),
       "FieldAccess/Identifier": tags.propertyName,
       "Annotation/Identifier MarkerAnnotation/Identifier NormalAnnotation/Identifier":
