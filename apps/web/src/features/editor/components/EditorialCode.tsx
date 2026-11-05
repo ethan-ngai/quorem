@@ -6,6 +6,7 @@ import { editorColorTheme } from "../editorPalette";
 import { loadLanguageExtensions, type EditorLanguage } from "../editorLanguages";
 import type { EditorTheme } from "../PythonEditor";
 import type { EditorScheme } from "../editorSchemes";
+import { contentChangeMotion } from "../../../ui/contentChangeMotion";
 
 export function EditorialCode({
   source,
@@ -22,21 +23,43 @@ export function EditorialCode({
   const [ready, setReady] = useState(false);
   const viewRef = useRef<EditorView | null>(null);
   const palette = useRef(new Compartment()).current;
+  const syntax = useRef(new Compartment()).current;
+  const stopMotion = useRef<() => void>(undefined);
   const currentPalette = useRef({ theme, colorScheme });
   currentPalette.current = { theme, colorScheme };
+  useEffect(
+    () => () => {
+      stopMotion.current?.();
+      viewRef.current?.destroy();
+      viewRef.current = null;
+    },
+    [],
+  );
   useEffect(() => {
     let disposed = false;
-    let view: EditorView | undefined;
-    setReady(false);
     void loadLanguageExtensions(language)
       .then((extensions) => {
         if (disposed || !parent.current) return;
-        view = new EditorView({
+        const previous = viewRef.current;
+        if (previous) {
+          stopMotion.current?.();
+          stopMotion.current = contentChangeMotion(parent.current, () => {
+            previous.dispatch({
+              changes: { from: 0, to: previous.state.doc.length, insert: source },
+              selection: { anchor: 0 },
+              effects: syntax.reconfigure(extensions),
+            });
+            previous.scrollDOM.scrollTop = 0;
+            previous.scrollDOM.scrollLeft = 0;
+          });
+          return;
+        }
+        const view = new EditorView({
           parent: parent.current,
           state: EditorState.create({
             doc: source,
             extensions: [
-              extensions,
+              syntax.of(extensions),
               palette.of(
                 editorColorTheme(currentPalette.current.colorScheme, currentPalette.current.theme),
               ),
@@ -52,10 +75,8 @@ export function EditorialCode({
       .catch(() => {});
     return () => {
       disposed = true;
-      if (viewRef.current === view) viewRef.current = null;
-      view?.destroy();
     };
-  }, [language, source, palette]);
+  }, [language, source, palette, syntax]);
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: palette.reconfigure(editorColorTheme(colorScheme, theme)),

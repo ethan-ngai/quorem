@@ -42,48 +42,51 @@ export function SolutionDisplay({
     ) ?? variants[0];
   return (
     <div className="solution-display">
-      <div className="solution-toolbar">
-        {approaches.length > 1 && (
+      {approaches.length > 1 && (
+        <div className="solution-toolbar">
           <ApproachPicker
             approaches={approaches}
             canonicalId={canonicalApproachId}
             selectedId={approach.id}
             onChange={onApproachChange ?? setLocalId}
           />
-        )}
-        {code &&
-          (variants.length > 1 ? (
-            <SelectField
-              label="Solution language"
-              value={code.language}
-              options={variants.map((item) => ({
-                value: item.language,
-                label: solutionLanguageLabel(item.language),
-                leading: <LanguageLogo language={item.language} />,
-              }))}
-              onChange={(language) =>
-                setLanguages((previous) => ({ ...previous, [approach.id]: language }))
-              }
-            />
-          ) : (
-            <span className="solution-language">
-              <LanguageLogo language={code.language} />
-              {solutionLanguageLabel(code.language)}
-            </span>
-          ))}
-      </div>
+        </div>
+      )}
       {approach.explanationMarkdown && (
         <div className="solution-explanation">
           <StatementMarkdown source={approach.explanationMarkdown} />
         </div>
       )}
       {code && (
-        <EditorialCode
-          source={code.source}
-          language={code.language}
-          theme={theme}
-          colorScheme={colorScheme}
-        />
+        <div className="solution-code">
+          <div className="solution-code-toolbar">
+            {variants.length > 1 ? (
+              <SelectField
+                label="Solution language"
+                value={code.language}
+                options={variants.map((item) => ({
+                  value: item.language,
+                  label: solutionLanguageLabel(item.language),
+                  leading: <LanguageLogo language={item.language} />,
+                }))}
+                onChange={(language) =>
+                  setLanguages((previous) => ({ ...previous, [approach.id]: language }))
+                }
+              />
+            ) : (
+              <span className="solution-language">
+                <LanguageLogo language={code.language} />
+                {solutionLanguageLabel(code.language)}
+              </span>
+            )}
+          </div>
+          <EditorialCode
+            source={code.source.trimEnd()}
+            language={code.language}
+            theme={theme}
+            colorScheme={colorScheme}
+          />
+        </div>
       )}
       {(approach.timeComplexity || approach.spaceComplexity || approach.complexityNotes) && (
         <ComplexityDetails value={approach} />

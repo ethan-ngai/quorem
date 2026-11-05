@@ -43,13 +43,15 @@ export function ComplexityDetails({ value }: { value: Complexity }) {
         </div>
       </dl>
       {value.complexityNotes && (
-        <StatementMarkdown
-          source={complexityNotesMarkup(
-            value.complexityNotes,
-            value.timeComplexity,
-            value.spaceComplexity,
-          )}
-        />
+        <div className="editorial-complexity-notes">
+          <StatementMarkdown
+            source={complexityNotesMarkup(
+              value.complexityNotes,
+              value.timeComplexity,
+              value.spaceComplexity,
+            )}
+          />
+        </div>
       )}
     </div>
   );

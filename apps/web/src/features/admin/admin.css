@@ -102,6 +102,12 @@
 .admin-notice button + button {
   margin-left: var(--space-2);
 }
+.admin-preview {
+  width: calc(100% - 2 * var(--authoring-page-inset, var(--space-5)));
+  max-width: 58rem;
+  margin-inline: auto;
+  padding-block: var(--space-4) var(--space-6);
+}
 .admin-preview .problem-scroll {
   padding: 0;
 }
