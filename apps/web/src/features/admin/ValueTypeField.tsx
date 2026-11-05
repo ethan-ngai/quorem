@@ -17,8 +17,8 @@ const names: Record<Choice, string> = {
   str: "Text",
   bool: "Boolean",
   datetime: "Date and time",
-  ListNode: "Linked list node",
-  TreeNode: "Binary tree node",
+  ListNode: "Linked list node (int)",
+  TreeNode: "Binary tree node (int)",
   list: "List of",
   array: "Array of",
   optional: "Optional",
@@ -41,7 +41,7 @@ function TypeBlock({
   onChange: (type: AuthoringType) => void;
 }) {
   return (
-    <div className="authoring-type-block" data-generic={!!type && "element" in type}>
+    <div className="authoring-type-block">
       <SearchableTypeSelect<Choice>
         label={label}
         value={type?.kind}
@@ -67,15 +67,23 @@ function TypeBlock({
         }}
       />
       {type && "element" in type && (
-        <TypeBlock
-          label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
-          type={type.element}
-          disabled={disabled}
-          depth={depth + 1}
-          onChange={(element) => {
-            if (element.kind !== "void") onChange({ ...type, element });
-          }}
-        />
+        <>
+          <span className="code-operator" aria-hidden="true">
+            &lt;
+          </span>
+          <TypeBlock
+            label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
+            type={type.element}
+            disabled={disabled}
+            depth={depth + 1}
+            onChange={(element) => {
+              if (element.kind !== "void") onChange({ ...type, element });
+            }}
+          />
+          <span className="code-operator" aria-hidden="true">
+            &gt;
+          </span>
+        </>
       )}
     </div>
   );

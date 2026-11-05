@@ -23,11 +23,19 @@ code[class^="code-"],
 }
 
 .code-type {
-  color: var(--editor-class, var(--color-editor-function));
+  color: var(--editor-class, light-dark(#12615e, #65cabe));
+}
+
+.code-primitive {
+  color: var(--editor-keyword, light-dark(#914517, #ef9c71));
+}
+
+.code-generic {
+  color: var(--editor-builtin, var(--color-editor-keyword));
 }
 
 .code-parameter {
-  color: var(--editor-parameter, var(--color-text-secondary));
+  color: var(--editor-parameter, var(--color-editor-string));
 }
 
 .code-operator {

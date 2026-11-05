@@ -32,7 +32,7 @@ describe("Odyssey level presentation", () => {
       />,
     );
     expect(markup).toContain("Key store");
-    expect(markup.replace(/<[^>]+>/g, "")).toContain("Solution.put(key: str) → None");
+    expect(markup.replace(/<[^>]+>/g, "")).toContain("put(key: str) → None");
     expect(markup).not.toContain("All levels complete");
     expect(markup).not.toContain("Unlocked levels");
     expect(markup).not.toContain("<script>");

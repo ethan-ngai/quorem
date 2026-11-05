@@ -1,8 +1,8 @@
 import { useId, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
 import * as Popover from "../../ui/Popover";
-import "../editor/components/code-literal.css";
+import { typeTokenClass } from "../editor/components/TypeSyntax";
 
+/** The query is temporary. Only a listed type can change the committed value. */
 export function SearchableTypeSelect<T extends string>({
   label,
   value,
@@ -21,80 +21,99 @@ export function SearchableTypeSelect<T extends string>({
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState<string>();
   const [active, setActive] = useState(0);
+  const expanded = open && !disabled;
   const visible = choices.filter((choice) =>
-    `${names?.[choice] ?? ""} ${choice}`.toLowerCase().includes(query.trim().toLowerCase()),
+    `${names?.[choice] ?? ""} ${choice}`.toLowerCase().includes(query?.trim().toLowerCase() ?? ""),
   );
+  const activeChoice = visible[active];
+  const optionId = (choice: T) => `${id}-${encodeURIComponent(choice)}`;
+  function close() {
+    setOpen(false);
+    setQuery(undefined);
+  }
+  function show() {
+    if (expanded) return;
+    setActive(Math.max(0, value ? choices.indexOf(value) : 0));
+    setOpen(true);
+  }
   function choose(choice: T) {
     onChange(choice);
-    setOpen(false);
+    close();
+    input.current?.select();
   }
   return (
     <Popover.Root
-      open={open}
+      open={expanded}
       onOpenChange={(open) => {
-        setOpen(open);
-        if (open) {
-          setQuery("");
-          setActive(Math.max(0, value ? choices.indexOf(value) : 0));
-        }
+        if (!open) close();
       }}
     >
-      <Popover.Trigger asChild>
-        <button
-          type="button"
-          className="select-field authoring-type-trigger"
-          aria-label={`${label}: ${value ?? "choose type"}`}
+      <Popover.Anchor asChild>
+        <input
+          ref={input}
+          className={`authoring-type-input ${typeTokenClass((expanded ? query : undefined) ?? value ?? "")}`}
+          role="combobox"
+          aria-label={label}
+          aria-autocomplete="list"
+          aria-controls={expanded ? id : undefined}
+          aria-expanded={expanded}
+          aria-activedescendant={expanded && activeChoice ? optionId(activeChoice) : undefined}
+          autoComplete="off"
+          spellCheck={false}
           disabled={disabled}
-        >
-          <code className="code-type">{value ?? "Choose type"}</code>
-          <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />
-        </button>
-      </Popover.Trigger>
+          placeholder="Type"
+          value={(expanded ? query : undefined) ?? value ?? ""}
+          onFocus={(event) => {
+            event.currentTarget.select();
+            show();
+          }}
+          onClick={show}
+          onBlur={close}
+          onChange={(event) => {
+            setOpen(true);
+            setQuery(event.target.value);
+            setActive(0);
+          }}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === "Escape" && expanded) {
+              event.preventDefault();
+              event.stopPropagation();
+              close();
+              event.currentTarget.select();
+            } else if (event.key === "Enter" && expanded) {
+              event.preventDefault();
+              if (activeChoice) choose(activeChoice);
+              else close();
+            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              if (!expanded) {
+                show();
+              } else if (visible.length) {
+                const next =
+                  (active + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % visible.length;
+                setActive(next);
+                document
+                  .getElementById(optionId(visible[next]!))
+                  ?.scrollIntoView({ block: "nearest" });
+              }
+            }
+          }}
+        />
+      </Popover.Anchor>
       <Popover.Portal>
         <Popover.Content
           className="authoring-type-menu"
           aria-label={label}
           align="start"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            input.current?.focus();
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onInteractOutside={(event) => {
+            if (event.target === input.current) event.preventDefault();
           }}
         >
-          <input
-            ref={input}
-            className="authoring-type-search"
-            role="combobox"
-            aria-label={`Search ${label.toLowerCase()}`}
-            aria-autocomplete="list"
-            aria-controls={id}
-            aria-expanded={open}
-            aria-activedescendant={
-              visible[active] ? `${id}-${encodeURIComponent(visible[active])}` : undefined
-            }
-            placeholder="Search types"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActive(0);
-            }}
-            onKeyDown={(event) => {
-              if (!visible.length) return;
-              if (event.key === "Enter" && visible[active]) {
-                event.preventDefault();
-                choose(visible[active]);
-              } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                event.preventDefault();
-                const next =
-                  (active + (event.key === "ArrowDown" ? 1 : -1) + visible.length) % visible.length;
-                setActive(next);
-                document
-                  .getElementById(`${id}-${encodeURIComponent(visible[next]!)}`)
-                  ?.scrollIntoView({ block: "nearest" });
-              }
-            }}
-          />
           <div id={id} role="listbox" aria-label="Types">
             {visible.map((choice, index) => (
               <button
@@ -102,14 +121,15 @@ export function SearchableTypeSelect<T extends string>({
                 role="option"
                 aria-selected={choice === value}
                 data-active={index === active}
-                id={`${id}-${encodeURIComponent(choice)}`}
+                id={optionId(choice)}
                 key={choice}
                 tabIndex={-1}
                 onPointerMove={() => setActive(index)}
+                onPointerDown={(event) => event.preventDefault()}
                 onClick={() => choose(choice)}
               >
                 {names?.[choice] && <span>{names[choice]}</span>}
-                <code className="code-type">{choice}</code>
+                <code className={typeTokenClass(choice)}>{choice}</code>
               </button>
             ))}
           </div>
