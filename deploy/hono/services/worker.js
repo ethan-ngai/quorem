@@ -375,7 +375,7 @@ export class MailRelayService extends DurableObject {
   }
 }
 const ingress = {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const receivedAt = Date.now();
     try {
       const [drain, , cases, image] = config(env),
@@ -529,23 +529,30 @@ const ingress = {
           )
             return new Response(null, { status: request.method === "GET" ? 404 : 503 });
         }
+        let beforeDelegate;
         if (request.method === "POST") {
           if (request.headers.get("authorization") !== `Bearer ${env.QUOREM_CASE_SECRET}`)
             return new Response(null, { status: 404 });
-          const registered = await env.CASE_CONTROL.getByName("case-control").fetch(
-            new Request("https://case-control.internal/register", {
-              method: "POST",
-              body: JSON.stringify({
-                attempt,
-                generation: Number(env.SERVICES_GENERATION),
-                release: env.SERVICES_RELEASE,
+          beforeDelegate = async (signal) => {
+            const registered = await env.CASE_CONTROL.getByName("case-control").fetch(
+              new Request("https://case-control.internal/register", {
+                method: "POST",
+                signal,
+                body: JSON.stringify({
+                  attempt,
+                  generation: Number(env.SERVICES_GENERATION),
+                  release: env.SERVICES_RELEASE,
+                }),
               }),
-            }),
-          );
-          await registered.body?.cancel();
-          if (registered.status !== 204) return new Response(null, { status: 503 });
+            );
+            await registered.body?.cancel();
+            if (registered.status !== 204) throw new Error("Case admission unavailable");
+          };
         }
-        const response = await caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET);
+        const response = await caseRequest(request, env, attempt, env.QUOREM_CASE_SECRET, {
+          beforeDelegate,
+          waitUntil: ctx ? (work) => ctx.waitUntil(work) : undefined,
+        });
         const headers = new Headers(response.headers);
         headers.set("x-quorem-case-received-at", String(receivedAt));
         return new Response(response.body, { status: response.status, headers });
