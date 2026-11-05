@@ -14,7 +14,7 @@ export default defineConfig({
           CASE_CONTROL: "CaseControl",
           RUNNER_CONTROL: "RunnerReleaseControl",
         },
-        bindings: { CASE_DIAGNOSTICS: "true" },
+        bindings: { CASE_DIAGNOSTICS: "true", QUOREM_RUNNER_DRAIN_SECRET: "b".repeat(64) },
       },
     }),
   ],
