@@ -193,3 +193,15 @@
     filter: brightness(1.06);
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(.motion-reveal) {
+    transition: opacity var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    :where(.motion-reveal) {
+      opacity: 0;
+    }
+  }
+}

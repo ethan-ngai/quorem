@@ -1,7 +1,8 @@
 /** @file PasskeySettings.tsx @description Authenticated passkey enrollment and removal. @module auth */
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { useErrorNotification } from "../../ui/Notifications";
 import { authErrorMessage } from "./errors";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Fingerprint } from "lucide-react";
 import { addPasskey, deletePasskey, fetchAuthCapabilities, listPasskeys } from "./capabilities";
@@ -18,6 +19,7 @@ export function PasskeySettings() {
     enabled: capabilities.data?.passkey === true,
     retry: false,
   });
+  const add = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(error);
@@ -62,10 +64,15 @@ export function PasskeySettings() {
                 Retry
               </button>
             </p>
-          ) : keys.data?.length ? (
-            <ul>
-              {keys.data.map((key) => (
-                <li key={key.id}>
+          ) : (
+            <AnimatedRows
+              as="ul"
+              className="passkey-list"
+              items={keys.data ?? []}
+              getKey={(key) => key.id}
+              focusFallback={add}
+              renderRow={(key) => (
+                <>
                   <span>{key.name || "Passkey"}</span>
                   <button
                     className="quiet-button"
@@ -75,14 +82,16 @@ export function PasskeySettings() {
                   >
                     Remove
                   </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No passkeys added.</p>
+                </>
+              )}
+            />
+          )}
+          {!keys.isPending && !keys.isError && !keys.data?.length && (
+            <p className="motion-reveal">No passkeys added.</p>
           )}
           <button
             className="button"
+            ref={add}
             aria-busy={busy}
             disabled={busy || typeof PublicKeyCredential === "undefined"}
             onClick={() => void update(() => addPasskey("Quorem"))}

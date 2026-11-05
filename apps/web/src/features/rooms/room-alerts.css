@@ -73,3 +73,7 @@
   flex-shrink: 0;
   color: var(--color-warning);
 }
+
+.room-alerts-history:empty {
+  display: none;
+}

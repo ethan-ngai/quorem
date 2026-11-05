@@ -5,6 +5,7 @@ import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SelectField } from "../../ui/SelectField";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -217,6 +218,8 @@ function AuthoringWorkspace({
     enabled: !!draft?.publishedVersionId,
     queryFn: () => fetchDeletionImpact(draft!.id),
   });
+  const saveStatus = dirty ? "Unsaved edits" : draft?.publishedVersionId ? "Published" : "Draft";
+  const saveStatusElement = useChangeMotion<HTMLSpanElement>(saveStatus);
   const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     if (!dirty) return;
@@ -430,8 +433,8 @@ function AuthoringWorkspace({
       {draft && content && (
         <section className="admin-form-pane" aria-label="Question content">
           <div className="admin-toolbar admin-edit-toolbar">
-            <span role="status">
-              {dirty ? "Unsaved edits" : draft.publishedVersionId ? "Published" : "Draft"}
+            <span ref={saveStatusElement} role="status">
+              {saveStatus}
             </span>
             <Tooltip content={preview ? "Edit content" : "Preview public content"}>
               <button

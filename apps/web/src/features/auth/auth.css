@@ -372,3 +372,7 @@
 .auth-content .auth-forgot {
   padding-inline: 0;
 }
+
+.passkey-list:empty {
+  display: none;
+}

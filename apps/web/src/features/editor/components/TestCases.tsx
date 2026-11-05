@@ -197,6 +197,7 @@ export function TestCases({
   return (
     <CaseBrowserLayout
       busy={pending}
+      selection={showingHidden ? `hidden:${selectedHidden}` : `${customMode}:${caseId}`}
       railLabel={customMode ? "Select custom case" : "Select test case"}
       rail={
         <>

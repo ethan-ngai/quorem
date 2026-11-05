@@ -904,6 +904,18 @@ kbd {
     padding-inline: 16px;
   }
 }
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  :where(.workspace-grid) :is(.problem-pane, .coding-pane, .results-pane) {
+    transition: opacity var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    :where(.workspace-grid) :is(.problem-pane, .coding-pane, .results-pane) {
+      opacity: 0;
+    }
+  }
+}
+
 @media (max-width: 560px) {
   .topbar {
     gap: 6px;
