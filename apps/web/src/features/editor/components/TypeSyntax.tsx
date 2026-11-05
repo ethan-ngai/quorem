@@ -4,7 +4,12 @@ import { questionTypeName } from "../questionTypes";
 import { valueAtoms, valueWrappers } from "../typedValues";
 import "./code-literal.css";
 
-const containers: ReadonlySet<string> = new Set([...valueWrappers, "java.util.List", "option"]);
+const containers: ReadonlySet<string> = new Set([
+  ...valueWrappers,
+  "java.util.List",
+  "List",
+  "option",
+]);
 const atoms: ReadonlySet<string> = new Set([
   ...valueAtoms.filter((type) => type !== "ListNode" && type !== "TreeNode"),
   "void",
@@ -19,6 +24,11 @@ export function typeTokenClass(token: string) {
 
 export function TypeSyntax({ type }: { type: string }) {
   const language = useQuestionLanguage();
+  return <TypeSyntaxText text={questionTypeName(type, language)} />;
+}
+
+export function TypeSyntaxText({ text }: { text: string }) {
+  const language = useQuestionLanguage();
   const primitives = new Set([
     ...[...atoms].map((atom) => questionTypeName(atom, language)),
     // Java boxes scalar values inside generic types.
@@ -29,7 +39,7 @@ export function TypeSyntax({ type }: { type: string }) {
     // Optional TypeScript values are rendered as a union.
     "null",
   ]);
-  const tokens = questionTypeName(type, language).match(/[\w.]+|\s+|[^\w.\s]/g) ?? [];
+  const tokens = text.match(/[\w.]+|\s+|[^\w.\s]/g) ?? [];
   return tokens.map((token, index) => (
     <Fragment key={index}>
       {/\s/.test(token) ? (

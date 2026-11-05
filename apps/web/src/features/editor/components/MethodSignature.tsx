@@ -1,16 +1,26 @@
 import type { Signature } from "@quorem/contracts";
-import { methodDeclaration } from "../../odyssey/methodStubs";
+import { methodDeclarationParts } from "../../odyssey/methodStubs";
 import { useQuestionLanguage } from "../QuestionLanguage";
-import { CodeLiteral } from "./CodeLiteral";
+import { TypeSyntaxText } from "./TypeSyntax";
+import "./code-literal.css";
 
-/** Preview the declaration the workspace inserts when it unlocks a method. */
+/** Highlight the same declaration the workspace inserts when it unlocks a method. */
 export function MethodSignature({ signature }: { signature: Signature }) {
   const language = useQuestionLanguage();
   return (
-    <CodeLiteral
-      className="machine-value code-literal"
-      language={language}
-      source={methodDeclaration(signature, language)}
-    />
+    <code className="machine-value code-literal">
+      {methodDeclarationParts(signature, language).map(({ text, role }, index) =>
+        role === "type" ? (
+          <TypeSyntaxText
+            key={index}
+            text={language === "java" ? text.replace(/\bjava\.util\.List(?=<)/g, "List") : text}
+          />
+        ) : (
+          <span className={`code-${role}`} key={index}>
+            {text}
+          </span>
+        ),
+      )}
+    </code>
   );
 }
