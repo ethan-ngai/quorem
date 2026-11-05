@@ -595,12 +595,8 @@
   color: var(--color-text-secondary);
 }
 
-.authoring-docs-chevron {
+.authoring-method-docs .disclosure-chevron {
   margin-inline-start: auto;
-}
-
-.authoring-method-docs[open] .authoring-docs-chevron {
-  rotate: 90deg;
 }
 
 .authoring-docs-fields {

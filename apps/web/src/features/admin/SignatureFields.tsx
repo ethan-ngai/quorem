@@ -1,5 +1,14 @@
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
-import { ArrowDownToLine, ChevronRight, FileText, Plus, Trash2, TriangleAlert } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ChevronRight,
+  FileText,
+  ListOrdered,
+  Plus,
+  Shuffle,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -95,8 +104,16 @@ export function SignatureFields({
               value={value.outputOrder ?? "ordered"}
               onChange={(outputOrder) => onChange({ ...value, outputOrder })}
               options={[
-                { value: "ordered", label: "Ordered" },
-                { value: "unordered", label: "Any order" },
+                {
+                  value: "ordered",
+                  label: "Ordered",
+                  icon: <ListOrdered size={15} aria-hidden="true" />,
+                },
+                {
+                  value: "unordered",
+                  label: "Any order",
+                  icon: <Shuffle size={15} aria-hidden="true" />,
+                },
               ]}
             />
           </div>
@@ -177,11 +194,11 @@ export function SignatureFields({
           </Tooltip>
         </div>
       ))}
-      <details className="authoring-method-docs">
+      <details className="disclosure authoring-method-docs">
         <summary>
           <FileText size={16} aria-hidden="true" />
           Method documentation
-          <ChevronRight className="authoring-docs-chevron" size={16} aria-hidden="true" />
+          <ChevronRight className="disclosure-chevron" size={16} aria-hidden="true" />
         </summary>
         <div className="authoring-docs-fields">
           <label className="admin-field">

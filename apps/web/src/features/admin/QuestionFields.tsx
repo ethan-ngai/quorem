@@ -354,7 +354,7 @@ export function QuestionFields({
             </div>
           </div>
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
-          <details className="authoring-options">
+          <details className="disclosure authoring-options">
             <summary>Constraints ({problem.constraints.length})</summary>
             <ConstraintFields
               value={problem.constraints}
@@ -363,7 +363,7 @@ export function QuestionFields({
               onChange={(constraints) => setProblem({ constraints })}
             />
           </details>
-          <details className="authoring-options">
+          <details className="disclosure authoring-options">
             <summary>Advanced settings</summary>
             <div className="admin-field-pair">
               <Field label="Slug">

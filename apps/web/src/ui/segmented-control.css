@@ -21,6 +21,10 @@
 }
 .segmented-control > button {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
   min-height: 26px;
   padding: 3px 12px;
   border: 0;
@@ -28,11 +32,12 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
+  font-weight: 500;
+  white-space: nowrap;
   transition: color var(--motion-fast) var(--motion-easing);
 }
 .segmented-control > button[aria-checked="true"] {
   color: var(--color-text);
-  font-weight: 500;
 }
 @media (prefers-reduced-motion: reduce) {
   .segmented-control-selection,
@@ -42,8 +47,6 @@
 }
 
 .segmented-control[data-icon-only="true"] > button {
-  display: grid;
-  place-items: center;
   min-width: 32px;
   padding: 3px 8px;
 }

@@ -100,7 +100,7 @@ export function SqlStages({
             stageIndex={index}
           />
           {levels.length > 1 && (
-            <details className="authoring-options">
+            <details className="disclosure authoring-options">
               <summary>Step options</summary>
               <button
                 type="button"

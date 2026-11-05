@@ -135,7 +135,7 @@ export function StageAuthoring({
             </label>
             <h3>Methods added in this step</h3>
             {stage.methods.map((method) => (
-              <details className="admin-language" open key={method.id}>
+              <details className="disclosure admin-language" open key={method.id}>
                 <summary>{method.signature.methodName || "New method"}</summary>
                 <SignatureFields
                   value={method.signature}

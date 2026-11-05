@@ -65,7 +65,8 @@ export function SegmentedControl<Value extends string>({
               document.getElementById(`${id}-${next}`)?.focus();
             }}
           >
-            {iconOnly ? (option.icon ?? option.label) : option.label}
+            {option.icon}
+            {(!iconOnly || !option.icon) && option.label}
           </button>
         </Tooltip>
       ))}

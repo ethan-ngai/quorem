@@ -115,3 +115,47 @@
     transition: none;
   }
 }
+
+:where(details)::details-content {
+  opacity: 0;
+}
+
+:where(details[open])::details-content {
+  opacity: 1;
+}
+
+:where(details[open]) > summary .disclosure-chevron {
+  rotate: 90deg;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(details)::details-content {
+    transition:
+      opacity var(--motion-standard) var(--motion-easing),
+      content-visibility var(--motion-standard) allow-discrete;
+  }
+
+  :where(details) > summary .disclosure-chevron {
+    transition: rotate var(--motion-fast) var(--motion-easing);
+  }
+
+  /* In-flow disclosures resize. Menus can keep their content outside the summary's bounds. */
+  @supports (interpolate-size: allow-keywords) {
+    :where(details.disclosure)::details-content {
+      interpolate-size: allow-keywords;
+      block-size: 0;
+      overflow: clip;
+      transition:
+        opacity var(--motion-standard) var(--motion-easing),
+        block-size var(--motion-standard) var(--motion-easing),
+        content-visibility var(--motion-standard) allow-discrete,
+        overflow 0s allow-discrete;
+    }
+
+    :where(details.disclosure[open])::details-content {
+      block-size: auto;
+      overflow: visible;
+      transition-delay: 0s, 0s, 0s, var(--motion-standard);
+    }
+  }
+}
