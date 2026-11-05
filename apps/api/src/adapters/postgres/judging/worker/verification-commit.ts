@@ -1,63 +1,43 @@
 /** @file verification-commit.ts @description Commit independently verified result under the original live fence. @module judging */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
-import {
-  manifestCaseBinding,
-  verifyResultReceipt,
-  type VerificationReceipt,
-} from "@quorem/execution";
-import { postgresInputReader } from "../inputs/read.ts";
-import {
-  lockVerificationChallenge,
-  postgresVerificationSource,
-  writeVerificationChunks,
-} from "./verification-source.ts";
+import { verifyResultReceipt, type VerificationReceipt } from "@quorem/execution";
+import { lockVerificationChallenge, writeVerificationChunks } from "./verification-source.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
+import type { PreparedVerification } from "./verification-prepare.ts";
 import type { VerifiedField } from "./verification-client.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encode = new TextEncoder();
 /** Network and signature verification finish before this function acquires its commit locks. */
 export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
-  const source = postgresVerificationSource(run),
-    inputs = postgresInputReader(run);
   return async (
+    prepared: PreparedVerification,
     receipt: VerificationReceipt,
     signature: Uint8Array,
     inline?: readonly VerifiedField[],
   ): Promise<void> => {
     if (!(await verifyResultReceipt(receipt, signature, publicKey)))
       throw new Error("Invalid verification signature");
-    const frozen = await source.frozenCase(receipt.challenge);
-    const job = frozen.job;
-    const [manifest, ref] = await Promise.all([
-      inputs.inputManifest(job),
-      inputs.inputCaseRef(job, frozen.ordinal),
-    ]);
-    const binding = await manifestCaseBinding(job, manifest, ref, frozen.ordinal, job);
+    const { job } = prepared;
     if (
+      receipt.challenge !== prepared.id ||
       receipt.jobId !== job.jobId ||
       receipt.submissionId !== job.submissionId ||
       receipt.attemptId !== job.attemptId ||
       receipt.sandboxScope !== job.sandboxScope ||
-      receipt.frameHash !== frozen.frameHash ||
-      receipt.ordinal !== frozen.ordinal ||
-      receipt.channel !== ref.channel ||
-      receipt.binding !== binding
+      receipt.frameHash !== prepared.frameHash ||
+      receipt.ordinal !== prepared.ordinal ||
+      receipt.channel !== prepared.channel ||
+      receipt.binding !== prepared.binding
     )
       throw new Error("Verification provenance mismatch");
-    const match = await run((scope) =>
-      scope.transaction(
-        { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
-        async (tx) =>
-          (
-            await tx.execute<{ id: string | null }>(
-              sql`SELECT s.match_id::text AS id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
-            )
-          ).rows[0]?.id ?? null,
-      ),
-    );
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+        const match = (
+          await tx.execute<{ id: string | null }>(
+            sql`SELECT s.match_id::text AS id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
+          )
+        ).rows[0]?.id;
         if (match) {
           const locked = await tx.execute(
             sql`SELECT id FROM matches WHERE id=${match}::uuid FOR UPDATE`,

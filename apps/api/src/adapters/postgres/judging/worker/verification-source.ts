@@ -31,24 +31,51 @@ export async function lockVerificationChallenge(tx: Transaction, id: string) {
 export function postgresVerificationSource(run: Run) {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(opts, fn));
-  return {
-    async frozenCase(id: string) {
-      return transact(async (tx) => {
-        const row = await lockVerificationChallenge(tx, id);
-        const fields = await tx.execute<{ field: string; size: number; hash: string }>(
-          sql`SELECT field,octet_length(string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal))::int AS size,encode(sha256(string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal)),'hex') AS hash FROM execution_completion_field_chunks WHERE job_id=${row.job_id}::uuid AND channel=${row.result_channel} AND ordinal=${row.result_ordinal} AND field IN ('actual','sqlTypes') GROUP BY field`,
-        );
-        const found = new Map(fields.rows.map((f) => [f.field, { size: f.size, hash: f.hash }]));
-        return {
+  const frozenCase = (id: string, includePages: boolean) =>
+    transact(async (tx) => {
+      const row = await lockVerificationChallenge(tx, id);
+      const fields = await tx.execute<{
+        field: string;
+        size: number;
+        hash: string;
+        bytes: Uint8Array | null;
+      }>(sql`WITH fields AS (
+        SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data
+        FROM execution_completion_field_chunks WHERE job_id=${row.job_id}::uuid
+          AND channel=${row.result_channel} AND ordinal=${row.result_ordinal}
+          AND field IN ('actual','sqlTypes') GROUP BY field
+      )
+      SELECT field,octet_length(data)::int AS size,encode(sha256(data),'hex') AS hash,
+        CASE WHEN ${includePages} AND octet_length(data)<=65536 THEN data END AS bytes
+      FROM fields`);
+      const found = new Map(fields.rows.map(({ field, ...value }) => [field, value]));
+      const actual = found.get("actual");
+      const sqlTypes = found.get("sqlTypes");
+      const ref = (value: typeof actual) => (value ? { size: value.size, hash: value.hash } : null);
+      const page = (value: typeof actual) =>
+        value?.bytes
+          ? { size: value.size, hash: value.hash, bytes: value.bytes, channel: null }
+          : null;
+      return {
+        frozen: {
           challenge: id,
           job: decodeJob(row.job_data, row.sandbox_scope),
           ordinal: row.ordinal,
           frameHash: row.frame_hash,
           status: row.raw_status,
-          actual: found.get("actual") ?? null,
-          sqlTypes: found.get("sqlTypes") ?? null,
-        };
-      });
+          actual: ref(actual),
+          sqlTypes: ref(sqlTypes),
+        },
+        actual: page(actual),
+        sqlTypes: page(sqlTypes),
+      };
+    });
+  return {
+    async frozenCase(id: string) {
+      return (await frozenCase(id, false)).frozen;
+    },
+    frozenCaseWithPages(id: string) {
+      return frozenCase(id, true);
     },
     async fieldPage(id: string, field: "actual" | "sqlTypes", offset: number) {
       if (
