@@ -1,3 +1,6 @@
+import * as Popover from "../../ui/Popover";
+import { QuestionLanguage } from "../editor/QuestionLanguage";
+import type { EditorLanguage } from "../editor/editorLanguages";
 import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
@@ -24,7 +27,19 @@ import {
 } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
-import { Globe, LockKeyhole, FileJson } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Ellipsis,
+  Eye,
+  FilePlus2,
+  Globe,
+  LockKeyhole,
+  FileJson,
+  Pencil,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import "../../ui/question-hints.css";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -154,6 +169,9 @@ function AuthoringWorkspace({
   useErrorNotification(error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
+  const [previewLanguage, setPreviewLanguage] =
+    useState<Exclude<EditorLanguage, "postgresql">>("python");
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "global">("private");
   const [bulkRunning, setBulkRunning] = useState(false);
   const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
@@ -313,7 +331,7 @@ function AuthoringWorkspace({
             disabled={busy || (deletion?.current && !replacement)}
             onClick={() => void confirmDeletion()}
           >
-            Delete version
+            <Trash2 size={16} aria-hidden="true" /> Delete version
           </button>
         </footer>
       </SessionDialog>
@@ -333,7 +351,7 @@ function AuthoringWorkspace({
         <div className="admin-toolbar">
           {draft ? (
             <button className="button button-secondary" disabled={busy} onClick={closeEditor}>
-              Back to questions
+              <ArrowLeft size={16} aria-hidden="true" /> Back to questions
             </button>
           ) : (
             <>
@@ -415,13 +433,30 @@ function AuthoringWorkspace({
             <span role="status">
               {dirty ? "Unsaved edits" : draft.publishedVersionId ? "Published" : "Draft"}
             </span>
-            <button
-              className="quiet-button"
-              disabled={invalidFields.size > 0}
-              onClick={() => setPreview(!preview)}
-            >
-              {preview ? "Edit content" : "Preview public content"}
-            </button>
+            <Tooltip content={preview ? "Edit content" : "Preview public content"}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={preview ? "Edit content" : "Preview public content"}
+                aria-pressed={preview}
+                disabled={invalidFields.size > 0}
+                onClick={() => setPreview(!preview)}
+              >
+                {preview ? <Pencil size={17} /> : <Eye size={17} />}
+              </button>
+            </Tooltip>
+            {draft.publishedVersionId && (
+              <Tooltip content="Open published question">
+                <Link
+                  className="icon-button"
+                  to="/practice/$slug"
+                  params={{ slug: draft.content.problem.slug }}
+                  aria-label="Open published question"
+                >
+                  <ArrowUpRight size={17} />
+                </Link>
+              </Tooltip>
+            )}
             {draft.publishedVersionId ? (
               <>
                 <button
@@ -435,57 +470,78 @@ function AuthoringWorkspace({
                     )
                   }
                 >
-                  Save published changes
+                  <Save size={16} aria-hidden="true" /> Save changes
                 </button>
-                <details className="admin-publication-actions">
-                  <summary>Publication options</summary>
-                  <div>
-                    {!!versionHistory.data?.replacements.length && (
-                      <SelectField
-                        label="Published versions"
-                        value={draft.publishedVersionId}
+                <Popover.Root open={optionsOpen} onOpenChange={setOptionsOpen}>
+                  <Tooltip content="Publication options">
+                    <Popover.Trigger asChild>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Publication options"
+                      >
+                        <Ellipsis size={18} />
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                  <Popover.Portal>
+                    <Popover.Content
+                      className="admin-publication-actions"
+                      align="end"
+                      aria-label="Publication options"
+                    >
+                      {!!versionHistory.data?.replacements.length && (
+                        <SelectField
+                          label="Published versions"
+                          value={draft.publishedVersionId}
+                          disabled={busy || dirty || invalidFields.size > 0}
+                          onChange={(id) => {
+                            setOptionsOpen(false);
+                            void perform(
+                              () => createDraft({ problemVersionId: id, edit: true }),
+                              "",
+                              "Could not open the version.",
+                            );
+                          }}
+                          options={[
+                            {
+                              value: draft.publishedVersionId,
+                              label: `Version ${content.problem.version}`,
+                            },
+                            ...versionHistory.data.replacements.map((version) => ({
+                              value: version.id,
+                              label: `Version ${version.version} · ${version.title}`,
+                            })),
+                          ]}
+                        />
+                      )}
+                      <button
+                        className="button button-secondary"
                         disabled={busy || dirty || invalidFields.size > 0}
-                        onChange={(id) =>
+                        onClick={() => {
+                          setOptionsOpen(false);
                           void perform(
-                            () => createDraft({ problemVersionId: id, edit: true }),
-                            "",
-                            "Could not open the version.",
-                          )
-                        }
-                        options={[
-                          {
-                            value: draft.publishedVersionId,
-                            label: `Version ${content.problem.version}`,
-                          },
-                          ...versionHistory.data.replacements.map((version) => ({
-                            value: version.id,
-                            label: `Version ${version.version} · ${version.title}`,
-                          })),
-                        ]}
-                      />
-                    )}
-                    <button
-                      className="button button-secondary"
-                      disabled={busy || dirty || invalidFields.size > 0}
-                      onClick={() =>
-                        void perform(
-                          () => createDraft({ problemVersionId: draft.publishedVersionId! }),
-                          "New version draft created.",
-                          "Could not create a version draft. Try again.",
-                        )
-                      }
-                    >
-                      Create next version
-                    </button>
-                    <button
-                      className="quiet-button"
-                      disabled={busy || dirty}
-                      onClick={() => void requestDeletion()}
-                    >
-                      Delete version
-                    </button>
-                  </div>
-                </details>
+                            () => createDraft({ problemVersionId: draft.publishedVersionId! }),
+                            "New version draft created.",
+                            "Could not create a version draft. Try again.",
+                          );
+                        }}
+                      >
+                        <FilePlus2 size={16} aria-hidden="true" /> Create next version
+                      </button>
+                      <button
+                        className="button button-secondary admin-delete-action"
+                        disabled={busy || dirty}
+                        onClick={() => {
+                          setOptionsOpen(false);
+                          void requestDeletion();
+                        }}
+                      >
+                        <Trash2 size={16} aria-hidden="true" /> Delete version
+                      </button>
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
               </>
             ) : (
               <>
@@ -500,7 +556,7 @@ function AuthoringWorkspace({
                     )
                   }
                 >
-                  Save draft
+                  <Save size={16} aria-hidden="true" /> Save draft
                 </button>
                 {admin && !draft.editVersionId && (
                   <SegmentedControl
@@ -560,12 +616,18 @@ function AuthoringWorkspace({
           )}
           {preview ? (
             <PreviewBoundary>
-              <PublicPreview content={content} />
+              <QuestionLanguage.Provider
+                value={content.problem.sql ? "postgresql" : previewLanguage}
+              >
+                <PublicPreview content={content} />
+              </QuestionLanguage.Provider>
             </PreviewBoundary>
           ) : (
             <QuestionFields
               key={`${draft.id}:${draft.revision}`}
               content={content}
+              previewLanguage={previewLanguage}
+              onPreviewLanguageChange={setPreviewLanguage}
               disabled={locked}
               lockSlug={!!(draft.publishedVersionId || draft.editVersionId)}
               invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
@@ -584,13 +646,6 @@ function AuthoringWorkspace({
                 setNotice("");
               }}
             />
-          )}
-          {draft.publishedVersionId && (
-            <p>
-              <a href={`/practice/${encodeURIComponent(content.problem.slug)}`}>
-                Open published question
-              </a>
-            </p>
           )}
         </section>
       )}

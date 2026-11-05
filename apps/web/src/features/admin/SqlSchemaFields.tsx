@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import type { ProblemVersion } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
@@ -59,14 +61,16 @@ function SqlColumns({
             choices={types}
             onChange={(type) => update(index, { type })}
           />
-          <button
-            type="button"
-            className="quiet-button"
-            aria-label={`Remove column ${index + 1}`}
-            onClick={() => onChange(columns.filter((_, position) => position !== index))}
-          >
-            Remove
-          </button>
+          <Tooltip content="Remove column">
+            <button
+              type="button"
+              className="icon-button destructive-icon"
+              aria-label={`Remove column ${index + 1}`}
+              onClick={() => onChange(columns.filter((_, position) => position !== index))}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </Tooltip>
         </div>
       ))}
       <button
@@ -129,7 +133,7 @@ export function SqlSchemaFields({
                 onChange({ ...value, tables: tables.filter((_, position) => position !== index) })
               }
             >
-              Remove table
+              <Trash2 size={16} aria-hidden="true" /> Remove table
             </button>
           </fieldset>
         ))}

@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
@@ -115,7 +116,7 @@ export function SqlStages({
                   );
                 }}
               >
-                Remove step and its tests
+                <Trash2 size={16} aria-hidden="true" /> Remove step and its tests
               </button>
             </details>
           )}

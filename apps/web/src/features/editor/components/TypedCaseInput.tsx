@@ -1,6 +1,7 @@
 import "./machine-values.css";
 import { useQuestionLanguage } from "../QuestionLanguage";
-import { questionValue, questionTypeName } from "../questionTypes";
+import { TypeSyntax } from "./TypeSyntax";
+import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
 import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
@@ -80,7 +81,9 @@ export function TypedCaseInput({
       <div className="typed-case-label">
         <label htmlFor={id}>
           {purpose === "input" ? <code className="parameter-name">{name}</code> : name}{" "}
-          <span>{questionTypeName(type, language)}</span>
+          <code className="typed-case-type">
+            <TypeSyntax type={type} />
+          </code>
         </label>
         {action}
         {optional && (

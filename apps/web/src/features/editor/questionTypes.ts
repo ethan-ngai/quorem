@@ -13,9 +13,11 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     return `${node.kind}<${inner}> | null`;
   }
   if (type.startsWith("optional<")) {
-    const inner = questionTypeName(type.slice(9, -1), language);
+    let payload = type.slice(9, -1);
+    while (payload.startsWith("optional<")) payload = payload.slice(9, -1);
+    const inner = questionTypeName(payload, language);
     if (language === "python") return `${inner} | None`;
-    if (language === "typescript") return `${inner} | null`;
+    if (language === "typescript") return inner.endsWith(" | null") ? inner : `${inner} | null`;
     if (language === "ocaml") return `(${inner}) option`;
     return boxJava(inner);
   }

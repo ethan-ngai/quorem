@@ -23,6 +23,7 @@
   transition:
     color var(--motion-fast),
     background var(--motion-fast);
+  text-decoration: none;
 }
 .icon-button:hover:not(:disabled),
 .quiet-button:hover:not(:disabled) {

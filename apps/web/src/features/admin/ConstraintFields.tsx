@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
 import { Field } from "./AuthoringFields";
@@ -142,14 +144,16 @@ export function ConstraintFields({
                     change({ kind, left: target, right: target, operator: "le" });
                 }}
               />
-              <button
-                type="button"
-                className="quiet-button authoring-remove-field"
-                aria-label={`Remove constraint ${index + 1}`}
-                onClick={() => onChange(value.filter((_, position) => position !== index))}
-              >
-                Remove
-              </button>
+              <Tooltip content="Remove constraint">
+                <button
+                  type="button"
+                  className="icon-button destructive-icon authoring-remove-field"
+                  aria-label={`Remove constraint ${index + 1}`}
+                  onClick={() => onChange(value.filter((_, position) => position !== index))}
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
             {rule.kind === "prose" && (
               <Field label="Constraint text">

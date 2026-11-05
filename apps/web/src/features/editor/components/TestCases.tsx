@@ -30,6 +30,7 @@ export function TestCases({
   maximumCases = 20,
   requiredExpected = false,
   caseActions,
+  customCaseDetails,
   caseResults,
   caseStatuses,
   caseGroups,
@@ -49,6 +50,7 @@ export function TestCases({
   maximumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
+  customCaseDetails?: (index: number) => ReactNode;
   caseGroups?: readonly (string | undefined)[];
   currentCaseGroup?: string;
   selectedCustomId?: string;
@@ -403,6 +405,7 @@ export function TestCases({
                 <Icon name="target" /> Add expected output
               </button>
             ))}
+          {customCaseDetails?.(customIndex)}
         </>
       ) : customMode ? (
         <p className="result-message">Add a case to get started.</p>

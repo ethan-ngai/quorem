@@ -26,7 +26,10 @@ import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contrac
 import { CodeLiteral } from "../editor/components/CodeLiteral";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
-import { StatementMarkdown } from "../editor/components/StatementMarkdown";
+import { ComplexityDetails } from "../editor/components/EditorialPanel";
+import { complexityMath } from "../editor/complexityMarkup";
+import { Clock3, Code2, FileText, LockKeyhole } from "lucide-react";
+import { inlineStatement, StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
 import { revisions, type Language } from "./content";
@@ -39,6 +42,8 @@ const questionTypes = [
   { value: "sql-staged", label: "SQL multi-stage question" },
 ] as const;
 type QuestionType = (typeof questionTypes)[number]["value"];
+type PreviewLanguage = Exclude<Language, "postgresql">;
+
 type AuthoringSection = "question" | "interface" | "tests" | "solutions";
 const languages = Object.keys(revisions).filter((key): key is Language =>
   Object.hasOwn(revisions, key),
@@ -50,6 +55,8 @@ function testShape(signature: Signature) {
 
 export function QuestionFields({
   content,
+  previewLanguage = "python",
+  onPreviewLanguageChange,
   disabled,
   invalidCases = false,
   lockSlug = false,
@@ -57,6 +64,8 @@ export function QuestionFields({
   onValidityChange,
 }: {
   content: QuestionContent;
+  previewLanguage?: PreviewLanguage;
+  onPreviewLanguageChange?: (language: PreviewLanguage) => void;
   disabled: boolean;
   invalidCases?: boolean;
   lockSlug?: boolean;
@@ -84,6 +93,27 @@ export function QuestionFields({
     { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
     { value: "solutions", label: "Code & editorial" },
   ] as const;
+  const previewLanguagePicker = onPreviewLanguageChange && (
+    <div className="admin-signature-preview-language">
+      <span>Preview language</span>
+      <SelectField
+        label="Signature preview language"
+        value={previewLanguage}
+        disabled={disabled}
+        options={languages
+          .filter((value) => value !== "postgresql")
+          .map((value) => ({
+            value,
+            label: languageLabels[value],
+            leading: <LanguageLogo language={value} />,
+          }))}
+        onChange={(value) => {
+          const next = languages.find((language) => language === value);
+          if (next && next !== "postgresql") onPreviewLanguageChange(next);
+        }}
+      />
+    </div>
+  );
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -390,16 +420,19 @@ export function QuestionFields({
                 onChange={(sql) => setProblem({ sql })}
               />
             ) : (
-              <SignatureFields
-                disabled={disabled}
-                value={problem.signature}
-                onChange={(signature) => {
-                  if (invalidCases && testShape(signature) !== testShape(problem.signature))
-                    setPendingSignature(signature);
-                  else onChange(adaptSignature(content, signature));
-                }}
-                onValidityChange={onValidityChange}
-              />
+              <QuestionLanguage.Provider value={previewLanguage}>
+                {previewLanguagePicker}
+                <SignatureFields
+                  disabled={disabled}
+                  value={problem.signature}
+                  onChange={(signature) => {
+                    if (invalidCases && testShape(signature) !== testShape(problem.signature))
+                      setPendingSignature(signature);
+                    else onChange(adaptSignature(content, signature));
+                  }}
+                  onValidityChange={onValidityChange}
+                />
+              </QuestionLanguage.Provider>
             )}
           </div>
         )}
@@ -412,11 +445,14 @@ export function QuestionFields({
           {problem.sql && problem.odyssey ? (
             <SqlStages content={content} onChange={onChange} onValidityChange={onValidityChange} />
           ) : problem.odyssey ? (
-            <AuthoringStages
-              content={content}
-              onChange={onChange}
-              onValidityChange={onValidityChange}
-            />
+            <QuestionLanguage.Provider value={previewLanguage}>
+              {previewLanguagePicker}
+              <AuthoringStages
+                content={content}
+                onChange={onChange}
+                onValidityChange={onValidityChange}
+              />
+            </QuestionLanguage.Provider>
           ) : (
             <AuthoringCases
               key={problem.sql ? "sql" : testShape(problem.signature)}
@@ -497,6 +533,9 @@ export function QuestionFields({
                 )}
                 {implementation && (
                   <>
+                    <h3 className="admin-editorial-heading">
+                      <LockKeyhole size={15} /> Judge reference
+                    </h3>
                     <AuthoringCodeField
                       label={`${solutionLanguageLabel(language)} private judge reference`}
                       language={language}
@@ -504,8 +543,10 @@ export function QuestionFields({
                       disabled={disabled}
                       onChange={(source) => setImplementation(index, { referenceSource: source })}
                     />
-                    <div className="admin-check">
-                      <span>Publish editorial solution</span>
+                    <div className="admin-editorial-header">
+                      <h3 className="admin-editorial-heading">
+                        <FileText size={15} /> Public editorial
+                      </h3>
                       <ToggleSwitch
                         label="Publish editorial solution"
                         disabled={disabled}
@@ -523,8 +564,10 @@ export function QuestionFields({
                       />
                     </div>
                     {solution && (
-                      <details className="authoring-options">
-                        <summary>Edit editorial solution</summary>
+                      <div className="admin-editorial-fields">
+                        <h3 className="admin-editorial-heading">
+                          <Code2 size={15} /> Solution
+                        </h3>
                         <AuthoringCodeField
                           label={`${solutionLanguageLabel(language)} editorial code`}
                           language={language}
@@ -541,36 +584,44 @@ export function QuestionFields({
                             }
                           />
                         </Field>
-                        <div className="admin-field-pair">
-                          <Field label={`${solutionLanguageLabel(language)} time complexity`}>
-                            <input
-                              value={solution.timeComplexity}
+                        <section className="admin-editorial-complexity">
+                          <h3 className="admin-editorial-heading">
+                            <Clock3 size={15} /> Complexity
+                          </h3>
+                          <div className="admin-field-pair">
+                            {(
+                              [
+                                ["timeComplexity", "Time"],
+                                ["spaceComplexity", "Auxiliary space"],
+                              ] as const
+                            ).map(([field, label]) => (
+                              <Field label={label} key={field}>
+                                <input
+                                  value={solution[field]}
+                                  placeholder="O(n)"
+                                  onChange={(event) =>
+                                    setSolution(language, { [field]: event.target.value })
+                                  }
+                                />
+                                {solution[field].trim() && (
+                                  <span className="admin-complexity-preview">
+                                    {inlineStatement(complexityMath(solution[field]))}
+                                  </span>
+                                )}
+                              </Field>
+                            ))}
+                          </div>
+                          <Field label="Complexity notes">
+                            <textarea
+                              rows={3}
+                              value={solution.complexityNotes}
                               onChange={(event) =>
-                                setSolution(language, { timeComplexity: event.target.value })
+                                setSolution(language, { complexityNotes: event.target.value })
                               }
                             />
                           </Field>
-                          <Field
-                            label={`${solutionLanguageLabel(language)} auxiliary space complexity`}
-                          >
-                            <input
-                              value={solution.spaceComplexity}
-                              onChange={(event) =>
-                                setSolution(language, { spaceComplexity: event.target.value })
-                              }
-                            />
-                          </Field>
-                        </div>
-                        <Field label={`${solutionLanguageLabel(language)} complexity definitions`}>
-                          <textarea
-                            rows={3}
-                            value={solution.complexityNotes}
-                            onChange={(event) =>
-                              setSolution(language, { complexityNotes: event.target.value })
-                            }
-                          />
-                        </Field>
-                      </details>
+                        </section>
+                      </div>
                     )}
                   </>
                 )}
@@ -617,12 +668,9 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
             language={solution.language}
             className="editorial-source statement-code"
           />
-          {solution.timeComplexity && solution.spaceComplexity && (
-            <p>
-              Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
-            </p>
+          {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
+            <ComplexityDetails value={solution} />
           )}
-          {solution.complexityNotes && <StatementMarkdown source={solution.complexityNotes} />}
         </section>
       ))}
     </div>

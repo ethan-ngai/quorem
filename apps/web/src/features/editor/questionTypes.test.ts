@@ -42,3 +42,10 @@ it("round-trips nested type components and rejects malformed legacy expressions"
   expect(parseValueType("array<int")).toBeUndefined();
   expect(parseValueType("list<void>")).toBeUndefined();
 });
+
+it("renders nested optional types with one absence marker", () => {
+  expect(questionTypeName("optional<optional<optional<list<datetime>>>>", "python")).toBe(
+    "list[datetime.datetime] | None",
+  );
+  expect(questionTypeName("optional<TreeNode<str>>", "typescript")).toBe("TreeNode<string> | null");
+});

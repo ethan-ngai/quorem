@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
 import { SelectField } from "../../ui/SelectField";
 import type { Signature } from "@quorem/contracts";
@@ -122,19 +124,21 @@ export function SignatureFields({
               onChange={(event) => updateParameter(index, { description: event.target.value })}
             />
           </label>
-          <button
-            type="button"
-            className="quiet-button authoring-remove-field"
-            aria-label={`Remove parameter ${parameter.name}`}
-            onClick={() =>
-              onChange({
-                ...value,
-                parameters: value.parameters.filter((_, position) => position !== index),
-              })
-            }
-          >
-            Remove
-          </button>
+          <Tooltip content="Remove parameter">
+            <button
+              type="button"
+              className="icon-button destructive-icon authoring-remove-field"
+              aria-label={`Remove parameter ${parameter.name}`}
+              onClick={() =>
+                onChange({
+                  ...value,
+                  parameters: value.parameters.filter((_, position) => position !== index),
+                })
+              }
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </button>
+          </Tooltip>
         </div>
       ))}
       <button
@@ -204,19 +208,21 @@ export function SignatureFields({
                   }
                 />
               </label>
-              <button
-                type="button"
-                className="quiet-button"
-                aria-label={`Remove exception ${index + 1}`}
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    throws: documented.throws!.filter((_, position) => position !== index),
-                  })
-                }
-              >
-                Remove
-              </button>
+              <Tooltip content="Remove exception">
+                <button
+                  type="button"
+                  className="icon-button destructive-icon"
+                  aria-label={`Remove exception ${index + 1}`}
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      throws: documented.throws!.filter((_, position) => position !== index),
+                    })
+                  }
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
           ))}
           <button
