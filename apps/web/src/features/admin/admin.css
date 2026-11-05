@@ -518,7 +518,7 @@
   max-width: 32rem;
 }
 
-.authoring-parameters-heading {
+.authoring-method-section-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -526,30 +526,93 @@
   margin-bottom: var(--space-2);
 }
 
-.question-authoring .authoring-parameters-heading > h3 {
+.question-authoring .authoring-method-section-heading > h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .authoring-parameter-row {
-  display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 2fr) 34px;
+}
+
+.authoring-exception-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) 34px;
+}
+
+:is(.authoring-parameter-row, .authoring-exception-row) {
+  display: grid;
   align-items: start;
   gap: var(--space-3);
   margin-bottom: var(--space-2);
 }
 
-.authoring-parameter-row > .admin-field {
+:is(.authoring-parameter-row, .authoring-exception-row) > .admin-field {
   min-width: 0;
   margin: 0;
 }
 
-.authoring-parameter-row > .admin-field > input {
+:is(.authoring-parameter-row, .authoring-exception-row) > .admin-field > input {
   min-height: var(--control-height);
 }
 
-.authoring-parameter-columns {
+.authoring-method-columns {
   color: var(--color-text-secondary);
   font-size: var(--text-small);
+}
+
+.authoring-return-order {
+  justify-items: start;
+  grid-column: 1 / -1;
+}
+
+.authoring-method-docs {
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.authoring-method-docs > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.authoring-method-docs > summary::-webkit-details-marker {
+  display: none;
+}
+
+.authoring-method-docs svg {
+  flex-shrink: 0;
+}
+
+.authoring-method-docs summary svg,
+.authoring-docs-fields label > span svg,
+.authoring-method-section-heading h3 svg {
+  color: var(--color-text-secondary);
+}
+
+.authoring-docs-chevron {
+  margin-inline-start: auto;
+}
+
+.authoring-method-docs[open] .authoring-docs-chevron {
+  rotate: 90deg;
+}
+
+.authoring-docs-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  column-gap: var(--space-3);
+}
+
+.authoring-docs-fields label > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .authoring-remove-field {
@@ -605,7 +668,7 @@
     gap: var(--space-2);
   }
 
-  .authoring-parameter-columns > :last-child {
+  .authoring-parameter-row.authoring-method-columns > :last-child {
     display: none;
   }
 
@@ -637,8 +700,12 @@
     max-width: 44rem;
   }
 
-  .authoring-signature-fields:has(> :nth-child(3)) {
-    grid-template-columns: minmax(8rem, 1fr) minmax(0, 1.6fr) minmax(7rem, 0.8fr);
+  .authoring-return-order {
+    grid-column: auto;
+  }
+
+  .authoring-signature-fields:has(> .authoring-return-order) {
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 1.6fr) max-content;
   }
 }
 

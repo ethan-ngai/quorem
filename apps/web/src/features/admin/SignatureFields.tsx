@@ -1,11 +1,10 @@
-import { Plus, Trash2 } from "lucide-react";
-import { Tooltip } from "../../ui/Tooltip";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
-import { SelectField } from "../../ui/SelectField";
+import { ArrowDownToLine, ChevronRight, FileText, Plus, Trash2, TriangleAlert } from "lucide-react";
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
-import { Field } from "./AuthoringFields";
 import { ValueTypeField } from "./ValueTypeField";
 export function SignatureFields({
   value,
@@ -22,7 +21,7 @@ export function SignatureFields({
   previewControl?: ReactNode;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
-  const documented = value;
+  const exceptions = value.throws ?? [];
   const namesId = useId();
   const identifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   const invalidMethod = !identifier.test(value.methodName);
@@ -40,6 +39,13 @@ export function SignatureFields({
     onChange({
       ...value,
       parameters: value.parameters.map((item, position) =>
+        position === index ? { ...item, ...patch } : item,
+      ),
+    });
+  const updateException = (index: number, patch: Partial<(typeof exceptions)[number]>) =>
+    onChange({
+      ...value,
+      throws: exceptions.map((item, position) =>
         position === index ? { ...item, ...patch } : item,
       ),
     });
@@ -82,26 +88,24 @@ export function SignatureFields({
           }
         />
         {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
-          <Field label="Return order">
-            <SelectField
+          <div className="admin-field authoring-return-order">
+            <span>Return order</span>
+            <SegmentedControl<NonNullable<Signature["outputOrder"]>>
               label="Return order"
               value={value.outputOrder ?? "ordered"}
-              onChange={(outputOrder) => {
-                if (outputOrder === "ordered" || outputOrder === "unordered")
-                  onChange({ ...value, outputOrder });
-              }}
+              onChange={(outputOrder) => onChange({ ...value, outputOrder })}
               options={[
                 { value: "ordered", label: "Ordered" },
                 { value: "unordered", label: "Any order" },
               ]}
             />
-          </Field>
+          </div>
         )}
       </div>
       {invalidNames && (
         <p className="admin-error">Use valid identifiers and unique parameter names.</p>
       )}
-      <div className="authoring-parameters-heading">
+      <div className="authoring-method-section-heading">
         <h3>Parameters</h3>
         <button
           type="button"
@@ -120,7 +124,7 @@ export function SignatureFields({
         </button>
       </div>
       {!!value.parameters.length && (
-        <div className="authoring-parameter-row authoring-parameter-columns" aria-hidden="true">
+        <div className="authoring-parameter-row authoring-method-columns" aria-hidden="true">
           <span>Name</span>
           <span>Type</span>
           <span>Description</span>
@@ -173,92 +177,95 @@ export function SignatureFields({
           </Tooltip>
         </div>
       ))}
-      <details className="authoring-options">
-        <summary>Method documentation</summary>
-        <label className="admin-field">
-          <span>Method description</span>
-          <textarea
-            rows={3}
-            className="code-doc-comment"
-            value={documented.description ?? ""}
-            onChange={(event) => onChange({ ...value, description: event.target.value })}
-          />
-        </label>
-        {value.returnType !== "void" && (
+      <details className="authoring-method-docs">
+        <summary>
+          <FileText size={16} aria-hidden="true" />
+          Method documentation
+          <ChevronRight className="authoring-docs-chevron" size={16} aria-hidden="true" />
+        </summary>
+        <div className="authoring-docs-fields">
           <label className="admin-field">
-            <span>Return description</span>
+            <span>Summary</span>
             <textarea
               rows={2}
+              placeholder="What this method does"
               className="code-doc-comment"
-              value={documented.returns ?? ""}
-              onChange={(event) => onChange({ ...value, returns: event.target.value })}
+              value={value.description ?? ""}
+              onChange={(event) => onChange({ ...value, description: event.target.value })}
             />
           </label>
-        )}
-        <fieldset className="admin-fields">
-          <legend>Exceptions</legend>
-          {(documented.throws ?? []).map((exception, index) => (
-            <div className="admin-field-pair" key={index}>
-              <label className="admin-field">
-                <span>Exception type</span>
-                <input
-                  className="code-doc-comment"
-                  value={exception.type}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      throws: documented.throws!.map((item, position) =>
-                        position === index ? { ...item, type: event.target.value } : item,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <label className="admin-field">
-                <span>Exception description</span>
-                <input
-                  className="code-doc-comment"
-                  value={exception.description}
-                  onChange={(event) =>
-                    onChange({
-                      ...value,
-                      throws: documented.throws!.map((item, position) =>
-                        position === index ? { ...item, description: event.target.value } : item,
-                      ),
-                    })
-                  }
-                />
-              </label>
-              <Tooltip content="Remove exception">
-                <button
-                  type="button"
-                  className="icon-button destructive-icon"
-                  aria-label={`Remove exception ${index + 1}`}
-                  onClick={() =>
-                    onChange({
-                      ...value,
-                      throws: documented.throws!.filter((_, position) => position !== index),
-                    })
-                  }
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </Tooltip>
-            </div>
-          ))}
+          {value.returnType !== "void" && (
+            <label className="admin-field">
+              <span>
+                <ArrowDownToLine size={14} aria-hidden="true" /> Returns
+              </span>
+              <textarea
+                rows={2}
+                placeholder="What the returned value means"
+                className="code-doc-comment"
+                value={value.returns ?? ""}
+                onChange={(event) => onChange({ ...value, returns: event.target.value })}
+              />
+            </label>
+          )}
+        </div>
+        <div className="authoring-method-section-heading">
+          <h3>
+            <TriangleAlert size={16} aria-hidden="true" /> Exceptions
+          </h3>
           <button
             type="button"
             className="quiet-button"
             onClick={() =>
-              onChange({
-                ...value,
-                throws: [...(documented.throws ?? []), { type: "", description: "" }],
-              })
+              onChange({ ...value, throws: [...exceptions, { type: "", description: "" }] })
             }
           >
-            Add exception
+            <Plus size={15} aria-hidden="true" /> Add exception
           </button>
-        </fieldset>
+        </div>
+        {!!exceptions.length && (
+          <div className="authoring-exception-row authoring-method-columns" aria-hidden="true">
+            <span>Type</span>
+            <span>When thrown</span>
+          </div>
+        )}
+        {exceptions.map((exception, index) => (
+          <div className="authoring-exception-row" key={index}>
+            <div className="admin-field">
+              <input
+                aria-label={`Exception ${index + 1} type`}
+                className="code-doc-comment"
+                placeholder="ValueError"
+                value={exception.type}
+                onChange={(event) => updateException(index, { type: event.target.value })}
+              />
+            </div>
+            <div className="admin-field">
+              <input
+                aria-label={`Exception ${index + 1} description`}
+                className="code-doc-comment"
+                placeholder="When it is thrown"
+                value={exception.description}
+                onChange={(event) => updateException(index, { description: event.target.value })}
+              />
+            </div>
+            <Tooltip content="Remove exception">
+              <button
+                type="button"
+                className="icon-button destructive-icon"
+                aria-label={`Remove exception ${index + 1}`}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    throws: exceptions.filter((_, position) => position !== index),
+                  })
+                }
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </div>
+        ))}
       </details>
     </fieldset>
   );
