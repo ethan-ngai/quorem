@@ -8,6 +8,7 @@ import {
 } from "../../adapters/postgres/judging/worker/http.ts";
 import { createVerificationSourceHandler } from "../../adapters/postgres/judging/worker/verification-http.ts";
 import { httpResultVerifier } from "../../adapters/postgres/judging/worker/verification-client.ts";
+import type { judgingProfile } from "./judging-profile.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface PrivateConfig {
   runnerPeers: { secret: string; scope: string; resumable: boolean }[];
@@ -26,6 +27,7 @@ export async function composePrivate(
   run: Run,
   config: PrivateConfig,
   localDrain?: (peer: PrivateConfig["runnerPeers"][number]) => RunnerPeer["drain"],
+  profile?: ReturnType<typeof judgingProfile>,
 ) {
   const source = hex(config.verificationSourceCredential),
     service = hex(config.verificationServiceCredential);
@@ -49,12 +51,13 @@ export async function composePrivate(
     false,
     ["verify"],
   );
-  const verifier = httpResultVerifier({
+  const verifierTransport = httpResultVerifier({
     origin: config.verificationServiceOrigin,
     credential: service,
     timeoutMs: 30000,
     fetch: accessFetch(config.verificationServiceOrigin, config.verificationAccess),
   });
+  const verifier = profile ? profile.wrap(verifierTransport, "verification") : verifierTransport;
   const runner = await createRunnerCommandHandler(
     config.runnerPeers.map((peer) => ({
       ...peer,
