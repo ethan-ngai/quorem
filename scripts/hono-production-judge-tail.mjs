@@ -15,10 +15,22 @@ export async function tailProductionJudge(keys) {
     ["quorem-hono-services-production", "quorem-hono-production"].map(async (worker) => {
       const child = spawn(
         "vp",
-        ["-C", "apps/api", "exec", "wrangler", "tail", worker, "--format", "json"],
+        [
+          "-C",
+          "apps/api",
+          "exec",
+          "wrangler",
+          "tail",
+          worker,
+          "--format",
+          "json",
+          "--sampling-rate",
+          "1",
+        ],
         { stdio: ["ignore", "pipe", "pipe"], detached: true },
       );
-      children.push(child);
+      const session = { worker, connected: false, events: 0, stderr: "" };
+      children.push({ child, session });
       let buffer = "";
       const lines = createInterface({ input: child.stdout });
       let ready;
@@ -27,12 +39,15 @@ export async function tailProductionJudge(keys) {
       });
       lines.on("line", (line) => {
         if (!buffer && !line.trim().startsWith("{")) {
+          if (/Connected/.test(line)) session.connected = true;
           if (/Connected|Successfully/.test(line)) ready();
           return;
         }
         buffer += line + "\n";
         try {
           const event = JSON.parse(buffer);
+          session.events++;
+          session.connected = true;
           buffer = "";
           ready();
           const lifecycle = (event.logs ?? [])
@@ -63,22 +78,42 @@ export async function tailProductionJudge(keys) {
           if (lifecycle.length || exceptions.length)
             console.log(
               JSON.stringify({
-                judgeTail: { worker, lifecycle, exceptions, outcome: event.outcome },
+                judgeTail: {
+                  worker,
+                  lifecycle,
+                  exceptions,
+                  outcome: event.outcome,
+                  status: event.event?.response?.status,
+                },
               }),
             );
         } catch {
           if (buffer.length > 1024 * 1024) buffer = "";
         }
       });
-      child.stderr.resume();
+      child.stderr.on("data", (data) => {
+        if (session.stderr.length < 8192) session.stderr += data.toString();
+      });
       child.once("exit", () => ready());
       await Promise.race([connected, new Promise((resolve) => setTimeout(resolve, 10000))]);
     }),
   );
   return async () => {
     // Provider tails deliver the completed request after its response has returned.
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-    for (const child of children) {
+    await new Promise((resolve) => setTimeout(resolve, 15000));
+    for (const { child, session } of children) {
+      console.log(
+        JSON.stringify({
+          judgeTailSession: {
+            worker: session.worker,
+            connected: session.connected,
+            events: session.events,
+            exitCode: child.exitCode,
+            permissionError: /unauthorized|forbidden|permission|10000/i.test(session.stderr),
+            limitError: /limit|maximum|too many/i.test(session.stderr),
+          },
+        }),
+      );
       try {
         process.kill(-child.pid, "SIGTERM");
       } catch {
