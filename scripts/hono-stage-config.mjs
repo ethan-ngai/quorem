@@ -47,6 +47,14 @@ export function stageConfig(input, outputs, output) {
 export function workerConfig(input, outputs, output, scope) {
   if (!["stage", "production"].includes(scope)) throw new Error("Invalid deployment scope");
   const { stageZone, vars } = input;
+  const runnerWakeService =
+    scope === "production" ? "quorem-hono-services-production" : input.runnerWakeService;
+  if (
+    scope === "stage" &&
+    runnerWakeService !== undefined &&
+    !/^[a-z][a-z0-9-]*-hono-services-stage$/.test(runnerWakeService)
+  )
+    throw new Error("Invalid staged runner wake service");
   const profileBucket = outputs?.profile_bucket_name?.value;
   const workerName = outputs?.worker_name?.value;
   const hyperdriveId = outputs?.hyperdrive_id?.value;
@@ -174,6 +182,9 @@ export function workerConfig(input, outputs, output, scope) {
     routes: [{ pattern: stageHostname, zone_name: stageZone, custom_domain: true }],
     vars: { ...vars, EXECUTION_WAKE_PROVIDER: "cloudflare-binding" },
     hyperdrive: [{ binding: "DB", id: hyperdriveId }],
+    ...(runnerWakeService
+      ? { services: [{ binding: "RUNNER_WAKE", service: runnerWakeService }] }
+      : {}),
     queues: { producers: [{ binding: "EXECUTION_QUEUE", queue: queueName }] },
     durable_objects: {
       bindings: [

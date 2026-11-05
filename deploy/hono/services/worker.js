@@ -93,6 +93,34 @@ function cleanImage(request) {
   }
   return new Request(request, { headers });
 }
+/** Resolve the active runner generation for both queue and alarm wakes. */
+async function activeRunner(env) {
+  if (
+    env.CASES.idFromName("quorem-sandbox-namespace-v1").toString() !== env.QUOREM_CASE_NAMESPACE_ID
+  )
+    return null;
+  const generation = Number(env.SERVICES_GENERATION);
+  const release = env.SERVICES_RELEASE;
+  const runner = `runner:${release}:${generation}`;
+  const gate = await env.RUNNER_CONTROL.getByName("runner-control").fetch(
+    new Request("https://runner-control.internal/gate", {
+      method: "POST",
+      body: JSON.stringify({ generation, release }),
+    }),
+  );
+  if (gate.status !== 200) {
+    await gate.body?.cancel();
+    return null;
+  }
+  const allowed = await gate.json();
+  return allowed.generation === generation &&
+    allowed.release === release &&
+    allowed.bindings === env.SERVICES_BINDINGS &&
+    allowed.runner === runner
+    ? runner
+    : null;
+}
+
 export class RunnerService extends DurableObject {
   async fetch(request) {
     const path = new URL(request.url).pathname;
@@ -101,12 +129,35 @@ export class RunnerService extends DurableObject {
       await this.ctx.storage.put("recovery-paused", true);
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
-    if (path !== "/internal/drain") return new Response(null, { status: 404 });
+    if (!["/internal/drain", "/internal/wake"].includes(path))
+      return new Response(null, { status: 404 });
     if (request.headers.get("authorization") !== `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}`)
       return new Response(null, { status: 401 });
     if (await this.ctx.storage.get("recovery-paused"))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     if (this.teardownFailure) return new Response(null, { status: 503 });
+    if (path === "/internal/wake") {
+      if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now());
+      return new Response(null, { status: 204 });
+    }
+    return this.drain(request.signal);
+  }
+
+  async alarm() {
+    const runner = await activeRunner(this.env);
+    if (
+      !runner ||
+      this.ctx.id.toString() !== this.env.RUNNERS.idFromName(runner).toString() ||
+      (await this.ctx.storage.get("recovery-paused")) ||
+      this.teardownFailure
+    )
+      return;
+    const response = await this.drain(AbortSignal.timeout(210000));
+    await response.body?.cancel();
+    if (!response.ok) throw new Error("Runner wake drain failed");
+  }
+
+  async drain(signal) {
     if (this.draining) return Response.json({ queued: 0, running: 0 }, { status: 202 });
     this.draining = true;
     try {
@@ -125,7 +176,7 @@ export class RunnerService extends DurableObject {
             ownerPublicKey: this.env.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM,
           }),
           redirect: "manual",
-          signal: request.signal,
+          signal,
         },
       );
       if (
@@ -283,40 +334,30 @@ const ingress = {
           value: { namespace },
         });
       }
+      const directWake =
+        url.origin === "https://runner-wake.internal" && url.pathname === "/internal/wake";
       if (
-        url.origin === drain &&
-        ["/internal/drain", "/internal/pause"].includes(url.pathname) &&
+        (directWake ||
+          (url.origin === drain &&
+            ["/internal/drain", "/internal/pause"].includes(url.pathname))) &&
         request.method === "POST" &&
         request.headers.get("authorization") === `Bearer ${env.QUOREM_RUNNER_DRAIN_SECRET}`
       ) {
-        if (
-          env.CASES.idFromName("quorem-sandbox-namespace-v1").toString() !==
-          env.QUOREM_CASE_NAMESPACE_ID
-        )
-          return new Response(null, { status: 503 });
-        const generation = Number(env.SERVICES_GENERATION);
-        const expectedRunner = `runner:${env.SERVICES_RELEASE}:${generation}`;
-        if (url.pathname === "/internal/pause")
-          return env.RUNNERS.getByName(expectedRunner).fetch(clean(request));
-        const gate = await env.RUNNER_CONTROL.getByName("runner-control").fetch(
-          new Request("https://runner-control.internal/gate", {
-            method: "POST",
-            body: JSON.stringify({ generation, release: env.SERVICES_RELEASE }),
-          }),
-        );
-        if (gate.status !== 200) {
-          await gate.body?.cancel();
-          return new Response(null, { status: 503 });
+        if (url.pathname === "/internal/pause") {
+          if (
+            env.CASES.idFromName("quorem-sandbox-namespace-v1").toString() !==
+            env.QUOREM_CASE_NAMESPACE_ID
+          )
+            return new Response(null, { status: 503 });
+          const runner = `runner:${env.SERVICES_RELEASE}:${env.SERVICES_GENERATION}`;
+          return env.RUNNERS.getByName(runner).fetch(clean(request));
         }
-        const allowed = await gate.json();
-        if (
-          allowed.generation !== generation ||
-          allowed.release !== env.SERVICES_RELEASE ||
-          allowed.bindings !== env.SERVICES_BINDINGS ||
-          allowed.runner !== expectedRunner
-        )
-          return new Response(null, { status: 503 });
-        return env.RUNNERS.getByName(expectedRunner).fetch(clean(request));
+        // The alarm rechecks the gate when it runs, including after a release changes.
+        const runner = directWake
+          ? `runner:${env.SERVICES_RELEASE}:${env.SERVICES_GENERATION}`
+          : await activeRunner(env);
+        if (!runner) return new Response(null, { status: 503 });
+        return env.RUNNERS.getByName(runner).fetch(clean(request));
       }
       const attempt =
         url.origin === cases &&

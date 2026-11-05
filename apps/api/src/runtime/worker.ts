@@ -73,6 +73,7 @@ export interface Env extends AuthWorkerEnv {
   DEADLINES: CoordinatorNamespace;
   EXECUTION_RECOVERY: CoordinatorNamespace;
   EXECUTION_QUEUE: QueueBinding;
+  RUNNER_WAKE?: { fetch(request: Request): Promise<Response> };
 }
 const origins = (env: Env) =>
   required(env.ALLOWED_ORIGINS)
@@ -127,6 +128,33 @@ function wake(env: Env) {
     });
   throw new Error("Unsupported execution wake provider");
 }
+/** Admission sends the durable wake even if the direct dispatch fails. */
+function admissionWake(env: Env, deferred: boolean): ReturnType<typeof wake> {
+  const queue = wake(env),
+    runner = env.RUNNER_WAKE;
+  if (!runner || !deferred) return queue;
+  return {
+    async send(message, delaySeconds) {
+      const direct = async () => {
+        if (message.phase !== "continuation" || delaySeconds) return;
+        try {
+          const response = await runner.fetch(
+            new Request("https://runner-wake.internal/internal/wake", {
+              method: "POST",
+              headers: { authorization: `Bearer ${required(env.EXECUTION_DRAIN_SECRET)}` },
+              signal: AbortSignal.timeout(3000),
+            }),
+          );
+          await response.body?.cancel();
+        } catch {
+          // The queue and outbox can recover the committed job.
+        }
+      };
+      await Promise.all([queue.send(message, delaySeconds), direct()]);
+    },
+  };
+}
+
 let verifierCache: { origin: string; database: string; verifier: TokenVerifier } | undefined;
 function makeSecurity(env: Env, signal?: AbortSignal) {
   const auth = workerRuntime(env, signal),
@@ -182,7 +210,7 @@ function makeHttp(
     trustedPeer: () => cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER),
     deadline: cloudflareCoordinator(env.DEADLINES),
     execution: cloudflareCoordinator(env.EXECUTION_RECOVERY),
-    wake: wake(env),
+    wake: admissionWake(env, !!deferExecution),
     inviteKey: keyBytes(env.MATCH_INVITE_KEY),
     shards: boundedInt(env.DEADLINE_SHARDS, 1, 256),
     guestCreation: flag(env.GUEST_CREATION),

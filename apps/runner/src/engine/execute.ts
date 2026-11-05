@@ -70,7 +70,10 @@ export async function executeAndStage(
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
   if (!runtime || runtime.language !== job.language)
     throw new Error("Unsupported execution runtime");
-  const bundle = await repository.inputBundle?.(job, 0, true, signal);
+  const [bundle, checkpoint] = await Promise.all([
+    repository.inputBundle?.(job, 0, true, signal),
+    repository.loadCheckpoint(job, signal),
+  ]);
   const manifest = bundle?.manifest ?? (await repository.inputManifest(job, signal)),
     total = manifest.caseCount + (manifest.submitCasesAreSamples ? 0 : manifest.sampleCount);
   if (!Number.isSafeInteger(total) || total < 0 || total > 2147483647)
@@ -113,7 +116,6 @@ export async function executeAndStage(
       signal,
     });
     try {
-      const checkpoint = await repository.loadCheckpoint(job, signal);
       if (
         checkpoint.nextOrdinal < 0 ||
         checkpoint.nextOrdinal > total ||

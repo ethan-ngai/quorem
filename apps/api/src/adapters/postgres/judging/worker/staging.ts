@@ -87,10 +87,9 @@ export function postgresCompletionStaging(
         throw new Error("Invalid result frame");
       if (!verification) throw new Error("Result verifier unavailable");
       const challenge = await postgresVerificationPrepare(run)(job, channel, ordinal, status);
-      const signed = await verification.verifier.verify(challenge);
-      if (signed.receipt.challenge !== challenge)
-        throw new Error("Verification challenge mismatch");
+      const signed = await verification.verifier.verify(challenge.id);
       await postgresVerificationCommit(run, verification.verificationPublicKey)(
+        challenge,
         signed.receipt,
         signed.signature,
         signed.fields,

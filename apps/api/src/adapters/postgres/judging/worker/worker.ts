@@ -358,7 +358,7 @@ it("claims and fences a real attempt through workerd", async () => {
         origin: bindings.VERIFIER_ORIGIN,
         credential: new Uint8Array(32).fill(8),
         timeoutMs: 5000,
-      }).verify(challenge),
+      }).verify(challenge.id),
     ).rejects.toThrow("Verifier unavailable");
     await expect(
       httpResultVerifier({
@@ -366,12 +366,13 @@ it("claims and fences a real attempt through workerd", async () => {
         credential: new Uint8Array(32).fill(7),
         timeoutMs: 1000,
         fetch: async () => new Response(null, { status: 503 }),
-      }).verify(challenge),
+      }).verify(challenge.id),
     ).rejects.toThrow();
-    const signed = await verifier.verify(challenge);
+    const signed = await verifier.verify(challenge.id);
     expect(signed.receipt.status).toBe("wrong_answer");
     await expect(
       postgresVerificationCommit(run, publicKey)(
+        challenge,
         { ...signed.receipt, status: "accepted" },
         signed.signature,
       ),
@@ -384,7 +385,7 @@ it("claims and fences a real attempt through workerd", async () => {
       }),
     );
     await expect(
-      postgresVerificationCommit(run, publicKey)(signed.receipt, signed.signature),
+      postgresVerificationCommit(run, publicKey)(challenge, signed.receipt, signed.signature),
     ).rejects.toThrow();
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {

@@ -80,18 +80,12 @@ export function createVerificationSourceHandler(run: Run, credential: Uint8Array
       let result: unknown;
       switch (url.pathname) {
         case "/internal/verification/bundle": {
-          const frozen = await source.frozenCase(id);
+          const { frozen, actual, sqlTypes } = await source.frozenCaseWithPages(id);
           const encoded = <T extends { bytes: Uint8Array }>(value: T) => ({
             ...value,
             bytes: base64(value.bytes),
           });
-          const [bundle, actual, sqlTypes] = await Promise.all([
-            inputs.inputBundle(frozen.job, frozen.ordinal, false),
-            frozen.actual && frozen.actual.size <= 65536 ? source.fieldPage(id, "actual", 0) : null,
-            frozen.sqlTypes && frozen.sqlTypes.size <= 65536
-              ? source.fieldPage(id, "sqlTypes", 0)
-              : null,
-          ]);
+          const bundle = await inputs.inputBundle(frozen.job, frozen.ordinal, false);
           if (!bundle.ref) throw new Error("Verification input unavailable");
           result = {
             frozen,

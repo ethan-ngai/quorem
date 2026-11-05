@@ -389,7 +389,11 @@ export async function deployStage(original, operations = defaults) {
       services: serviceOutput,
     };
     const configFile = join(temp, "wrangler.json");
-    const config = stageConfig(publicInput, outputs, configFile);
+    const config = stageConfig(
+      { ...publicInput, runnerWakeService: env.HONO_SERVICES_WORKER_NAME },
+      outputs,
+      configFile,
+    );
     await writeFile(configFile, JSON.stringify(config), { mode: 0o600 });
     checkStagePreflight(publicInput, outputs, workerSecrets);
     operations.phase?.("deploy-api-worker");
