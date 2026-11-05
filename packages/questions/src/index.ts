@@ -9,7 +9,7 @@ export type {
   ExecutionLimits,
 } from "./model.ts";
 export { validQuestionType, validateInputConfig, validateSignature } from "./signature.ts";
-export { validateConstraints } from "./constraints.ts";
+export { validateConstraints, rangeContains } from "./constraints.ts";
 export { generateStarter } from "./starter.ts";
 export type { StarterLanguage } from "./starter.ts";
 export { validateQuestionDraft } from "./draft.ts";

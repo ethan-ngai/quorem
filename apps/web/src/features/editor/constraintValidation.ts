@@ -1,3 +1,4 @@
+import { rangeContains } from "@quorem/questions";
 import { nodeType } from "@quorem/contracts/node-type";
 import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
@@ -67,10 +68,7 @@ export function validateConstraints(
     let valid = true;
     if (constraint.kind === "range")
       valid = project(constraint.target).every(
-        (value) =>
-          numeric(value) &&
-          (constraint.min === undefined || value >= constraint.min) &&
-          (constraint.max === undefined || value <= constraint.max),
+        (value) => numeric(value) && rangeContains(constraint, value),
       );
     if (constraint.kind === "comparison") {
       const [left] = project(constraint.left),
