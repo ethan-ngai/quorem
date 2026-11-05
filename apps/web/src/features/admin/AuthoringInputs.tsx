@@ -17,12 +17,14 @@ export function AuthoringCodeField({
   language,
   source,
   disabled,
+  hideLabel = false,
   onChange,
 }: {
   label: string;
   language: EditorLanguage;
   source: string;
   disabled: boolean;
+  hideLabel?: boolean;
   onChange: (source: string) => void;
 }) {
   const id = useId();
@@ -30,7 +32,9 @@ export function AuthoringCodeField({
   const preferences = useLocalEditorPreferences();
   return (
     <div className="admin-field">
-      <span id={id}>{label}</span>
+      <span id={id} className={hideLabel ? "sr-only" : undefined}>
+        {label}
+      </span>
       <div className="admin-source-editor" role="group" aria-labelledby={id}>
         <Suspense fallback={<p role="status">Loading editor…</p>}>
           <CodeEditor
