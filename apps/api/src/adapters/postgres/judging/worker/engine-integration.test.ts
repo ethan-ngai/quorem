@@ -75,7 +75,7 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       [version, problem, JSON.stringify(signature), JSON.stringify(limits)],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
       [version],
     );
     await pool.query(
@@ -247,7 +247,7 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       compiledWorkspace = crypto.randomUUID();
     try {
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1','')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1')",
         [version],
       );
       await pool.query(

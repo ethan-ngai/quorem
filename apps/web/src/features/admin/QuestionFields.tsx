@@ -1,7 +1,6 @@
+import { blankApproach } from "@quorem/questions";
 import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
-import { TextInput } from "../../ui/TextControl";
-import { MarkdownField } from "../../ui/MarkdownField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
@@ -9,15 +8,9 @@ import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
-import {
-  AuthoringCodeField,
-  AuthoringNumberField,
-  LeetcodeIDField,
-  TopicField,
-} from "./AuthoringInputs";
+import { TopicField } from "./AuthoringInputs";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
-import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { SqlStages } from "./SqlStages";
 import { SqlSchemaFields } from "./SqlSchemaFields";
@@ -25,32 +18,29 @@ import { LanguageLogo } from "../../ui/LanguageLogo";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { AuthoringCases } from "./AuthoringCases";
 import { AuthoringStages } from "./AuthoringStages";
-import { Field } from "./AuthoringFields";
+import { CodeEditorialFields } from "./CodeEditorialFields";
+import { AdvancedSettings } from "./AdvancedSettings";
 import { ConstraintFields } from "./ConstraintFields";
 import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
-import { CodeLiteral } from "../editor/components/CodeLiteral";
+import { SolutionDisplay } from "../editor/components/SolutionDisplay";
+import type { EditorTheme } from "../editor/PythonEditor";
+import { defaultEditorSchemes, type EditorScheme } from "../editor/editorSchemes";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
-import { ComplexityDetails } from "../editor/components/EditorialPanel";
-import { complexityMath } from "../editor/complexityMarkup";
 import {
-  Clock3,
   Code2,
   FileText,
   FileCode2,
   Database,
-  LockKeyhole,
-  ListFilter,
-  Settings2,
+  ListChecks,
   ChevronRight,
   Braces,
   FlaskConical,
 } from "lucide-react";
-import { inlineStatement, StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
-import { revisions, type Language } from "./content";
-import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
+import { revisions, questionImplementations, type Language } from "./content";
+import { languageLabels } from "../editor/editorLanguages";
 
 type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
 function QuestionTypeControl({
@@ -129,9 +119,8 @@ export function QuestionFields({
   onValidityChange: ReportAuthoringValidity;
 }) {
   const problem = content.problem;
-  const [codeSection, setCodeSection] = useState<"reference" | "editorial">("editorial");
+  const [language, setLanguage] = useState<Language>(problem.sql ? "postgresql" : "python");
   const [section, setSection] = useState<AuthoringSection>("question");
-  const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
   const [pendingType, setPendingType] = useState<QuestionType>();
   const [pendingSignature, setPendingSignature] = useState<Signature>();
@@ -182,34 +171,6 @@ export function QuestionFields({
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
-  function setImplementation(
-    index: number,
-    patch: Partial<QuestionContent["implementations"][number]>,
-  ) {
-    onChange({
-      ...content,
-      implementations: content.implementations.map((item, position) =>
-        position === index ? { ...item, ...patch } : item,
-      ),
-    });
-  }
-  function setSolution(language: Language, patch: Partial<QuestionContent["solutions"][number]>) {
-    const current = content.solutions.find((item) => item.language === language);
-    const next = {
-      language,
-      source: "",
-      explanationMarkdown: "",
-      timeComplexity: "",
-      spaceComplexity: "",
-      complexityNotes: "",
-      ...current,
-      ...patch,
-    };
-    onChange({
-      ...content,
-      solutions: [...content.solutions.filter((item) => item.language !== language), next],
-    });
-  }
   function changeType(value: QuestionType) {
     const isSQL = value.startsWith("sql-");
     const staged = value === "staged" || value === "sql-staged";
@@ -245,16 +206,9 @@ export function QuestionFields({
         },
         hiddenCases: [],
         odysseyHiddenCases: staged ? [[]] : [],
-        implementations: [
-          {
-            language: nextLanguage,
-            starterSource: "",
-            runtimeRevision: revisions[nextLanguage][0],
-            harnessRevision: revisions[nextLanguage][1],
-            referenceSource: "",
-          },
-        ],
-        solutions: [],
+        implementations: questionImplementations(isSQL),
+        canonicalApproachId: "default",
+        approaches: [blankApproach(nextLanguage)],
       });
     } else {
       const methods = odyssey?.levels[0]?.methods;
@@ -389,10 +343,9 @@ export function QuestionFields({
                     content.odysseyHiddenCases?.some((cases) => cases.length);
                   const changesDialect = next.startsWith("sql-") !== !!problem.sql;
                   const hasCode =
-                    content.solutions.length ||
-                    content.implementations.some(
-                      (item) => item.starterSource || item.referenceSource,
-                    );
+                    content.approaches.some((approach) =>
+                      approach.implementations.some((item) => item.source),
+                    ) || content.implementations.some((item) => item.starterSource);
                   if (
                     invalidCases ||
                     hasCases ||
@@ -422,7 +375,7 @@ export function QuestionFields({
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
           <details className="disclosure authoring-options">
             <summary>
-              <ListFilter size={15} aria-hidden="true" /> Constraints{" "}
+              <ListChecks size={15} aria-hidden="true" /> Constraints{" "}
               <span className="admin-count">{problem.constraints.length}</span>
               <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
             </summary>
@@ -437,50 +390,12 @@ export function QuestionFields({
               onChange={(constraints) => setProblem({ constraints })}
             />
           </details>
-          <details className="disclosure authoring-options">
-            <summary>
-              <Settings2 size={15} aria-hidden="true" /> Advanced settings
-              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
-            </summary>
-            <div className="admin-field-pair">
-              <Field label="Slug">
-                <TextInput
-                  mono
-                  readOnly={lockSlug}
-                  value={problem.slug}
-                  onChange={(event) => setProblem({ slug: event.target.value })}
-                />
-              </Field>
-              <LeetcodeIDField
-                value={problem.leetcodeId ?? null}
-                onChange={(leetcodeId) => setProblem({ leetcodeId })}
-                onValidityChange={(invalid) => onValidityChange("leetcodeId", invalid)}
-              />
-            </div>
-            <TopicField
-              label="Companies"
-              limit={64}
-              tags={problem.companies ?? []}
-              onChange={(companies) => setProblem({ companies })}
-            />
-            <Field label="Attribution">
-              <TextInput
-                value={content.attribution}
-                onChange={(event) => onChange({ ...content, attribution: event.target.value })}
-              />
-            </Field>
-            <div className="authoring-limits">
-              {Object.entries(problem.limits).map(([name, value]) => (
-                <AuthoringNumberField
-                  key={name}
-                  label={name.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase())}
-                  value={value}
-                  onValidityChange={(invalid) => onValidityChange(`limit:${name}`, invalid)}
-                  onChange={(next) => setProblem({ limits: { ...problem.limits, [name]: next } })}
-                />
-              ))}
-            </div>
-          </details>
+          <AdvancedSettings
+            content={content}
+            lockSlug={lockSlug}
+            onChange={onChange}
+            onValidityChange={onValidityChange}
+          />
         </div>
         {(problem.sql || !problem.odyssey) && (
           <div
@@ -545,185 +460,31 @@ export function QuestionFields({
           aria-labelledby={`${id}-solutions`}
           hidden={section !== "solutions"}
         >
-          <div className="admin-code-toolbar">
-            <SegmentedControl
-              label="Code content"
-              value={codeSection}
-              onChange={setCodeSection}
-              options={[
-                {
-                  value: "reference",
-                  label: "Judge reference",
-                  icon: <LockKeyhole size={14} aria-hidden="true" />,
-                },
-                {
-                  value: "editorial",
-                  label: "Public editorial",
-                  icon: <FileText size={14} aria-hidden="true" />,
-                },
-              ]}
-            />
-            <SelectField
-              label={problem.sql ? "SQL dialect" : "Question language"}
-              value={language}
-              disabled={disabled}
-              onChange={(value) => {
-                const next = languages.find((item) => item === value);
-                if (next) setLanguage(next);
-              }}
-              options={languages
-                .filter((value) => (problem.sql ? value === "postgresql" : value !== "postgresql"))
-                .map((value) => ({
-                  value,
-                  label: languageLabels[value],
-                  leading: <LanguageLogo language={value} />,
-                }))}
-            />
-          </div>
-          {[language].map((language) => {
-            const index = content.implementations.findIndex((item) => item.language === language);
-            const implementation = content.implementations[index];
-            const solution = content.solutions.find((item) => item.language === language);
-            return (
-              <div key={language}>
-                {language !== "python" && language !== "postgresql" && (
-                  <div className="admin-check">
-                    <span>Enable language</span>
-                    <ToggleSwitch
-                      label="Enable language"
-                      checked={!!implementation}
-                      disabled={disabled}
-                      onChange={(checked) =>
-                        onChange({
-                          ...content,
-                          implementations: checked
-                            ? [
-                                ...content.implementations,
-                                {
-                                  language,
-                                  starterSource: problem.odyssey
-                                    ? initialOdysseySource(
-                                        problem.odyssey.levels[0]!.methods,
-                                        language,
-                                      )
-                                    : "",
-                                  runtimeRevision: revisions[language][0],
-                                  harnessRevision: revisions[language][1],
-                                  referenceSource: "",
-                                },
-                              ]
-                            : content.implementations.filter((item) => item.language !== language),
-                          solutions: checked
-                            ? content.solutions
-                            : content.solutions.filter((item) => item.language !== language),
-                        })
-                      }
-                    />
-                  </div>
-                )}
-                {implementation && (
-                  <>
-                    <div hidden={codeSection !== "reference"}>
-                      <p className="admin-authoring-hint">
-                        Private implementation used to verify test results.
-                      </p>
-                      <AuthoringCodeField
-                        label={`${solutionLanguageLabel(language)} private judge reference`}
-                        language={language}
-                        source={implementation.referenceSource}
-                        disabled={disabled}
-                        onChange={(source) => setImplementation(index, { referenceSource: source })}
-                      />
-                    </div>
-                    <div hidden={codeSection !== "editorial"}>
-                      <div className="admin-editorial-header">
-                        <h3 className="admin-editorial-heading">
-                          <FileText size={15} aria-hidden="true" /> Publish editorial
-                        </h3>
-                        <ToggleSwitch
-                          label="Publish editorial solution"
-                          disabled={disabled}
-                          checked={!!solution}
-                          onChange={(checked) =>
-                            checked
-                              ? setSolution(language, {})
-                              : onChange({
-                                  ...content,
-                                  solutions: content.solutions.filter(
-                                    (item) => item.language !== language,
-                                  ),
-                                })
-                          }
-                        />
-                      </div>
-                      {solution && (
-                        <div className="admin-editorial-fields">
-                          <AuthoringCodeField
-                            label={`${solutionLanguageLabel(language)} editorial code`}
-                            language={language}
-                            source={solution.source}
-                            disabled={disabled}
-                            onChange={(source) => setSolution(language, { source })}
-                          />
-                          <MarkdownField
-                            label="Explanation"
-                            value={solution.explanationMarkdown}
-                            onChange={(explanationMarkdown) =>
-                              setSolution(language, { explanationMarkdown })
-                            }
-                          />
-                          <section className="admin-editorial-complexity">
-                            <h3 className="admin-editorial-heading">
-                              <Clock3 size={15} /> Complexity
-                            </h3>
-                            <div className="admin-field-pair">
-                              {(
-                                [
-                                  ["timeComplexity", "Time"],
-                                  ["spaceComplexity", "Auxiliary space"],
-                                ] as const
-                              ).map(([field, label]) => (
-                                <Field label={label} key={field}>
-                                  <TextInput
-                                    mono
-                                    value={solution[field]}
-                                    placeholder="O(n)"
-                                    onChange={(event) =>
-                                      setSolution(language, { [field]: event.target.value })
-                                    }
-                                  />
-                                  {solution[field].trim() && (
-                                    <span className="admin-complexity-preview">
-                                      {inlineStatement(complexityMath(solution[field]))}
-                                    </span>
-                                  )}
-                                </Field>
-                              ))}
-                            </div>
-                            <MarkdownField
-                              label="Complexity notes"
-                              compact
-                              value={solution.complexityNotes}
-                              onChange={(complexityNotes) =>
-                                setSolution(language, { complexityNotes })
-                              }
-                            />
-                          </section>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+          <CodeEditorialFields
+            key={problem.sql ? "sql" : "coding"}
+            content={content}
+            language={language}
+            onLanguageChange={setLanguage}
+            disabled={disabled}
+            onChange={onChange}
+          />
         </div>
       </fieldset>
     </QuestionLanguage.Provider>
   );
 }
 
-export function PublicPreview({ content }: { content: QuestionContent }) {
+export function PublicPreview({
+  content,
+  theme = "light",
+  colorScheme = defaultEditorSchemes[theme],
+  preferredLanguage,
+}: {
+  content: QuestionContent;
+  theme?: EditorTheme;
+  colorScheme?: EditorScheme;
+  preferredLanguage?: string;
+}) {
   return (
     <div className="admin-preview">
       <ProblemStatement
@@ -745,23 +506,16 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           )
         }
       />
-      {content.solutions.map((solution) => (
-        <section key={solution.language}>
-          <h2>{solutionLanguageLabel(solution.language as Language)} solution</h2>
-          {solution.explanationMarkdown && (
-            <StatementMarkdown source={solution.explanationMarkdown} />
-          )}
-          <CodeLiteral
-            block
-            source={solution.source}
-            language={solution.language}
-            className="editorial-source statement-code"
-          />
-          {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
-            <ComplexityDetails value={solution} />
-          )}
-        </section>
-      ))}
+      <section className="problem-section" aria-label="Solution">
+        <h2>Solution</h2>
+        <SolutionDisplay
+          approaches={content.approaches}
+          canonicalApproachId={content.canonicalApproachId}
+          preferredLanguage={preferredLanguage}
+          theme={theme}
+          colorScheme={colorScheme}
+        />
+      </section>
     </div>
   );
 }

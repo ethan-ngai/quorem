@@ -42,7 +42,6 @@ function fixture(contentValue: Obj): Obj {
     hiddenCases: contentValue.hiddenCases ?? [],
     odysseyHiddenCases: contentValue.odysseyHiddenCases ?? [],
     harnessRevision: primary.harnessRevision,
-    referenceSource: primary.referenceSource,
     attribution: contentValue.attribution ?? "",
   };
 }
@@ -87,9 +86,14 @@ export async function persistQuestionVersion(
   version: number,
   privateOwner: string | null,
   runtime: RuntimeResolver,
-  updateCatalog = true,
+  options: { updateCatalog?: boolean; customInterview?: boolean } = {},
 ): Promise<void> {
-  validateQuestionPublication(raw, validateQuestionSchema, runtime);
+  const updateCatalog = options.updateCatalog !== false;
+  if (options.customInterview && !privateOwner)
+    throw new Error("Custom interview question must be private");
+  validateQuestionPublication(raw, validateQuestionSchema, runtime, {
+    requireCanonicalSource: !options.customInterview,
+  });
   const c = content(raw),
     p = object(c.problem);
   if (p.id !== versionId || p.version !== String(version))
@@ -158,15 +162,23 @@ async function registerArtifacts(tx: Transaction, c: Obj, versionId: string): Pr
   for (const item of list(c.implementations)) {
     const v = object(item);
     const result = await tx.execute(
-      sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${versionId}::uuid,${str(v.language)},${str(v.starterSource)},${str(v.runtimeRevision)},${str(v.harnessRevision)},${str(v.referenceSource)}) ON CONFLICT(version_id,language) DO UPDATE SET language=EXCLUDED.language WHERE problem_languages.starter_source=EXCLUDED.starter_source AND problem_languages.runtime_revision=EXCLUDED.runtime_revision AND problem_languages.harness_revision=EXCLUDED.harness_revision AND problem_languages.reference_source=EXCLUDED.reference_source RETURNING language`,
+      sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source_hash) VALUES(${versionId}::uuid,${str(v.language)},${str(v.starterSource)},${str(v.runtimeRevision)},${str(v.harnessRevision)},COALESCE((SELECT reference_source_hash FROM problem_languages WHERE version_id=${versionId}::uuid AND language=${str(v.language)}),sha256(decode('01','hex')))) ON CONFLICT(version_id,language) DO UPDATE SET language=EXCLUDED.language WHERE problem_languages.starter_source=EXCLUDED.starter_source AND problem_languages.runtime_revision=EXCLUDED.runtime_revision AND problem_languages.harness_revision=EXCLUDED.harness_revision AND problem_languages.reference_source_hash=EXCLUDED.reference_source_hash RETURNING language`,
     );
     if (!result.rows.length) throw new Error("Fixture language artifacts are immutable");
   }
-  for (const item of list(c.solutions)) {
-    const v = object(item);
-    await tx.execute(
-      sql`INSERT INTO problem_solutions(version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes) VALUES(${versionId}::uuid,${str(v.language)},${str(v.source)},${str(v.explanationMarkdown)},${str(v.timeComplexity)},${str(v.spaceComplexity)},${typeof v.complexityNotes === "string" ? v.complexityNotes : ""}) ON CONFLICT DO NOTHING`,
-    );
+  for (const [ordinal, item] of list(c.approaches).entries()) {
+    const a = object(item);
+    const registered =
+      await tx.execute(sql`INSERT INTO problem_solution_approaches AS existing(version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes)
+      VALUES(${versionId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${str(a.defaultLanguage)},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(version_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
+    if (!registered.rows.length) throw new Error("Approach metadata is immutable");
+    for (const variant of list(a.implementations)) {
+      const v = object(variant);
+      const code = await tx.execute(
+        sql`INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES(${versionId}::uuid,${str(a.id)},${str(v.language)},${str(v.source)}) ON CONFLICT(version_id,approach_id,language) DO UPDATE SET source=EXCLUDED.source WHERE problem_solutions.source=EXCLUDED.source RETURNING language`,
+      );
+      if (!code.rows.length) throw new Error("Approach code is immutable");
+    }
   }
 }
 /** Resume an interrupted fixed fixture installation without changing existing content. */

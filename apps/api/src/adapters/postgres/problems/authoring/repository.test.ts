@@ -1,3 +1,4 @@
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -8,19 +9,17 @@ import { problemQueries } from "../queries/repository.ts";
 const url = process.env.QUOREM_AUTHORING_TEST_DATABASE_URL;
 const runtime = (language: string) =>
   (
-    ({
+    {
       python: { revision: "python-3.12-v1", harness: "quorem-harness-v2" },
       postgresql: { revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" },
       java: { revision: "java-21.0.9-v1", harness: "quorem-java-v1" },
       typescript: { revision: "typescript-5.9.3-node-22.21.1-v1", harness: "quorem-typescript-v1" },
       ocaml: { revision: "ocaml-4.13.1-v1", harness: "quorem-ocaml-v1" },
-    }) as Record<string, { revision: string; harness: string }>
+    } as Record<string, { revision: string; harness: string }>
   )[language];
 describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
   it("publishes atomically, fences revisions and protects owner content", async () => {
-    const parsed = new URL(url!);
-    expect(parsed.port).toBe("55447");
-    expect(parsed.pathname).toBe("/quorem_hono_authoring_test");
+    assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
     const pool = createNodePool({
       connectionString: url!,
       max: 6,
@@ -49,6 +48,22 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "utf8",
       );
       const parsedContent = JSON.parse(content);
+      parsedContent.approaches.push({
+        id: "grouping",
+        title: "Grouping",
+        defaultLanguage: "python",
+        explanationMarkdown: "Group adjacent equal values.",
+        timeComplexity: "O(n)",
+        spaceComplexity: "O(n)",
+        complexityNotes: "Materializes one run at a time.",
+        implementations: [
+          {
+            language: "python",
+            source:
+              "from itertools import groupby\nclass Solution:\n def runWidths(self, values): return [len(list(group)) for _, group in groupby(values)]\n",
+          },
+        ],
+      });
       parsedContent.problem.slug = `fixture-${crypto.randomUUID().slice(0, 8)}`;
       const raw = JSON.stringify(parsedContent).replace('"expected":[999]', '"expected":[999]');
       const http = createApp({ allowedOrigins: [], requestId: () => "http-test" }).route(
@@ -70,7 +85,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       );
       const createResponse = await http.request("/v1/admin/question-drafts", {
         method: "POST",
-        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"solutions":[]}}',
+        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"approaches":[],"canonicalApproachId":""}}',
       });
       expect(createResponse.status).toBe(201);
       const empty = (await createResponse.json()) as { id: string; revision: string };
@@ -138,6 +153,26 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.create(actor, undefined, published.publishedVersionId),
       );
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
+      expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
+      expect(fork.content.approaches).toEqual(parsedContent.approaches);
+      expect(
+        fork.content.implementations.every((item: object) => !("referenceSource" in item)),
+      ).toBe(true);
+      expect(
+        JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
+          .items,
+      ).toEqual(expect.arrayContaining(parsedContent.approaches));
+      const complexity = await catalog.editorials(
+        { userId: owner },
+        published.publishedVersionId,
+        true,
+      );
+      expect(JSON.parse(complexity).items.map((item: { id: string }) => item.id)).toEqual([
+        "default",
+        "grouping",
+      ]);
+      expect(complexity).not.toContain("implementations");
+      expect(complexity).not.toContain("explanationMarkdown");
 
       const nul = structuredClone(parsedContent);
       nul.problem.slug = `nul-${crypto.randomUUID().slice(0, 8)}`;
@@ -153,7 +188,10 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       nul.implementations = nul.implementations.filter(
         (x: { language: string }) => x.language === "python",
       );
-      nul.solutions = [];
+      for (const approach of nul.approaches)
+        approach.implementations = approach.implementations.filter(
+          (item: { language: string }) => item.language === "python",
+        );
       const nd = JSON.parse(await repository.create(actor, JSON.stringify(nul), undefined));
       const np = JSON.parse(await repository.publish(actor, nd.id, "1", "private"));
       const side = await pool.query(
@@ -190,12 +228,17 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         {
           language: "postgresql",
           starterSource: "select 1",
-          referenceSource: "select 1",
           runtimeRevision: "postgresql-17.6-v1",
           harnessRevision: "quorem-postgresql-v2",
         },
       ];
-      sq.solutions = [];
+      sq.approaches = [
+        {
+          ...sq.approaches[0],
+          defaultLanguage: "postgresql",
+          implementations: [{ language: "postgresql", source: "select 1" }],
+        },
+      ];
       const sqlRaw = JSON.stringify(sq).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
       const rawSqlDraft = await repository.create(actor, sqlRaw, undefined);
       expect(rawSqlDraft).toContain("1e309");

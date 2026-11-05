@@ -39,7 +39,7 @@ it("claims and fences a real attempt through workerd", async () => {
         sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [], returnType: "int" })}::jsonb,'[]',${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'')`,
       );
       await tx.execute(
-        sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2','')`,
+        sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2')`,
       );
       await tx.execute(
         sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,

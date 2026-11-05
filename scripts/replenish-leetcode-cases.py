@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Stage more sourced cases, subject to constraint and sandbox checks."""
+from question_content import canonical_implementation
 import argparse
 import hashlib
 import importlib.util
@@ -115,7 +116,7 @@ def main():
         if not cases:
             report['status'] = 'no_eligible_source_cases'
             continue
-        jobs.append({'id': id, 'needed': 20 - len(content['hiddenCases']), 'signature': content['problem']['signature'], 'reference': content['implementations'][0]['referenceSource'], 'candidates': cases})
+        jobs.append({'id': id, 'needed': 20 - len(content['hiddenCases']), 'signature': content['problem']['signature'], 'reference': canonical_implementation(content)['source'], 'candidates': cases})
     if jobs:
         worker = Path(__file__).with_name('replenish-leetcode-worker.py').resolve()
         command = ['docker', 'run', '--rm', '-i', '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '512m', '--pids-limit', '64', '--cpus', '4', '--user', '65534:65534', '-v', f'{worker}:/worker.py:ro', '--entrypoint', 'python', args.image, '/worker.py']

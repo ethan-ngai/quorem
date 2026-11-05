@@ -71,7 +71,6 @@ export async function prepareCustomInterviewQuestion(
       starterSource: starter,
       runtimeRevision: selected.revision,
       harnessRevision: selected.harness,
-      referenceSource: "Private question uses explicit expected values",
     });
   }
   const selected = implementations.map(object).find((item) => item.language === language);
@@ -97,7 +96,8 @@ export async function prepareCustomInterviewQuestion(
     odysseyHiddenCases: odyssey ? suites : [],
     attribution: "Private interview",
     implementations,
-    solutions: [],
+    canonicalApproachId: "",
+    approaches: [],
   };
   try {
     validateQuestionDefinition(stringifyLosslessJson(content), validateQuestionSchema, false);
@@ -123,7 +123,6 @@ export async function prepareCustomInterviewQuestion(
     hiddenCases: content.hiddenCases,
     odysseyHiddenCases: content.odysseyHiddenCases,
     harnessRevision: selected.harnessRevision,
-    referenceSource: "",
     attribution: "Private interview",
   };
   const stored = storageProjection(stringifyLosslessJson(fixture));
@@ -159,6 +158,7 @@ export async function prepareCustomInterviewQuestion(
         1,
         actor.userId,
         languageRuntime,
+        { customInterview: true },
       );
     },
   };

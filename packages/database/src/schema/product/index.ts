@@ -1552,7 +1552,10 @@ export const problem_languages = pgTable(
     starter_source: text().notNull(),
     runtime_revision: text().notNull(),
     harness_revision: text().notNull(),
-    reference_source: text().notNull(),
+    // Frozen reference leaf preserves admitted fixture identities after source consolidation.
+    reference_source_hash: bytea("reference_source_hash")
+      .default(sql`sha256(decode('01','hex'))`)
+      .notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
@@ -1561,6 +1564,7 @@ export const problem_languages = pgTable(
       name: "problem_languages_version_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.version_id, table.language], name: "problem_languages_pkey" }),
+    check("problem_language_reference_hash", sql`octet_length(reference_source_hash)=32`),
     check(
       "problem_languages_language_check",
       sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,
@@ -1614,12 +1618,15 @@ export const quota_overrides = pgTable(
   ],
 );
 
-export const problem_solutions = pgTable(
-  "problem_solutions",
+export const problem_solution_approaches = pgTable(
+  "problem_solution_approaches",
   {
     version_id: uuid().notNull(),
-    language: text().notNull(),
-    source: text().notNull(),
+    id: text().notNull(),
+    ordinal: integer().notNull(),
+    title: text().default("").notNull(),
+    is_canonical: boolean().default(false).notNull(),
+    default_language: text().notNull(),
     explanation_markdown: text().notNull(),
     time_complexity: text().notNull(),
     space_complexity: text().notNull(),
@@ -1627,11 +1634,49 @@ export const problem_solutions = pgTable(
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
+      columns: [table.version_id],
+      foreignColumns: [problem_versions.id],
+      name: "problem_solution_approaches_version_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.version_id, table.id], name: "problem_solution_approaches_pkey" }),
+    unique("problem_solution_approaches_version_id_ordinal_key").on(
+      table.version_id,
+      table.ordinal,
+    ),
+    uniqueIndex("problem_solution_approaches_canonical")
+      .on(table.version_id)
+      .where(sql`is_canonical`),
+    check("problem_solution_approaches_id_check", sql`id ~ '^[a-z][a-z0-9-]*$' AND length(id)<=64`),
+    check("problem_solution_approaches_ordinal_check", sql`ordinal>=0`),
+    check(
+      "problem_solution_approaches_default_language_check",
+      sql`default_language IN ('python','java','typescript','ocaml','postgresql')`,
+    ),
+  ],
+);
+export const problem_solutions = pgTable(
+  "problem_solutions",
+  {
+    version_id: uuid().notNull(),
+    language: text().notNull(),
+    source: text().notNull(),
+    approach_id: text().notNull(),
+  },
+  (table): PgTableExtraConfigValue[] => [
+    foreignKey({
       columns: [table.version_id, table.language],
       foreignColumns: [problem_languages.version_id, problem_languages.language],
       name: "problem_solutions_version_id_language_fkey",
     }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.language], name: "problem_solutions_pkey" }),
+    foreignKey({
+      columns: [table.version_id, table.approach_id],
+      foreignColumns: [problem_solution_approaches.version_id, problem_solution_approaches.id],
+      name: "problem_solutions_approach_fkey",
+    }).onDelete("cascade"),
+    primaryKey({
+      columns: [table.version_id, table.approach_id, table.language],
+      name: "problem_solutions_pkey",
+    }),
   ],
 );
 

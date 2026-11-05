@@ -351,9 +351,7 @@ export function QuestionSetup({
         )}
         {showHints && (
           <QuestionHintsControls
-            complexityAvailable={
-              mode === "catalog" && !!selectedProblem?.complexityLanguages?.includes(language)
-            }
+            complexityAvailable={mode === "catalog" && (selectedProblem?.hasComplexity ?? false)}
             value={hints}
             onChange={setHints}
             disabled={busy}

@@ -81,17 +81,17 @@ describe("operator CLI contracts", () => {
       }),
     ).toBe("ea2ca038ea4f7666f6cc7245b2ca7d0d0981288fbd844e7c47fe4e778d579ec8");
   });
-  it("matches Go seed lock fingerprints, including raw JSON escapes", async () => {
+  it("pins canonical seed fingerprints, including raw JSON escapes", async () => {
     const raw = await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8");
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "a3f3bd4486fc0a73d718ffb7ce1a00ac51ad6b2fd36edd96239ebc0e86457ffc",
+      "ec14fc422587b3917c1a964a8ef20933263e9a079fb348b8987993049c0dac31",
     );
     const escaped = raw.replaceAll('"a-bC!"', '"\\u0061-bC!"');
     expect(seedFingerprint(escaped, "cli-operator").fingerprint).toBe(
-      "69750a539703097f953b9ad6ce94a3658fa2e377b4792d4cb95dc75e363463c3",
+      "cadf7d46f184eb79496a386dbbf835d62fa57c0086dd69b9cc75c65bb8b4b5ce",
     );
   });
-  it("matches Go seed locks for lossless SQL numeric input", async () => {
+  it("pins canonical seed identity for lossless SQL numeric input", async () => {
     const p = JSON.parse(
       await readFile(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
     );
@@ -114,15 +114,20 @@ describe("operator CLI contracts", () => {
       {
         language: "postgresql",
         starterSource: "select 1",
-        referenceSource: "select 1",
         runtimeRevision: "postgresql-17.6-v1",
         harnessRevision: "quorem-postgresql-v2",
       },
     ];
-    p.solutions = [];
+    p.approaches = [
+      {
+        ...p.approaches[0],
+        defaultLanguage: "postgresql",
+        implementations: [{ language: "postgresql", source: "select 1" }],
+      },
+    ];
     const raw = JSON.stringify(p).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "c32de76d77451d3d30dc5df9f4c7bccde461d0558028a9899c6192a7fda80ac4",
+      "bea1a8be83887930101a24ab9086cacde3c59fab44c11e75feba69058639d282",
     );
   });
   it("validates candidate fixtures with canonical publication rules", async () => {
@@ -259,7 +264,6 @@ describe("operator CLI contracts", () => {
         fixture.problem.id = versionId;
         fixture.problem.slug = slug;
         fixture.problem.version = "1";
-        fixture.solutions = [];
         await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problemId, slug]);
         await pool.query(
           "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9)",
@@ -421,12 +425,17 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
           {
             language: "postgresql",
             starterSource: "select 1",
-            referenceSource: "select 1",
             runtimeRevision: "postgresql-17.6-v1",
             harnessRevision: "quorem-postgresql-v2",
           },
         ];
-        fixture.solutions = [];
+        fixture.approaches = [
+          {
+            ...fixture.approaches[0],
+            defaultLanguage: "postgresql",
+            implementations: [{ language: "postgresql", source: "select 1" }],
+          },
+        ];
       }
       const raw = mode.startsWith("sql")
           ? JSON.stringify(fixture).replaceAll(

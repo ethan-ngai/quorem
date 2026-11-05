@@ -14,7 +14,7 @@ it("validates generated publication schema and bounded draft defaults", () => {
   expect(() => validateQuestionSchema(fixture)).not.toThrow();
   const draft = JSON.parse(
     normalizeQuestionDraft(
-      '{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"solutions":[]}',
+      '{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"approaches":[],"canonicalApproachId":""}',
     ),
   );
   expect(draft.problem.signature.className).toBe("Solution");
@@ -43,10 +43,15 @@ it("keeps case numbers lossless and validates metadata separately", () => {
       starterSource: "select 1",
       runtimeRevision: "pg",
       harnessRevision: "h",
-      referenceSource: "select 1",
     },
   ];
-  content.solutions = [];
+  content.approaches = [
+    {
+      ...content.approaches[0],
+      defaultLanguage: "postgresql",
+      implementations: [{ language: "postgresql", source: "select 1" }],
+    },
+  ];
   const raw = JSON.stringify(content).replace('"rows":[[1]]', '"rows":[[1e309]]');
   expect(() =>
     validateQuestionPublication(raw, validateQuestionSchema, () => ({

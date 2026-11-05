@@ -1,5 +1,6 @@
 /** @file draft-normalize.ts @description Normalize incomplete authoring drafts without losing case values. @module questions */
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
+import { blankApproach } from "./editorial.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import type { QuestionContent } from "./model.ts";
 import validateDraft from "./draft-validator.mjs";
@@ -149,25 +150,27 @@ export function normalizeQuestionDraft(rawJson: string): string {
   field(content, "attribution", "");
   content.implementations = array(content.implementations).map((value) => {
     const item = object(value);
-    fields(item, [
-      "language",
-      "starterSource",
-      "runtimeRevision",
-      "harnessRevision",
-      "referenceSource",
-    ]);
+    fields(item, ["language", "starterSource", "runtimeRevision", "harnessRevision"]);
     return item;
   });
-  content.solutions = array(content.solutions).map((value) => {
+  field(content, "canonicalApproachId", "");
+  content.approaches = array(content.approaches).map((value) => {
     const item = object(value);
-    fields(item, [
-      "language",
-      "source",
-      "explanationMarkdown",
-      "timeComplexity",
-      "spaceComplexity",
-      "complexityNotes",
-    ]);
+    for (const [key, value] of Object.entries({
+      ...blankApproach(p.sql ? "postgresql" : "python"),
+      id: "",
+    }))
+      if (key !== "implementations") field(item, key, value);
+    item.implementations = array(item.implementations).map((value) => {
+      const implementation = object(value);
+      fields(implementation, ["language", "source"]);
+      return implementation;
+    });
+    (item.implementations as Obj[]).sort((a, b) =>
+      typeof a.language === "string" && typeof b.language === "string"
+        ? a.language.localeCompare(b.language)
+        : 0,
+    );
     return item;
   });
   if (content.odysseyHiddenCases !== undefined && content.odysseyHiddenCases !== null)

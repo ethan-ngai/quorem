@@ -44,7 +44,7 @@ it("recovers a delayed commit, dispatches before ack, and cannot consume deadlin
           sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2','')`,
+          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2')`,
         );
         await tx.execute(
           sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
@@ -124,7 +124,7 @@ it("admits an actual workspace job using workerd PostgreSQL and a prearmed Durab
           sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [{ name: "x", type: "int" }], returnType: "int" })}::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2','')`,
+          sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2')`,
         );
         await tx.execute(
           sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'[1]'::jsonb,'2'::jsonb)`,

@@ -86,7 +86,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           ],
         );
         await pool.query(
-          "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,'starter','runtime','harness','SECRET REFERENCE')",
+          "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,$2,'starter','runtime','harness')",
           [versions[i], i === 0 ? "postgresql" : "python"],
         );
         await pool.query(
@@ -107,7 +107,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [historical, versions[0]],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','old-starter','runtime','harness','SECRET OLD')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','old-starter','runtime','harness')",
         [historical],
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
@@ -116,7 +116,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [ids[2], `${uid}-company`],
       );
       await pool.query(
-        "INSERT INTO problem_solutions(version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes) VALUES($1,'python','SECRET EDITORIAL','explanation','O(n)','O(1)','note')",
+        "INSERT INTO problem_solution_approaches VALUES($1,'default',0,'',true,'python','explanation','O(n)','O(1)','note')",
+        [versions[1]],
+      );
+      await pool.query(
+        "INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES($1,'default','python','SECRET EDITORIAL')",
         [versions[1]],
       );
       await pool.query(
@@ -142,8 +146,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problem_languages: "version_id,language,starter_source,runtime_revision,harness_revision",
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         problem_tags: "version_id,tag,ordinal",
-        problem_solutions:
-          "version_id,language,source,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+        problem_solution_approaches:
+          "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+        problem_solutions: "version_id,approach_id,language,source",
         companies: "id,name",
         problem_companies: "problem_id,company_id",
         matches: "id,problem_version_id,state,rules",
@@ -163,7 +168,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       });
       try {
         await expect(
-          limited.query("SELECT reference_source FROM problem_languages LIMIT 1"),
+          limited.query("SELECT reference_source_hash FROM problem_languages LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         await expect(
           limited.query("SELECT lossless_fixture FROM problem_versions LIMIT 1"),

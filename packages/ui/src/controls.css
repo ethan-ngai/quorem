@@ -73,6 +73,19 @@
 .button-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--color-overlay);
 }
+.button-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.button-ghost[data-align="start"] {
+  justify-content: flex-start;
+  padding-inline: 0;
+}
+.button-ghost:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--color-overlay);
+  color: var(--color-text);
+}
 .button-primary {
   background: var(--color-primary);
   border-color: var(--color-primary);

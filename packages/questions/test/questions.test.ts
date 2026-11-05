@@ -1,3 +1,4 @@
+import { blankApproach } from "@quorem/questions";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -121,7 +122,13 @@ describe("drafts", () => {
     hiddenCases: [],
     attribution: "",
     implementations: [],
-    solutions: [],
+    canonicalApproachId: "default",
+    approaches: [
+      {
+        ...blankApproach(),
+        implementations: [{ language: "python", source: "class Solution: pass" }],
+      },
+    ],
   };
   it("accepts incomplete drafts but rejects duplicate companies and NUL source", () => {
     expect(() => validateQuestionDraft(content)).not.toThrow();
@@ -140,7 +147,6 @@ describe("drafts", () => {
             runtimeRevision: "r",
             harnessRevision: "h",
             starterSource: "a\0b",
-            referenceSource: "x",
           },
         ],
       }),

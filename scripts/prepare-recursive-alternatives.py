@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Stage pinned iterative reference candidates; validate in the isolated harness before use."""
+from question_content import canonical_implementation
 import argparse
 import ast
 import hashlib
@@ -99,12 +100,9 @@ def candidate(content, source):
     # The pinned source targets Python 2; range supplies its lazy xrange semantics.
     prefix += 'xrange = range\n\n' if uses_xrange else ''
     reference = prefix + source
-    implementations = [item for item in content['implementations'] if item['language'] == 'python']
-    solutions = [item for item in content['solutions'] if item['language'] == 'python']
-    if len(implementations) != 1 or len(solutions) != 1 or solutions[0]['source'] != implementations[0]['referenceSource']:
-        raise ValueError('unexpected existing Python solution')
-    implementations[0]['referenceSource'] = reference
-    solutions[0]['source'] = reference
+    if canonical_implementation(content)['language'] != 'python':
+        raise ValueError('Python canonical solution required')
+    canonical_implementation(content)['source'] = reference
     slug = content['problem']['slug'].removeprefix('lc-')
     if not slug or '/' in slug or '..' in slug:
         raise ValueError('invalid problem slug')

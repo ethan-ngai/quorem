@@ -35,7 +35,7 @@ function key(raw: string, actor: string): { fingerprint: string; slug: string } 
   if (typeof p.slug !== "string") throw new Error("Invalid slug");
   const prefix = `private-${hash(actor).slice(0, 16)}-`;
   if (p.slug.startsWith(prefix)) p.slug = p.slug.slice(prefix.length);
-  for (const field of ["implementations", "solutions"]) {
+  for (const field of ["implementations"]) {
     const rows = c[field];
     if (Array.isArray(rows)) {
       for (const row of rows) if (field === "implementations") object(row).starterSource = "";
