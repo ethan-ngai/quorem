@@ -33,6 +33,7 @@ import { createRunnerCommandHandler } from "../worker/http.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
 import { remoteSandbox } from "../../../../../../runner/src/sandbox/remote.ts";
 import { accessFetch } from "@quorem/execution/transport/access";
+import { CASE_LANES } from "@quorem/execution";
 import { localFenceRoot } from "../../../../../../runner/src/sandbox/fence.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { drainer } from "../../../../../../runner/src/drains/drain.ts";
@@ -153,11 +154,11 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       ],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
       [version],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1','')",
+      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1')",
       [version],
     );
     await pool.query(
@@ -1040,7 +1041,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         ],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1','')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1')",
         [sqlVersion],
       );
       await pool.query(
@@ -1284,7 +1285,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       );
       await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [v, p]);
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
         [v],
       );
       await pool.query(
@@ -1780,7 +1781,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         commands,
         sandbox,
         2000,
-        8,
+        CASE_LANES,
         async () => (await commands.queueState()).queued > 0,
       ),
       slots: 8,
@@ -1831,7 +1832,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         await writeFile(process.env.QUOREM_BENCHMARK_REPORT, JSON.stringify(measurement));
       expect(result.samples).toHaveLength(8);
       if (!native) {
-        expect(peak).toBe(64);
+        expect(peak).toBe(8 * CASE_LANES);
         expect(result.meetsTarget).toBe(true);
       }
       expect(subscribers.size).toBe(0);

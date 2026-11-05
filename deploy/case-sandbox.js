@@ -260,7 +260,10 @@ export class CaseSandbox extends DurableObject {
       this.executeCase(request, active, generation, language, memory, processes, writer),
     );
     return new Response(stream.readable, {
-      headers: { "Content-Type": "application/octet-stream" },
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "x-quorem-case-admitted-at": String(Date.now()),
+      },
     });
   }
 

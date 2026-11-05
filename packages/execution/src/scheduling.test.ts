@@ -7,7 +7,7 @@ it("bounds submission slots, case lanes and fairness slices", () => {
   ).toEqual({ slots: 2, caseLanes: 1, sliceMs: 1000 });
   for (const [name, values] of Object.entries({
     JUDGING_SLOTS: ["0", "9", "1.1", " 8"],
-    JUDGING_CASE_LANES: ["0", "9", "-1"],
+    JUDGING_CASE_LANES: ["0", "21", "-1"],
     JUDGING_SLICE_MS: ["0", "50001", "Infinity"],
   }))
     for (const value of values)
