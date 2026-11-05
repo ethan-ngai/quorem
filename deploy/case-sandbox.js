@@ -80,6 +80,13 @@ export class CaseSandbox extends DurableObject {
     );
   }
 
+  childControlRequest(request) {
+    const headers = new Headers(request.headers);
+    headers.set("x-quorem-child-lane", "true");
+    // DELETE may arrive with an empty stream. Reusing its Request transfers that body once.
+    return new Request(request.url, { method: request.method, headers, signal: request.signal });
+  }
+
   async visitChildren(request, visit) {
     const children = this.children(request),
       outcomes = [];
@@ -109,10 +116,8 @@ export class CaseSandbox extends DurableObject {
     if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
       if (this.env.CASE_DIAGNOSTICS !== "true") return new Response(null, { status: 404 });
       if (!child) {
-        const headers = new Headers(request.headers);
-        headers.set("x-quorem-child-lane", "true");
         const outcomes = await this.visitChildren(request, async (stub) => {
-          const response = await stub.fetch(new Request(request, { headers }));
+          const response = await stub.fetch(this.childControlRequest(request));
           if (!response.ok) {
             await response.body?.cancel();
             throw new Error("Case lane probe unavailable");
@@ -153,6 +158,7 @@ export class CaseSandbox extends DurableObject {
       });
     if (request.method === "DELETE") {
       console.log("case-lifecycle delete-begin");
+      if (request.body) console.log("case-lifecycle delete-streamed");
       console.log(`case-lifecycle delete-${child ? "child" : "root"}`);
       const token = request.headers.get("x-case-token");
       if (token && !/^[A-Za-z0-9-]{16,128}$/.test(token))
@@ -162,12 +168,10 @@ export class CaseSandbox extends DurableObject {
         await this.ctx.storage.put(token ? `cancel:${token}` : "cancelled", true);
         const stops = [];
         if (!child) {
-          const headers = new Headers(request.headers);
-          headers.set("x-quorem-child-lane", "true");
           stops.push(
             (async () => {
               const outcomes = await this.visitChildren(request, async (stub) => {
-                const response = await stub.fetch(new Request(request, { headers }));
+                const response = await stub.fetch(this.childControlRequest(request));
                 await response.body?.cancel();
                 if (response.status !== 204) {
                   console.log(`case-lifecycle child-status-${response.status}`);

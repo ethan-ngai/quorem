@@ -42,3 +42,5 @@ See [concurrency plan](../plans/judging-concurrency.md) for rollout fencing and 
 Already checked: production API regional placement remains configured; direct wake and durable queue fallback coexist; running/final notices are deferred with `waitUntil`; verifier callbacks bundle small fields; final-case verification overlaps attempt teardown. The shared application-container readiness loop is not on the direct case execution path.
 
 No universal under-five-second claim follows from this audit. Arbitrarily long contestant execution, large suites, queue load and provider variability require explicit workload and capacity bounds.
+
+Production rollout exposed a cleanup regression: repeatedly constructing child Requests from an incoming streamed DELETE transfers its body, so subsequent lane requests fail and aggregate teardown remains unconfirmed. A streamed-DELETE regression reproduces HTTP 503. Lane control requests now construct fresh bodyless GET/DELETE commands, while POST forwarding retains its single body transfer. Hosted recovery still requires validation.
