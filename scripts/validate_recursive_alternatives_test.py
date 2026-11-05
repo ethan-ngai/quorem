@@ -24,7 +24,7 @@ class BoundaryTest(unittest.TestCase):
 
     def test_boundary_failure_is_not_a_pass(self):
         fixture = {'problem': {'signature': {}, 'examples': [{'args': [], 'expected': 3}]},
-                   'hiddenCases': [], 'implementations': [{'language': 'python', 'referenceSource': 'source'}]}
+                   'hiddenCases': [], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'python', 'source': 'source'}]}], 'implementations': []}
         class Result:
             def __init__(self, actual):
                 self.stdout = json.dumps({'status': 'executed', 'actual': actual}).encode()

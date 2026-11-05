@@ -37,7 +37,6 @@ it("validates existing schema and authored definition before publication", () =>
       runtimeRevision: "python-3.12-v1",
       harnessRevision: "quorem-harness-v2",
       starterSource: "pass",
-      referenceSource: "pass",
     },
   ];
   const raw = JSON.stringify(content);
@@ -104,10 +103,15 @@ it("validates SQL publication and rejects invalid fixture types", () => {
       runtimeRevision: "postgresql-17.6-v1",
       harnessRevision: "quorem-postgresql-v2",
       starterSource: "select 1",
-      referenceSource: "select 1",
     },
   ];
-  content.solutions = [];
+  content.approaches = [
+    {
+      ...content.approaches[0],
+      defaultLanguage: "postgresql",
+      implementations: [{ language: "postgresql", source: "select 1" }],
+    },
+  ];
   const resolve = () => ({ revision: "postgresql-17.6-v1", harness: "quorem-postgresql-v2" });
   expect(() =>
     validateQuestionPublication(JSON.stringify(content), checkSchema, resolve),

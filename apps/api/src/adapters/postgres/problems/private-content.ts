@@ -7,6 +7,7 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
+import { canonicalApproachProjection, approachesProjection } from "./editorial-storage.ts";
 import { object } from "./storage.ts";
 type Obj = { [key: string]: JsonValue };
 const list = (value: JsonValue | undefined): JsonValue[] => (Array.isArray(value) ? value : []);
@@ -35,8 +36,9 @@ async function readPrivateQuestionContent(
  'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
  'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
  'attribution',v.attribution,
- 'implementations',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision,'referenceSource',reference_source) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
- 'solutions',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'source',source,'explanationMarkdown',explanation_markdown,'timeComplexity',time_complexity,'spaceComplexity',space_complexity,'complexityNotes',complexity_notes) ORDER BY language) FROM problem_solutions WHERE version_id=v.id),'[]'::jsonb))::text AS data
+ 'implementations',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
+ 'canonicalApproachId',${canonicalApproachProjection(sql`v.id`)},
+ 'approaches',${approachesProjection(sql`v.id`)})::text AS data
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_version_id=v.id)) ${lock ? sql`FOR SHARE OF p,v` : sql``}`)
   ).rows;
   if (!rows.length) return undefined;

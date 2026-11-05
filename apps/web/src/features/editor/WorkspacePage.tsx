@@ -758,7 +758,7 @@ export function WorkspacePage({
                   <EditorialPanel
                     theme={theme}
                     colorScheme={editorSchemes[theme]}
-                    available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
+                    available={problem.hasComplexity ?? false}
                     identity={identity}
                     versionId={problem.id}
                     language={documentLanguage}
@@ -782,10 +782,8 @@ export function WorkspacePage({
                 <EditorialPanel
                   theme={theme}
                   colorScheme={editorSchemes[theme]}
-                  available={problem.complexityLanguages?.includes(documentLanguage) ?? false}
-                  solutionAvailable={
-                    !match && (problem.solutionLanguages?.includes(documentLanguage) ?? false)
-                  }
+                  available={problem.hasComplexity ?? false}
+                  solutionAvailable={!match && (problem.hasSolutions ?? false)}
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}

@@ -1045,13 +1045,19 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["items"],
+                  "required": [
+                    "canonicalApproachId",
+                    "items"
+                  ],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/EditorialSolution"
+                        "$ref": "#/components/schemas/SolutionApproach"
                       }
+                    },
+                    "canonicalApproachId": {
+                      "type": "string"
                     }
                   }
                 }
@@ -1093,13 +1099,19 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["items"],
+                  "required": [
+                    "canonicalApproachId",
+                    "items"
+                  ],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/EditorialComplexity"
+                        "$ref": "#/components/schemas/ApproachComplexity"
                       }
+                    },
+                    "canonicalApproachId": {
+                      "type": "string"
                     }
                   }
                 }
@@ -3834,22 +3846,11 @@
           "odyssey": {
             "$ref": "#/components/schemas/Odyssey"
           },
-          "solutionLanguages": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Language"
-            },
-            "maxItems": 5,
-            "uniqueItems": true
+          "hasSolutions": {
+            "type": "boolean"
           },
-          "complexityLanguages": {
-            "type": "array",
-            "description": "Languages with published complexity; contains no costs or solution source.",
-            "items": {
-              "$ref": "#/components/schemas/Language"
-            },
-            "maxItems": 4,
-            "uniqueItems": true
+          "hasComplexity": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -4838,24 +4839,62 @@
           }
         }
       },
-      "EditorialSolution": {
+      "SolutionCode": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "language",
-          "source",
-          "explanationMarkdown",
-          "timeComplexity",
-          "spaceComplexity",
-          "complexityNotes"
+          "source"
         ],
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+            "enum": [
+              "python",
+              "java",
+              "typescript",
+              "ocaml",
+              "postgresql"
+            ]
           },
           "source": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 65536
+          }
+        }
+      },
+      "SolutionApproach": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "defaultLanguage",
+          "explanationMarkdown",
+          "timeComplexity",
+          "spaceComplexity",
+          "complexityNotes",
+          "implementations"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Optional for the canonical approach; other approaches require a name."
+          },
+          "defaultLanguage": {
+            "type": "string",
+            "enum": [
+              "python",
+              "java",
+              "typescript",
+              "ocaml",
+              "postgresql"
+            ]
           },
           "explanationMarkdown": {
             "type": "string"
@@ -4868,17 +4907,36 @@
           },
           "complexityNotes": {
             "type": "string"
+          },
+          "implementations": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "$ref": "#/components/schemas/SolutionCode"
+            }
           }
         }
       },
-      "EditorialComplexity": {
+      "ApproachComplexity": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["language", "timeComplexity", "spaceComplexity", "complexityNotes"],
+        "required": [
+          "id",
+          "title",
+          "timeComplexity",
+          "spaceComplexity",
+          "complexityNotes"
+        ],
         "properties": {
-          "language": {
+          "id": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "maxLength": 64
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Optional for the canonical approach; other approaches require a name."
           },
           "timeComplexity": {
             "type": "string"
@@ -4897,7 +4955,13 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+            "enum": [
+              "python",
+              "java",
+              "typescript",
+              "ocaml",
+              "postgresql"
+            ]
           },
           "starterSource": {
             "type": "string"
@@ -4907,18 +4971,13 @@
           },
           "harnessRevision": {
             "type": "string"
-          },
-          "referenceSource": {
-            "type": "string",
-            "maxLength": 65536
           }
         },
         "required": [
           "language",
           "starterSource",
           "runtimeRevision",
-          "harnessRevision",
-          "referenceSource"
+          "harnessRevision"
         ]
       },
       "QuestionProblem": {
@@ -5095,13 +5154,6 @@
               "$ref": "#/components/schemas/AuthoringImplementation"
             }
           },
-          "solutions": {
-            "type": "array",
-            "maxItems": 4,
-            "items": {
-              "$ref": "#/components/schemas/EditorialSolution"
-            }
-          },
           "odysseyHiddenCases": {
             "type": "array",
             "items": {
@@ -5110,9 +5162,27 @@
                 "$ref": "#/components/schemas/CustomCase"
               }
             }
+          },
+          "canonicalApproachId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "approaches": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/SolutionApproach"
+            }
           }
         },
-        "required": ["problem", "hiddenCases", "attribution", "implementations", "solutions"]
+        "required": [
+          "problem",
+          "hiddenCases",
+          "attribution",
+          "implementations",
+          "canonicalApproachId",
+          "approaches"
+        ]
       },
       "QuestionDraft": {
         "type": "object",

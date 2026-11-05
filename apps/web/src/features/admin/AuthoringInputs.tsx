@@ -3,8 +3,8 @@ import { TextInput } from "../../ui/TextControl";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import "../../ui/topic-chip.css";
 import { formatLabel } from "../../ui/formatLabel";
-import { Plus, Tags, X } from "lucide-react";
-import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
+import { Plus, Tags, X, Hash } from "lucide-react";
+import { lazy, Suspense, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { Field } from "./AuthoringFields";
 import { useTheme } from "../editor/useTheme";
@@ -17,12 +17,14 @@ export function AuthoringCodeField({
   language,
   source,
   disabled,
+  hideLabel = false,
   onChange,
 }: {
   label: string;
   language: EditorLanguage;
   source: string;
   disabled: boolean;
+  hideLabel?: boolean;
   onChange: (source: string) => void;
 }) {
   const id = useId();
@@ -30,7 +32,9 @@ export function AuthoringCodeField({
   const preferences = useLocalEditorPreferences();
   return (
     <div className="admin-field">
-      <span id={id}>{label}</span>
+      <span id={id} className={hideLabel ? "sr-only" : undefined}>
+        {label}
+      </span>
       <div className="admin-source-editor" role="group" aria-labelledby={id}>
         <Suspense fallback={<p role="status">Loading editor…</p>}>
           <CodeEditor
@@ -57,10 +61,12 @@ export function TopicField({
   onChange,
   label = "Topics",
   limit = 32,
+  icon = <Tags size={14} aria-hidden="true" />,
 }: {
   tags: string[];
   label?: string;
   limit?: number;
+  icon?: ReactNode;
   onChange: (tags: string[]) => void;
 }) {
   const [source, setSource] = useState("");
@@ -77,7 +83,7 @@ export function TopicField({
   return (
     <div className="admin-field">
       <label htmlFor={id} className="admin-icon-label">
-        <Tags size={14} aria-hidden="true" />
+        {icon}
         {label}
       </label>
       <div className="authoring-tag-entry">
@@ -131,42 +137,48 @@ export function TopicField({
 
 export function AuthoringNumberField({
   label,
+  icon,
+  hint,
+  unit,
+  scale = 1,
   value,
   onChange,
   onValidityChange,
 }: {
   label: string;
+  icon?: ReactNode;
+  hint?: string;
+  unit?: string;
+  scale?: number;
   value: number;
   onChange: (value: number) => void;
-  onValidityChange: (invalid: boolean) => void;
+  onValidityChange: (invalid: boolean, message?: string) => void;
 }) {
-  const [source, setSource] = useState(String(value));
+  const [source, setSource] = useState(String(value / scale));
   const [invalid, setInvalid] = useState(false);
+  const error = `${label}: ${scale === 1 ? "positive integer required" : "use a positive value in whole bytes"}.`;
   const id = useId();
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
   return (
-    <NoticeRegion
-      id={id}
-      message={invalid ? "Enter a positive whole number." : undefined}
-      label={`Check ${label}`}
-    >
-      <Field label={label}>
+    <NoticeRegion id={id} message={invalid ? error : undefined} label={`Check ${label}`}>
+      <Field label={label} icon={icon} hint={hint} unit={unit}>
         <TextInput
           mono
+          aria-label={unit ? `${label} (${unit})` : label}
           type="number"
-          min={1}
-          step={1}
+          min={1 / scale}
+          step={scale === 1 ? 1 : "any"}
           value={source}
           aria-invalid={invalid}
           aria-describedby={invalid ? id : undefined}
           onChange={(event) => {
             setSource(event.target.value);
-            const next = event.target.valueAsNumber;
+            const next = event.target.valueAsNumber * scale;
             const bad = !Number.isSafeInteger(next) || next < 1;
             setInvalid(bad);
-            onValidityChange(bad);
+            onValidityChange(bad, bad ? error : undefined);
             if (!bad) onChange(next);
           }}
         />
@@ -192,13 +204,18 @@ export function LeetcodeIDField({
   useEffect(() => () => validity.current(false), []);
   return (
     <NoticeRegion
-      message={invalid ? "Enter a positive whole number." : undefined}
+      message={invalid ? "LeetCode ID: use an integer from 1 to 2147483647." : undefined}
       label="Check LeetCode ID"
       id={id}
     >
-      <Field label="LeetCode ID (global questions)">
+      <Field
+        label="LeetCode ID"
+        icon={<Hash size={14} aria-hidden="true" />}
+        hint="Optional source question ID"
+      >
         <TextInput
           mono
+          aria-label="LeetCode ID"
           type="number"
           min={1}
           max={2147483647}

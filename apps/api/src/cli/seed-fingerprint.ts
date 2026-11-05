@@ -1,4 +1,4 @@
-/** @file seed-fingerprint.ts @description Go-compatible seed operation lock identity. @module cli */
+/** @file seed-fingerprint.ts @description Canonical seed operation lock identity. @module cli */
 import { createHash } from "node:crypto";
 import { markRawCases } from "../adapters/postgres/problems/case-literals.ts";
 import {
@@ -117,7 +117,7 @@ function ordered(v: JsonValue): string {
       .join(",")}}`;
   return JSON.stringify(v);
 }
-/** Operation IDs must share the original Go advisory lock while old seeders coexist. */
+/** Canonical authored content determines the seed operation lock. */
 export function seedFingerprint(raw: string, actor: string): { fingerprint: string; slug: string } {
   const c = obj(parseLosslessJson(normalizeQuestionDraft(raw))),
     p = obj(c.problem),
@@ -197,17 +197,22 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
     starterSource: "",
     runtimeRevision: str(i.runtimeRevision),
     harnessRevision: str(i.harnessRevision),
-    referenceSource: str(i.referenceSource),
   }));
-  out.solutions = sorted(c.solutions).map((i) => ({
-    language: str(i.language),
-    source: str(i.source),
-    explanationMarkdown: str(i.explanationMarkdown),
-    timeComplexity: str(i.timeComplexity),
-    spaceComplexity: str(i.spaceComplexity),
-    complexityNotes: str(i.complexityNotes),
-  }));
-  if (arr(out.solutions).length === 0) out.solutions = null;
+  out.canonicalApproachId = c.canonicalApproachId!;
+  out.approaches = arr(c.approaches)
+    .map(obj)
+    .map((a) => ({
+      id: str(a.id),
+      title: str(a.title),
+      defaultLanguage: str(a.defaultLanguage),
+      explanationMarkdown: str(a.explanationMarkdown),
+      timeComplexity: str(a.timeComplexity),
+      spaceComplexity: str(a.spaceComplexity),
+      complexityNotes: str(a.complexityNotes),
+      implementations: arr(a.implementations)
+        .map(obj)
+        .map((i) => ({ language: str(i.language), source: str(i.source) })),
+    }));
   let serialized = ordered(out);
   serialized = serialized.replace(
     /"__quorem_raw_[0-9a-f-]+_\d+__"/g,

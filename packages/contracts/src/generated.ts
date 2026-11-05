@@ -1052,9 +1052,8 @@ export interface components {
             languages?: components["schemas"]["LanguageImplementation"][];
             sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
-            solutionLanguages?: components["schemas"]["Language"][];
-            /** @description Languages with published complexity; contains no costs or solution source. */
-            complexityLanguages?: components["schemas"]["Language"][];
+            hasSolutions?: boolean;
+            hasComplexity?: boolean;
         };
         Workspace: {
             /** Format: uuid */
@@ -1375,18 +1374,27 @@ export interface components {
             runtimeRevision: string;
             harnessRevision: string;
         };
-        EditorialSolution: {
+        SolutionCode: {
             /** @enum {string} */
             language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             source: string;
+        };
+        SolutionApproach: {
+            id: string;
+            /** @description Optional for the canonical approach; other approaches require a name. */
+            title?: string;
+            /** @enum {string} */
+            defaultLanguage: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             explanationMarkdown: string;
             timeComplexity: string;
             spaceComplexity: string;
             complexityNotes: string;
+            implementations: components["schemas"]["SolutionCode"][];
         };
-        EditorialComplexity: {
-            /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
+        ApproachComplexity: {
+            id: string;
+            /** @description Optional for the canonical approach; other approaches require a name. */
+            title: string;
             timeComplexity: string;
             spaceComplexity: string;
             complexityNotes: string;
@@ -1397,7 +1405,6 @@ export interface components {
             starterSource: string;
             runtimeRevision: string;
             harnessRevision: string;
-            referenceSource: string;
         };
         QuestionProblem: {
             id: string;
@@ -1438,8 +1445,9 @@ export interface components {
             hiddenCases: components["schemas"]["CustomCase"][];
             attribution: string;
             implementations: components["schemas"]["AuthoringImplementation"][];
-            solutions: components["schemas"]["EditorialSolution"][];
             odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
+            canonicalApproachId: string;
+            approaches: components["schemas"]["SolutionApproach"][];
         };
         QuestionDraft: {
             /** Format: uuid */
@@ -2391,7 +2399,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["EditorialSolution"][];
+                        items: components["schemas"]["SolutionApproach"][];
+                        canonicalApproachId: string;
                     };
                 };
             };
@@ -2424,7 +2433,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["EditorialComplexity"][];
+                        items: components["schemas"]["ApproachComplexity"][];
+                        canonicalApproachId: string;
                     };
                 };
             };

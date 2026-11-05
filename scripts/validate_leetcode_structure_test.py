@@ -22,8 +22,8 @@ class StructureValidationTest(unittest.TestCase):
             )
         rows = {row['id']: row['error'] for row in map(json.loads, result.stdout.splitlines())}
         self.assertEqual(rows['valid'], '')
-        self.assertIn('unknown field', rows['unknown'])
-        self.assertIn('trailing', rows['trailing'])
+        self.assertIn('invalid question draft shape', rows['unknown'])
+        self.assertIn('malformed value', rows['trailing'])
 
 
 if __name__ == '__main__':

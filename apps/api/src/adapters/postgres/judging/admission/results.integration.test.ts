@@ -152,7 +152,7 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
         ],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2','')",
+        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
         [versions[i]],
       );
       await pool.query(

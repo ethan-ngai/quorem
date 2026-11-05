@@ -196,9 +196,25 @@
       "language": "python",
       "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def runWidths(self, values: list[int]) -> list[int]:\n        pass\n",
       "runtimeRevision": "python-3.12-v1",
-      "harnessRevision": "quorem-harness-v2",
-      "referenceSource": "def solve(values):\n    result = []\n    for i, value in enumerate(values):\n        if i == 0 or value != values[i-1]: result.append(1)\n        else: result[-1] += 1\n    return result\nclass Solution:\n    def runWidths(self, values):\n        return solve(values)\n"
+      "harnessRevision": "quorem-harness-v2"
     }
   ],
-  "solutions": []
+  "canonicalApproachId": "default",
+  "approaches": [
+  {
+    "id": "default",
+    "title": "",
+    "defaultLanguage": "python",
+    "explanationMarkdown": "",
+    "timeComplexity": "",
+    "spaceComplexity": "",
+    "complexityNotes": "",
+    "implementations": [
+      {
+        "language": "python",
+        "source": "def solve(values):\n    result = []\n    for i, value in enumerate(values):\n        if i == 0 or value != values[i-1]: result.append(1)\n        else: result[-1] += 1\n    return result\nclass Solution:\n    def runWidths(self, values):\n        return solve(values)\n"
+      }
+    ]
+  }
+]
 }

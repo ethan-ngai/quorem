@@ -49,10 +49,10 @@ export function MatchSettings({
   identity: DevelopmentIdentity;
   participantCount?: number;
   showHostRules?: boolean;
-  catalog?: { id: string; title: string; difficulty: string; complexityLanguages?: string[] }[];
+  catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
 }) {
   const [problems, setProblems] = useState<
-    { id: string; title: string; difficulty: string; complexityLanguages?: string[] }[]
+    { id: string; title: string; difficulty: string; hasComplexity?: boolean }[]
   >(catalog ?? []);
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
@@ -188,11 +188,11 @@ export function MatchSettings({
       <QuestionHintsControls
         complexityAvailable={
           selectedProblem
-            ? !!selectedProblem.complexityLanguages?.length
+            ? !!selectedProblem.hasComplexity
             : problems.some(
                 (problem) =>
                   pools.includes(problem.difficulty as (typeof pools)[number]) &&
-                  !!problem.complexityLanguages?.length,
+                  !!problem.hasComplexity,
               )
         }
         value={rules.hints ?? {}}

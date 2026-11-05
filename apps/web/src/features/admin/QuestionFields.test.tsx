@@ -4,22 +4,20 @@ import { expect, it } from "vitest";
 import { blankQuestion } from "./content";
 import { PublicPreview, QuestionFields } from "./QuestionFields";
 
-it("public preview excludes private reference code and hidden inputs", () => {
+it("public preview shows canonical code and excludes hidden inputs", () => {
   const content = blankQuestion();
   content.problem.title = "Public title";
   content.problem.statementMarkdown = "Public statement";
   content.hiddenCases = [{ args: ["PRIVATE_INPUT"], expected: "PRIVATE_EXPECTATION" }];
-  content.implementations[0]!.referenceSource = "PRIVATE_REFERENCE";
-  content.solutions = [
-    {
-      language: "python",
-      source: "PUBLIC_CODE",
-      explanationMarkdown: "Public explanation",
-      timeComplexity: "O(n)",
-      spaceComplexity: "O(1)",
-      complexityNotes: "n is the input length.",
-    },
-  ];
+
+  content.approaches[0] = {
+    ...content.approaches[0]!,
+    implementations: [{ language: "python", source: "PUBLIC_CODE" }],
+    explanationMarkdown: "Public explanation",
+    timeComplexity: "O(n)",
+    spaceComplexity: "O(1)",
+    complexityNotes: "n is the input length.",
+  };
   const markup = renderToStaticMarkup(<PublicPreview content={content} />);
   expect(markup).toContain("Public statement");
   expect(markup).toContain("PUBLIC_CODE");

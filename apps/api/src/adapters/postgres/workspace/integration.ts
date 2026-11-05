@@ -99,7 +99,7 @@ before(async () => {
       [v, p, JSON.stringify(levels), Buffer.from(sidecar), Buffer.from("SECRET HIDDEN")],
     );
     await pool.query(
-      "insert into problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) values($1,'python','starter','runtime','harness','SECRET REFERENCE')",
+      "insert into problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) values($1,'python','starter','runtime','harness')",
       [v],
     );
     await pool.query("update problems set current_version_id=$1 where id=$2", [v, p]);

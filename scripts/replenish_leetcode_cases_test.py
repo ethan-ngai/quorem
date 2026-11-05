@@ -20,7 +20,7 @@ worker = load('worker', 'replenish-leetcode-worker.py')
 
 class ReplenishTest(unittest.TestCase):
     def fixture(self):
-        return {'problem': {'leetcodeId': 1, 'slug': 'lc-example', 'signature': {'className': 'Solution', 'methodName': 'f', 'parameters': [{'name': 'n', 'type': 'int'}], 'returnType': 'int'}, 'constraints': [{'kind': 'prose', 'text': '1 <= n <= 5'}, {'kind': 'prose', 'text': 'n is a prime.'}], 'examples': [{'args': [1], 'expected': 1}]}, 'hiddenCases': [{'args': [2], 'expected': 2}], 'implementations': [{'referenceSource': 'class Solution: pass'}]}
+        return {'problem': {'leetcodeId': 1, 'slug': 'lc-example', 'signature': {'className': 'Solution', 'methodName': 'f', 'parameters': [{'name': 'n', 'type': 'int'}], 'returnType': 'int'}, 'constraints': [{'kind': 'prose', 'text': '1 <= n <= 5'}, {'kind': 'prose', 'text': 'n is a prime.'}], 'examples': [{'args': [1], 'expected': 1}]}, 'hiddenCases': [{'args': [2], 'expected': 2}], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'python', 'source': 'class Solution: pass'}]}], 'implementations': []}
 
     def test_source_cases_are_filtered_without_claiming_unparsed_prose(self):
         row = {'input_output': [{'input': 'n = 1', 'output': '1'}, {'input': 'n = 2', 'output': '9'}, {'input': 'n = 6', 'output': '6'}, {'input': 'n = 3', 'output': '3'}]}

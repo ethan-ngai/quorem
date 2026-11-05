@@ -77,6 +77,7 @@ async function fixtureTables(client) {
     "problem_languages",
     "problem_odyssey_cases",
     "problem_solutions",
+    "problem_solution_approaches",
     "problem_tags",
     "problem_test_cases",
     "runner_version_input_cases",

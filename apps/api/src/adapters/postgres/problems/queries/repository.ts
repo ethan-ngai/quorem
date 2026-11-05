@@ -1,3 +1,4 @@
+import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 /** @file repository.ts @description Explicit authorized PostgreSQL catalog projections. @module problems */
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
@@ -33,8 +34,8 @@ const projection = sql.raw(`jsonb_build_object(
 'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
 'sql',v.sql_config,'odyssey',CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE NULL END,
 'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,
-'solutionLanguages',CASE WHEN v.odyssey IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(source)<>''),'[]'::jsonb) END,
-'complexityLanguages',CASE WHEN v.odyssey IS NOT NULL THEN '[]'::jsonb ELSE COALESCE((SELECT jsonb_agg(language ORDER BY language) FROM problem_solutions WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),'[]'::jsonb) END,
+'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id),
+'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
 'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb),
@@ -66,8 +67,6 @@ function projected(row: Projected): JsonValue {
     );
   for (const key of ["sql", "odyssey", "leetcodeId"]) if (value[key] === null) delete value[key];
   if (value.isPrivate === false) delete value.isPrivate;
-  for (const key of ["solutionLanguages", "complexityLanguages"])
-    if (Array.isArray(value[key]) && value[key].length === 0) delete value[key];
   return value;
 }
 type Cursor = { title: string; slug: string; rank: number; filter: string };
@@ -212,33 +211,13 @@ async function readEditorials(
   if (state.active && !(complexityOnly && state.allowComplexity))
     throw new ApplicationError("forbidden", "Editorial unavailable during an active match", 403);
   if (state.staged === null) throw new ApplicationError("not_found", "Problem not found", 404);
-  if (state.staged) return '{"items":[]}';
-  if (complexityOnly) {
-    const values = (
-      await tx.execute<{
-        language: string;
-        timeComplexity: string;
-        spaceComplexity: string;
-        complexityNotes: string;
-      }>(
-        sql`SELECT language,time_complexity AS "timeComplexity",space_complexity AS "spaceComplexity",complexity_notes AS "complexityNotes" FROM problem_solutions WHERE version_id::text=${id} AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>'' ORDER BY language`,
-      )
-    ).rows;
-    return JSON.stringify({ items: values });
-  }
-  const values = (
-    await tx.execute<{
-      language: string;
-      source: string;
-      explanationMarkdown: string;
-      timeComplexity: string;
-      spaceComplexity: string;
-      complexityNotes: string;
-    }>(
-      sql`SELECT language,source,explanation_markdown AS "explanationMarkdown",time_complexity AS "timeComplexity",space_complexity AS "spaceComplexity",complexity_notes AS "complexityNotes" FROM problem_solutions WHERE version_id::text=${id} ORDER BY language`,
+  if (state.staged) return '{"canonicalApproachId":"","items":[]}';
+  const row = (
+    await tx.execute<{ value: string }>(
+      sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`${id}::uuid`)},'items',${approachesProjection(sql`${id}::uuid`, !complexityOnly)})::text AS value`,
     )
-  ).rows;
-  return JSON.stringify({ items: values });
+  ).rows[0];
+  return row.value;
 }
 /** Select only candidate identifiers under the caller's transaction. */
 export async function readCandidates(

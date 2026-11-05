@@ -46,10 +46,26 @@
     {
       "language": "postgresql",
       "starterSource": "SELECT id FROM items;",
-      "referenceSource": "SELECT id FROM items WHERE id > 0 ORDER BY id;",
       "runtimeRevision": "postgresql-17.6-v1",
       "harnessRevision": "quorem-postgresql-v2"
     }
   ],
-  "solutions": []
+  "canonicalApproachId": "default",
+  "approaches": [
+  {
+    "id": "default",
+    "title": "",
+    "defaultLanguage": "postgresql",
+    "explanationMarkdown": "",
+    "timeComplexity": "",
+    "spaceComplexity": "",
+    "complexityNotes": "",
+    "implementations": [
+      {
+        "language": "postgresql",
+        "source": "SELECT id FROM items WHERE id > 0 ORDER BY id;"
+      }
+    ]
+  }
+]
 }

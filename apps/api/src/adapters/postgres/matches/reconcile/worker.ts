@@ -75,7 +75,7 @@ it("does not decide a match from an unverified terminal result", async () => {
         sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,1,'T','easy','','{}','[]','{}','test')`,
       );
       await tx.execute(
-        sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES(${version}::uuid,'python','','runtime','harness','')`,
+        sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version}::uuid,'python','','runtime','harness')`,
       );
       await tx.execute(
         sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES(${id}::uuid,${owner},${id},clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',${version}::uuid)`,

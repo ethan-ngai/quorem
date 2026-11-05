@@ -19,7 +19,6 @@ import {
   persistQuestionVersion,
   resumeQuestionVersion,
 } from "../adapters/postgres/problems/publication.ts";
-const list = (v: JsonValue | undefined): JsonValue[] => (Array.isArray(v) ? v : []);
 const str = (v: JsonValue | undefined): string => {
   if (typeof v !== "string") throw new Error("Invalid fixture");
   return v;
@@ -42,12 +41,6 @@ export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSign
         );
       }),
     );
-  const editorials = new Map<string, JsonValue[]>();
-  for (const path of await files(join(root, "fixtures/editorials"))) {
-    signal?.throwIfAborted();
-    const item = object(parseLosslessJson(await readFile(path, "utf8")));
-    editorials.set(str(item.versionId), list(item.solutions));
-  }
   const paths = await files(join(root, "fixtures/problems"));
   if (!paths.length) throw new Error("No catalog fixtures");
   for (const path of paths) {
@@ -58,8 +51,6 @@ export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSign
       versionId = str(p.id),
       version = Number(str(p.version));
     if (!Number.isSafeInteger(version) || version < 1) throw new Error("Invalid fixture version");
-    c.solutions = editorials.get(versionId) ?? list(c.solutions);
-    editorials.delete(versionId);
     const raw = stringifyLosslessJson(c);
     validateQuestionPublication(raw, validateQuestionSchema, languageRuntime);
     signal?.throwIfAborted();
@@ -97,5 +88,4 @@ export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSign
       }),
     );
   }
-  if (editorials.size) throw new Error("Editorial fixture version not in catalog");
 }

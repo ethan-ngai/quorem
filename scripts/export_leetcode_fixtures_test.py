@@ -32,7 +32,7 @@ class ExportTest(unittest.TestCase):
             self.assertFalse((root / 'output' / '2.json').exists())
 
     def test_constraint_screen_rejects_unverified_fixture(self):
-        content = {'problem': {'signature': {'parameters': [{'name': 'x'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'x is prime'}]}, 'hiddenCases': [], 'implementations': [{'referenceSource': 'pass'}]}
+        content = {'problem': {'signature': {'parameters': [{'name': 'x'}]}, 'examples': [], 'constraints': [{'kind': 'prose', 'text': 'x is prime'}]}, 'hiddenCases': [], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'title': '', 'defaultLanguage': 'python', 'explanationMarkdown': '', 'timeComplexity': '', 'spaceComplexity': '', 'complexityNotes': '', 'implementations': [{'language': 'python', 'source': 'pass'}]}], 'implementations': []}
         self.assertFalse(export.assess(content)['constraint_screen_passed'])
 
 

@@ -192,11 +192,11 @@ export async function prepareInterviewSnapshot(
   }
   if (!row.total && typeof problem.id === "string") {
     const rows = (
-      await tx.execute<{ language: string }>(
-        sql`SELECT language FROM problem_solutions WHERE version_id=${problem.id}::uuid AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>'' ORDER BY language`,
+      await tx.execute<{ available: boolean }>(
+        sql`SELECT EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=${problem.id}::uuid AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>'') AS available`,
       )
     ).rows;
-    if (rows.length) problem.complexityLanguages = rows.map((item) => item.language);
+    if (rows[0]?.available) problem.hasComplexity = true;
   }
   value.members = parseLosslessJson(row.members);
   if (row.latest) value.latestSubmissionId = row.latest;

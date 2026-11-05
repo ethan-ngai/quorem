@@ -505,9 +505,7 @@ function InterviewPad({
                         onChange={(monitoring) => void mutate("monitoring", monitoring)}
                       />
                       <QuestionHintsControls
-                        complexityAvailable={
-                          question.problem.complexityLanguages?.includes(language) ?? false
-                        }
+                        complexityAvailable={question.problem.hasComplexity ?? false}
                         value={snapshot.hints ?? {}}
                         disabled={busy}
                         onChange={(hints) => void mutate("hints", hints)}
@@ -590,32 +588,30 @@ function InterviewPad({
             selectedLevel={interviewer ? undefined : selectedLevel}
             allowTopics={snapshot.hints?.topics !== false}
           >
-            {snapshot.hints?.complexity === true &&
-              question.problem.complexityLanguages?.includes(language) && (
-                <EditorialPanel
-                  theme={theme.theme}
-                  colorScheme={preferences.editorSchemes[theme.theme]}
-                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
-                  versionId={question.problem.id}
-                  language={language}
-                />
-              )}
+            {snapshot.hints?.complexity === true && (question.problem.hasComplexity ?? false) && (
+              <EditorialPanel
+                theme={theme.theme}
+                colorScheme={preferences.editorSchemes[theme.theme]}
+                identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                versionId={question.problem.id}
+                language={language}
+              />
+            )}
           </OdysseyPanel>
         ) : (
           <ProblemStatement
             problem={question.problem}
             allowTopics={snapshot.hints?.topics !== false}
           >
-            {snapshot.hints?.complexity === true &&
-              question.problem.complexityLanguages?.includes(language) && (
-                <EditorialPanel
-                  theme={theme.theme}
-                  colorScheme={preferences.editorSchemes[theme.theme]}
-                  identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
-                  versionId={question.problem.id}
-                  language={language}
-                />
-              )}
+            {snapshot.hints?.complexity === true && (question.problem.hasComplexity ?? false) && (
+              <EditorialPanel
+                theme={theme.theme}
+                colorScheme={preferences.editorSchemes[theme.theme]}
+                identity={(account.data?.user.id ?? `interview:${id}`) as DevelopmentIdentity}
+                versionId={question.problem.id}
+                language={language}
+              />
+            )}
           </ProblemStatement>
         )
       }

@@ -164,8 +164,8 @@ def draft(staged, corpus):
     return {
         "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": source.get("topics", []), "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 100000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
-        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness, "referenceSource": reference}],
-        "solutions": [{"language": "python", "source": reference, "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": ""}]}
+        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness}],
+        "canonicalApproachId": "default", "approaches": [{"id": "default", "title": "", "defaultLanguage": "python", "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": "", "implementations": [{"language": "python", "source": reference}]}]}
 
 
 def matches_type(typ, value):

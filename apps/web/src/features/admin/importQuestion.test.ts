@@ -10,7 +10,7 @@ describe("question JSON import", () => {
   it("preserves private judging and editorial content", () => {
     const content = blankQuestion();
     content.hiddenCases = [{ args: [42], expected: 42 }];
-    content.implementations[0]!.referenceSource = "private reference";
+    content.approaches[0]!.implementations[0]!.source = "canonical reference";
     expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {
@@ -39,7 +39,6 @@ describe("question JSON import", () => {
         starterSource: "SELECT amount FROM items",
         runtimeRevision: "postgresql-17.6-v1",
         harnessRevision: "quorem-postgresql-v2",
-        referenceSource: "SELECT amount FROM items",
       },
     ];
     expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);

@@ -129,7 +129,7 @@ before(async () => {
   );
   for (const l of ["python", "java"])
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source) VALUES($1,$2,'','runtime','harness','')",
+      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,$2,'','runtime','harness')",
       [version, l],
     );
   await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [problem, version]);
