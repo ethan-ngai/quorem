@@ -71,3 +71,7 @@
   font-family: var(--font-code);
   font-variant-ligatures: none;
 }
+
+.segmented-control[data-has-selection="false"] > .segmented-control-selection {
+  opacity: 0;
+}

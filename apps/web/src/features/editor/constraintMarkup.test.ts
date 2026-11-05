@@ -68,3 +68,23 @@ it("renders strict endpoints independently in math markup", () => {
     "` x ` $<$ $1$",
   );
 });
+
+it("shows existential quantification and descending order in public content", () => {
+  expect(
+    constraintMarkup({
+      kind: "comparison",
+      left: { parameter: "a", projection: "elements" },
+      right: { parameter: "n", projection: "value" },
+      operator: "lt",
+      quantifier: "any",
+    }),
+  ).toContain("$\\exists$");
+  expect(
+    constraintMarkup({
+      kind: "property",
+      target: { parameter: "a", projection: "elements" },
+      property: "nondecreasing",
+      direction: "desc",
+    }),
+  ).toContain("nonincreasing");
+});

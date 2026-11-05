@@ -1,3 +1,4 @@
+import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { TextInput } from "../../ui/TextControl";
 import { MarkdownField } from "../../ui/MarkdownField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -35,6 +36,8 @@ import {
   Clock3,
   Code2,
   FileText,
+  FileCode2,
+  Database,
   LockKeyhole,
   ListFilter,
   Settings2,
@@ -68,7 +71,7 @@ function QuestionTypeControl({
         disabled={disabled}
         options={[
           { value: "coding", label: "Coding", icon: <Code2 size={14} aria-hidden="true" /> },
-          { value: "sql", label: "SQL", icon: <Braces size={14} aria-hidden="true" /> },
+          { value: "sql", label: "SQL", icon: <Database size={14} aria-hidden="true" /> },
         ]}
         onChange={(type) =>
           onChange(
@@ -78,11 +81,12 @@ function QuestionTypeControl({
       />
       <SegmentedControl
         label="Question structure"
+        iconOnly
         value={staged ? "staged" : "single"}
         disabled={disabled}
         options={[
-          { value: "single", label: "Single" },
-          { value: "staged", label: "Multi-stage" },
+          { value: "single", label: "Single", icon: <FileCode2 size={16} aria-hidden="true" /> },
+          { value: "staged", label: "Multi-stage (Odyssey)", icon: <OdysseyIcon /> },
         ]}
         onChange={(structure) =>
           onChange(sql ? (structure === "staged" ? "sql-staged" : "sql-single") : structure)
@@ -142,7 +146,7 @@ export function QuestionFields({
           {
             value: "interface",
             label: problem.sql ? "Schema" : "Signature",
-            icon: <Braces aria-hidden="true" />,
+            icon: problem.sql ? <Database aria-hidden="true" /> : <Braces aria-hidden="true" />,
           } as const,
         ]
       : []),
@@ -420,6 +424,7 @@ export function QuestionFields({
               <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
             </summary>
             <ConstraintFields
+              onValidityChange={(invalid) => onValidityChange("constraints", invalid)}
               value={problem.constraints}
               signature={problem.sql ? undefined : problem.signature}
               disabled={disabled}

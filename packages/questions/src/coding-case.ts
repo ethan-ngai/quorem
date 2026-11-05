@@ -1,8 +1,8 @@
 /** @file coding-case.ts @description Coding cases, constraints and sequence results. @module questions */
 import { nodeType } from "@quorem/contracts/node-type";
-import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
-import { validateConstraints, rangeContains } from "./constraints.ts";
+import { rangeMatches, comparisonMatches, propertyMatches } from "./constraintPredicates.ts";
+import { validateConstraints } from "./constraints.ts";
 import {
   compareUtf8,
   JsonNumber,
@@ -64,22 +64,16 @@ function applyConstraints(
     if (target.projection === "sum") return [values.reduce((a, b) => a + b, 0)];
     return values;
   };
-  const finite = (value: number | bigint | undefined): value is number | bigint =>
-    typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value));
   for (const c of constraints) {
     switch (c.kind) {
       case "range":
-        if (project(c.target).some((value) => !rangeContains(c, value)))
+        if (!rangeMatches(c, project(c.target)))
           throw new Error(
             `argument ${c.target.parameter}: ${c.target.projection} outside allowed range`,
           );
         break;
       case "comparison": {
-        const [a, b] = [project(c.left)[0], project(c.right)[0]];
-        const cmp = finite(a) && finite(b) ? compareNumericValues(a, b) : NaN;
-        const valid = { eq: cmp === 0, le: cmp <= 0, lt: cmp < 0, ge: cmp >= 0, gt: cmp > 0 }[
-          c.operator
-        ];
+        const valid = comparisonMatches(c, project(c.left), project(c.right));
         if (!valid)
           throw new Error(
             `arguments ${c.left.parameter} and ${c.right.parameter}: comparison ${c.operator} failed`,
@@ -87,16 +81,8 @@ function applyConstraints(
         break;
       }
       case "property": {
-        const values = project(c.target);
-        const seen = new Set<number | bigint>();
-        for (let i = 0; i < values.length; i++) {
-          if (
-            (c.property === "unique" && seen.has(values[i])) ||
-            (c.property !== "unique" && i > 0 && values[i - 1] > values[i])
-          )
-            throw new Error(`argument ${c.target.parameter}: requires ${c.property}`);
-          seen.add(values[i]);
-        }
+        if (!propertyMatches(c, project(c.target)))
+          throw new Error(`argument ${c.target.parameter}: requires ${c.property}`);
         break;
       }
     }

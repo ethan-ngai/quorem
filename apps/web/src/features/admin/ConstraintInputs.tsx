@@ -1,18 +1,18 @@
-import { Tally5, Hash } from "lucide-react";
-import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
-import { validateConstraints } from "@quorem/questions";
+import { Tally5, Hash, Ruler, ListOrdered, Sigma, CircleHelp } from "lucide-react";
+import type { Constraint, ConstraintTarget } from "@quorem/contracts";
+import { constraintTargetOptions } from "@quorem/questions";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { SelectField } from "../../ui/SelectField";
 import { Tooltip } from "../../ui/Tooltip";
 import { inlineStatement } from "../editor/components/StatementMarkdown";
 
 const measures = {
-  value: "value",
-  length: "length",
-  elements: "each element",
-  sum: "sum",
-  nodeCount: "node count",
-  nodeValues: "each node value",
+  value: { label: "Value", icon: Hash },
+  length: { label: "Length", icon: Ruler },
+  elements: { label: "Each element", icon: ListOrdered },
+  sum: { label: "Sum", icon: Sigma },
+  nodeCount: { label: "Node count", icon: Tally5 },
+  nodeValues: { label: "Node values", icon: Hash },
 } as const;
 export function MathOperator({ source, className = "" }: { source: string; className?: string }) {
   return (
@@ -59,6 +59,44 @@ export function BoundRelation({
   );
 }
 
+export function Quantifier({
+  label,
+  value,
+  disabled,
+  onChange,
+  pairs = false,
+}: {
+  pairs?: boolean;
+  label: string;
+  value: "all" | "any" | undefined;
+  disabled: boolean;
+  onChange: (value: "all" | "any") => void;
+}) {
+  return (
+    <div className="constraint-quantifier">
+      <SegmentedControl
+        label={label}
+        value={value ?? "all"}
+        disabled={disabled}
+        iconOnly
+        options={[
+          {
+            value: "all",
+            label: pairs ? "Every value pair (∀)" : "Every value (∀)",
+            icon: <MathOperator source={"\\forall"} />,
+          },
+          {
+            value: "any",
+            label: pairs ? "At least one value pair (∃)" : "At least one value (∃)",
+            icon: <MathOperator source={"\\exists"} />,
+          },
+        ]}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
 export function initialConstraint(
   kind: Exclude<Constraint["kind"], "prose">,
   target: ConstraintTarget,
@@ -68,24 +106,8 @@ export function initialConstraint(
   return { kind, target, property: "unique" };
 }
 
-/** Authoring choices use the same admissibility rules as saved constraints. */
-export function constraintTargets(
-  signature: Signature | undefined,
-  kind: Exclude<Constraint["kind"], "prose">,
-): ConstraintTarget[] {
-  if (!signature) return [];
-  return signature.parameters.flatMap(({ name }) =>
-    (Object.keys(measures) as ConstraintTarget["projection"][]).flatMap((projection) => {
-      const target = { parameter: name, projection };
-      try {
-        validateConstraints(signature, [initialConstraint(kind, target)]);
-        return [target];
-      } catch {
-        return [];
-      }
-    }),
-  );
-}
+/** Available targets come from the domain policy shared with admission. */
+export const constraintTargets = constraintTargetOptions;
 
 export function Target({
   label,
@@ -100,16 +122,34 @@ export function Target({
   disabled: boolean;
   onChange: (value: ConstraintTarget) => void;
 }) {
-  const key = (target: ConstraintTarget) => JSON.stringify([target.parameter, target.projection]);
-  const options = targets.some((target) => key(target) === key(value))
-    ? targets
-    : [value, ...targets];
+  if (!targets.length)
+    return (
+      <Tooltip content="No compatible input for this comparison">
+        <span
+          role="img"
+          aria-label="No compatible input"
+          className="constraint-measure"
+          tabIndex={0}
+        >
+          <CircleHelp size={15} aria-hidden="true" />
+        </span>
+      </Tooltip>
+    );
+  const options = targets;
   const parameters = [...new Set(options.map((target) => target.parameter))];
   const projections = options.filter((target) => target.parameter === value.parameter);
-  const measureLabels = { ...measures, nodeCount: "Node count", nodeValues: "Node values" };
+  const measure = measures[value.projection];
+  const MeasureIcon = measure.icon;
+  function selectParameter(parameter: string) {
+    const next =
+      options.find(
+        (target) => target.parameter === parameter && target.projection === value.projection,
+      ) ?? options.find((target) => target.parameter === parameter);
+    if (next) onChange(next);
+  }
   return (
     <div className="constraint-target">
-      {parameters.length === 1 ? (
+      {parameters.length === 1 && parameters[0] === value.parameter ? (
         <code className="mono-text">{value.parameter}</code>
       ) : parameters.length <= 4 ? (
         <SegmentedControl
@@ -118,14 +158,7 @@ export function Target({
           value={value.parameter}
           disabled={disabled}
           options={parameters.map((parameter) => ({ value: parameter, label: parameter }))}
-          onChange={(parameter) =>
-            onChange(
-              options.find(
-                (target) =>
-                  target.parameter === parameter && target.projection === value.projection,
-              ) ?? options.find((target) => target.parameter === parameter)!,
-            )
-          }
+          onChange={selectParameter}
         />
       ) : (
         <SelectField
@@ -134,39 +167,34 @@ export function Target({
           value={value.parameter}
           disabled={disabled}
           options={parameters.map((parameter) => ({ value: parameter, label: parameter }))}
-          onChange={(parameter) =>
-            onChange(
-              options.find(
-                (target) =>
-                  target.parameter === parameter && target.projection === value.projection,
-              ) ?? options.find((target) => target.parameter === parameter)!,
-            )
-          }
+          onChange={selectParameter}
         />
       )}
-      {projections.length > 1 ? (
-        <SegmentedControl
-          label={label}
-          iconOnly={projections.every(
-            (target) => target.projection === "nodeCount" || target.projection === "nodeValues",
-          )}
-          value={value.projection}
-          disabled={disabled}
-          options={projections.map((target) => ({
-            value: target.projection,
-            label: measureLabels[target.projection],
-            icon:
-              target.projection === "nodeCount" ? (
-                <Tally5 size={15} aria-hidden="true" />
-              ) : target.projection === "nodeValues" ? (
-                <Hash size={15} aria-hidden="true" />
-              ) : undefined,
-          }))}
-          onChange={(projection) => onChange({ ...value, projection })}
-        />
-      ) : (
-        <span className="constraint-measure">{measureLabels[value.projection]}</span>
-      )}
+      {projections.length > 0 &&
+        (projections.length > 1 ||
+        !projections.some((target) => target.projection === value.projection) ? (
+          <SegmentedControl
+            label={label}
+            iconOnly
+            value={value.projection}
+            disabled={disabled}
+            options={projections.map((target) => {
+              const { label, icon: Icon } = measures[target.projection];
+              return {
+                value: target.projection,
+                label,
+                icon: <Icon size={15} aria-hidden="true" />,
+              };
+            })}
+            onChange={(projection) => onChange({ ...value, projection })}
+          />
+        ) : (
+          <Tooltip content={measure.label}>
+            <span className="constraint-measure" role="img" aria-label={measure.label} tabIndex={0}>
+              <MeasureIcon size={15} aria-hidden="true" />
+            </span>
+          </Tooltip>
+        ))}
     </div>
   );
 }

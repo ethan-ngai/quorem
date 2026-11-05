@@ -42,8 +42,21 @@
   flex-shrink: 0;
 }
 .constraint-measure {
-  font-size: var(--text-small);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  min-height: 26px;
+  border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
+}
+.constraint-measure:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.constraint-expression[data-kind="comparison"],
+.constraint-expression[data-kind="property"] {
+  column-gap: var(--space-3);
 }
 .constraint-expression[data-kind="prose"] {
   display: block;
@@ -152,4 +165,40 @@
   .bound-inclusive-line {
     transition: none;
   }
+}
+
+.constraint-expression[data-kind="range"][data-quantified="true"] {
+  grid-template-columns: auto minmax(7rem, 8.5rem) 34px max-content 34px minmax(7rem, 8.5rem);
+}
+@media (max-width: 600px) {
+  .constraint-expression[data-kind="range"][data-quantified="true"] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .constraint-expression[data-kind="range"] .constraint-quantifier {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  .constraint-expression[data-kind="range"][data-quantified="true"] .constraint-target {
+    grid-column: 2 / -1;
+  }
+}
+
+.constraint-error {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
+  font-size: var(--text-small);
+}
+.constraint-row > .icon-button {
+  grid-column: 3;
+  grid-row: 1;
+}
+.constraint-semantics {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+}
+.constraint-semantics:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }

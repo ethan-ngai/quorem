@@ -21,7 +21,7 @@ it("offers measurements appropriate to the rule and parameter", () => {
   expect(ranges).toContainEqual({ parameter: "root", projection: "nodeValues" });
   expect(ranges).not.toContainEqual({ parameter: "root", projection: "length" });
   expect(ranges).not.toContainEqual({ parameter: "text", projection: "value" });
-  expect(constraintTargets(signature, "comparison")).not.toContainEqual({
+  expect(constraintTargets(signature, "comparison")).toContainEqual({
     parameter: "nums",
     projection: "elements",
   });
@@ -83,4 +83,89 @@ it("renders independent endpoint inclusivity and real LaTeX relation glyphs", ()
   expect(html).toContain('aria-label="Include constraint 1 upper bound" aria-pressed="true"');
   const math = renderToStaticMarkup(<MathOperator source={"\\le"} />);
   expect(math).toContain("<mo>≤</mo>");
+});
+
+it("keeps single-choice node measurements iconic in property and comparison rows", () => {
+  const nodes: Signature = { ...signature, parameters: [{ name: "root", type: "TreeNode" }] };
+  const html = renderToStaticMarkup(
+    <ConstraintFields
+      signature={nodes}
+      disabled={false}
+      onChange={() => {}}
+      value={[
+        {
+          kind: "property",
+          target: { parameter: "root", projection: "nodeValues" },
+          property: "unique",
+        },
+        {
+          kind: "comparison",
+          left: { parameter: "root", projection: "nodeCount" },
+          right: { parameter: "root", projection: "nodeValues" },
+          operator: "le",
+        },
+      ]}
+    />,
+  );
+  expect(html).toContain('role="img" aria-label="Node values"');
+  expect(html).toContain('role="radio" aria-label="Node count"');
+  expect(html).not.toContain(">Node values</span>");
+  expect(html).not.toContain(">Node count</span>");
+  expect(html).toContain('aria-label="Constraint 2 relation"');
+  expect(html).toContain('role="combobox"');
+  expect(html).toContain("<mo>≤</mo>");
+  expect(html).toContain('aria-label="Unique values"');
+  expect(html).not.toContain(">has unique values<");
+});
+
+it("exposes quantifiers, both node measurements, and sort direction", () => {
+  const nodes: Signature = { ...signature, parameters: [{ name: "root", type: "TreeNode" }] };
+  const html = renderToStaticMarkup(
+    <ConstraintFields
+      signature={nodes}
+      disabled={false}
+      onChange={() => {}}
+      value={[
+        {
+          kind: "comparison",
+          left: { parameter: "root", projection: "nodeValues" },
+          right: { parameter: "root", projection: "nodeCount" },
+          operator: "lt",
+          quantifier: "any",
+        },
+        {
+          kind: "property",
+          target: { parameter: "root", projection: "nodeValues" },
+          property: "nondecreasing",
+          direction: "desc",
+        },
+      ]}
+    />,
+  );
+  expect(html).toContain('aria-label="At least one value (∃)" aria-checked="true"');
+  expect(html).toContain('aria-label="Descending (DESC)" aria-checked="true"');
+  expect(html).toContain('aria-label="Node values"');
+  expect(html).toContain('aria-label="Node count"');
+});
+
+it("omits scalar self-operands and explains existing invalid comparisons", () => {
+  const nodes: Signature = { ...signature, parameters: [{ name: "root", type: "TreeNode" }] };
+  const html = renderToStaticMarkup(
+    <ConstraintFields
+      signature={nodes}
+      disabled={false}
+      onChange={() => {}}
+      value={[
+        {
+          kind: "comparison",
+          left: { parameter: "root", projection: "nodeCount" },
+          right: { parameter: "root", projection: "nodeCount" },
+          operator: "le",
+        },
+      ]}
+    />,
+  );
+  expect(html).toContain("a scalar compared with itself is always true or always false");
+  expect(html).not.toContain('aria-label="Node count"');
+  expect(html).toContain('aria-label="Node values" aria-checked="false"');
 });

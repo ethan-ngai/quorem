@@ -28,6 +28,7 @@ export function SegmentedControl<Value extends string>({
   return (
     <div
       className="segmented-control"
+      data-has-selection={options.some((option) => option.value === value)}
       data-icon-only={iconOnly || undefined}
       data-mono={mono || undefined}
       role="radiogroup"

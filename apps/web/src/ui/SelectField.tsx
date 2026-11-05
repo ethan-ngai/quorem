@@ -4,7 +4,24 @@ import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
 import { Tooltip } from "./Tooltip";
 
-export type SelectOption = { value: string; label: string; leading?: ReactNode };
+export type SelectOption = {
+  value: string;
+  label: string;
+  leading?: ReactNode;
+  display?: ReactNode;
+};
+
+function optionContent(option: SelectOption | undefined) {
+  if (!option) return undefined;
+  return option.display === undefined ? (
+    option.label
+  ) : (
+    <>
+      {option.display}
+      <span className="sr-only">{option.label}</span>
+    </>
+  );
+}
 
 type SelectFieldProps = {
   label: string;
@@ -65,7 +82,7 @@ export function SelectField({
       {selected?.leading}
       {!iconOnly && (
         <>
-          <Select.Value placeholder={selected?.label}>{selected?.label}</Select.Value>
+          <Select.Value placeholder={selected?.label}>{optionContent(selected)}</Select.Value>
           <Select.Icon className="select-field-chevron">
             <ChevronDown size={14} aria-hidden="true" />
           </Select.Icon>
@@ -102,7 +119,7 @@ export function SelectField({
                 textValue={option.label}
               >
                 {option.leading}
-                <Select.ItemText>{option.label}</Select.ItemText>
+                <Select.ItemText>{optionContent(option)}</Select.ItemText>
                 <span className="select-field-check">
                   <Select.ItemIndicator>
                     <Check size={14} aria-hidden="true" />

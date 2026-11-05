@@ -1,10 +1,24 @@
-import { useRef, useState } from "react";
-import { ArrowLeftRight, Brackets, ListChecks, Plus, Text, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowLeftRight,
+  Brackets,
+  ListChecks,
+  Plus,
+  Text,
+  Trash2,
+  ListOrdered,
+  Fingerprint,
+  Info,
+  ArrowDown01,
+  ArrowDown10,
+} from "lucide-react";
+import { validateConstraints as validateDefinitions, comparisonChoices } from "@quorem/questions";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Tooltip } from "../../ui/Tooltip";
 import * as Popover from "../../ui/Popover";
 import { TextArea, TextInput } from "../../ui/TextControl";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
+import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import {
   Target,
@@ -12,6 +26,7 @@ import {
   MathOperator,
   initialConstraint,
   constraintTargets,
+  Quantifier,
 } from "./ConstraintInputs";
 import "./constraints.css";
 
@@ -30,9 +45,8 @@ const operators = {
 } as const;
 
 const properties = {
-  sorted: "is sorted",
-  nondecreasing: "is nondecreasing",
-  unique: "has unique values",
+  ordered: { label: "Sorted values (equal values allowed)", icon: ListOrdered },
+  unique: { label: "Unique values", icon: Fingerprint },
 } as const;
 
 export function ConstraintFields({
@@ -40,7 +54,9 @@ export function ConstraintFields({
   signature,
   disabled,
   onChange,
+  onValidityChange,
 }: {
+  onValidityChange?: (invalid: boolean) => void;
   value: Constraint[];
   signature?: Signature;
   disabled: boolean;
@@ -49,8 +65,26 @@ export function ConstraintFields({
   const addConstraint = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const numericTargets = constraintTargets(signature, "range");
-  const scalarTargets = constraintTargets(signature, "comparison");
+  const comparisonTargets = constraintTargets(signature, "comparison");
   const sequenceTargets = constraintTargets(signature, "property");
+  function comparisonError(rule: Extract<Constraint, { kind: "comparison" }>): string | undefined {
+    if (!signature) return "A signature is required to compare inputs.";
+    try {
+      validateDefinitions(signature, [rule]);
+    } catch (error) {
+      return (error instanceof Error ? error.message : String(error)).replace(
+        /^constraint 1: /,
+        "",
+      );
+    }
+  }
+  const invalid = value.some((rule) => rule.kind === "comparison" && !!comparisonError(rule));
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(() => {
+    validity.current?.(invalid);
+  }, [invalid]);
+  useEffect(() => () => validity.current?.(false), []);
   const addOptions = [
     {
       kind: "range",
@@ -64,7 +98,7 @@ export function ConstraintFields({
       label: "Compare values",
       detail: "Relate two input measurements",
       icon: ruleTypes.comparison.icon,
-      enabled: scalarTargets.length > 0,
+      enabled: comparisonTargets.length > 1,
     },
     {
       kind: "property",
@@ -82,9 +116,14 @@ export function ConstraintFields({
     },
   ] as const;
   function add(kind: Constraint["kind"]) {
-    const target = { range: numericTargets, comparison: scalarTargets, property: sequenceTargets };
+    const target = {
+      range: numericTargets,
+      comparison: comparisonTargets,
+      property: sequenceTargets,
+    };
     const rule: Constraint =
       kind === "prose" ? { kind, text: "" } : initialConstraint(kind, target[kind][0]!);
+    if (rule.kind === "comparison") rule.right = comparisonTargets[1]!;
     onChange([...value, rule]);
     setOpen(false);
   }
@@ -115,6 +154,8 @@ export function ConstraintFields({
               onChange={onChange}
             />
           );
+          const comparison =
+            rule.kind === "comparison" ? comparisonChoices(signature, rule) : undefined;
           const RuleIcon = ruleTypes[rule.kind].icon;
           return (
             <div className="constraint-row" role="group" aria-label={`Constraint ${index + 1}`}>
@@ -123,7 +164,35 @@ export function ConstraintFields({
                   <RuleIcon size={14} aria-hidden="true" />
                 </span>
               </Tooltip>
-              <div className="constraint-expression" data-kind={rule.kind}>
+              <div
+                className="constraint-expression"
+                data-kind={rule.kind}
+                data-quantified={
+                  rule.kind === "range"
+                    ? ["elements", "nodeValues"].includes(rule.target.projection)
+                    : rule.kind === "comparison" &&
+                      [rule.left, rule.right].some((target) =>
+                        ["elements", "nodeValues"].includes(target.projection),
+                      )
+                }
+              >
+                {((rule.kind === "range" &&
+                  ["elements", "nodeValues"].includes(rule.target.projection)) ||
+                  (rule.kind === "comparison" &&
+                    [rule.left, rule.right].some((target) =>
+                      ["elements", "nodeValues"].includes(target.projection),
+                    ) &&
+                    !comparison?.reflexiveSequence)) && (
+                  <Quantifier
+                    label={`Constraint ${index + 1} quantifier`}
+                    value={rule.quantifier}
+                    disabled={disabled}
+                    onChange={(quantifier) =>
+                      change({ ...rule, quantifier: quantifier === "all" ? undefined : quantifier })
+                    }
+                  />
+                )}
+
                 {rule.kind === "prose" && (
                   <TextArea
                     aria-label={`Constraint ${index + 1} note`}
@@ -204,34 +273,84 @@ export function ConstraintFields({
                     />
                   </>
                 )}
-                {rule.kind === "comparison" && (
+                {rule.kind === "comparison" && comparison && (
                   <>
                     {target(
                       `Constraint ${index + 1} left measurement`,
                       rule.left,
-                      scalarTargets,
+                      comparison.left,
                       (left) => change({ ...rule, left }),
                     )}
-                    <SegmentedControl
+                    <SelectField
                       label={`Constraint ${index + 1} relation`}
-                      value={rule.operator}
-                      disabled={disabled}
-                      iconOnly
-                      options={Object.entries(operators).map(([value, { label, math }]) => ({
-                        value,
-                        label,
-                        icon: <MathOperator source={math} />,
-                      }))}
-                      onChange={(operator) =>
-                        change({ ...rule, operator: operator as typeof rule.operator })
+                      value={
+                        comparison.reflexiveSequence
+                          ? `${rule.quantifier ?? "all"}:${rule.operator}`
+                          : rule.operator
                       }
+                      disabled={disabled || !comparison.modes.length}
+                      options={
+                        comparison.reflexiveSequence
+                          ? comparison.modes.map(({ quantifier, operator }) => ({
+                              value: `${quantifier}:${operator}`,
+                              label: `${quantifier === "any" ? "At least one pair" : "Every pair"}: ${operators[operator].label}`,
+                              display: (
+                                <MathOperator
+                                  source={`${quantifier === "any" ? "\\exists" : "\\forall"}\\;${operators[operator].math}`}
+                                />
+                              ),
+                            }))
+                          : comparison.operators.map((operator) => ({
+                              value: operator,
+                              label: operators[operator].label,
+                              display: <MathOperator source={operators[operator].math} />,
+                            }))
+                      }
+                      onChange={(value) => {
+                        if (comparison.reflexiveSequence) {
+                          const mode = comparison.modes.find(
+                            (mode) => `${mode.quantifier}:${mode.operator}` === value,
+                          );
+                          if (mode)
+                            change({
+                              ...rule,
+                              operator: mode.operator,
+                              quantifier: mode.quantifier === "all" ? undefined : mode.quantifier,
+                            });
+                        } else {
+                          const operator = comparison.operators.find(
+                            (operator) => operator === value,
+                          );
+                          if (operator) change({ ...rule, operator });
+                        }
+                      }}
                     />
                     {target(
                       `Constraint ${index + 1} right measurement`,
                       rule.right,
-                      scalarTargets,
+                      comparison.right,
                       (right) => change({ ...rule, right }),
                     )}
+                    {rule.left.parameter === rule.right.parameter &&
+                      rule.left.projection === rule.right.projection &&
+                      !comparisonError(rule) && (
+                        <Tooltip
+                          content={
+                            rule.quantifier === "any"
+                              ? "Against the same sequence, ∃ < or > requires at least two distinct values."
+                              : "Against the same sequence, ∀ =, ≤ or ≥ requires all values equal. Empty sequences pass."
+                          }
+                        >
+                          <span
+                            className="constraint-semantics"
+                            role="img"
+                            aria-label="Comparison meaning"
+                            tabIndex={0}
+                          >
+                            <Info size={14} aria-hidden="true" />
+                          </span>
+                        </Tooltip>
+                      )}
                   </>
                 )}
                 {rule.kind === "property" && (
@@ -245,25 +364,71 @@ export function ConstraintFields({
                           ...rule,
                           target,
                           property: target.projection === "value" ? "unique" : rule.property,
+                          direction: target.projection === "value" ? undefined : rule.direction,
                         }),
                     )}
                     <SegmentedControl
                       label={`Constraint ${index + 1} guarantee`}
-                      value={rule.property}
+                      value={rule.property === "unique" ? "unique" : "ordered"}
                       disabled={disabled}
+                      iconOnly
                       options={Object.entries(properties)
                         .filter(
                           ([property]) =>
                             rule.target.projection !== "value" || property === "unique",
                         )
-                        .map(([value, label]) => ({ value, label }))}
+                        .map(([value, { label, icon: Icon }]) => ({
+                          value,
+                          label,
+                          icon: <Icon size={15} aria-hidden="true" />,
+                        }))}
                       onChange={(property) =>
-                        change({ ...rule, property: property as typeof rule.property })
+                        change({
+                          ...rule,
+                          direction: property === "unique" ? undefined : rule.direction,
+                          property:
+                            property === "unique"
+                              ? "unique"
+                              : rule.property === "sorted"
+                                ? "sorted"
+                                : "nondecreasing",
+                        })
                       }
                     />
+                    {rule.property !== "unique" && (
+                      <SegmentedControl
+                        label={`Constraint ${index + 1} sort direction`}
+                        value={rule.direction ?? "asc"}
+                        disabled={disabled}
+                        iconOnly
+                        options={[
+                          {
+                            value: "asc",
+                            label: "Ascending (ASC)",
+                            icon: <ArrowDown01 size={15} aria-hidden="true" />,
+                          },
+                          {
+                            value: "desc",
+                            label: "Descending (DESC)",
+                            icon: <ArrowDown10 size={15} aria-hidden="true" />,
+                          },
+                        ]}
+                        onChange={(direction) =>
+                          change({
+                            ...rule,
+                            direction: direction === "asc" ? undefined : direction,
+                          })
+                        }
+                      />
+                    )}
                   </>
                 )}
               </div>
+              {rule.kind === "comparison" && comparisonError(rule) && (
+                <p className="constraint-error admin-error" role="alert">
+                  {comparisonError(rule)}
+                </p>
+              )}
               <Tooltip content="Remove constraint">
                 <button
                   type="button"
