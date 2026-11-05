@@ -103,13 +103,13 @@ it("shows declared and actual output types without conflating them", () => {
       }}
     />,
   );
-  expect(html).toContain("<small>text</small>");
-  expect(html).toContain("<small>bigint</small>");
+  expect(html).toContain('<small class="code-type">text</small>');
+  expect(html).toContain('<small class="code-type">bigint</small>');
   const unknown = renderToStaticMarkup(
     <CaseOutput
       sql={schema}
       result={{ index: 0, status: "wrong_answer", actual: { columns: ["total"], rows: [] } }}
     />,
   );
-  expect(unknown).not.toContain("<small>bigint</small>");
+  expect(unknown).not.toContain('<small class="code-type">bigint</small>');
 });

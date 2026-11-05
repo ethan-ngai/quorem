@@ -1,3 +1,4 @@
+import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import type { ProblemVersion } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
 import { Field } from "./AuthoringFields";
@@ -45,20 +46,18 @@ function SqlColumns({
       {columns.map((column, index) => (
         <div className="admin-sql-column" key={index}>
           <input
+            className="admin-code"
             aria-label={`Column ${index + 1} name`}
             placeholder="Column name"
             value={column.name}
             onChange={(event) => update(index, { name: event.target.value })}
           />
-          <SelectField
+          <SearchableTypeSelect
             label={`Column ${index + 1} type`}
             value={column.type}
             disabled={disabled}
-            options={types.map((type) => ({ value: type, label: type }))}
-            onChange={(value) => {
-              const type = types.find((type) => type === value);
-              if (type) update(index, { type });
-            }}
+            choices={types}
+            onChange={(type) => update(index, { type })}
           />
           <button
             type="button"

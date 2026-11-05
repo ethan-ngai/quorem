@@ -1,0 +1,47 @@
+.code-literal,
+code[class^="code-"],
+.code-type,
+.code-function,
+.code-parameter {
+  font-family: var(--font-code);
+}
+
+.code-keyword {
+  color: var(--editor-keyword, var(--color-editor-keyword));
+}
+
+.code-string {
+  color: var(--editor-string, var(--color-editor-string));
+}
+
+.code-number {
+  color: var(--editor-number, var(--color-editor-number));
+}
+
+.code-function {
+  color: var(--editor-function, var(--color-editor-function));
+}
+
+.code-type {
+  color: var(--editor-class, var(--color-editor-function));
+}
+
+.code-parameter {
+  color: var(--editor-parameter, var(--color-text-secondary));
+}
+
+.code-operator {
+  color: var(--editor-operator, var(--color-text-secondary));
+}
+
+.code-comment {
+  color: var(--editor-comment, var(--color-editor-comment));
+}
+
+.statement-code {
+  overflow: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-inline-code);
+  white-space: pre-wrap;
+}

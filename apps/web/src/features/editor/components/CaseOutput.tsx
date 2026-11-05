@@ -1,4 +1,5 @@
 import "./machine-values.css";
+import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
 import type { MethodCall, ProblemVersion, Signature } from "@quorem/contracts";
@@ -60,9 +61,11 @@ export function CaseValue({
             useSchemaTypes={purpose !== "output"}
           />
         ) : (
-          <code className={`machine-value ${tone ?? ""}`}>
-            {questionValue(value, language, type)}
-          </code>
+          <CodeLiteral
+            className={`machine-value ${tone ?? ""}`}
+            source={questionValue(value, language, type)}
+            language={language}
+          />
         )}
       </div>
     </div>
@@ -131,7 +134,7 @@ export function CaseOutput({
             >
               <header className="case-call-heading">
                 <span className="case-call-number">{index + 1}</span>
-                <code>{call.methodName}</code>
+                <code className="code-function">{call.methodName}</code>
               </header>
               <CaseArguments signature={signature} args={call.args} />
               {hasOutput && (actual !== undefined || (showExpected && expected !== undefined)) && (

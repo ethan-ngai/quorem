@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { QuestionSearch } from "./questionSearch";
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { CodeXml, FileCode2, FilePenLine, Globe, Layers } from "lucide-react";
@@ -331,14 +332,23 @@ export function QuestionDashboard({
                 </td>
                 <th scope="row">
                   <div className="admin-question-heading">
-                    <button
-                      type="button"
-                      className="catalog-question-title"
-                      disabled={disabled}
-                      onClick={() => onOpen(row)}
-                    >
-                      {row.title || "Untitled question"}
-                    </button>
+                    {disabled ? (
+                      <span className="catalog-question-title">
+                        {row.title || "Untitled question"}
+                      </span>
+                    ) : (
+                      <Link
+                        to="/admin/questions"
+                        search={{
+                          ...search,
+                          draft: "revision" in row ? row.id : undefined,
+                          publication: "revision" in row ? undefined : row.id,
+                        }}
+                        className="catalog-question-title"
+                      >
+                        {row.title || "Untitled question"}
+                      </Link>
+                    )}
                     {"revision" in row ? (
                       <>
                         {row.editVersionId && (

@@ -1,3 +1,5 @@
+import "../../ui/topic-chip.css";
+import { formatLabel } from "../../ui/formatLabel";
 import { X } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
@@ -74,11 +76,11 @@ export function TopicField({
       {!!tags.length && (
         <ul className="authoring-chips" aria-label={label}>
           {tags.map((tag, index) => (
-            <li key={index}>
-              {tag}
+            <li key={index} className="topic-chip">
+              {formatLabel(tag)}
               <button
                 type="button"
-                aria-label={`Remove ${tag}`}
+                aria-label={`Remove ${formatLabel(tag)}`}
                 onClick={() => onChange(tags.filter((_, position) => position !== index))}
               >
                 <X size={12} aria-hidden="true" />

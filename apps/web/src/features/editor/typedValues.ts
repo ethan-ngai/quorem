@@ -11,12 +11,37 @@ export function innerType(type: string, wrapper: "optional" | "list" | "array") 
     : undefined;
 }
 
-export function supportedType(type: string, depth = 0): boolean {
-  if (depth > 100) return false;
-  if (["int", "long", "float", "str", "bool", "datetime", "ListNode", "TreeNode"].includes(type))
-    return true;
-  const inner = innerType(type, "optional") ?? innerType(type, "list");
-  return inner !== undefined && supportedType(inner, depth + 1);
+export const valueAtoms = [
+  "int",
+  "long",
+  "float",
+  "str",
+  "bool",
+  "datetime",
+  "ListNode",
+  "TreeNode",
+] as const;
+export const valueWrappers = ["optional", "list", "array"] as const;
+export type ValueType =
+  | { kind: (typeof valueAtoms)[number] }
+  | { kind: (typeof valueWrappers)[number]; element: ValueType };
+
+export function parseValueType(type: string, depth = 0): ValueType | undefined {
+  if (depth > 100) return;
+  const atom = valueAtoms.find((value) => value === type);
+  if (atom) return { kind: atom };
+  const wrapper = valueWrappers.find((value) => type.startsWith(`${value}<`) && type.endsWith(">"));
+  if (!wrapper) return;
+  const element = parseValueType(type.slice(wrapper.length + 1, -1), depth + 1);
+  if (element) return { kind: wrapper, element };
+}
+
+export function formatValueType(type: ValueType): string {
+  return "element" in type ? `${type.kind}<${formatValueType(type.element)}>` : type.kind;
+}
+
+export function supportedType(type: string): boolean {
+  return !!parseValueType(type);
 }
 
 /** Matches the trusted server codec, including total nested collection size. */

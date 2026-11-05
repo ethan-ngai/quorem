@@ -1,3 +1,4 @@
+import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TypedCaseInput } from "./TypedCaseInput";
@@ -119,8 +120,8 @@ describe("typed case controls", () => {
     );
     expect(markup.match(/class="case-rail"/g)).toHaveLength(1);
     expect(markup).toContain("Case 2");
-    expect(markup).toContain(">90</code>");
-    expect(markup).toContain(">18</code>");
+    expect(stripSyntaxMarkup(markup)).toContain(">90</code>");
+    expect(stripSyntaxMarkup(markup)).toContain(">18</code>");
     expect(markup).not.toContain("No sample cases available");
     expect(markup).not.toContain("parameter-name");
   });
@@ -145,8 +146,8 @@ describe("typed case controls", () => {
         }}
       />,
     );
-    expect(markup).toContain(">90</code>");
-    expect(markup.match(/>18<\/code>/g)).toHaveLength(1);
+    expect(stripSyntaxMarkup(markup)).toContain(">90</code>");
+    expect(stripSyntaxMarkup(markup).match(/>18<\/code>/g)).toHaveLength(1);
   });
   it("keeps hidden-case data private while showing status", () => {
     for (const status of ["accepted", "wrong_answer", "time_limit"] as const) {

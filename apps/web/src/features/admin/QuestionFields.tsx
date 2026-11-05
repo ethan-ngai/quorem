@@ -23,6 +23,7 @@ import { AuthoringStages } from "./AuthoringStages";
 import { Field } from "./AuthoringFields";
 import { ConstraintFields } from "./ConstraintFields";
 import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
+import { CodeLiteral } from "../editor/components/CodeLiteral";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
@@ -357,6 +358,7 @@ export function QuestionFields({
               <>
                 <fieldset className="admin-fields" disabled={disabled || invalidCases}>
                   <SignatureFields
+                    disabled={disabled || invalidCases}
                     value={problem.signature}
                     onChange={(signature) => onChange(adaptSignature(content, signature))}
                     onValidityChange={onValidityChange}
@@ -584,9 +586,12 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           {solution.explanationMarkdown && (
             <StatementMarkdown source={solution.explanationMarkdown} />
           )}
-          <pre className="editorial-source">
-            <code>{solution.source}</code>
-          </pre>
+          <CodeLiteral
+            block
+            source={solution.source}
+            language={solution.language}
+            className="editorial-source statement-code"
+          />
           {solution.timeComplexity && solution.spaceComplexity && (
             <p>
               Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}

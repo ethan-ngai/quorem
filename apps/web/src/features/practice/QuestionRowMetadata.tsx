@@ -1,4 +1,5 @@
 /** @file QuestionRowMetadata.tsx @description Shared filters within question catalog rows. @module practice */
+import "../../ui/topic-chip.css";
 import { formatLabel } from "../../ui/formatLabel";
 
 export function QuestionTopics({
@@ -17,6 +18,7 @@ export function QuestionTopics({
       {topics.map((topic) => (
         <button
           key={topic}
+          className="topic-chip"
           type="button"
           disabled={disabled}
           onClick={() => onFilter(topic)}

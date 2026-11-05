@@ -5,7 +5,7 @@ import { api, requireData } from "../../api/client";
 
 /** @returns All administrative drafts; backend checks the live server-owned role. */
 export async function listDrafts(
-  query: Omit<QuestionSearch, "section">,
+  query: Omit<QuestionSearch, "section" | "draft" | "publication">,
   cursor?: string,
   signal?: AbortSignal,
 ) {
@@ -84,7 +84,7 @@ export async function deleteQuestionPublication(
 }
 
 export async function listPublications(
-  query: Omit<QuestionSearch, "section">,
+  query: Omit<QuestionSearch, "section" | "draft" | "publication">,
   signal?: AbortSignal,
 ) {
   const { data, error } = await api().GET("/v1/admin/question-publications", {

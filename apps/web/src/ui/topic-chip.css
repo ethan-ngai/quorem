@@ -1,0 +1,13 @@
+.topic-chip {
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  color: var(--color-text-secondary);
+  background: var(--color-overlay);
+  font-size: var(--text-label);
+  transition: color var(--motion-fast);
+}
+
+.topic-chip:hover {
+  color: var(--color-text);
+}

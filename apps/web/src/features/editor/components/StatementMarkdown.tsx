@@ -1,4 +1,7 @@
 /** @file StatementMarkdown.tsx @description Safe Markdown and bounded mathematics. @module editor */
+import { CodeLiteral } from "./CodeLiteral";
+import { useQuestionLanguage } from "../QuestionLanguage";
+import type { EditorLanguage } from "../editorLanguages";
 import type { ReactNode } from "react";
 import katex from "katex";
 import "katex/dist/katex.min.css";
@@ -37,7 +40,23 @@ function safeLink(value: string): string | undefined {
   }
 }
 
-function renderMarkdown(source: string, inline: boolean): ReactNode[] {
+const fenceLanguages: Record<string, EditorLanguage> = {
+  py: "python",
+  python: "python",
+  java: "java",
+  js: "typescript",
+  javascript: "typescript",
+  ts: "typescript",
+  typescript: "typescript",
+  ml: "ocaml",
+  ocaml: "ocaml",
+  sql: "postgresql",
+  postgres: "postgresql",
+  postgresql: "postgresql",
+  pseudocode: "python",
+};
+
+function renderMarkdown(source: string, inline: boolean, language?: EditorLanguage): ReactNode[] {
   const tree = fromMarkdown(source, {
     extensions: [math(), gfm()],
     mdastExtensions: [mathFromMarkdown(), gfmFromMarkdown()],
@@ -48,7 +67,18 @@ function renderMarkdown(source: string, inline: boolean): ReactNode[] {
       case "text":
         return node.value;
       case "inlineCode":
-        return <code key={key}>{node.value}</code>;
+        return <CodeLiteral key={key} source={node.value} language={language} />;
+      case "code": {
+        const fence = node.lang?.toLowerCase() ?? "";
+        return (
+          <CodeLiteral
+            key={key}
+            block
+            source={node.value}
+            language={Object.hasOwn(fenceLanguages, fence) ? fenceLanguages[fence] : language}
+          />
+        );
+      }
       case "strong":
         return <strong key={key}>{node.children.map(render)}</strong>;
       case "emphasis":
@@ -124,5 +154,6 @@ export function inlineStatement(source: string): ReactNode[] {
 }
 
 export function StatementMarkdown({ source }: { source: string }) {
-  return <>{renderMarkdown(source.trim(), false)}</>;
+  const language = useQuestionLanguage();
+  return <>{renderMarkdown(source.trim(), false, language)}</>;
 }

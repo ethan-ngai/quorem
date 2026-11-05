@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { questionTypeName, questionValue } from "./questionTypes";
-import { validateTypedValue } from "./typedValues";
+import { formatValueType, parseValueType, validateTypedValue } from "./typedValues";
 it("renders language literals without modifying string contents", () => {
   expect(questionValue([null, true, false, "null True false"], "python")).toBe(
     '[None,True,False,"null True false"]',
@@ -32,4 +32,13 @@ it("datetime types and wire validation", () => {
   ).not.toThrow();
   expect(() => validateTypedValue("datetime", "2023-02-29T00:00:00")).toThrow();
   expect(() => validateTypedValue("datetime", "2024-01-01T00:00:00Z")).toThrow();
+});
+
+it("round-trips nested type components and rejects malformed legacy expressions", () => {
+  const source = "array<optional<list<TreeNode>>>";
+  const parsed = parseValueType(source);
+  expect(parsed).toBeDefined();
+  expect(formatValueType(parsed!)).toBe(source);
+  expect(parseValueType("array<int")).toBeUndefined();
+  expect(parseValueType("list<void>")).toBeUndefined();
 });

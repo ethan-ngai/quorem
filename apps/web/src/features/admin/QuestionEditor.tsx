@@ -1,4 +1,4 @@
-import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SelectField } from "../../ui/SelectField";
@@ -59,22 +59,78 @@ export function QuestionEditor() {
           <a href="/practice">Return to practice</a>
         </main>
       ) : (
-        <AuthoringWorkspace admin={session.data.user.role === "admin"} />
+        <QuestionSelection
+          admin={session.data.user.role === "admin"}
+          userId={session.data.user.id}
+        />
       )}
     </>
   );
 }
 
+function questionKey(userId: string, draft?: string, publication?: string) {
+  return ["admin-open-question", userId, draft, publication] as const;
+}
+
+function QuestionSelection({ admin, userId }: { admin: boolean; userId: string }) {
+  const search = useSearch({ from: "/admin/questions" });
+  const { draft, publication } = search;
+  const question = useQuery({
+    queryKey: questionKey(userId, draft, publication),
+    enabled: !!(draft || publication),
+    retry: false,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    queryFn: () =>
+      publication ? createDraft({ problemVersionId: publication, edit: true }) : getDraft(draft!),
+  });
+  if (draft || publication) {
+    if (question.isPending || question.isFetching)
+      return <LoadingScreen label="Opening question…" />;
+    if (!question.data)
+      return (
+        <main className="admin-workspace">
+          <p role="alert">
+            {userFacingErrorMessage(question.error, "Could not open the question.")}
+          </p>
+          <Link
+            to="/admin/questions"
+            search={{ ...search, draft: undefined, publication: undefined }}
+          >
+            Back to questions
+          </Link>
+        </main>
+      );
+  }
+  return (
+    <AuthoringWorkspace
+      key={`${userId}:${publication ?? draft ?? "catalog"}`}
+      userId={userId}
+      admin={admin}
+      initialDraft={question.data}
+    />
+  );
+}
+
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
-function AuthoringWorkspace({ admin }: { admin: boolean }) {
+function AuthoringWorkspace({
+  admin,
+  initialDraft,
+  userId,
+}: {
+  admin: boolean;
+  userId: string;
+  initialDraft?: QuestionDraft;
+}) {
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
   const search = useSearch({ from: "/admin/questions" });
   const navigate = useNavigate({ from: "/admin/questions" });
-  const { section, readiness, ...filters } = search;
+  const { section, readiness, draft: draftId, publication, ...filters } = search;
   const drafts = useInfiniteQuery({
     queryKey: ["admin-drafts", admin, filters, readiness],
-    enabled: section !== "publications",
+    enabled: !initialDraft && section !== "publications",
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) => listDrafts({ ...filters, readiness }, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor,
@@ -82,11 +138,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const draftItems = drafts.data?.pages.flatMap((page) => page.items) ?? [];
   const problems = useQuery({
     queryKey: ["admin-problems", admin, filters],
-    enabled: section === "publications",
+    enabled: !initialDraft && section === "publications",
     queryFn: ({ signal }) => listPublications(filters, signal),
   });
-  const [draft, setDraft] = useState<QuestionDraft>();
-  const [content, setContent] = useState<QuestionContent>();
+  const [draft, setDraft] = useState<QuestionDraft | undefined>(initialDraft);
+  const [content, setContent] = useState<QuestionContent | undefined>(initialDraft?.content);
   const [dirty, setDirty] = useState(false);
   const navigationBlocker = useBlocker({
     shouldBlockFn: () => dirty,
@@ -99,7 +155,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "global">("private");
-  const [discard, setDiscard] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
   const [replacement, setReplacement] = useState("");
@@ -126,9 +181,8 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         deletion.current ? (replacement === "unpublish" ? null : replacement) : undefined,
       );
       setDeletion(undefined);
-      setDraft(undefined);
-      setContent(undefined);
-      setNotice("Published version deleted.");
+      cache.removeQueries({ queryKey: questionKey(userId, draftId, publication), exact: true });
+      closeEditor();
       await Promise.all([
         cache.invalidateQueries({ queryKey: ["admin-drafts"] }),
         cache.invalidateQueries({ queryKey: ["admin-problems"] }),
@@ -162,25 +216,31 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     setPreview(false);
     setError("");
     setNotice("");
-    setDiscard(false);
     setInvalidFields(new Set());
   }
   function closeEditor() {
-    setDraft(undefined);
-    setContent(undefined);
-    setDirty(false);
-    setDiscard(false);
-    setError("");
-    setNotice("");
-    setInvalidFields(new Set());
+    void navigate({
+      search: (previous) => ({ ...previous, draft: undefined, publication: undefined }),
+    });
   }
   async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      open(await action());
-      setNotice(message);
+      const next = await action();
+      const nextPublication = next.publishedVersionId;
+      const nextDraft = nextPublication ? undefined : next.id;
+      cache.setQueryData(questionKey(userId, nextDraft, nextPublication), next);
+      if (nextDraft !== draftId || nextPublication !== publication) {
+        await navigate({
+          search: (previous) => ({ ...previous, draft: nextDraft, publication: nextPublication }),
+          replace: !!draftId && !!nextPublication,
+        });
+      } else {
+        open(next);
+        setNotice(message);
+      }
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
       await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
@@ -263,21 +323,16 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         onCreated={() => void cache.invalidateQueries({ queryKey: ["admin-drafts"] })}
         onOpenDraft={(id) => {
           setImportOpen(false);
-          void perform(() => getDraft(id), "", "Could not open the imported draft.");
+          void navigate({
+            search: (previous) => ({ ...previous, draft: id, publication: undefined }),
+          });
         }}
       />
       <header className="admin-heading">
         <h1>{draft ? draft.content.problem.title || "Untitled question" : "Questions"}</h1>
         <div className="admin-toolbar">
           {draft ? (
-            <button
-              className="button button-secondary"
-              disabled={busy}
-              onClick={() => {
-                if (dirty || invalidFields.size) setDiscard(true);
-                else closeEditor();
-              }}
-            >
+            <button className="button button-secondary" disabled={busy} onClick={closeEditor}>
               Back to questions
             </button>
           ) : (
@@ -337,14 +392,13 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           loadMore={drafts.hasNextPage ? () => void drafts.fetchNextPage() : undefined}
           loadingMore={drafts.isFetchingNextPage}
           onOpen={(row) =>
-            void perform(
-              () =>
-                "revision" in row
-                  ? getDraft(row.id)
-                  : createDraft({ problemVersionId: row.id, edit: true }),
-              "",
-              "Could not open the question.",
-            )
+            void navigate({
+              search: (previous) => ({
+                ...previous,
+                draft: "revision" in row ? row.id : undefined,
+                publication: "revision" in row ? undefined : row.id,
+              }),
+            })
           }
           onChanged={() =>
             Promise.all([
@@ -355,21 +409,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           }
         />
       )}
-      <SessionDialog
-        open={discard}
-        onOpenChange={setDiscard}
-        title="Discard unsaved edits?"
-        description="Your saved question will remain unchanged."
-      >
-        <footer className="competitive-dialog-actions">
-          <button className="button button-secondary" onClick={() => setDiscard(false)}>
-            Keep editing
-          </button>
-          <button className="button button-primary" onClick={closeEditor}>
-            Discard and return
-          </button>
-        </footer>
-      </SessionDialog>
       {draft && content && (
         <section className="admin-form-pane" aria-label="Question content">
           <div className="admin-toolbar admin-edit-toolbar">
