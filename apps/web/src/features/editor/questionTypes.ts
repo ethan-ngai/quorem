@@ -56,6 +56,8 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       bool: "boolean",
       str: "string",
       datetime: "Date",
+      ListNode: "ListNode | null",
+      TreeNode: "TreeNode | null",
     },
     postgresql: {},
     ocaml: {
@@ -66,6 +68,8 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       bool: "bool",
       str: "string",
       datetime: "Unix.tm",
+      ListNode: "list_node option",
+      TreeNode: "tree_node option",
     },
   };
   return names[language][type] ?? type;

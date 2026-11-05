@@ -2,6 +2,7 @@ import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
+import { Tooltip } from "./Tooltip";
 
 export type SelectOption = { value: string; label: string; leading?: ReactNode };
 
@@ -11,6 +12,7 @@ type SelectFieldProps = {
   options: readonly SelectOption[];
   onChange: (value: string) => void;
   disabled?: boolean;
+  iconOnly?: boolean;
   className?: string;
   triggerProps?: Pick<
     ComponentProps<"button">,
@@ -24,12 +26,50 @@ export function SelectField({
   options,
   onChange,
   disabled,
+  iconOnly = false,
   className = "",
   triggerProps,
 }: SelectFieldProps) {
   const [open, setOpen] = useState(false);
   const closingPointer = useRef(false);
   const selected = options.find((option) => option.value === value);
+  const trigger = (
+    <Select.Trigger
+      {...triggerProps}
+      className={`${iconOnly ? "icon-button" : "select-field"} ${className}`}
+      aria-label={iconOnly && selected ? `${label}: ${selected.label}` : label}
+      // Radix blocks lower-layer pointer events while open; keep the trigger from clicking through its parent popover.
+      style={open ? { pointerEvents: "auto" } : undefined}
+      onPointerDown={(event) => {
+        closingPointer.current = false;
+        if (open && event.button === 0 && !event.ctrlKey) {
+          event.preventDefault();
+          closingPointer.current = true;
+          setOpen(false);
+        }
+      }}
+      onClick={(event) => {
+        // Touch may dispatch a click after pointer dismissal; it must not reopen the menu.
+        if (closingPointer.current) {
+          event.preventDefault();
+          closingPointer.current = false;
+        }
+      }}
+      onKeyDown={() => {
+        closingPointer.current = false;
+      }}
+    >
+      {selected?.leading}
+      {!iconOnly && (
+        <>
+          <Select.Value placeholder={selected?.label}>{selected?.label}</Select.Value>
+          <Select.Icon className="select-field-chevron">
+            <ChevronDown size={14} aria-hidden="true" />
+          </Select.Icon>
+        </>
+      )}
+    </Select.Trigger>
+  );
   return (
     <Select.Root
       value={value}
@@ -38,37 +78,7 @@ export function SelectField({
       open={open}
       onOpenChange={setOpen}
     >
-      <Select.Trigger
-        {...triggerProps}
-        className={`select-field ${className}`}
-        aria-label={label}
-        // Radix blocks lower-layer pointer events while open; keep the trigger from clicking through its parent popover.
-        style={open ? { pointerEvents: "auto" } : undefined}
-        onPointerDown={(event) => {
-          closingPointer.current = false;
-          if (open && event.button === 0 && !event.ctrlKey) {
-            event.preventDefault();
-            closingPointer.current = true;
-            setOpen(false);
-          }
-        }}
-        onClick={(event) => {
-          // Touch may dispatch a click after pointer dismissal; it must not reopen the menu.
-          if (closingPointer.current) {
-            event.preventDefault();
-            closingPointer.current = false;
-          }
-        }}
-        onKeyDown={() => {
-          closingPointer.current = false;
-        }}
-      >
-        {selected?.leading}
-        <Select.Value placeholder={selected?.label}>{selected?.label}</Select.Value>
-        <Select.Icon className="select-field-chevron">
-          <ChevronDown size={14} aria-hidden="true" />
-        </Select.Icon>
-      </Select.Trigger>
+      {iconOnly ? <Tooltip content={label}>{trigger}</Tooltip> : trigger}
       <Select.Portal>
         <Select.Content
           className="select-field-menu"

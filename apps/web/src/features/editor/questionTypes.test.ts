@@ -49,3 +49,8 @@ it("renders nested optional types with one absence marker", () => {
   );
   expect(questionTypeName("optional<TreeNode<str>>", "typescript")).toBe("TreeNode<string> | null");
 });
+
+it("renders bare node types as declared by the language starter", () => {
+  expect(questionTypeName("TreeNode", "typescript")).toBe("TreeNode | null");
+  expect(questionTypeName("ListNode", "ocaml")).toBe("list_node option");
+});

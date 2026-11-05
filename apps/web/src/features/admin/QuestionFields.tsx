@@ -94,25 +94,23 @@ export function QuestionFields({
     { value: "solutions", label: "Code & editorial" },
   ] as const;
   const previewLanguagePicker = onPreviewLanguageChange && (
-    <div className="admin-signature-preview-language">
-      <span>Preview language</span>
-      <SelectField
-        label="Signature preview language"
-        value={previewLanguage}
-        disabled={disabled}
-        options={languages
-          .filter((value) => value !== "postgresql")
-          .map((value) => ({
-            value,
-            label: languageLabels[value],
-            leading: <LanguageLogo language={value} />,
-          }))}
-        onChange={(value) => {
-          const next = languages.find((language) => language === value);
-          if (next && next !== "postgresql") onPreviewLanguageChange(next);
-        }}
-      />
-    </div>
+    <SelectField
+      iconOnly
+      label="Signature preview language"
+      value={previewLanguage}
+      disabled={disabled}
+      options={languages
+        .filter((value) => value !== "postgresql")
+        .map((value) => ({
+          value,
+          label: languageLabels[value],
+          leading: <LanguageLogo language={value} />,
+        }))}
+      onChange={(value) => {
+        const next = languages.find((language) => language === value);
+        if (next && next !== "postgresql") onPreviewLanguageChange(next);
+      }}
+    />
   );
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
@@ -421,8 +419,8 @@ export function QuestionFields({
               />
             ) : (
               <QuestionLanguage.Provider value={previewLanguage}>
-                {previewLanguagePicker}
                 <SignatureFields
+                  previewControl={previewLanguagePicker}
                   disabled={disabled}
                   value={problem.signature}
                   onChange={(signature) => {
@@ -446,7 +444,7 @@ export function QuestionFields({
             <SqlStages content={content} onChange={onChange} onValidityChange={onValidityChange} />
           ) : problem.odyssey ? (
             <QuestionLanguage.Provider value={previewLanguage}>
-              {previewLanguagePicker}
+              <div className="admin-signature-preview-language">{previewLanguagePicker}</div>
               <AuthoringStages
                 content={content}
                 onChange={onChange}

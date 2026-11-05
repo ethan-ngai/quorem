@@ -3,7 +3,7 @@ import { Tooltip } from "../../ui/Tooltip";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
 import { SelectField } from "../../ui/SelectField";
 import type { Signature } from "@quorem/contracts";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { Field } from "./AuthoringFields";
 import { ValueTypeField } from "./ValueTypeField";
@@ -13,11 +13,13 @@ export function SignatureFields({
   allowVoid = false,
   disabled = false,
   onValidityChange,
+  previewControl,
 }: {
   value: Signature;
   onChange: (value: Signature) => void;
   allowVoid?: boolean;
   disabled?: boolean;
+  previewControl?: ReactNode;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
   const documented = value;
@@ -42,8 +44,11 @@ export function SignatureFields({
       ),
     });
   return (
-    <fieldset className="admin-fields">
-      <legend>Method</legend>
+    <fieldset className="admin-fields" aria-labelledby={`${namesId}-method`}>
+      <div className="admin-method-heading">
+        <span id={`${namesId}-method`}>Method</span>
+        {previewControl}
+      </div>
       <div className="authoring-signature-line">
         <MethodSignature signature={value} />
       </div>
