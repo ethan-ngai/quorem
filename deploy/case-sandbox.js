@@ -361,6 +361,7 @@ export class CaseSandbox extends DurableObject {
       step = "terminal-frame";
       await writer.write(frame(4, new Uint8Array()));
       step = "close";
+      timing.totalMs = Math.round(performance.now() - admitted);
       await writer.close();
     } catch (error) {
       this.failure = this.phase;
