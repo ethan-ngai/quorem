@@ -74,6 +74,7 @@ export async function caseRequest(request, env, attempt, credential = env.JUDGE_
     }
   }
   const headers = new Headers(request.headers);
+  headers.delete("x-quorem-child-lane");
   headers.delete("Authorization");
   headers.delete("CF-Access-Client-Id");
   headers.delete("CF-Access-Client-Secret");

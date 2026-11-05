@@ -1,5 +1,7 @@
 /** @file execute.ts @description Manifest-bound, checkpointed case orchestration. @module runner */
 import {
+  CASE_LANES,
+  CASE_WINDOW_BYTES,
   decodeJudgeFrame,
   encodeJudgeFrame,
   decodeManifestCheckpointFrame,
@@ -15,6 +17,7 @@ import {
   type ExecutionInputReader,
   type Job,
   type JudgeFrame,
+  type InputCaseRef,
 } from "@quorem/execution";
 import { CaseDeadline, CaseOutputLimit } from "../sandbox/budget.ts";
 import type { IsolatedSandbox } from "../sandbox/types.ts";
@@ -30,28 +33,21 @@ const failFrame = (status: string): JudgeFrame => ({
   stderr: "",
   line: 0,
 });
-async function field(
-  repository: ExecutionRepository,
-  job: Job,
+function* field(
   channel: CompletionFieldChunk["channel"],
   ordinal: number,
   name: CompletionFieldChunk["field"],
   raw: string,
-  signal?: AbortSignal,
-) {
+): Generator<CompletionFieldChunk> {
   const bytes = encoder.encode(raw);
   for (let offset = 0, index = 0; offset < bytes.length; offset += 65536, index++)
-    await repository.writeCompletionChunk(
-      job,
-      {
-        channel,
-        ordinal,
-        field: name,
-        chunkOrdinal: index,
-        bytes: bytes.subarray(offset, offset + 65536),
-      },
-      signal,
-    );
+    yield {
+      channel,
+      ordinal,
+      field: name,
+      chunkOrdinal: index,
+      bytes: bytes.subarray(offset, offset + 65536),
+    };
 }
 /** A persisted case boundary can be yielded only after teardown. */
 export class ExecutionYield extends Error {
@@ -59,15 +55,22 @@ export class ExecutionYield extends Error {
     super("Execution checkpoint ready to yield");
   }
 }
-/** Only one immutable case and one checkpoint frame are held at once. */
+/** Bounded native lanes; checkpoints commit in order before final publication. */
 export async function executeAndStage(
   job: Job,
   repository: ExecutionRepository & ExecutionInputReader,
   sandbox: IsolatedSandbox,
-  signal?: AbortSignal,
-  shouldYield?: () => boolean,
+  externalSignal?: AbortSignal,
+  shouldYield?: () => boolean | Promise<boolean>,
   onFinalCase?: () => void,
+  caseConcurrency = 1,
 ): Promise<CompletionHeader> {
+  if (!Number.isInteger(caseConcurrency) || caseConcurrency < 1 || caseConcurrency > CASE_LANES)
+    throw new Error("Invalid case concurrency");
+  const controller = new AbortController();
+  const signal = externalSignal
+    ? AbortSignal.any([externalSignal, controller.signal])
+    : controller.signal;
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
   if (!runtime || runtime.language !== job.language)
     throw new Error("Unsupported execution runtime");
@@ -146,48 +149,33 @@ export async function executeAndStage(
       await repository.beginCompletion(job, header, signal);
       async function stage(ordinal: number, frame: JudgeFrame): Promise<void> {
         const sample = ordinal >= manifest.caseCount;
-        const channel = manifest.kind === "run" ? "public" : sample ? "sample" : "private",
-          index = sample ? ordinal - manifest.caseCount : ordinal;
+        const channel = manifest.kind === "run" ? "public" : sample ? "sample" : "private";
+        const index = sample ? ordinal - manifest.caseCount : ordinal;
+        let chunks: CompletionFieldChunk[] = [];
+        const flush = async () => {
+          if (chunks.length) await repository.writeCompletionChunks(job, chunks, signal);
+          chunks = [];
+        };
+        const append = async (name: CompletionFieldChunk["field"], raw: string) => {
+          for (const chunk of field(channel, index, name, raw)) {
+            chunks.push(chunk);
+            if (chunks.length === 16) await flush();
+          }
+        };
         if (frame.actual !== undefined && frame.status === "executed")
-          await field(repository, job, channel, index, "actual", frame.actual, signal);
-        if (frame.stdout)
-          await field(
-            repository,
-            job,
-            channel,
-            index,
-            "stdout",
-            JSON.stringify(frame.stdout),
-            signal,
-          );
+          await append("actual", frame.actual);
+        if (frame.stdout) await append("stdout", JSON.stringify(frame.stdout));
         let stderr = frame.stderr;
         const diagnostics: { message: string; line?: number }[] = [];
         if (job.language === "postgresql" && frame.status !== "executed" && stderr) {
           diagnostics.push({ message: stderr, ...(frame.line ? { line: frame.line } : {}) });
           stderr = "";
         } else if (frame.line) diagnostics.push({ message: "Syntax error", line: frame.line });
-        if (stderr)
-          await field(repository, job, channel, index, "stderr", JSON.stringify(stderr), signal);
-        if (diagnostics.length)
-          await field(
-            repository,
-            job,
-            channel,
-            index,
-            "diagnostics",
-            JSON.stringify(diagnostics),
-            signal,
-          );
+        if (stderr) await append("stderr", JSON.stringify(stderr));
+        if (diagnostics.length) await append("diagnostics", JSON.stringify(diagnostics));
         if (frame.sqlTypes?.length && frame.status === "executed")
-          await field(
-            repository,
-            job,
-            channel,
-            index,
-            "sqlTypes",
-            JSON.stringify(frame.sqlTypes),
-            signal,
-          );
+          await append("sqlTypes", JSON.stringify(frame.sqlTypes));
+        await flush();
         await repository.sealCompletionFrame(job, channel, index, frame.status, signal);
       }
       if (checkpoint.nextOrdinal > 0)
@@ -218,12 +206,15 @@ export async function executeAndStage(
       if (artifact) validateCompiledArtifact(artifact, job.language);
       if (fatal && (fatal.status !== "syntax_error" || job.language === "postgresql"))
         throw new Error("Invalid checkpoint fatal");
-      for (let ordinal = checkpoint.nextOrdinal; ordinal < total; ordinal++) {
-        signal?.throwIfAborted();
-        if (ordinal > checkpoint.nextOrdinal && shouldYield?.()) throw new ExecutionYield();
-        const ref = await inputs.inputCaseRef(job, ordinal, signal);
+      const compiled = !["python", "postgresql"].includes(job.language);
+      async function executeCase(
+        ordinal: number,
+        initial: { artifact?: string; compilation: bigint; fatal?: JudgeFrame },
+        ref: InputCaseRef,
+      ) {
+        let { artifact, compilation, fatal } = initial;
         let frame: JudgeFrame;
-        const compiled = !["python", "postgresql"].includes(job.language);
+
         if (fatal) frame = { ...fatal, artifact: undefined };
         else if (compiled && !artifact && compilation >= 60000000000n)
           frame = failFrame("time_limit");
@@ -292,42 +283,107 @@ export async function executeAndStage(
             await testcase.dispose();
           }
         }
-        const stored: JudgeFrame = {
-          ...frame,
-          artifact: undefined,
-          ...(manifest.kind === "submit" && !manifest.privateDetails && ordinal < manifest.caseCount
-            ? { stdout: "", stderr: "", line: 0 }
-            : {}),
-        };
-        // A one-case Run can retry its only case without resuming a partial suite.
-        if (!(repository.finalizeCompletion && manifest.kind === "run" && total === 1)) {
-          const fatalRaw = fatal ? encodeJudgeFrame({ ...fatal, artifact: undefined }) : undefined;
-          const provenance = await manifestCheckpointProvenance(
-            job,
-            manifest,
-            ref,
-            ordinal,
-            job,
-            { artifact, fatal: fatalRaw, compilationNanos: compilation },
-            stored,
-          );
-          await repository.saveCheckpoint(
-            job,
-            {
-              ordinal,
-              frame: encodeManifestCheckpointFrame(stored, provenance),
-              artifact: frame.artifact,
-              compilationNanos: compilation,
-              fatal: fatalRaw,
-            },
-            signal,
-          );
-        }
-        // The last case has exited. Verification and attempt teardown can now overlap.
-        if (ordinal === total - 1) onFinalCase?.();
-        await stage(ordinal, stored);
+        return { frame, ref, artifact, compilation, fatal };
       }
-      return header;
+      const pending: Promise<void>[] = [];
+      try {
+        for (let start = checkpoint.nextOrdinal; start < total;) {
+          signal.throwIfAborted();
+          if (start > checkpoint.nextOrdinal && (await shouldYield?.())) {
+            await Promise.all(pending);
+            throw new ExecutionYield();
+          }
+          // Compile before fanout; each lane then receives the same immutable artifact.
+          const requested = Math.min(
+            compiled && !artifact && !fatal ? 1 : caseConcurrency,
+            total - start,
+          );
+          const refs = await Promise.all(
+            Array.from({ length: requested }, (_, index) =>
+              inputs.inputCaseRef(job, start + index, signal),
+            ),
+          );
+          const laneBytes =
+            Math.max(1, ...refs.map((ref) => ref.size)) +
+            (artifact ? Buffer.byteLength(artifact) : 0);
+          const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
+          const runs = Array.from({ length: width }, (_, index) =>
+            executeCase(start + index, { artifact, compilation, fatal }, refs[index]).catch(
+              (error) => {
+                controller.abort(error);
+                throw error;
+              },
+            ),
+          );
+          const outcomes = await Promise.allSettled(runs);
+          const failed = outcomes.find((value) => value.status === "rejected");
+          if (failed?.status === "rejected") throw failed.reason;
+          const results = outcomes.map(
+            (value) =>
+              (value as PromiseFulfilledResult<Awaited<ReturnType<typeof executeCase>>>).value,
+          );
+          if (start + width === total) onFinalCase?.();
+          for (let index = 0; index < results.length; index++) {
+            const ordinal = start + index;
+            const { frame, ref } = results[index];
+            artifact = results[index].artifact ?? artifact;
+            if (results[index].compilation > compilation) compilation = results[index].compilation;
+            fatal ??= results[index].fatal;
+            const stored: JudgeFrame = {
+              ...frame,
+              artifact: undefined,
+              ...(manifest.kind === "submit" &&
+              !manifest.privateDetails &&
+              ordinal < manifest.caseCount
+                ? { stdout: "", stderr: "", line: 0 }
+                : {}),
+            };
+            // A one-case Run can retry its only case without resuming a partial suite.
+            if (!(repository.finalizeCompletion && manifest.kind === "run" && total === 1)) {
+              const fatalRaw = fatal
+                ? encodeJudgeFrame({ ...fatal, artifact: undefined })
+                : undefined;
+              const provenance = await manifestCheckpointProvenance(
+                job,
+                manifest,
+                ref,
+                ordinal,
+                job,
+                { artifact, fatal: fatalRaw, compilationNanos: compilation },
+                stored,
+              );
+              await repository.saveCheckpoint(
+                job,
+                {
+                  ordinal,
+                  frame: encodeManifestCheckpointFrame(stored, provenance),
+                  artifact: frame.artifact,
+                  compilationNanos: compilation,
+                  fatal: fatalRaw,
+                },
+                signal,
+              );
+            }
+            const staged = stage(ordinal, stored).catch((error) => {
+              controller.abort(error);
+              throw error;
+            });
+            void staged.catch(() => {});
+            pending.push(staged);
+          }
+          start += width;
+          // At most two windows of result staging can overlap native execution.
+          if (pending.length >= caseConcurrency * 2) {
+            await Promise.all(pending.slice(0, width));
+            void pending.splice(0, width);
+          }
+        }
+        await Promise.all(pending);
+        return header;
+      } finally {
+        controller.abort();
+        await Promise.allSettled(pending);
+      }
     } finally {
       await metadata.dispose();
     }

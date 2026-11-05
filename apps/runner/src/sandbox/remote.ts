@@ -2,7 +2,12 @@
 import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
 import { Readable } from "node:stream";
 import { checkedInput } from "./input.ts";
-import { decodeCaseFrames, type AttemptFence } from "@quorem/execution";
+import {
+  CASE_LANES,
+  CASE_SCOPE_REVISION,
+  decodeCaseFrames,
+  type AttemptFence,
+} from "@quorem/execution";
 import { CaseOutputLimit, readinessBudget } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
 import {
@@ -32,7 +37,7 @@ export function remoteSandbox(config: {
   ownerPublicKey: string;
   cleanupMs: number;
   fetch?: typeof fetch;
-}): IsolatedSandbox & { readonly scope: string } {
+}): IsolatedSandbox & { readonly scope: string; readonly controlScope: string } {
   let base: URL;
   try {
     base = new URL(config.origin);
@@ -64,9 +69,12 @@ export function remoteSandbox(config: {
   const fingerprint = createHash("sha256")
     .update(ownerKey.export({ type: "spki", format: "der" }))
     .digest("hex");
-  const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([base.origin, config.namespaceId, fingerprint]))
-    .digest("hex")}`;
+  // Durable release controls retain their genesis identity across execution topology changes.
+  const identity = [base.origin, config.namespaceId, fingerprint];
+  const hashScope = (parts: string[]) =>
+    `remote:${createHash("sha256").update(JSON.stringify(parts)).digest("hex")}`;
+  const controlScope = hashScope(identity);
+  const scope = hashScope([...identity, CASE_SCOPE_REVISION]);
   const attested = (
     response: Response,
     method: string,
@@ -146,6 +154,7 @@ export function remoteSandbox(config: {
   }
   return {
     scope,
+    controlScope,
     async teardownAttempt(fence, signal) {
       await remove(fence, undefined, signal);
     },
@@ -184,6 +193,7 @@ export function remoteSandbox(config: {
             "x-quorem-owner-scope": scope,
             "x-case-token": token,
             "x-case-language": request.language,
+            "x-quorem-case-lanes": String(CASE_LANES),
             "x-case-memory": String(request.limits.memoryBytes),
             "x-case-processes": String(request.limits.maxProcesses),
             "x-quorem-case-binding": request.binding,

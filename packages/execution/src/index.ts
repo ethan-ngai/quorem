@@ -57,3 +57,11 @@ export {
 export type { ManifestCheckpointProvenance } from "./manifest-checkpoint.ts";
 export { verificationReceiptBytes, verifyResultReceipt } from "./verification-receipt.ts";
 export type { VerificationReceipt } from "./verification-receipt.ts";
+
+export {
+  CASE_LANES,
+  CASE_WINDOW_BYTES,
+  CASE_SCOPE_REVISION,
+  JUDGING_DEFAULTS,
+  judgingCapacity,
+} from "./scheduling.ts";

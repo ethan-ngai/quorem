@@ -19,5 +19,5 @@ export async function stageNamespace(env, pinned, probe = probeNamespace) {
     ownerPublicKey: publicKey,
     cleanupMs: 30000,
   });
-  return { namespace, scope: sandbox.scope };
+  return { namespace, scope: sandbox.scope, controlScope: sandbox.controlScope };
 }

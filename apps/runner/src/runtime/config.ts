@@ -1,4 +1,5 @@
 /** @file config.ts @description Fail-closed trusted runner process configuration. @module runner */
+import { CASE_LANES } from "@quorem/execution";
 import { readFile } from "node:fs/promises";
 import { createPrivateKey } from "node:crypto";
 
@@ -155,6 +156,7 @@ export function runnerConfig(env: Env) {
     access: ingress,
     listen: listen(env, "QUOREM_RUNNER_LISTEN"),
     slots: integer(env, "QUOREM_RUNNER_SLOTS", 1, 8),
+    caseConcurrency: integer(env, "QUOREM_RUNNER_CASE_LANES", 1, CASE_LANES),
     background,
     attemptMs,
     sliceMs,

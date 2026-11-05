@@ -322,6 +322,23 @@ export function privateRunnerCommands(options: {
     async beginCompletion(job, header: CompletionHeader, signal) {
       await ack("begin", { job: j(job), header }, signal);
     },
+    async writeCompletionChunks(job, chunks, signal) {
+      if (!chunks.length || chunks.length > 16) throw new Error("Invalid completion batch");
+      await ack(
+        "chunks",
+        {},
+        signal,
+        new TextEncoder().encode(
+          JSON.stringify({
+            job: j(job),
+            chunks: chunks.map(({ bytes, ...chunk }) => ({
+              ...chunk,
+              bytes: Buffer.from(bytes).toString("base64"),
+            })),
+          }),
+        ),
+      );
+    },
     async writeCompletionChunk(job, chunk: CompletionFieldChunk, signal) {
       const metadata = JSON.stringify({
         job: j(job),

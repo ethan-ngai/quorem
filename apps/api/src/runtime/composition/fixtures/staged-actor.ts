@@ -10,6 +10,24 @@ import { seedCatalog } from "../../../cli/seed.ts";
 export const version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
 export const acceptedSource =
   "class Solution:\n def runWidths(self, values):\n  result=[]\n  for value in values:\n   if not result or value != previous: result.append(1)\n   else: result[-1]+=1\n   previous=value\n  return result\n";
+/** Sign a temporary fixture session using the same cookie contract as native auth. */
+export async function fixtureSessionCookie(authOrigin: string, authSecret: string, token: string) {
+  const authRequire = createRequire(
+    fileURLToPath(new URL("../../../../../auth/package.json", import.meta.url)),
+  );
+  const cookiesFile = authRequire.resolve("better-auth/cookies");
+  const { getCookies } = await import(pathToFileURL(cookiesFile).href);
+  const { serializeSignedCookie } = createRequire(cookiesFile)("better-call") as {
+    serializeSignedCookie(this: void, name: string, value: string, secret: string): Promise<string>;
+  };
+  const name = getCookies({
+    baseURL: authOrigin,
+    advanced: { useSecureCookies: new URL(authOrigin).protocol === "https:" },
+  }).sessionToken.name as string;
+  const sessionCookie = (await serializeSignedCookie(name, token, authSecret)).split(";")[0];
+  return sessionCookie;
+}
+
 type Mode = "stage" | "local-test";
 export function assertStageDatabase(value: string, mode: Mode): void {
   const url = new URL(value);
@@ -116,26 +134,7 @@ export async function createStagedActor(options: {
     options.signal?.throwIfAborted();
     await seedCatalog(pool, false, options.signal);
     options.signal?.throwIfAborted();
-    const authRequire = createRequire(
-      fileURLToPath(new URL("../../../../../auth/package.json", import.meta.url)),
-    );
-    const cookiesFile = authRequire.resolve("better-auth/cookies");
-    const { getCookies } = await import(pathToFileURL(cookiesFile).href);
-    const { serializeSignedCookie } = createRequire(cookiesFile)("better-call") as {
-      serializeSignedCookie(
-        this: void,
-        name: string,
-        value: string,
-        secret: string,
-      ): Promise<string>;
-    };
-    const name = getCookies({
-      baseURL: options.authOrigin,
-      advanced: { useSecureCookies: origin.protocol === "https:" },
-    }).sessionToken.name as string;
-    const sessionCookie = (await serializeSignedCookie(name, token, options.authSecret)).split(
-      ";",
-    )[0];
+    const sessionCookie = await fixtureSessionCookie(options.authOrigin, options.authSecret, token);
     options.signal?.throwIfAborted();
     insertionStarted = true;
     await read((scope) =>

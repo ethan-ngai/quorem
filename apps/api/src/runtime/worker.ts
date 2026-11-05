@@ -1,4 +1,5 @@
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
+import { judgingCapacity } from "@quorem/execution";
 // @ts-expect-error Workerd supplies this module.
 import { DurableObject } from "cloudflare:workers";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
@@ -381,8 +382,10 @@ export default {
         const run = runFor(env, request.signal);
         if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
           const handlers = await composePrivate(run, privateConfig(env), (peer) =>
-            localJudgingDrain(peer, (terminal) =>
-              publish(terminal ? realtimeStreams : ["submission"]),
+            localJudgingDrain(
+              peer,
+              (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
+              judgingCapacity(env as unknown as Record<string, string | undefined>),
             ),
           );
           const response = path.startsWith("/internal/runner/")

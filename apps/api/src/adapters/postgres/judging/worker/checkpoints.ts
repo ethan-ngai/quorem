@@ -15,7 +15,7 @@ import {
   type Job,
   type ExecutionRepository,
 } from "@quorem/execution";
-import { inputCheckpoint, postgresInputReader } from "../inputs/read.ts";
+import { inputBundleInTransaction, inputCheckpoint, postgresInputReader } from "../inputs/read.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -112,16 +112,16 @@ export function postgresCheckpoints(run: Run) {
     },
     async saveCheckpoint(job: Job, item: CheckpointCase): Promise<void> {
       encodeCheckpointCase(item);
-      const envelope = decodeManifestCheckpointFrame(item.frame),
-        reader = postgresInputReader(run),
-        manifest = await reader.inputManifest(job),
-        ref = await reader.inputCaseRef(job, item.ordinal);
+      const envelope = decodeManifestCheckpointFrame(item.frame);
       if (envelope.frame.artifact !== undefined) throw new Error("Invalid checkpoint frame");
       const compressed = await compressCheckpointFrame(new TextEncoder().encode(item.frame));
       await run((scope) =>
         scope.transaction(options, async (tx) => {
           const live = await lockAndLive(tx, job);
           if (!live || live.cancelled) throw new Error("Checkpoint lease unavailable");
+          const bundle = await inputBundleInTransaction(tx, job, item.ordinal, false, false);
+          const { manifest, ref } = bundle;
+          if (!ref) throw new Error("Checkpoint input unavailable");
           await tx.execute(
             sql`INSERT INTO execution_checkpoints(job_id) VALUES(${job.jobId}::uuid) ON CONFLICT DO NOTHING`,
           );

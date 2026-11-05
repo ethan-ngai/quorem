@@ -20,6 +20,8 @@ void test("pins only verified namespace to canonical scope and rejects drift", a
     const probe = async () => ({ namespace: "a".repeat(64) });
     const first = await stageNamespace(env, "0".repeat(64), probe);
     assert.match(first.scope, /^remote:[0-9a-f]{64}$/);
+    assert.match(first.controlScope, /^remote:[0-9a-f]{64}$/);
+    assert.notEqual(first.scope, first.controlScope);
     assert.deepEqual(await stageNamespace(env, first.namespace, probe), first);
     await assert.rejects(stageNamespace(env, "b".repeat(64), probe), /changed/);
     await assert.rejects(

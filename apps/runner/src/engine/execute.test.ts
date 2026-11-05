@@ -98,6 +98,9 @@ function repository(spec: ExecutionSpec) {
     beginCompletion: async (_job: Job, value: CompletionHeader) => {
       header = value;
     },
+    async writeCompletionChunks(job: Job, items: readonly CompletionFieldChunk[]) {
+      for (const item of items) await port.writeCompletionChunk(job, item);
+    },
     writeCompletionChunk: async (_job: Job, item: CompletionFieldChunk) => {
       const k = `${item.channel}:${item.ordinal}:${item.field}`,
         v = chunks.get(k) ?? [];
@@ -164,7 +167,7 @@ void test(
         problemJson: JSON.stringify(problem),
         source,
         kind: "run",
-        cases: [item, item],
+        cases: Array.from({ length: 9 }, () => item),
         submitSamples: [],
         submitCasesAreSamples: false,
         privateDetails: false,
@@ -196,17 +199,33 @@ void test(
           return sandbox.runCase(request, signal);
         },
       };
-      const header = await executeAndStage(job, fixture.port, observed);
-      assert.equal(header.publicCount, 2, language);
-      assert.deepEqual(fixture.seals, ["public:0:executed", "public:1:executed"], language);
-      assert.equal(fixture.frames.length, 2);
+      const header = await executeAndStage(
+        job,
+        fixture.port,
+        observed,
+        undefined,
+        undefined,
+        undefined,
+        4,
+      );
+      assert.equal(header.publicCount, 9, language);
+      assert.deepEqual(
+        [...fixture.seals].sort(),
+        Array.from({ length: 9 }, (_, index) => `public:${index}:executed`),
+        language,
+      );
+      assert.equal(fixture.frames.length, 9);
       if (!["python", "postgresql"].includes(language))
         assert.deepEqual(
           operations,
-          ["compile-execute", "execute"],
+          ["compile-execute", ...Array.from({ length: 8 }, () => "execute")],
           `${language} reuses compilation`,
         );
-      else assert.deepEqual(operations, ["direct", "direct"]);
+      else
+        assert.deepEqual(
+          operations,
+          Array.from({ length: 9 }, () => "direct"),
+        );
     }
   },
 );
@@ -452,3 +471,105 @@ void test(
     assert.notEqual(decodeManifestCheckpointFrame(fixture.frames[0]).frame.status, "executed");
   },
 );
+
+void test("four native lanes overlap verification while checkpoints remain ordered", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const runtime = languageRuntime("python")!;
+  const spec: ExecutionSpec = {
+    problemJson: JSON.stringify({
+      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+    }),
+    source: "class Solution:\n def f(self): return 7",
+    kind: "run",
+    cases: Array.from({ length: 20 }, () => '{"args":[],"expected":7}'),
+    submitSamples: [],
+    submitCasesAreSamples: false,
+    privateDetails: false,
+  };
+  const fixture = repository(spec);
+  const job: Job = {
+    jobId: randomUUID(),
+    submissionId: randomUUID(),
+    attemptId: randomUUID(),
+    sandboxScope: "fixture",
+    language: "python",
+    problemVersionId: randomUUID(),
+    sourceRef: "fixture",
+    suiteRef: "fixture",
+    runtimeRevision: runtime.revision,
+    harnessRevision: runtime.harness,
+    limits: defaultLimits(),
+  };
+  let running = 0,
+    peak = 0,
+    verifying = 0,
+    peakVerification = 0,
+    overlap = false,
+    finalCalls = 0;
+  const lanes = new Set<number>();
+  const seal = fixture.port.sealCompletionFrame.bind(fixture.port);
+  fixture.port.sealCompletionFrame = async (...args) => {
+    verifying++;
+    peakVerification = Math.max(peakVerification, verifying);
+    try {
+      await delay(80);
+      await seal(...args);
+    } finally {
+      verifying--;
+    }
+  };
+  const sandbox = {
+    teardownAttempt: async () => {},
+    async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
+      const lane = request.ordinal % 4;
+      assert.equal(lanes.has(lane), false);
+      lanes.add(lane);
+      running++;
+      peak = Math.max(peak, running);
+      overlap ||= verifying > 0;
+      try {
+        await delay(request.ordinal % 4 === 0 ? 30 : 5, undefined, { signal });
+        return confirmCaseOutput(request, {
+          stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+          stderr: Buffer.alloc(0),
+          exitCode: 0,
+        });
+      } finally {
+        running--;
+        lanes.delete(lane);
+      }
+    },
+  };
+  await executeAndStage(
+    job,
+    fixture.port,
+    sandbox,
+    undefined,
+    undefined,
+    () => {
+      assert.equal(running, 0);
+      finalCalls++;
+    },
+    4,
+  );
+  assert.equal(peak, 4);
+  assert.equal(overlap, true);
+  assert.ok(peakVerification <= 8);
+  assert.equal(fixture.frames.length, 20);
+  assert.equal(fixture.seals.length, 20);
+  assert.equal(finalCalls, 1);
+  assert.equal(running, 0);
+  assert.equal(verifying, 0);
+  const failed = repository(spec);
+  failed.port.sealCompletionFrame = async () => {
+    throw new Error("verification failed");
+  };
+  await assert.rejects(
+    executeAndStage(job, failed.port, sandbox, undefined, undefined, undefined, 4),
+    /verification failed|aborted/,
+  );
+  assert.equal(running, 0);
+  assert.equal(verifying, 0);
+  assert.equal(finalCalls, 1);
+});

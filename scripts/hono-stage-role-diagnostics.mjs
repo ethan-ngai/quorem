@@ -188,7 +188,7 @@ async function inspectCases(env, saved) {
     await writeFile(key, secrets.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
     const controls = await stageControls({
       namespace,
-      scope: sandbox.scope,
+      scope: sandbox.controlScope,
       release: data.SERVICES_RELEASE,
       bindings: data.SERVICES_BINDINGS,
       secret: secrets.RECOVERY_CONTROL_SECRET,

@@ -26,11 +26,15 @@ type ManifestRow = {
   metadata_hash: string;
   metadata_size: number;
 };
-const manifestFields = sql`s.kind,COALESCE(s.odyssey_level,ie.level)::int AS level,encode(quorem_suite_digest(i.job_id),'hex') AS suite_hash,i.case_count,i.sample_count,i.private_details,i.submit_cases_are_samples,encode(src.hash,'hex') AS source_hash,octet_length(src.data)::int AS source_size,encode(meta.hash,'hex') AS metadata_hash,octet_length(meta.data)::int AS metadata_size`;
+const manifestFields = sql`s.kind,COALESCE(s.odyssey_level,ie.level)::int AS level,encode((SELECT digest FROM runner_job_input_digests WHERE job_id=i.job_id),'hex') AS suite_hash,i.case_count,i.sample_count,i.private_details,i.submit_cases_are_samples,encode(src.hash,'hex') AS source_hash,octet_length(src.data)::int AS source_size,encode(meta.hash,'hex') AS metadata_hash,octet_length(meta.data)::int AS metadata_size`;
 const manifestBlobs = sql`JOIN runner_input_blobs src ON src.hash=i.source_hash JOIN runner_input_blobs meta ON meta.hash=i.metadata_hash`;
 const readOptions = { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true };
 function manifestFrom(row: ManifestRow | undefined): InputManifest {
-  if (!row || (row.kind !== "run" && row.kind !== "submit"))
+  if (
+    !row ||
+    !/^[a-f0-9]{64}$/.test(row.suite_hash) ||
+    (row.kind !== "run" && row.kind !== "submit")
+  )
     throw new Error("Runner input unavailable");
   return {
     kind: row.kind,
@@ -84,6 +88,8 @@ export async function inputBundleInTransaction(
   job: Job,
   ordinal: number,
   includeSource: boolean,
+  includePages = true,
+  sampleOffset = false,
 ) {
   if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= 2147483647)
     throw new Error("Invalid input ordinal");
@@ -99,11 +105,11 @@ export async function inputBundleInTransaction(
       }
     >(sql`SELECT ${manifestFields},
     encode(b.hash,'hex') AS case_hash,octet_length(b.data)::int AS case_size,c.channel,
-    CASE WHEN ${includeSource} AND octet_length(src.data)<=65536 THEN src.data END AS source_data,
-    CASE WHEN octet_length(meta.data)<=65536 THEN meta.data END AS metadata_data,
-    CASE WHEN octet_length(b.data)<=65536 THEN b.data END AS case_data
+    CASE WHEN ${includePages} AND ${includeSource} AND octet_length(src.data)<=65536 THEN src.data END AS source_data,
+    CASE WHEN ${includePages} AND octet_length(meta.data)<=65536 THEN meta.data END AS metadata_data,
+    CASE WHEN ${includePages} AND octet_length(b.data)<=65536 THEN b.data END AS case_data
     ${base} ${manifestBlobs}
-    LEFT JOIN runner_job_input_cases c ON c.job_id=i.job_id AND c.ordinal=${ordinal}
+    LEFT JOIN runner_job_input_cases c ON c.job_id=i.job_id AND c.ordinal=${ordinal}+CASE WHEN ${sampleOffset} THEN i.case_count ELSE 0 END
     LEFT JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE ${authorized(job)}`)
   ).rows[0];
   if (!row) throw new Error("Runner input unavailable");

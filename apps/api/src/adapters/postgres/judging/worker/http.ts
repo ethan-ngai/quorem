@@ -118,6 +118,30 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
       if (!peer) return new Response(null, { status: 401 });
       const repository = peer.repository(request.signal);
       const operation = address.pathname.split("/").pop();
+      if (operation === "chunks") {
+        const data = record(
+          JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(await readBounded(request, 1450000)),
+          ),
+        );
+        if (!Array.isArray(data.chunks) || !data.chunks.length || data.chunks.length > 16)
+          throw new Error("Invalid completion batch");
+        const chunks = data.chunks.map((value) => {
+          const chunk = record(value),
+            raw = str(chunk.bytes);
+          if (
+            raw.length > 87384 ||
+            !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw)
+          )
+            throw new Error("Invalid completion bytes");
+          return {
+            ...chunk,
+            bytes: Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),
+          } as unknown as CompletionFieldChunk;
+        });
+        await repository.writeCompletionChunks(decodeJob(str(data.job), peer.scope), chunks);
+        return Response.json({ ok: true });
+      }
       if (operation === "chunk") {
         const metadata = record(JSON.parse(str(request.headers.get("x-runner-command"))));
         const job = decodeJob(str(metadata.job), peer.scope),

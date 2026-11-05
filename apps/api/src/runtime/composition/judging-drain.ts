@@ -1,4 +1,5 @@
 /** Execute a release-gated drain using the API's PostgreSQL repository. */
+import { judgingCapacity } from "@quorem/execution";
 import { createRepositoryRunner } from "../../../../runner/src/orchestration/runner.ts";
 import { checkpointedEngine } from "../../../../runner/src/orchestration/engine.ts";
 import { remoteSandbox } from "../../../../runner/src/sandbox/remote.ts";
@@ -8,6 +9,7 @@ import type { RunnerPeer } from "../../adapters/postgres/judging/worker/http.ts"
 export function localJudgingDrain(
   peer: PrivateConfig["runnerPeers"][number],
   onUpdate: (terminal: boolean) => Promise<void>,
+  capacity = judgingCapacity({}),
 ): RunnerPeer["drain"] {
   return async (request, config, repository) => {
     const { origin, secret, namespaceId, ownerPublicKey } = config;
@@ -26,17 +28,23 @@ export function localJudgingDrain(
       cleanupMs: 30000,
     });
     if (sandbox.scope !== peer.scope) return new Response(null, { status: 403 });
-    const finalize = repository.finalizeCompletion;
+    const finalize = repository.finalizeCompletion?.bind(repository);
     if (!finalize) throw new Error("Transactional finalization required");
     const runner = createRepositoryRunner(
       {
         sandbox,
         drainSecret: peer.secret,
-        slots: 1,
+        slots: capacity.slots,
         graceMs: 1,
         resumable: peer.resumable,
         engine: (commands, isolated) => ({
-          ...checkpointedEngine(commands, isolated),
+          ...checkpointedEngine(
+            commands,
+            isolated,
+            capacity.sliceMs,
+            capacity.caseLanes,
+            async () => (await commands.queueState()).queued > 0,
+          ),
           inputProtocol: "manifest-v1",
         }),
       },

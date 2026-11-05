@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
 import { CaseSandbox } from "./case-sandbox.js";
+
+function newSandbox(context, env = {}) {
+  return new CaseSandbox(context, {
+    CASES: {
+      getByName: () => ({
+        fetch: async (request) =>
+          request.method === "GET"
+            ? Response.json({ active: false, running: false, ordinal: null, tokenHash: null })
+            : new Response(null, { status: 204 }),
+      }),
+    },
+    ...env,
+  });
+}
 
 function fixture({ failure = false, streamFailure = false } = {}) {
   const values = new Map();
@@ -12,10 +27,12 @@ function fixture({ failure = false, streamFailure = false } = {}) {
         return values.get(key);
       },
       async put(key, value) {
-        values.set(key, value);
+        if (typeof key === "object")
+          for (const [name, item] of Object.entries(key)) values.set(name, item);
+        else values.set(key, value);
       },
       async delete(key) {
-        values.delete(key);
+        for (const name of Array.isArray(key) ? key : [key]) values.delete(name);
       },
       async setAlarm(value) {
         context.alarm = value;
@@ -78,6 +95,7 @@ function request(method = "POST", headers = {}) {
     method,
     headers: {
       "x-case-language": "python",
+      "x-quorem-case-lanes": String(CASE_LANES),
       "x-case-token": "case-token-123456",
       "x-case-memory": "268435456",
       "x-case-processes": "16",
@@ -89,8 +107,8 @@ function request(method = "POST", headers = {}) {
 
 void test("case lifecycle diagnostics require the validation binding", async () => {
   const { context } = fixture();
-  assert.equal((await new CaseSandbox(context, {}).fetch(request("GET"))).status, 405);
-  const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
+  assert.equal((await newSandbox(context, {}).fetch(request("GET"))).status, 405);
+  const sandbox = newSandbox(context, { CASE_DIAGNOSTICS: "true" });
   assert.deepEqual(await (await sandbox.fetch(request("GET"))).json(), {
     phase: "idle",
     failure: "none",
@@ -107,7 +125,7 @@ void test("case lifecycle diagnostics require the validation binding", async () 
 
 void test("case diagnostics preserve the failed stream source after teardown", async () => {
   const { context } = fixture({ streamFailure: true });
-  const sandbox = new CaseSandbox(context, { CASE_DIAGNOSTICS: "true" });
+  const sandbox = newSandbox(context, { CASE_DIAGNOSTICS: "true" });
   const response = await sandbox.fetch(request());
   await assert.rejects(() => response.arrayBuffer());
   const diagnostic = await (await sandbox.fetch(request("GET"))).json();
@@ -117,7 +135,7 @@ void test("case diagnostics preserve the failed stream source after teardown", a
 
 void test("direct case forwards current input and confirms teardown before its terminal frame", async () => {
   const { context, pending, values, input } = fixture();
-  const sandbox = new CaseSandbox(context, {});
+  const sandbox = newSandbox(context, {});
   const response = await sandbox.fetch(request());
   assert.equal(response.status, 200);
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -137,16 +155,13 @@ void test("direct case forwards current input and confirms teardown before its t
 void test("invalid limits do not start a case and uncertain teardown remains fenced", async () => {
   const invalid = fixture();
   assert.equal(
-    (
-      await new CaseSandbox(invalid.context, {}).fetch(
-        request("POST", { "x-case-memory": "999999999" }),
-      )
-    ).status,
+    (await newSandbox(invalid.context, {}).fetch(request("POST", { "x-case-memory": "999999999" })))
+      .status,
     400,
   );
   assert.equal(invalid.context.container.running, false);
   const failed = fixture({ failure: true });
-  const sandbox = new CaseSandbox(failed.context, { CASE_DIAGNOSTICS: "true" });
+  const sandbox = newSandbox(failed.context, { CASE_DIAGNOSTICS: "true" });
   const response = await sandbox.fetch(request());
   await assert.rejects(() => response.arrayBuffer());
   assert.equal((await (await sandbox.fetch(request("GET"))).json()).failure, "destroy-begin");
@@ -157,7 +172,7 @@ void test("invalid limits do not start a case and uncertain teardown remains fen
 
 void test("teardown fences a case whose input is still arriving", async () => {
   const { context } = fixture();
-  const sandbox = new CaseSandbox(context, {});
+  const sandbox = newSandbox(context, {});
   let controller;
   const body = new ReadableStream({
     start(value) {
@@ -188,3 +203,88 @@ void test("teardown fences a case whose input is still arriving", async () => {
   assert.equal(next.status, 200);
   await next.arrayBuffer();
 });
+
+function laneNamespace({ failedLane } = {}) {
+  const contexts = new Map(),
+    objects = new Map(),
+    releases = [];
+  const env = {
+    CASE_DIAGNOSTICS: "true",
+    CASES: {
+      getByName(name) {
+        if (!objects.has(name)) {
+          const f = fixture({ failure: name === failedLane });
+          const exec = f.context.container.exec.bind(f.context.container);
+          f.context.container.exec = async (...args) => {
+            const process = await exec(...args);
+            process.exitCode = new Promise((resolve) => releases.push(() => resolve(0)));
+            return process;
+          };
+          contexts.set(name, f.context);
+          objects.set(name, new CaseSandbox(f.context, env));
+        }
+        return { fetch: (request) => objects.get(name).fetch(request) };
+      },
+    },
+  };
+  return {
+    env,
+    contexts,
+    releases,
+    root: () => env.CASES.getByName("attempt"),
+    evict() {
+      objects.set("attempt", new CaseSandbox(contexts.get("attempt"), env));
+    },
+  };
+}
+
+void test(
+  "attempt teardown after eviction stops every active native lane",
+  { timeout: 5000 },
+  async () => {
+    const f = laneNamespace();
+    const posts = Array.from({ length: CASE_LANES }, (_, ordinal) =>
+      f.root().fetch(
+        request("POST", {
+          "x-quorem-case-ordinal": String(ordinal),
+          "x-case-token": `case-token-parallel-${ordinal}`,
+        }),
+      ),
+    );
+    const responses = await Promise.all(posts);
+    assert.ok(responses.every((response) => response.status === 200));
+    assert.equal(
+      [...f.contexts.values()].filter((ctx) => ctx.container.running).length,
+      CASE_LANES,
+    );
+    f.evict();
+    const stop = await f.root().fetch(request("DELETE", { "x-case-token": "" }));
+    assert.equal(stop.status, 204);
+    assert.ok([...f.contexts.values()].every((ctx) => !ctx.container.running));
+    assert.equal(
+      (await f.root().fetch(request("POST", { "x-quorem-case-ordinal": "5" }))).status,
+      503,
+    );
+    f.releases.forEach((release) => release());
+    await Promise.all(responses.map((response) => response.arrayBuffer()));
+  },
+);
+
+void test(
+  "one failed child teardown prevents attempt confirmation and can be retried",
+  { timeout: 5000 },
+  async () => {
+    const f = laneNamespace({ failedLane: "attempt-lane-2" });
+    const response = await f.root().fetch(request("POST", { "x-quorem-case-ordinal": "2" }));
+    assert.equal(response.status, 200);
+    f.evict();
+    assert.equal((await f.root().fetch(request("DELETE", { "x-case-token": "" }))).status, 503);
+    const failed = f.contexts.get("attempt-lane-2");
+    failed.container.destroy = async () => {
+      failed.container.running = false;
+    };
+    assert.equal((await f.root().fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+    f.releases.forEach((release) => release());
+    await response.arrayBuffer();
+  },
+);

@@ -11,6 +11,8 @@ import { productionTerraform } from "./hono-production-terraform.mjs";
 import { productionImages, validatedJudgeImages } from "./hono-production-images.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
+import { judgingScopeIdle } from "./hono-judging-release.mjs";
+import { benchmarkProductionWorkload } from "./hono-production-workload.mjs";
 import { benchmarkProductionPython } from "./hono-production-benchmark.mjs";
 
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
@@ -42,14 +44,10 @@ async function quiesce(db) {
   const deadline = Date.now() + 90000;
   let idleSince;
   do {
-    const {
-      rows: [row],
-    } = await db.query(
-      "SELECT NOT EXISTS(SELECT 1 FROM execution_jobs WHERE NOT finished AND attempt_id IS NOT NULL) AS idle",
-    );
-    if (!row.idle) idleSince = undefined;
+    const idle = await judgingScopeIdle(db);
+    if (!idle) idleSince = undefined;
     else idleSince ??= Date.now();
-    // The old background drain can survive its last request and has a 15s admission grace.
+    // Require a stable idle interval before advancing release ownership.
     if (idleSince && Date.now() - idleSince >= 20000) return;
     await delay(1000);
   } while (Date.now() < deadline);
@@ -102,7 +100,8 @@ async function rollout(env, benchmarkOnly) {
     );
     const controls = (targetRelease, bindings) =>
       stageControls({
-        ...namespace,
+        namespace: namespace.namespace,
+        scope: namespace.controlScope,
         release: targetRelease,
         bindings,
         secret: keys.RECOVERY_CONTROL_SECRET,
@@ -113,6 +112,10 @@ async function rollout(env, benchmarkOnly) {
     const current = await controls(priorOutput.SERVICES_RELEASE, priorOutput.SERVICES_BINDINGS);
     const { runner, cases } = await current.observe();
     const benchmarkEnv = { ...env };
+    if (env.JUDGING_WORKLOAD === "true") {
+      benchmarkEnv.DATABASE_URL = database.href;
+      benchmarkEnv.BETTER_AUTH_SECRET = keys.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET;
+    }
     if (!benchmarkEnv.AUTH_BOOTSTRAP_USERNAME) {
       const { rows } = await db.query(`SELECT DISTINCT a.username, c.password
         FROM quorem_auth."user" a
@@ -253,6 +256,11 @@ async function rollout(env, benchmarkOnly) {
       if (Date.now() >= verifierDeadline) throw new Error("Verifier domain unavailable");
       await delay(2000);
     }
+    report("update-api-with-private-workers-paused");
+    runStageCommand("vp", ["exec", "node", "scripts/hono-production-api-release.mjs"], {
+      ...env,
+      HONO_JUDGING_SCOPE_UPDATE: "true",
+    });
     report("activate-private-workers");
     const next = await controls(release, result.SERVICES_BINDINGS);
     const prepared = await next.prepareResume({
@@ -280,7 +288,12 @@ if (import.meta.main) {
   try {
     const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
     report("benchmark-python");
-    console.log(JSON.stringify(await benchmarkProductionPython(benchmarkEnv)));
+    const result =
+      process.env.JUDGING_WORKLOAD === "true"
+        ? await benchmarkProductionWorkload(benchmarkEnv)
+        : await benchmarkProductionPython(benchmarkEnv);
+    console.log(JSON.stringify(result));
+    if (result.meetsTarget === false) process.exitCode = 1;
   } catch (error) {
     console.error(
       JSON.stringify({

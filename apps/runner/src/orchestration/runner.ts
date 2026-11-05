@@ -19,7 +19,7 @@ type RunnerOptions = {
   attemptMs?: number;
   graceMs?: number;
   engine: (
-    repository: ExecutionRepository & ExecutionInputReader,
+    repository: ExecutionRepository & ExecutionInputReader & ExecutionQueueControl,
     sandbox: IsolatedSandbox,
   ) => AttemptEngine & { readonly inputProtocol: "manifest-v1" };
 };

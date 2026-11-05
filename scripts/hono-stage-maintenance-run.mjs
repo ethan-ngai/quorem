@@ -40,16 +40,6 @@ export async function runStageMaintenance(env, plan, directory) {
   try {
     const publicKeyFile = join(temp, "case-public.pem");
     await writeFile(publicKeyFile, services.QUOREM_CASE_OWNER_PUBLIC_KEY_PEM, { mode: 0o600 });
-    const controls = await stageControls({
-      namespace: plan.namespace,
-      scope: plan.scope,
-      release: plan.prior.release,
-      bindings: plan.prior.bindings,
-      secret: services.RECOVERY_CONTROL_SECRET,
-      caseOrigin,
-      runnerOrigin: `https://${hosts.drain}`,
-      publicKeyFile,
-    });
     const sandbox = remoteSandbox({
       origin: caseOrigin,
       namespaceId: plan.namespace,
@@ -58,6 +48,16 @@ export async function runStageMaintenance(env, plan, directory) {
       cleanupMs: 30000,
     });
     if (sandbox.scope !== plan.scope) throw new Error("Maintenance sandbox authority changed");
+    const controls = await stageControls({
+      namespace: plan.namespace,
+      scope: sandbox.controlScope,
+      release: plan.prior.release,
+      bindings: plan.prior.bindings,
+      secret: services.RECOVERY_CONTROL_SECRET,
+      caseOrigin,
+      runnerOrigin: `https://${hosts.drain}`,
+      publicKeyFile,
+    });
     await database.connect();
     return await maintainStage(plan, {
       journal,

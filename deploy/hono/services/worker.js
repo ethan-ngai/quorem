@@ -1,4 +1,5 @@
 /** Staged, purpose-scoped ingress for trusted services and attested cases. */
+import { CASE_SCOPE_REVISION } from "../../../packages/execution/src/scheduling.ts";
 import { DurableObject } from "cloudflare:workers";
 import { ContainerLifecycle } from "../../container.js";
 import { caseRequest } from "../../case-service.js";
@@ -76,8 +77,14 @@ async function caseScope(env) {
       .digest("SHA-256", value)
       .then((x) => Array.from(new Uint8Array(x), (b) => b.toString(16).padStart(2, "0")).join(""));
   const fingerprint = await digest(bytes);
-  const scope = `remote:${await digest(new TextEncoder().encode(JSON.stringify([new URL(env.CASE_ORIGIN).origin, namespace, fingerprint])))}`;
-  return { namespace, scope };
+  const identity = [new URL(env.CASE_ORIGIN).origin, namespace, fingerprint];
+  const hashScope = async (parts) =>
+    `remote:${await digest(new TextEncoder().encode(JSON.stringify(parts)))}`;
+  const [controlScope, scope] = await Promise.all([
+    hashScope(identity),
+    hashScope([...identity, CASE_SCOPE_REVISION]),
+  ]);
+  return { namespace, scope, controlScope };
 }
 function clean(request) {
   const headers = new Headers(request.headers);
@@ -280,7 +287,7 @@ const ingress = {
           return new Response(null, { status: 503 });
         if (
           (caseControl || (runnerControl && operation === "state")) &&
-          (request.headers.get("x-quorem-owner-scope") !== bound.scope ||
+          (request.headers.get("x-quorem-owner-scope") !== bound.controlScope ||
             !/^[a-f0-9-]{36}$/.test(request.headers.get("x-quorem-owner-nonce") ?? ""))
         )
           return new Response(null, { status: 404 });
@@ -301,7 +308,7 @@ const ingress = {
           if (!validRunnerControlState(value)) return new Response(null, { status: 503 });
           return await signedCaseProbe(env, {
             kind: "runner-control-state",
-            scope: bound.scope,
+            scope: bound.controlScope,
             attempt: "runner-control",
             nonce: request.headers.get("x-quorem-owner-nonce"),
             value,

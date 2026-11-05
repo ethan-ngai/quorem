@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
 
 const MAX_INPUT = 8 * 1024 * 1024;
 const FRAME_LIMIT = 64 * 1024;
@@ -47,8 +48,7 @@ export class CaseSandbox extends DurableObject {
       if (started || this.ctx.container.running) await this.ctx.container.destroy();
       this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
-      await this.ctx.storage.delete("started");
-      await this.ctx.storage.delete("deadline");
+      await this.ctx.storage.delete(["started", "deadline"]);
       await this.ctx.storage.deleteAlarm();
       this.phase = "stop-complete";
       console.log("case-lifecycle stop-complete");
@@ -70,9 +70,48 @@ export class CaseSandbox extends DurableObject {
     await this.stop();
   }
 
+  children(request) {
+    const attempt = new URL(request.url).pathname.split("/").pop();
+    if (!this.env.CASES || !attempt) throw new Error("Case lane namespace unavailable");
+    return Array.from({ length: CASE_LANES - 1 }, (_, index) =>
+      this.env.CASES.getByName(`${attempt}-lane-${index + 1}`, {
+        locationHint: this.env.APP_LOCATION_HINT || "enam",
+      }),
+    );
+  }
+
   async fetch(request) {
+    const child = request.headers.get("x-quorem-child-lane") === "true";
+    if (
+      !child &&
+      request.method === "POST" &&
+      request.headers.get("x-quorem-case-lanes") === String(CASE_LANES)
+    ) {
+      const raw = request.headers.get("x-quorem-case-ordinal");
+      const ordinal = /^(0|[1-9][0-9]{0,9})$/.test(raw ?? "") ? Number(raw) : 0;
+      const lane = ordinal % CASE_LANES;
+      if (lane) {
+        if (await this.ctx.storage.get("cancelled")) return new Response(null, { status: 503 });
+        const headers = new Headers(request.headers);
+        headers.set("x-quorem-child-lane", "true");
+        return this.children(request)[lane - 1].fetch(new Request(request, { headers }));
+      }
+    }
     if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
       if (this.env.CASE_DIAGNOSTICS !== "true") return new Response(null, { status: 404 });
+      if (!child) {
+        const headers = new Headers(request.headers);
+        headers.set("x-quorem-child-lane", "true");
+        const children = await Promise.all(
+          this.children(request).map(async (stub) => {
+            const response = await stub.fetch(new Request(request, { headers }));
+            if (!response.ok) throw new Error("Case lane probe unavailable");
+            return response.json();
+          }),
+        );
+        const active = children.find((value) => value.active);
+        if (active) return Response.json(active);
+      }
       const running = this.ctx.container?.running === true;
       const active =
         running &&
@@ -108,7 +147,23 @@ export class CaseSandbox extends DurableObject {
       if (!token || this.active?.token === token) this.generation = (this.generation ?? 0) + 1;
       try {
         await this.ctx.storage.put(token ? `cancel:${token}` : "cancelled", true);
-        if (!token || (await this.ctx.storage.get("started")) === token) await this.stop();
+        const stops = [];
+        if (!child) {
+          const headers = new Headers(request.headers);
+          headers.set("x-quorem-child-lane", "true");
+          for (const stub of this.children(request))
+            stops.push(
+              (async () => {
+                const response = await stub.fetch(new Request(request, { headers }));
+                await response.body?.cancel();
+                if (response.status !== 204) throw new Error("Case lane teardown unconfirmed");
+              })(),
+            );
+        }
+        if (!token || (await this.ctx.storage.get("started")) === token) stops.push(this.stop());
+        const outcomes = await Promise.allSettled(stops);
+        if (outcomes.some((value) => value.status === "rejected"))
+          throw new Error("Case teardown unconfirmed");
         console.log("case-lifecycle delete-complete");
         return new Response(null, { status: 204 });
       } catch {
@@ -158,9 +213,8 @@ export class CaseSandbox extends DurableObject {
         !container.images?.[language]
       )
         throw new Error("Case container unavailable");
-      await this.ctx.storage.put("started", token);
       const deadline = Date.now() + 180_000;
-      await this.ctx.storage.put("deadline", deadline);
+      await this.ctx.storage.put({ started: token, deadline });
       await this.ctx.storage.setAlarm(deadline);
       if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
       const started = performance.now();
