@@ -11,6 +11,7 @@ import { validateFieldChunks } from "./field-validation.ts";
 import type { ResultVerifier } from "./verification-client.ts";
 import { postgresVerificationPrepare } from "./verification-prepare.ts";
 import { postgresVerificationCommit } from "./verification-commit.ts";
+import { lockCompletionFrame } from "./frame-lock.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const encoder = new TextEncoder();
@@ -127,10 +128,10 @@ export function postgresCompletionStaging(
           throw new Error("Invalid header field");
       }
       await transact(async (tx) => {
-        if (!(await locked(tx, job))) throw new Error("Stale completion");
+        await lockCompletionFrame(tx, job, item.channel, item.ordinal);
         const stage = (
           await tx.execute<{ eof: boolean; header: Uint8Array; kind: string; interview: boolean }>(
-            sql`SELECT c.eof,c.header_data AS header,s.kind,s.interview_id IS NOT NULL AS interview FROM execution_completion_staging c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id WHERE c.job_id=${job.jobId}::uuid AND c.attempt_id=${job.attemptId}::uuid AND c.sandbox_scope=${job.sandboxScope} FOR UPDATE OF c`,
+            sql`SELECT c.eof,c.header_data AS header,s.kind,s.interview_id IS NOT NULL AS interview FROM execution_completion_staging c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id WHERE c.job_id=${job.jobId}::uuid AND c.attempt_id=${job.attemptId}::uuid AND c.sandbox_scope=${job.sandboxScope}`,
           )
         ).rows[0];
         if (!stage || stage.eof) throw new Error("Completion stream closed");

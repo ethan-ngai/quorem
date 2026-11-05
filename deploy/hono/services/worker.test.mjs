@@ -344,11 +344,49 @@ void test("control authority gates drains and registers authorized case attempts
   assert.equal((await post(null)).status, 404);
   assert.deepEqual(events, []);
   registered = false;
-  assert.equal((await post()).status, 503);
+  const deniedCase = await post();
+  assert.equal(deniedCase.status, 200);
+  await assert.rejects(deniedCase.arrayBuffer(), /Case admission unavailable/);
   assert.deepEqual(events.splice(0), ["control:/register"]);
   registered = true;
-  assert.equal((await post()).status, 200);
+  const acceptedCase = await post();
+  assert.equal(acceptedCase.status, 200);
+  assert.equal(await acceptedCase.text(), "ok");
   assert.deepEqual(events.splice(0), ["control:/register", "case"]);
+  const control = env.CASE_CONTROL;
+  let releaseGate;
+  const gatePending = new Promise((resolve) => {
+    releaseGate = resolve;
+  });
+  env.CASE_CONTROL = {
+    getByName: () => ({
+      fetch: async () => {
+        events.push("control:pending");
+        await gatePending;
+        return new Response(null, { status: 204 });
+      },
+    }),
+  };
+  let timer;
+  try {
+    const early = await Promise.race([
+      post(),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), 1000);
+      }),
+    ]);
+    assert.equal(early?.status, 200);
+    assert.deepEqual(events, ["control:pending"]);
+    // Cancellation before durable admission must never launch a native case afterward.
+    await early.body.cancel();
+    releaseGate();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(events.splice(0), ["control:pending"]);
+  } finally {
+    clearTimeout(timer);
+    releaseGate();
+    env.CASE_CONTROL = control;
+  }
   const adminCase = (token, ownerScope = controlScope) =>
     worker.fetch(
       new Request(`${env.CASE_ORIGIN}/internal/control/case/state`, {
