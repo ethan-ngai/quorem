@@ -37,6 +37,13 @@ async function input(request) {
   return result;
 }
 
+async function usedLanes(storage) {
+  const used = (await storage.get("used-lanes")) ?? 0;
+  if (!Number.isInteger(used) || used < 0 || used >= 2 ** CASE_LANES)
+    throw new Error("Invalid case lane inventory");
+  return used;
+}
+
 /** One trusted launcher and one disposable container per execution case. */
 export class CaseSandbox extends DurableObject {
   stop() {
@@ -70,14 +77,31 @@ export class CaseSandbox extends DurableObject {
     await this.stop();
   }
 
-  children(request) {
+  child(request, lane) {
     const attempt = new URL(request.url).pathname.split("/").pop();
     if (!this.env.CASES || !attempt) throw new Error("Case lane namespace unavailable");
-    return Array.from({ length: CASE_LANES - 1 }, (_, index) =>
-      this.env.CASES.getByName(`${attempt}-lane-${index + 1}`, {
-        locationHint: this.env.APP_LOCATION_HINT || "enam",
-      }),
-    );
+    return this.env.CASES.getByName(`${attempt}-lane-${lane}`, {
+      locationHint: this.env.APP_LOCATION_HINT || "enam",
+    });
+  }
+
+  async usedChildren(request) {
+    const used = await usedLanes(this.ctx.storage);
+    return Array.from({ length: CASE_LANES - 1 }, (_, index) => index + 1)
+      .filter((lane) => used & (1 << lane))
+      .map((lane) => this.child(request, lane));
+  }
+
+  async registerLane(request, lane) {
+    const token = request.headers.get("x-case-token");
+    if (!/^[A-Za-z0-9-]{16,128}$/.test(token ?? "")) return false;
+    // Publish routing intent before delegation; cancellation and inventory cannot cross.
+    return this.ctx.storage.transaction(async (tx) => {
+      if ((await tx.get("cancelled")) || (await tx.get(`cancel:${token}`))) return false;
+      const used = await usedLanes(tx);
+      if (!(used & (1 << lane))) await tx.put("used-lanes", used | (1 << lane));
+      return true;
+    });
   }
 
   childControlRequest(request) {
@@ -88,7 +112,7 @@ export class CaseSandbox extends DurableObject {
   }
 
   async visitChildren(request, visit) {
-    const children = this.children(request),
+    const children = await this.usedChildren(request),
       outcomes = [];
     // Leave connection headroom for the ingress and each lane's container RPCs.
     for (let start = 0; start < children.length; start += 3)
@@ -98,19 +122,18 @@ export class CaseSandbox extends DurableObject {
 
   async fetch(request) {
     const child = request.headers.get("x-quorem-child-lane") === "true";
-    if (
-      !child &&
-      request.method === "POST" &&
-      request.headers.get("x-quorem-case-lanes") === String(CASE_LANES)
-    ) {
+    if (!child && request.method === "POST") {
       const raw = request.headers.get("x-quorem-case-ordinal");
       const ordinal = /^(0|[1-9][0-9]{0,9})$/.test(raw ?? "") ? Number(raw) : 0;
-      const lane = ordinal % CASE_LANES;
+      const lane =
+        request.headers.get("x-quorem-case-lanes") === String(CASE_LANES)
+          ? ordinal % CASE_LANES
+          : 0;
+      if (!(await this.registerLane(request, lane))) return new Response(null, { status: 503 });
       if (lane) {
-        if (await this.ctx.storage.get("cancelled")) return new Response(null, { status: 503 });
         const headers = new Headers(request.headers);
         headers.set("x-quorem-child-lane", "true");
-        return this.children(request)[lane - 1].fetch(new Request(request, { headers }));
+        return this.child(request, lane).fetch(new Request(request, { headers }));
       }
     }
     if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
@@ -229,7 +252,28 @@ export class CaseSandbox extends DurableObject {
     this.failureSource = undefined;
     this.active = active;
     const generation = this.generation ?? 0;
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    // Flush admission before startup; only the final frame certifies completed teardown.
+    this.ctx.waitUntil(
+      this.executeCase(request, active, generation, language, memory, processes, writer),
+    );
+    return new Response(stream.readable, {
+      headers: { "Content-Type": "application/octet-stream" },
+    });
+  }
+
+  async executeCase(request, active, generation, language, memory, processes, writer) {
+    const token = active.token;
+    let source;
+    let step = "setup";
+    const observe = (promise, name) =>
+      promise.catch((error) => {
+        source ??= name;
+        throw error;
+      });
     try {
+      await writer.write(frame(1, new Uint8Array()));
       if (
         (await this.ctx.storage.get("cancelled")) ||
         (await this.ctx.storage.get(`cancel:${token}`))
@@ -281,8 +325,6 @@ export class CaseSandbox extends DurableObject {
         await inputWriter.write(bytes);
         await inputWriter.close();
       })();
-      const stream = new TransformStream();
-      const writer = stream.writable.getWriter();
       const pump = async (readable, channel) => {
         const reader = readable.getReader();
         for (;;) {
@@ -292,62 +334,37 @@ export class CaseSandbox extends DurableObject {
             await writer.write(frame(channel, value.subarray(i, i + FRAME_LIMIT)));
         }
       };
-      this.ctx.waitUntil(
-        (async () => {
-          let source;
-          let step = "streams";
-          const observe = (promise, name) =>
-            promise.catch((error) => {
-              source ??= name;
-              throw error;
-            });
-          try {
-            const [, , , exitCode] = await Promise.all([
-              observe(sendInput, "input"),
-              observe(pump(process.stdout, 1), "stdout"),
-              observe(pump(process.stderr, 2), "stderr"),
-              observe(process.exitCode, "exit"),
-            ]);
-            this.phase = "streams-complete";
-            console.log(`case-lifecycle streams-complete ${language}`);
-            const exit = new Uint8Array(4);
-            new DataView(exit.buffer).setInt32(0, exitCode);
-            step = "exit-frame";
-            await writer.write(frame(3, exit));
-            step = "destroy";
-            await this.stop();
-            step = "terminal-frame";
-            await writer.write(frame(4, new Uint8Array()));
-            step = "close";
-            await writer.close();
-          } catch (error) {
-            this.failure = this.phase;
-            this.failureSource = source ?? step;
-            console.log(`case-lifecycle stream-failed ${language}`);
-            try {
-              await this.stop();
-            } catch {
-              /* Teardown remains unconfirmed. */
-            }
-            await writer.abort(error).catch(() => {});
-          } finally {
-            if (this.active === active) this.active = undefined;
-          }
-        })(),
-      );
-      return new Response(stream.readable, {
-        headers: { "Content-Type": "application/octet-stream" },
-      });
-    } catch {
+      step = "streams";
+      const [, , , exitCode] = await Promise.all([
+        observe(sendInput, "input"),
+        observe(pump(process.stdout, 1), "stdout"),
+        observe(pump(process.stderr, 2), "stderr"),
+        observe(process.exitCode, "exit"),
+      ]);
+      this.phase = "streams-complete";
+      console.log(`case-lifecycle streams-complete ${language}`);
+      const exit = new Uint8Array(4);
+      new DataView(exit.buffer).setInt32(0, exitCode);
+      step = "exit-frame";
+      await writer.write(frame(3, exit));
+      step = "destroy";
+      await this.stop();
+      step = "terminal-frame";
+      await writer.write(frame(4, new Uint8Array()));
+      step = "close";
+      await writer.close();
+    } catch (error) {
       this.failure = this.phase;
-      this.failureSource = "setup";
+      this.failureSource = source ?? step;
+      console.log(`case-lifecycle stream-failed ${language}`);
       try {
         await this.stop();
       } catch {
-        /* Caller must retry teardown. */
+        /* No terminal frame without confirmed teardown. */
       }
+      await writer.abort(error).catch(() => {});
+    } finally {
       if (this.active === active) this.active = undefined;
-      return new Response(null, { status: 503 });
     }
   }
 }
