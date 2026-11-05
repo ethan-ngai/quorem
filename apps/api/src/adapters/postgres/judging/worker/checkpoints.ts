@@ -15,7 +15,7 @@ import {
   type Job,
   type ExecutionRepository,
 } from "@quorem/execution";
-import { postgresInputReader } from "../inputs/read.ts";
+import { inputCheckpoint, postgresInputReader } from "../inputs/read.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -37,32 +37,7 @@ export function postgresCheckpoints(run: Run) {
     "loadCheckpoint" | "replayCheckpoint" | "saveCheckpoint" | "yield"
   > = {
     async loadCheckpoint(job: Job): Promise<Checkpoint> {
-      const manifest = await postgresInputReader(run).inputManifest(job);
-      const checkpoint = await run((scope) =>
-        scope.transaction({ ...options, readOnly: true }, async (tx) => {
-          const row = (
-            await tx.execute<{
-              next: number;
-              artifact: string | null;
-              nanos: string;
-              fatal: Uint8Array | null;
-            }>(
-              sql`SELECT COALESCE(c.next_ordinal,0)::int AS next,c.artifact::text AS artifact,COALESCE(c.compilation_nanos,0)::text AS nanos,c.fatal FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN execution_checkpoints c ON c.job_id=j.id WHERE j.id=${job.jobId}::uuid AND j.submission_id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' AND NOT s.cancel_requested`,
-            )
-          ).rows[0];
-          if (!row) throw new Error("Checkpoint lease unavailable");
-          return {
-            nextOrdinal: row.next,
-            artifact: row.artifact ?? undefined,
-            compilationNanos: BigInt(row.nanos),
-            fatal: row.fatal
-              ? new TextDecoder("utf-8", { fatal: true }).decode(row.fatal)
-              : undefined,
-          };
-        }),
-      );
-      const total =
-        manifest.caseCount + (manifest.submitCasesAreSamples ? 0 : manifest.sampleCount);
+      const { total, checkpoint } = await inputCheckpoint(run, job);
       if (checkpoint.nextOrdinal > total) throw new Error("Invalid checkpoint prefix");
       if (checkpoint.nextOrdinal > 0)
         await api.replayCheckpoint(job, checkpoint.nextOrdinal, async () => {});

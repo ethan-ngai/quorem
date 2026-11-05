@@ -36,6 +36,9 @@ export async function validateFieldChunks(
       throw new Error("Result output exceeds limit");
     fields.add(row.field);
   }
+  if (!["stdout", "stderr", "diagnostics", "sqlTypes"].some((field) => fields.has(field)))
+    return fields;
+
   // JSONB cannot decode NUL; the validation copy replaces each NUL escape with a
   // same-width control character. Original raw bytes remain untouched.
   const checked = await tx.execute<{ field: string; valid: boolean }>(sql`

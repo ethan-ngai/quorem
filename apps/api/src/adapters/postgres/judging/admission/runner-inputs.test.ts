@@ -552,8 +552,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const source = await reader.inputPage(fence, "source", 0, 0);
             expect(new TextDecoder().decode(source.bytes)).toBe("abc");
             expect((await reader.inputPage(fence, "case", 0, 0)).channel).toBe("private");
-            const scoped = async <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
-              fn({ transaction: async (_options, action) => action(tx) } as ConnectionScope);
+            let scopes = 0;
+            const scoped = async <T>(fn: (scope: ConnectionScope) => Promise<T>) => {
+              scopes++;
+              return fn({ transaction: async (_options, action) => action(tx) } as ConnectionScope);
+            };
             const bootstrapKeys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
               "sign",
               "verify",
@@ -647,9 +650,9 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               0,
               "accepted",
             );
-            expect(await postgresVerificationPrepare(scoped)(fence, "sample", 0, "accepted")).toBe(
-              challenge,
-            );
+            expect(
+              await postgresVerificationPrepare(scoped)(fence, "sample", 0, "accepted"),
+            ).toEqual(challenge);
             const authority = postgresVerificationSource(scoped);
             const keys = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
               "sign",
@@ -658,6 +661,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const verifierCredential = new Uint8Array(32).fill(3);
             const sourceCredential = new Uint8Array(32).fill(4);
             const sourceHandler = createVerificationSourceHandler(scoped, sourceCredential);
+            const sourceCalls: { path: string; scopes: number }[] = [];
             const verify = createVerificationFetch({
               sourceOrigin: "https://fixture",
               sourceCredential,
@@ -665,7 +669,13 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               signingKey: keys.privateKey,
               bundle: true,
               timeoutMs: 5000,
-              fetch: async (input, init) => sourceHandler(new Request(input, init)),
+              fetch: async (input, init) => {
+                const request = new Request(input, init);
+                const before = scopes;
+                const response = await sourceHandler(request);
+                sourceCalls.push({ path: new URL(request.url).pathname, scopes: scopes - before });
+                return response;
+              },
             });
             const verifier = httpResultVerifier({
               origin: "https://verifier.fixture",
@@ -673,7 +683,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               timeoutMs: 5000,
               fetch: async (input, init) => verify(new Request(input, init)),
             });
-            const verified = await verifier.verify(challenge);
+            const verified = await verifier.verify(challenge.id);
+            expect(sourceCalls[0]).toEqual({ path: "/internal/verification/bundle", scopes: 2 });
+            expect(sourceCalls.map(({ path }) => path)).not.toContain(
+              "/internal/verification/field",
+            );
             expect(verified.fields?.map(({ field }) => field)).toEqual(["actual", "expected"]);
             await tx.execute(sql`SAVEPOINT mismatch_assembly`);
             const mismatch = { ...verified.receipt, typeMismatch: true };
@@ -684,11 +698,14 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 new Uint8Array(verificationReceiptBytes(mismatch)),
               ),
             );
+            const beforeCommit = scopes;
             await postgresVerificationCommit(scoped, keys.publicKey)(
+              challenge,
               mismatch,
               mismatchSignature,
               verified.fields,
             );
+            expect(scopes - beforeCommit).toBe(1);
             const diagnosticFrame = (
               await tx.execute<{ raw: string }>(
                 sql`SELECT convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
@@ -708,23 +725,23 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               await verifyResultReceipt(verified.receipt, verified.signature, keys.publicKey),
             ).toBe(true);
             await expect(
-              authority.putChunk(challenge, "actual", 0, new TextEncoder().encode("9")),
+              authority.putChunk(challenge.id, "actual", 0, new TextEncoder().encode("9")),
             ).rejects.toThrow("Verification output conflict");
             const commit = postgresVerificationCommit(scoped, keys.publicKey);
             await expect(
-              commit({ ...verified.receipt, status: "accepted" }, verified.signature),
+              commit(challenge, { ...verified.receipt, status: "accepted" }, verified.signature),
             ).rejects.toThrow("Invalid verification signature");
             await tx.execute(
               sql`UPDATE submissions SET cancel_requested=true WHERE id=${submission}::uuid`,
             );
-            await expect(commit(verified.receipt, verified.signature)).rejects.toThrow(
+            await expect(commit(challenge, verified.receipt, verified.signature)).rejects.toThrow(
               "Verification unavailable",
             );
             await tx.execute(
               sql`UPDATE submissions SET cancel_requested=false WHERE id=${submission}::uuid`,
             );
-            await commit(verified.receipt, verified.signature);
-            await commit(verified.receipt, verified.signature);
+            await commit(challenge, verified.receipt, verified.signature);
+            await commit(challenge, verified.receipt, verified.signature);
             const saved = (
               await tx.execute<{ status: string; raw: string }>(
                 sql`SELECT status,convert_from(frame_data,'UTF8') AS raw FROM execution_completion_frames WHERE job_id=${job}::uuid AND channel='sample' AND ordinal=0`,
@@ -764,9 +781,9 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 },
               },
               keys.privateKey,
-            )(privateChallenge);
+            )(privateChallenge.id);
             expect(privateVerified.receipt.status).toBe("accepted");
-            await commit(privateVerified.receipt, privateVerified.signature);
+            await commit(privateChallenge, privateVerified.receipt, privateVerified.signature);
             expect(await verifiedMatchProgress(tx, job)).toEqual({
               kind: "verified",
               caseCount: 1,

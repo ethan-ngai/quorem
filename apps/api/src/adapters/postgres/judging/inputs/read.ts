@@ -45,6 +45,39 @@ function manifestFrom(row: ManifestRow | undefined): InputManifest {
   };
 }
 
+/** Read the checkpoint and its admitted case bound under the same lease predicate. */
+export async function inputCheckpoint(run: Run, job: Job) {
+  return run((scope) =>
+    scope.transaction(readOptions, async (tx) => {
+      const {
+        rows: [row],
+      } = await tx.execute<{
+        total: number;
+        next: number;
+        artifact: string | null;
+        nanos: string;
+        fatal: Uint8Array | null;
+      }>(sql`SELECT (i.case_count+CASE WHEN i.submit_cases_are_samples THEN 0 ELSE i.sample_count END)::int AS total,
+        COALESCE(c.next_ordinal,0)::int AS next,c.artifact::text AS artifact,
+        COALESCE(c.compilation_nanos,0)::text AS nanos,c.fatal
+        ${base} ${manifestBlobs} LEFT JOIN execution_checkpoints c ON c.job_id=i.job_id
+        WHERE ${authorized(job)}`);
+      if (!row) throw new Error("Checkpoint lease unavailable");
+      return {
+        total: row.total,
+        checkpoint: {
+          nextOrdinal: row.next,
+          artifact: row.artifact ?? undefined,
+          compilationNanos: BigInt(row.nanos),
+          fatal: row.fatal
+            ? new TextDecoder("utf-8", { fatal: true }).decode(row.fatal)
+            : undefined,
+        },
+      };
+    }),
+  );
+}
+
 /** Every page rechecks the live fenced job; no transaction spans response streaming. */
 export function postgresInputReader(
   run: Run,
