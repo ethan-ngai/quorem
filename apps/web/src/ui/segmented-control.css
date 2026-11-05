@@ -71,6 +71,13 @@
   font-family: var(--font-code);
   font-variant-ligatures: none;
 }
+.segmented-control[data-compact] {
+  max-inline-size: 100%;
+}
+.segmented-control[data-compact] > button {
+  padding-inline: var(--space-2);
+  white-space: normal;
+}
 
 .segmented-control[data-has-selection="false"] > .segmented-control-selection {
   opacity: 0;

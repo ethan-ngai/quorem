@@ -719,6 +719,11 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: var(--space-3);
 }
+.authoring-node-identity {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 100%;
+}
 .authoring-advanced {
   display: grid;
   gap: var(--space-4);

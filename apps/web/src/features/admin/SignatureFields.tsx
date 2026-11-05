@@ -9,6 +9,9 @@ import {
   Shuffle,
   Trash2,
   TriangleAlert,
+  Unlink,
+  Link2,
+  CornerDownLeft,
 } from "lucide-react";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
@@ -141,20 +144,38 @@ export function SignatureFields({
           </div>
         )}
         {nodeParameters.length > 0 && (
-          <div className="admin-field">
-            <span>Node references</span>
+          <div className="admin-field authoring-node-identity">
+            <span>Node identity</span>
             <SegmentedControl<"off" | NonNullable<Signature["nodeReferences"]>>
-              label="Node references"
+              label="Node identity"
+              compact
               disabled={disabled}
               value={value.nodeReferences ?? "off"}
               onChange={(mode) =>
                 onChange({ ...value, nodeReferences: mode === "off" ? undefined : mode })
               }
               options={[
-                { value: "off", label: "Off" },
-                { value: "arguments", label: "Inputs" },
+                {
+                  value: "off",
+                  label: "Independent",
+                  icon: <Unlink size={15} aria-hidden="true" />,
+                  hint: "Separate node structures.",
+                },
+                {
+                  value: "arguments",
+                  label: "Shared inputs",
+                  icon: <Link2 size={15} aria-hidden="true" />,
+                  hint: "Inputs can reference existing nodes.",
+                },
                 ...(canReturnReference
-                  ? [{ value: "return" as const, label: "Inputs and return" }]
+                  ? [
+                      {
+                        value: "return" as const,
+                        label: "Return identity",
+                        icon: <CornerDownLeft size={15} aria-hidden="true" />,
+                        hint: "Shared inputs; compare the returned node by identity.",
+                      },
+                    ]
                   : []),
               ]}
             />
