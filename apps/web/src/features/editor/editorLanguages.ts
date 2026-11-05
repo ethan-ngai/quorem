@@ -1,6 +1,4 @@
 /** @file editorLanguages.ts @description Lazy upstream language adapters and shared editor capabilities. @module editor */
-import { ocamlDocumentation } from "./documentationComments";
-import { basicCompletion } from "./basicCompletion";
 import type { Extension } from "@codemirror/state";
 import {
   highlightedPython,
@@ -36,27 +34,10 @@ export async function loadLanguageExtensions(language: EditorLanguage): Promise<
       return (await import("./javaHighlighting")).javaExtensions;
     case "typescript":
       return (await import("./typescriptHighlighting")).typescriptExtensions;
-    case "postgresql": {
-      const [{ StreamLanguage }, { pgSQL }] = await Promise.all([
-        import("@codemirror/language"),
-        import("@codemirror/legacy-modes/mode/sql"),
-      ]);
-      return StreamLanguage.define(pgSQL);
-    }
-    case "ocaml": {
-      const [{ StreamLanguage }, { oCaml }] = await Promise.all([
-        import("@codemirror/language"),
-        import("@codemirror/legacy-modes/mode/mllike"),
-      ]);
-      // Wrap the mode's own word list so suggestions also respect literal/comment context.
-      const { autocomplete, ...languageData } = oCaml.languageData ?? {};
-      const language = StreamLanguage.define({ ...oCaml, languageData });
-      return [
-        language,
-        language.data.of({ documentationComments: ocamlDocumentation }),
-        basicCompletion(language, autocomplete as readonly string[]),
-      ];
-    }
+    case "postgresql":
+      return (await import("./postgresqlHighlighting")).postgresqlExtensions;
+    case "ocaml":
+      return (await import("./ocamlHighlighting")).ocamlExtensions;
   }
 }
 export const languageFileNames: Record<EditorLanguage, string> = {

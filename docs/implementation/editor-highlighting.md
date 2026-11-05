@@ -10,7 +10,11 @@ Issue: [#167](https://github.com/ethan-ngai/quorem/issues/167). Appearance prefe
 - `semanticHighlighting.ts` renders asynchronous semantic roles independently of any compiler or LSP transport. It requests visible ranges, rejects stale responses, clears outdated spans on edits and releases timers on disposal. Scheme changes reuse CSS variables.
 - `typeScriptSemanticTokens.ts` adapts the existing TypeScript worker's public 2020 classifications to shared roles. The compiler resolves parameter references, scopes, classes, properties and library symbols. Semantic requests never overwrite a newer source snapshot.
 
-Python, Java and TypeScript retain the official CodeMirror/Lezer grammars. OCaml retains CodeMirror's upstream stream mode; it provides lexical coloring, not scope/type analysis. Java and Python currently have local syntax coloring but no semantic-token color provider. Ordinary variable references can intentionally remain the foreground color.
+Python, Java and TypeScript retain the official CodeMirror/Lezer grammars. OCaml retains CodeMirror's upstream stream mode; it provides lexical coloring, not scope/type analysis. Python's visible identifier adapter uses upstream `TypeDef`, `TypeDefinition` and `TypeParam` ancestry to color annotations and Python 3.12 aliases, including nested generics, unions and qualified names. `Literal` arguments, `Annotated` metadata and quoted forward references keep expression/string coloring. This is syntactic context, not symbol resolution: imported names and constructor calls outside annotations are not classified as types, and builtin accents do not resolve shadowing. The bundled Pyright server has no semantic-token provider; diagnostics and completion do not imply semantic colors.
+
+Java adds record/sealed keywords, annotation declarations, generic declarations, compact constructors, record components, inferred lambda parameters and varargs. TypeScript adds namespace and method-signature contexts before its compiler is ready. OCaml refines upstream code tokens for uppercase module/constructor names, variants, labels, characters and type variables while preserving upstream strings and nested comments; it does not classify arbitrary user-defined lowercase type references or resolve scopes. Java and OCaml have no semantic-token provider. Ordinary variable references can intentionally remain the foreground color.
+
+PostgreSQL uses CodeMirror's maintained SQL grammar with the PostgreSQL dialect, including dollar-quoted strings and nested comments. Quoted identifiers use the shared name role rather than string coloring. Language adapters share the same palette in editable and read-only editor consumers.
 
 ## Tasks and documentation colors
 
@@ -30,4 +34,6 @@ Async templates apply only while the document and selection still match the orig
 
 ## Verification
 
-Tests exercise all standard Lezer tags, actual output from all four grammars, parser-aware comment boundaries, nested OCaml comments, scrolled task continuations, palette contrast, documentation templates, native command fallback, undo, read-only behavior and real TypeScript scope classifications. Live Vite checks use real editor components and the browser TypeScript worker; temporary fixtures are removed before committing.
+Tests exercise all standard Lezer tags, actual output from all five languages, parser-aware comment boundaries, nested OCaml comments, scrolled task continuations, palette contrast, documentation templates, native command fallback, undo, read-only behavior and real TypeScript scope classifications. Live Vite checks use real editor components and the browser TypeScript worker; temporary fixtures are removed before committing.
+
+Cross-language type/declaration/literal regression matrix: `languageHighlighting.test.ts`. Follow-up audit: [#518](https://github.com/ethan-ngai/quorem/issues/518).
