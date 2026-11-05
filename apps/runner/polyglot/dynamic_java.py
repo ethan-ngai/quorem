@@ -74,4 +74,4 @@ def source(r, h):
  else output=call(solution,METHOD,(java.util.List<Object>)request.get("args"));
  System.err.print("\\nQUOREM_RESULT:"+output);
 }'''.replace('CLASS',r['signature']['className']).replace('METHOD',json.dumps(r['signature']['methodName']))
-    return 'import java.util.*;\n'+h['JAVA_TYPES']+r['source']+'\nclass Main {\n'+h['JAVA_ENCODER']+PARSER+call+main+'\n}'
+    return 'import java.util.*;\nimport java.time.LocalDateTime;\n'+h['JAVA_TYPES']+r['source']+'\nclass Main {\n'+h['JAVA_ENCODER']+PARSER+call+main+'\n}'

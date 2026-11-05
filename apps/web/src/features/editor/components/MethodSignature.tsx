@@ -11,10 +11,7 @@ export function MethodSignature({ signature }: { signature: Signature }) {
     <code className="machine-value code-literal">
       {methodDeclarationParts(signature, language).map(({ text, role }, index) =>
         role === "type" ? (
-          <TypeSyntaxText
-            key={index}
-            text={language === "java" ? text.replace(/\bjava\.util\.List(?=<)/g, "List") : text}
-          />
+          <TypeSyntaxText key={index} text={text} />
         ) : (
           <span className={`code-${role}`} key={index}>
             {text}

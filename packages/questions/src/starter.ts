@@ -1,4 +1,5 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
+import { javaQuestionType } from "@quorem/contracts/java-type";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "./model.ts";
 
@@ -42,55 +43,30 @@ function documentation(sig: Signature, language: StarterLanguage, indent: string
   return `${indent}/**\n${indent} * ${lines.map((l) => l.replaceAll("*/", "* /")).join(`\n${indent} * `)}\n${indent} */\n`;
 }
 
-function boxJava(type: string) {
-  const boxed: Record<string, string> = {
-    int: "Integer",
-    long: "Long",
-    double: "Double",
-    boolean: "Boolean",
-  };
-  return boxed[type] ?? type;
-}
-
 function languageType(
   kind: string,
   language: Exclude<StarterLanguage, "python" | "postgresql">,
 ): string {
+  if (language === "java") {
+    const type = javaQuestionType(kind);
+    if (!type) throw new Error(`unsupported type ${kind} for ${language}`);
+    return type;
+  }
   const node = nodeType(kind);
   if (node?.generic) {
     const inner = languageType(node.payload, language);
-    if (language === "java") return `Typed${node.kind}<${boxJava(inner)}>`;
     if (language === "typescript") return `${node.kind}<${inner}> | null`;
     return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
   }
   for (const wrapper of ["optional", "array", "list"] as const) {
     if (kind.startsWith(`${wrapper}<`) && kind.endsWith(">")) {
-      let inner = languageType(kind.slice(wrapper.length + 1, -1), language);
-      if (language === "java") {
-        if (wrapper !== "array") inner = boxJava(inner);
-        return wrapper === "optional"
-          ? inner
-          : wrapper === "array"
-            ? `${inner}[]`
-            : `java.util.List<${inner}>`;
-      }
+      const inner = languageType(kind.slice(wrapper.length + 1, -1), language);
       if (language === "typescript")
         return wrapper === "optional" ? `${inner} | null` : `(${inner})[]`;
       return `(${inner}) ${wrapper === "optional" ? "option" : wrapper}`;
     }
   }
   const types: Record<string, Record<string, string>> = {
-    java: {
-      void: "void",
-      int: "int",
-      long: "long",
-      float: "double",
-      bool: "boolean",
-      str: "String",
-      datetime: "java.time.LocalDateTime",
-      ListNode: "ListNode",
-      TreeNode: "TreeNode",
-    },
     typescript: {
       void: "void",
       int: "number",

@@ -1,12 +1,13 @@
+import { javaQuestionType } from "@quorem/contracts/java-type";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { EditorLanguage } from "./editorLanguages";
 
 /** Wire types stay language-neutral; only presentation and generated source use these spellings. */
 export function questionTypeName(type: string, language: EditorLanguage): string {
+  if (language === "java") return javaQuestionType(type) ?? type;
   const node = nodeType(type);
   if (node?.generic) {
     const inner = questionTypeName(node.payload, language);
-    if (language === "java") return `Typed${node.kind}<${boxJava(inner)}>`;
     if (language === "python") return `${node.kind}[${inner}]`;
     if (language === "ocaml")
       return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
@@ -19,17 +20,16 @@ export function questionTypeName(type: string, language: EditorLanguage): string
     if (language === "python") return `${inner} | None`;
     if (language === "typescript") return inner.endsWith(" | null") ? inner : `${inner} | null`;
     if (language === "ocaml") return `(${inner}) option`;
-    return boxJava(inner);
+    return inner;
   }
   const array = type.startsWith("array<");
   if (array || type.startsWith("list<")) {
     const inner = questionTypeName(type.slice(array ? 6 : 5, -1), language);
     if (language === "python") return `list[${inner}]`;
-    if (language === "java") return array ? `${inner}[]` : `java.util.List<${boxJava(inner)}>`;
     if (language === "ocaml") return `(${inner}) ${array ? "array" : "list"}`;
     return `(${inner})[]`.replace(/^\((\w+)\)/, "$1");
   }
-  const names: Record<EditorLanguage, Record<string, string>> = {
+  const names: Record<Exclude<EditorLanguage, "java">, Record<string, string>> = {
     python: {
       void: "None",
       int: "int",
@@ -38,15 +38,6 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       bool: "bool",
       str: "str",
       datetime: "datetime.datetime",
-    },
-    java: {
-      void: "void",
-      int: "int",
-      long: "long",
-      float: "double",
-      bool: "boolean",
-      str: "String",
-      datetime: "java.time.LocalDateTime",
     },
     typescript: {
       void: "void",
@@ -74,17 +65,6 @@ export function questionTypeName(type: string, language: EditorLanguage): string
   };
   return names[language][type] ?? type;
 }
-function boxJava(type: string) {
-  return (
-    (
-      { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
-        string,
-        string
-      >
-    )[type] ?? type
-  );
-}
-
 export function questionValue(value: unknown, language: EditorLanguage, type?: string): string {
   if (value === null)
     return language === "python" || language === "ocaml"

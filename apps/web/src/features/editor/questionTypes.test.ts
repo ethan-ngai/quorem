@@ -9,22 +9,20 @@ it("renders language literals without modifying string contents", () => {
   expect(questionValue(null, "typescript", "void")).toBe("undefined");
 });
 it("maps shared lists and arrays to each language", () => {
-  expect(questionTypeName("list<int>", "java")).toBe("java.util.List<Integer>");
+  expect(questionTypeName("list<int>", "java")).toBe("List<Integer>");
   expect(questionTypeName("array<int>", "java")).toBe("int[]");
   for (const type of ["list<int>", "array<int>"])
     expect(questionTypeName(type, "python")).toBe("list[int]");
   expect(questionTypeName("optional<array<str>>", "python")).toBe("list[str] | None");
   expect(questionTypeName("void", "python")).toBe("None");
-  expect(questionTypeName("list<optional<int>>", "java")).toBe("java.util.List<Integer>");
+  expect(questionTypeName("list<optional<int>>", "java")).toBe("List<Integer>");
   expect(() => validateTypedValue("array<optional<int>>", [1, null])).not.toThrow();
   expect(() => validateTypedValue("array<int>", [null])).toThrow();
 });
 
 it("datetime types and wire validation", () => {
   expect(questionTypeName("datetime", "python")).toBe("datetime.datetime");
-  expect(questionTypeName("list<datetime>", "java")).toBe(
-    "java.util.List<java.time.LocalDateTime>",
-  );
+  expect(questionTypeName("list<datetime>", "java")).toBe("List<LocalDateTime>");
   expect(questionTypeName("datetime", "typescript")).toBe("Date");
   expect(questionTypeName("datetime", "ocaml")).toBe("Unix.tm");
   expect(() =>

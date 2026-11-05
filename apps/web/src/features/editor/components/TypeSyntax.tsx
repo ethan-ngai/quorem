@@ -4,12 +4,7 @@ import { questionTypeName } from "../questionTypes";
 import { valueAtoms, valueWrappers } from "../typedValues";
 import "./code-literal.css";
 
-const containers: ReadonlySet<string> = new Set([
-  ...valueWrappers,
-  "java.util.List",
-  "List",
-  "option",
-]);
+const containers: ReadonlySet<string> = new Set([...valueWrappers, "List", "option"]);
 const atoms: ReadonlySet<string> = new Set([
   ...valueAtoms.filter((type) => type !== "ListNode" && type !== "TreeNode"),
   "void",

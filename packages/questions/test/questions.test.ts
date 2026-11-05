@@ -31,7 +31,10 @@ describe("starters", () => {
   for (const vector of vectors.filter((v) => v.name === "starter"))
     it(`matches Go ${vector.input.language}`, () => {
       expect(generateStarter([vector.input.signature], vector.input.language, false)).toBe(
-        vector.output,
+        // The retired Go generator qualified List even though the judge imports it.
+        vector.input.language === "java"
+          ? vector.output.replace("java.util.List<", "List<")
+          : vector.output,
       );
     });
   it("escapes authored documentation and supports staged no-arg methods", () => {
