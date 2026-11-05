@@ -2,6 +2,7 @@
 import { SelectField } from "../../ui/SelectField";
 import { CaseBrowserLayout } from "../editor/components/CaseBrowserLayout";
 import { TypedCaseInput } from "../editor/components/TypedCaseInput";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import {
@@ -90,88 +91,95 @@ export function SequenceTestsEditor({
                 </button>
               </Tooltip>
             </div>
-            {selected.calls.map((call, callIndex) => {
-              const method = methods.find((method) => method.id === call.methodId);
-              return (
-                <div className="sequence-call-editor" key={call.id}>
-                  <div className="sequence-call-heading">
-                    <span>Call {callIndex + 1}</span>
-                    <SelectField
-                      label={`Method for call ${callIndex + 1}`}
-                      value={call.methodId}
-                      options={methods.map((method) => ({
-                        value: method.id,
-                        label: method.signature.methodName || "Unnamed method",
-                      }))}
-                      onChange={(methodId) => {
-                        const next = methods.find((method) => method.id === methodId)!;
-                        patchCall(call.id, { ...callDraft(next), id: call.id });
-                      }}
-                    />
-                    <Tooltip content="Remove call">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label={`Remove call ${callIndex + 1}`}
-                        disabled={selected.calls.length <= 1}
-                        onClick={() =>
-                          onChange(
-                            value.map((test) =>
-                              test.id === selected.id
-                                ? {
-                                    ...test,
-                                    calls: test.calls.filter((item) => item.id !== call.id),
-                                  }
-                                : test,
-                            ),
-                          )
-                        }
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
+            <AnimatedRows
+              key={selected.id}
+              items={selected.calls}
+              className="sequence-call-list"
+              renderRow={(call, callIndex) => {
+                const method = methods.find((method) => method.id === call.methodId);
+                return (
+                  <div className="sequence-call-editor">
+                    <div className="sequence-call-heading">
+                      <span>Call {callIndex + 1}</span>
+                      <SelectField
+                        label={`Method for call ${callIndex + 1}`}
+                        value={call.methodId}
+                        options={methods.map((method) => ({
+                          value: method.id,
+                          label: method.signature.methodName || "Unnamed method",
+                        }))}
+                        onChange={(methodId) => {
+                          const next = methods.find((method) => method.id === methodId)!;
+                          patchCall(call.id, { ...callDraft(next), id: call.id });
+                        }}
+                      />
+                      <Tooltip content="Remove call">
+                        <button
+                          type="button"
+                          className="icon-button destructive-icon"
+                          aria-label={`Remove call ${callIndex + 1}`}
+                          disabled={selected.calls.length <= 1}
+                          onClick={() =>
+                            onChange(
+                              value.map((test) =>
+                                test.id === selected.id
+                                  ? {
+                                      ...test,
+                                      calls: test.calls.filter((item) => item.id !== call.id),
+                                    }
+                                  : test,
+                              ),
+                            )
+                          }
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                    {method ? (
+                      <>
+                        {method.signature.parameters.map((parameter, index) => (
+                          <TypedCaseInput
+                            key={index}
+                            id={`${call.id}-${index}`}
+                            name={parameter.name}
+                            type={parameter.type}
+                            input={parameter.input}
+                            value={call.values.args[index] ?? ""}
+                            onChange={(source) =>
+                              patchCall(call.id, {
+                                values: {
+                                  ...call.values,
+                                  args: method.signature.parameters.map((_, position) =>
+                                    position === index
+                                      ? source
+                                      : (call.values.args[position] ?? ""),
+                                  ),
+                                },
+                              })
+                            }
+                          />
+                        ))}
+                        {method.signature.returnType !== "void" && (
+                          <TypedCaseInput
+                            id={`${call.id}-expected`}
+                            name="Expected output"
+                            purpose="expected"
+                            type={method.signature.returnType}
+                            value={call.values.expected}
+                            onChange={(expected) =>
+                              patchCall(call.id, { values: { ...call.values, expected } })
+                            }
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <p className="admin-error">Choose an available method for this call.</p>
+                    )}
                   </div>
-                  {method ? (
-                    <>
-                      {method.signature.parameters.map((parameter, index) => (
-                        <TypedCaseInput
-                          key={index}
-                          id={`${call.id}-${index}`}
-                          name={parameter.name}
-                          type={parameter.type}
-                          input={parameter.input}
-                          value={call.values.args[index] ?? ""}
-                          onChange={(source) =>
-                            patchCall(call.id, {
-                              values: {
-                                ...call.values,
-                                args: method.signature.parameters.map((_, position) =>
-                                  position === index ? source : (call.values.args[position] ?? ""),
-                                ),
-                              },
-                            })
-                          }
-                        />
-                      ))}
-                      {method.signature.returnType !== "void" && (
-                        <TypedCaseInput
-                          id={`${call.id}-expected`}
-                          name="Expected output"
-                          purpose="expected"
-                          type={method.signature.returnType}
-                          value={call.values.expected}
-                          onChange={(expected) =>
-                            patchCall(call.id, { values: { ...call.values, expected } })
-                          }
-                        />
-                      )}
-                    </>
-                  ) : (
-                    <p className="admin-error">Choose an available method for this call.</p>
-                  )}
-                </div>
-              );
-            })}
+                );
+              }}
+            />
             <button
               type="button"
               className="quiet-button"

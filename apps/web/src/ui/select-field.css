@@ -101,6 +101,7 @@
   font-size: var(--text-small);
   cursor: pointer;
   outline: none;
+  transition: background-color var(--motion-fast) var(--motion-easing);
 }
 .select-field-item[data-highlighted] {
   background: var(--color-surface);
@@ -111,6 +112,20 @@
   width: 14px;
   margin-left: auto;
   color: var(--color-text-secondary);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .select-field-check svg {
+    transition:
+      opacity var(--motion-fast) var(--motion-easing),
+      scale var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    .select-field-check svg {
+      opacity: 0;
+      scale: 0.8;
+    }
+  }
 }
 .select-field-scroll {
   display: flex;
@@ -133,7 +148,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .select-field,
-  .select-field-chevron {
+  .select-field-chevron,
+  .select-field-item {
     transition: none;
   }
   .select-field-menu[data-state] {

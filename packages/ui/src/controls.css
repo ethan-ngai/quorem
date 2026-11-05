@@ -22,7 +22,8 @@
   color: var(--color-text-secondary);
   transition:
     color var(--motion-fast),
-    background var(--motion-fast);
+    background var(--motion-fast),
+    translate var(--motion-fast) var(--motion-easing);
   text-decoration: none;
 }
 .icon-button:hover:not(:disabled),
@@ -42,6 +43,10 @@
   background: none;
   color: var(--color-text-secondary);
   font-size: 12px;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
 }
 .button {
   display: inline-flex;
@@ -58,7 +63,8 @@
   text-decoration: none;
   transition:
     background var(--motion-fast),
-    color var(--motion-fast);
+    color var(--motion-fast),
+    translate var(--motion-fast) var(--motion-easing);
 }
 .button-secondary {
   background: var(--color-surface);
@@ -100,7 +106,8 @@
   transition:
     color var(--motion-fast) var(--motion-easing),
     background-color var(--motion-fast) var(--motion-easing),
-    border-color var(--motion-fast) var(--motion-easing);
+    border-color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
 }
 .icon-button.destructive-icon:hover:not(:disabled),
 .icon-button.destructive-icon:focus-visible,
@@ -157,5 +164,32 @@
       overflow: visible;
       transition-delay: 0s, 0s, 0s, var(--motion-standard);
     }
+  }
+}
+
+.animated-row {
+  display: flow-root;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, summary, a, input, select, textarea) {
+    transition:
+      color var(--motion-fast) var(--motion-easing),
+      background-color var(--motion-fast) var(--motion-easing),
+      border-color var(--motion-fast) var(--motion-easing),
+      box-shadow var(--motion-fast) var(--motion-easing),
+      opacity var(--motion-fast) var(--motion-easing),
+      translate var(--motion-fast) var(--motion-easing),
+      filter var(--motion-fast) var(--motion-easing);
+  }
+
+  :where(button, summary):not(:disabled, [aria-disabled="true"]):active {
+    translate: 0 1px;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(button, summary, a):not(:disabled, [aria-disabled="true"]):hover {
+    filter: brightness(1.06);
   }
 }

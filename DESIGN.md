@@ -78,7 +78,7 @@ All working controls support keyboard focus and an accessible name; icon-only co
 
 Collaboration colors follow user identity across participant avatars, remote carets and selections. Photos carry a colored ring; initials use the color as their background. The local caret retains its editor scheme.
 
-Motion explains interaction or state changes. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
+Give interactive state changes motion through the shared control whenever possible. Animate editable row insertion and removal without delaying the underlying change. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
 
 ## Verification
 

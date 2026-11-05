@@ -140,7 +140,7 @@ describe("Submit sample results and previous steps", () => {
   }
   it("collapses passing previous steps and selects the current step", () => {
     const html = staged(completed);
-    expect(html).toContain('<details class="case-group">');
+    expect(html).toContain('<details class="case-group disclosure">');
     expect(html).toContain("Step 1");
     expect(html).toContain(": passed");
     expect(html).toContain('aria-pressed="true" aria-label="Case 2: wrong answer"');
@@ -153,7 +153,7 @@ describe("Submit sample results and previous steps", () => {
         { index: 1, status: "accepted", actual: [1] },
       ],
     });
-    expect(html).toContain('<details class="case-group" open="">');
+    expect(html).toContain('<details class="case-group disclosure" open="">');
     expect(html).toContain(": failing");
   });
 });

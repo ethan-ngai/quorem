@@ -479,6 +479,18 @@
   padding-bottom: var(--space-2);
 }
 
+.admin-sql-column-list {
+  width: 100%;
+}
+
+.admin-sql-column-list:empty {
+  display: none;
+}
+
+.admin-sql-column-list > :not(:last-child) > .admin-sql-column {
+  margin-bottom: var(--space-2);
+}
+
 .admin-sql-column {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(7rem, auto) auto;

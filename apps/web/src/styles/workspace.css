@@ -1023,25 +1023,13 @@ kbd {
   --interaction-fast: 120ms;
   --interaction-reveal: 180ms;
 }
-.app-shell :is(button, summary, a, input, select, textarea),
-.app-shell .typed-collection,
+.app-shell .typed-collection {
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
 .app-shell .splitter::after {
   transition:
-    color var(--interaction-fast) var(--interaction-ease),
-    background-color var(--interaction-fast) var(--interaction-ease),
-    border-color var(--interaction-fast) var(--interaction-ease),
-    box-shadow var(--interaction-fast) var(--interaction-ease),
-    opacity var(--interaction-fast) var(--interaction-ease),
-    transform var(--interaction-fast) var(--interaction-ease),
-    filter var(--interaction-fast) var(--interaction-ease);
-}
-@media (hover: hover) and (pointer: fine) {
-  .app-shell :is(button, summary, a):hover {
-    filter: brightness(1.06);
-  }
-}
-.app-shell :is(button, summary):active:not(:disabled) {
-  transform: translateY(1px);
+    opacity var(--motion-fast) var(--motion-easing),
+    transform var(--motion-fast) var(--motion-easing);
 }
 .app-shell :is(input, textarea, select):focus-visible {
   border-color: var(--color-primary);
@@ -1088,7 +1076,7 @@ kbd {
 .app-shell dialog[open]::backdrop {
   opacity: 1;
 }
-.app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+.app-shell :is(.typed-case-field, .expected-field, .case-console) {
   transition: opacity var(--interaction-fast) var(--interaction-ease);
 }
 .app-shell details summary .icon-chevron {
@@ -1099,7 +1087,7 @@ kbd {
 @starting-style {
   .app-shell dialog[open],
   .app-shell dialog[open]::backdrop,
-  .app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+  .app-shell :is(.typed-case-field, .expected-field, .case-console) {
     opacity: 0;
   }
   .app-shell dialog[open] {
@@ -1107,7 +1095,6 @@ kbd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-shell :is(button, summary):active:not(:disabled),
   .app-shell dialog {
     transform: none;
   }

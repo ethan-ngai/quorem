@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { Signature } from "@quorem/contracts";
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
@@ -32,6 +33,8 @@ export function SignatureFields({
 }) {
   const exceptions = value.throws ?? [];
   const namesId = useId();
+  const addParameter = useRef<HTMLButtonElement>(null);
+  const addException = useRef<HTMLButtonElement>(null);
   const identifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
   const invalidMethod = !identifier.test(value.methodName);
   const invalidParameter = (name: string) =>
@@ -127,6 +130,7 @@ export function SignatureFields({
         <button
           type="button"
           className="quiet-button"
+          ref={addParameter}
           disabled={value.parameters.length >= 16}
           onClick={() => {
             let next = value.parameters.length + 1;
@@ -140,60 +144,64 @@ export function SignatureFields({
           <Plus size={15} aria-hidden="true" /> Add parameter
         </button>
       </div>
-      {!!value.parameters.length && (
-        <div className="authoring-parameter-row authoring-method-columns" aria-hidden="true">
-          <span>Name</span>
-          <span>Type</span>
-          <span>Description</span>
-        </div>
-      )}
-      {value.parameters.map((parameter, index) => (
-        <div className="authoring-parameter-row" key={index}>
-          <div className="admin-field">
-            <input
-              aria-label={`Parameter ${index + 1} name`}
-              className="admin-code"
-              value={parameter.name}
-              aria-invalid={invalidParameter(parameter.name)}
-              required
-              pattern="[a-zA-Z_][a-zA-Z0-9_]*"
-              onChange={(event) => updateParameter(index, { name: event.target.value })}
-            />
+      <AnimatedRows
+        items={value.parameters}
+        focusFallback={addParameter}
+        heading={
+          <div className="authoring-parameter-row authoring-method-columns" aria-hidden="true">
+            <span>Name</span>
+            <span>Type</span>
+            <span>Description</span>
           </div>
-          <ValueTypeField
-            hideLabel
-            disabled={disabled}
-            label={`Parameter ${index + 1} type`}
-            value={parameter.type}
-            onValidityChange={onValidityChange}
-            onChange={(type) => updateParameter(index, { type })}
-          />
-          <div className="admin-field authoring-parameter-description">
-            <input
-              aria-label={`Parameter ${index + 1} description`}
-              placeholder="Optional description"
-              className="code-doc-comment"
-              value={parameter.description ?? ""}
-              onChange={(event) => updateParameter(index, { description: event.target.value })}
+        }
+        renderRow={(parameter, index) => (
+          <div className="authoring-parameter-row">
+            <div className="admin-field">
+              <input
+                aria-label={`Parameter ${index + 1} name`}
+                className="admin-code"
+                value={parameter.name}
+                aria-invalid={invalidParameter(parameter.name)}
+                required
+                pattern="[a-zA-Z_][a-zA-Z0-9_]*"
+                onChange={(event) => updateParameter(index, { name: event.target.value })}
+              />
+            </div>
+            <ValueTypeField
+              hideLabel
+              disabled={disabled}
+              label={`Parameter ${index + 1} type`}
+              value={parameter.type}
+              onValidityChange={onValidityChange}
+              onChange={(type) => updateParameter(index, { type })}
             />
+            <div className="admin-field authoring-parameter-description">
+              <input
+                aria-label={`Parameter ${index + 1} description`}
+                placeholder="Optional description"
+                className="code-doc-comment"
+                value={parameter.description ?? ""}
+                onChange={(event) => updateParameter(index, { description: event.target.value })}
+              />
+            </div>
+            <Tooltip content="Remove parameter">
+              <button
+                type="button"
+                className="icon-button destructive-icon authoring-parameter-remove"
+                aria-label={`Remove parameter ${parameter.name}`}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    parameters: value.parameters.filter((_, position) => position !== index),
+                  })
+                }
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </Tooltip>
           </div>
-          <Tooltip content="Remove parameter">
-            <button
-              type="button"
-              className="icon-button destructive-icon authoring-parameter-remove"
-              aria-label={`Remove parameter ${parameter.name}`}
-              onClick={() =>
-                onChange({
-                  ...value,
-                  parameters: value.parameters.filter((_, position) => position !== index),
-                })
-              }
-            >
-              <Trash2 size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
-        </div>
-      ))}
+        )}
+      />
       <details className="disclosure authoring-method-docs">
         <summary>
           <FileText size={16} aria-hidden="true" />
@@ -233,6 +241,7 @@ export function SignatureFields({
           <button
             type="button"
             className="quiet-button"
+            ref={addException}
             onClick={() =>
               onChange({ ...value, throws: [...exceptions, { type: "", description: "" }] })
             }
@@ -240,49 +249,53 @@ export function SignatureFields({
             <Plus size={15} aria-hidden="true" /> Add exception
           </button>
         </div>
-        {!!exceptions.length && (
-          <div className="authoring-exception-row authoring-method-columns" aria-hidden="true">
-            <span>Type</span>
-            <span>When thrown</span>
-          </div>
-        )}
-        {exceptions.map((exception, index) => (
-          <div className="authoring-exception-row" key={index}>
-            <div className="admin-field">
-              <input
-                aria-label={`Exception ${index + 1} type`}
-                className="code-doc-comment"
-                placeholder="ValueError"
-                value={exception.type}
-                onChange={(event) => updateException(index, { type: event.target.value })}
-              />
+        <AnimatedRows
+          items={exceptions}
+          focusFallback={addException}
+          heading={
+            <div className="authoring-exception-row authoring-method-columns" aria-hidden="true">
+              <span>Type</span>
+              <span>When thrown</span>
             </div>
-            <div className="admin-field">
-              <input
-                aria-label={`Exception ${index + 1} description`}
-                className="code-doc-comment"
-                placeholder="When it is thrown"
-                value={exception.description}
-                onChange={(event) => updateException(index, { description: event.target.value })}
-              />
+          }
+          renderRow={(exception, index) => (
+            <div className="authoring-exception-row">
+              <div className="admin-field">
+                <input
+                  aria-label={`Exception ${index + 1} type`}
+                  className="code-doc-comment"
+                  placeholder="ValueError"
+                  value={exception.type}
+                  onChange={(event) => updateException(index, { type: event.target.value })}
+                />
+              </div>
+              <div className="admin-field">
+                <input
+                  aria-label={`Exception ${index + 1} description`}
+                  className="code-doc-comment"
+                  placeholder="When it is thrown"
+                  value={exception.description}
+                  onChange={(event) => updateException(index, { description: event.target.value })}
+                />
+              </div>
+              <Tooltip content="Remove exception">
+                <button
+                  type="button"
+                  className="icon-button destructive-icon"
+                  aria-label={`Remove exception ${index + 1}`}
+                  onClick={() =>
+                    onChange({
+                      ...value,
+                      throws: exceptions.filter((_, position) => position !== index),
+                    })
+                  }
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </Tooltip>
             </div>
-            <Tooltip content="Remove exception">
-              <button
-                type="button"
-                className="icon-button destructive-icon"
-                aria-label={`Remove exception ${index + 1}`}
-                onClick={() =>
-                  onChange({
-                    ...value,
-                    throws: exceptions.filter((_, position) => position !== index),
-                  })
-                }
-              >
-                <Trash2 size={16} aria-hidden="true" />
-              </button>
-            </Tooltip>
-          </div>
-        ))}
+          )}
+        />
       </details>
     </fieldset>
   );

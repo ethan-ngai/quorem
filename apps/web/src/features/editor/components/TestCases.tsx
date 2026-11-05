@@ -515,7 +515,7 @@ function CaseGroupDisclosure({
   }, [failed, passed, executionID]);
   return (
     <details
-      className="case-group"
+      className="case-group disclosure"
       open={open}
       onToggle={(event) => {
         const next = event.currentTarget.open;

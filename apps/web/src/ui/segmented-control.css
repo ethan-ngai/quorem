@@ -34,7 +34,17 @@
   font-size: var(--text-small);
   font-weight: 500;
   white-space: nowrap;
-  transition: color var(--motion-fast) var(--motion-easing);
+  transition:
+    color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing),
+    opacity var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
+}
+.segmented-control > button:not(:disabled):hover {
+  background-color: color-mix(in oklch, var(--color-overlay) 65%, transparent);
+}
+.segmented-control > button:disabled {
+  opacity: 0.5;
 }
 .segmented-control > button[aria-checked="true"] {
   color: var(--color-text);

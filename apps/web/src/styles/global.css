@@ -66,6 +66,18 @@ summary:focus-visible,
   z-index: 2;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  :where(:is([role="tabpanel"], [role="status"], [role="alert"]):not(.sr-only)) {
+    transition: opacity var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    :where(:is([role="tabpanel"], [role="status"], [role="alert"]):not(.sr-only)) {
+      opacity: 0;
+    }
+  }
+}
+
 ::selection {
   color: var(--color-text);
   background: var(--color-editor-selection);
