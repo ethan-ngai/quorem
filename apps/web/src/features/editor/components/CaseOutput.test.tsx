@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { CaseOutput } from "./CaseOutput";
 
 describe("case output", () => {
+  it("keeps array punctuation separate from verdict and value colors", () => {
+    const markup = renderToStaticMarkup(
+      <CaseOutput result={{ index: 0, status: "accepted", actual: [0, 9], expected: [0, 9] }} />,
+    );
+    expect(markup).toContain('<span class="code-punctuation">[</span>');
+    expect(markup).toContain('<span class="code-punctuation">]</span>');
+    expect(markup).toContain('<span class="code-number">9</span>');
+  });
   it("omits repeated expectations and combines colored streams in one console box", () => {
     const markup = renderToStaticMarkup(
       <CaseOutput
