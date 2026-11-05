@@ -1,3 +1,5 @@
+import { TextInput } from "./TextControl";
+import { MarkdownField } from "./MarkdownField";
 /** Shared question copy fields for interview setup and library authoring. */
 export function QuestionBasics({
   title,
@@ -18,21 +20,18 @@ export function QuestionBasics({
     <>
       <label className="admin-field">
         <span>Question title</span>
-        <input
+        <TextInput
           required={required}
           maxLength={120}
           value={title}
           onChange={(event) => onTitleChange(event.target.value)}
         />
       </label>
-      <label className="admin-field">
-        <span>{staged ? "Introduction" : "Statement"}</span>
-        <textarea
-          rows={4}
-          value={statement}
-          onChange={(event) => onStatementChange(event.target.value)}
-        />
-      </label>
+      <MarkdownField
+        label={staged ? "Introduction" : "Statement"}
+        value={statement}
+        onChange={onStatementChange}
+      />
     </>
   );
 }

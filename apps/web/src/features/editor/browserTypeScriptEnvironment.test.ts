@@ -29,5 +29,10 @@ describe("browser TypeScript intelligence", () => {
     expect(
       env.languageService.getSemanticDiagnostics("/main.ts").map((diagnostic) => diagnostic.code),
     ).toContain(2322);
+    env.updateFile(
+      "/main.ts",
+      'const node = new TreeNode("root"); node.val.toUpperCase(); node.left = new TreeNode("left");',
+    );
+    expect(env.languageService.getSemanticDiagnostics("/main.ts")).toEqual([]);
   });
 });

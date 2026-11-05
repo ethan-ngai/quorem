@@ -1,6 +1,7 @@
 /** @file coding-case.ts @description Coding cases, constraints and sequence results. @module questions */
-import { compareNumericValues } from "@quorem/contracts/long";
+import { nodeType } from "@quorem/contracts/node-type";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
+import { rangeMatches, comparisonMatches, propertyMatches } from "./constraintPredicates.ts";
 import { validateConstraints } from "./constraints.ts";
 import {
   compareUtf8,
@@ -9,6 +10,7 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "./json.ts";
+import { normalizeNodeArguments, normalizeNodeReference } from "./node-references.ts";
 import { normalizeQuestionValue } from "./value-codec.ts";
 
 type JsonObject = { [key: string]: JsonValue };
@@ -17,37 +19,32 @@ function object(value: JsonValue): JsonObject {
     throw new Error("expected object");
   return value;
 }
-function rawCase(sig: Signature, data: JsonObject, required: boolean, limit: number): JsonValue[] {
+function rawCase(sig: Signature, data: JsonObject, required: boolean, limit: number) {
   if (!Array.isArray(data.args) || data.args.length !== sig.parameters.length)
     throw new Error("wrong argument count");
-  const args = data.args.map((arg, i) => {
-    try {
-      return normalizeQuestionValue(sig.parameters[i].type, arg, limit);
-    } catch (error) {
-      throw new Error(
-        `argument ${sig.parameters[i].name}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  });
+  const { projected, resolve } = normalizeNodeArguments(sig, data.args, limit);
   if (Object.hasOwn(data, "expected")) {
     try {
-      normalizeQuestionValue(sig.returnType, data.expected);
+      if (sig.nodeReferences === "return") {
+        const expected = normalizeNodeReference(data.expected);
+        if (expected !== null) resolve(sig.returnType, expected.ref);
+      } else normalizeQuestionValue(sig.returnType, data.expected);
     } catch (error) {
       throw new Error(`expected: ${error instanceof Error ? error.message : String(error)}`);
     }
   } else if (required) throw new Error("missing expected value");
-  return args;
+  return projected;
 }
 function applyConstraints(
   sig: Signature,
   constraints: readonly Constraint[],
-  args: JsonValue[],
+  argumentValue: (index: number) => JsonValue,
 ): void {
   validateConstraints(sig, constraints);
   const project = (target: ConstraintTarget): (number | bigint)[] => {
     const index = sig.parameters.findIndex((p) => p.name === target.parameter);
     const type = sig.parameters[index].type.replaceAll("array<", "list<");
-    const value = args[index];
+    const value = argumentValue(index);
     if (target.projection === "length")
       return [typeof value === "string" ? Array.from(value).length : (value as JsonValue[]).length];
     if (type === "long") return [BigInt(value as string)];
@@ -59,37 +56,24 @@ function applyConstraints(
       return typeof value === "string"
         ? Array.from(value).map((c) => c.codePointAt(0)!)
         : [Number((value as JsonNumber).lexeme)];
-    const values =
-      (value as JsonValue[] | null)
-        ?.filter((v) => v !== null)
-        .map((v) => Number((v as JsonNumber).lexeme)) ?? [];
+    const elements = (value as JsonValue[] | null)?.filter((v) => v !== null) ?? [];
+    if (target.projection === "nodeCount") return [elements.length];
+    if (target.projection === "nodeValues" && nodeType(type)?.payload === "long")
+      return (elements as string[]).map(BigInt);
+    const values = elements.map((v) => Number((v as JsonNumber).lexeme));
     if (target.projection === "sum") return [values.reduce((a, b) => a + b, 0)];
-    if (target.projection === "nodeCount") return [values.length];
     return values;
   };
-  const finite = (value: number | bigint | undefined): value is number | bigint =>
-    typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value));
   for (const c of constraints) {
     switch (c.kind) {
       case "range":
-        if (
-          project(c.target).some(
-            (n) =>
-              !finite(n) ||
-              (c.min !== undefined && n < c.min) ||
-              (c.max !== undefined && n > c.max),
-          )
-        )
+        if (!rangeMatches(c, project(c.target)))
           throw new Error(
             `argument ${c.target.parameter}: ${c.target.projection} outside allowed range`,
           );
         break;
       case "comparison": {
-        const [a, b] = [project(c.left)[0], project(c.right)[0]];
-        const cmp = finite(a) && finite(b) ? compareNumericValues(a, b) : NaN;
-        const valid = { eq: cmp === 0, le: cmp <= 0, lt: cmp < 0, ge: cmp >= 0, gt: cmp > 0 }[
-          c.operator
-        ];
+        const valid = comparisonMatches(c, project(c.left), project(c.right));
         if (!valid)
           throw new Error(
             `arguments ${c.left.parameter} and ${c.right.parameter}: comparison ${c.operator} failed`,
@@ -97,16 +81,8 @@ function applyConstraints(
         break;
       }
       case "property": {
-        const values = project(c.target);
-        const seen = new Set<number | bigint>();
-        for (let i = 0; i < values.length; i++) {
-          if (
-            (c.property === "unique" && seen.has(values[i])) ||
-            (c.property !== "unique" && i > 0 && values[i - 1] > values[i])
-          )
-            throw new Error(`argument ${c.target.parameter}: requires ${c.property}`);
-          seen.add(values[i]);
-        }
+        if (!propertyMatches(c, project(c.target)))
+          throw new Error(`argument ${c.target.parameter}: requires ${c.property}`);
         break;
       }
     }
@@ -162,7 +138,16 @@ export function validateCodingSequence(
     if (sig.methodName === primary.methodName) applyConstraints(primary, constraints, args);
   }
 }
-function normalizeOutput(sig: Signature, value: JsonValue): JsonValue {
+function normalizeOutput(sig: Signature, value: JsonValue, data: JsonObject): JsonValue {
+  if (sig.nodeReferences === "return") {
+    const normalized = normalizeNodeReference(value);
+    if (normalized !== null)
+      normalizeNodeArguments(sig, data.args as JsonValue[], 100000).resolve(
+        sig.returnType,
+        normalized.ref,
+      );
+    return normalized;
+  }
   const result = normalizeQuestionValue(sig.returnType, value);
   if (sig.outputOrder !== "unordered") return result;
   if (!Array.isArray(result)) throw new Error("expected list");
@@ -184,14 +169,14 @@ export function compareCodingCase(
   const calls = Array.isArray(data.calls) ? data.calls : [];
   const byName = new Map(methods.map((method) => [method.methodName, method]));
   const normalize = (value: JsonValue): JsonValue => {
-    if (!calls.length) return normalizeOutput(sig, value);
+    if (!calls.length) return normalizeOutput(sig, value, data);
     if (!Array.isArray(value) || value.length !== calls.length)
       throw new Error("invalid sequence result");
     return value.map((item, i) => {
       const call = object(calls[i]);
       const method = byName.get(typeof call.methodName === "string" ? call.methodName : "");
       if (!method) throw new Error("unknown method");
-      return method.returnType === "void" ? null : normalizeOutput(method, item);
+      return method.returnType === "void" ? null : normalizeOutput(method, item, call);
     });
   };
   let actual: string;

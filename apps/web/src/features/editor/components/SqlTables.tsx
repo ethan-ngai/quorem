@@ -1,4 +1,6 @@
 import "./sql-tables.css";
+import "./code-literal.css";
+import { CodeLiteral } from "./CodeLiteral";
 import type { ProblemVersion } from "@quorem/contracts";
 
 type Column = { name: string; type?: string };
@@ -45,7 +47,7 @@ function SqlTable({ table, label }: { table: Table; label: string }) {
               {table.columns.map((column, index) => (
                 <th key={index} scope="col">
                   <span>{column.name}</span>
-                  {column.type && <small>{column.type}</small>}
+                  {column.type && <small className="code-type">{column.type}</small>}
                 </th>
               ))}
             </tr>
@@ -54,11 +56,25 @@ function SqlTable({ table, label }: { table: Table; label: string }) {
             {table.rows.length ? (
               table.rows.map((row, rowIndex) => (
                 <tr key={rowIndex}>
-                  {table.columns.map((_, index) => (
-                    <td key={index} className={row[index] === null ? "sql-null" : undefined}>
-                      {cellValue(row[index])}
-                    </td>
-                  ))}
+                  {table.columns.map((_, index) => {
+                    const value = row[index];
+                    return (
+                      <td key={index} className={value === null ? "sql-null" : undefined}>
+                        <code
+                          className={
+                            value === null || typeof value === "boolean"
+                              ? "code-keyword"
+                              : typeof value === "number" ||
+                                  (record(value) && ("$numeric" in value || "$bigint" in value))
+                                ? "code-number"
+                                : "code-string"
+                          }
+                        >
+                          {cellValue(value)}
+                        </code>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             ) : (
@@ -118,7 +134,7 @@ export function SqlTables({
     return parseTable({ ...item, columns }, false);
   });
   if (!tables.length || tables.some((table) => !table))
-    return <code className="machine-value">{JSON.stringify(value)}</code>;
+    return <CodeLiteral className="machine-value" source={JSON.stringify(value) ?? ""} />;
   return (
     <div className="sql-tables">
       {tables.map((table, index) => (
@@ -144,7 +160,8 @@ export function SqlSchema({ schema }: { schema: NonNullable<ProblemVersion["sql"
             <ul>
               {table.columns.map((column) => (
                 <li key={column.name}>
-                  <code>{column.name}</code> <span>{column.type}</span>
+                  <code className="code-parameter">{column.name}</code>{" "}
+                  <code className="code-type">{column.type}</code>
                 </li>
               ))}
             </ul>
@@ -155,7 +172,8 @@ export function SqlSchema({ schema }: { schema: NonNullable<ProblemVersion["sql"
           <ul>
             {schema.output.map((column, index) => (
               <li key={index}>
-                <code>{column.name}</code> <span>{column.type}</span>
+                <code className="code-parameter">{column.name}</code>{" "}
+                <code className="code-type">{column.type}</code>
               </li>
             ))}
           </ul>

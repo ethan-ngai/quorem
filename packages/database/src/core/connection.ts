@@ -1,5 +1,4 @@
 /** @file connection.ts @description Bounded PostgreSQL transaction scopes. @module database */
-import { sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Client, Pool, type PoolClient } from 'pg';
 import { classifyDatabaseError, DatabaseFailure, isDefinitiveServerError } from './errors.ts';
@@ -128,16 +127,17 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
     },
     async transaction(options, action) {
       if (!active || inTransaction || inDatabase) throw new Error('Connection scope is unavailable');
-      positive(options.statementTimeoutMs, 'statementTimeoutMs');
-      positive(options.lockTimeoutMs, 'lockTimeoutMs');
+      const { statementTimeoutMs, lockTimeoutMs } = options;
+      positive(statementTimeoutMs, 'statementTimeoutMs');
+      positive(lockTimeoutMs, 'lockTimeoutMs');
       const begin = { 'read committed': 'BEGIN ISOLATION LEVEL READ COMMITTED', 'repeatable read': 'BEGIN ISOLATION LEVEL REPEATABLE READ', serializable: 'BEGIN ISOLATION LEVEL SERIALIZABLE' }[options.isolation ?? 'read committed'];
       if (typeof begin !== 'string') throw new RangeError('Invalid transaction isolation');
       inTransaction = true;
       let began = false;
       try {
-        await client.query(options.readOnly ? `${begin} READ ONLY` : begin);
+        // One setup round trip; SELECT also establishes the repeatable-read snapshot.
+        await client.query(`${begin}${options.readOnly ? ' READ ONLY' : ''}; SELECT set_config('statement_timeout', '${statementTimeoutMs}', true), set_config('lock_timeout', '${lockTimeoutMs}', true)`);
         began = true;
-        await db.execute(sql`select set_config('statement_timeout', ${String(options.statementTimeoutMs)}, true), set_config('lock_timeout', ${String(options.lockTimeoutMs)}, true)`);
         let txOpen = true;
         const guarded = new Proxy(tx, {
           get(target, key, receiver) {

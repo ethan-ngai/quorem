@@ -25,18 +25,6 @@
 .topbar-spacer {
   flex: 1;
 }
-.save-indicator {
-  border: 0;
-  background: none;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.save-indicator i,
 .presence-dot,
 .intelligence-dot {
   display: inline-block;
@@ -48,10 +36,6 @@
 .presence-dot.online,
 .intelligence-dot.ready {
   background: var(--color-success-accent);
-}
-.save-error i,
-.save-offline i {
-  background: var(--color-error-accent);
 }
 .problem-picker {
   position: relative;
@@ -822,9 +806,6 @@ kbd {
     gap: 8px;
     padding-inline: 12px;
   }
-  .save-indicator:not(.save-offline):not(.save-error) {
-    display: none;
-  }
   .mobile-tabs {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -904,6 +885,18 @@ kbd {
     padding-inline: 16px;
   }
 }
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  :where(.workspace-grid) :is(.problem-pane, .coding-pane, .results-pane) {
+    transition: opacity var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    :where(.workspace-grid) :is(.problem-pane, .coding-pane, .results-pane) {
+      opacity: 0;
+    }
+  }
+}
+
 @media (max-width: 560px) {
   .topbar {
     gap: 6px;
@@ -922,20 +915,6 @@ kbd {
   .problem-picker summary {
     font-size: 12px;
     padding-inline: 5px;
-  }
-  .save-offline,
-  .save-error {
-    max-width: 24px;
-  }
-  .save-offline > span,
-  .save-error > span {
-    position: absolute;
-    top: 48px;
-    right: 12px;
-    z-index: 4;
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    background: var(--color-overlay);
   }
   .problem-scroll {
     padding: 24px 22px 32px;
@@ -1023,25 +1002,13 @@ kbd {
   --interaction-fast: 120ms;
   --interaction-reveal: 180ms;
 }
-.app-shell :is(button, summary, a, input, select, textarea),
-.app-shell .typed-collection,
+.app-shell .typed-collection {
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
 .app-shell .splitter::after {
   transition:
-    color var(--interaction-fast) var(--interaction-ease),
-    background-color var(--interaction-fast) var(--interaction-ease),
-    border-color var(--interaction-fast) var(--interaction-ease),
-    box-shadow var(--interaction-fast) var(--interaction-ease),
-    opacity var(--interaction-fast) var(--interaction-ease),
-    transform var(--interaction-fast) var(--interaction-ease),
-    filter var(--interaction-fast) var(--interaction-ease);
-}
-@media (hover: hover) and (pointer: fine) {
-  .app-shell :is(button, summary, a):hover {
-    filter: brightness(1.06);
-  }
-}
-.app-shell :is(button, summary):active:not(:disabled) {
-  transform: translateY(1px);
+    opacity var(--motion-fast) var(--motion-easing),
+    transform var(--motion-fast) var(--motion-easing);
 }
 .app-shell :is(input, textarea, select):focus-visible {
   border-color: var(--color-primary);
@@ -1064,15 +1031,6 @@ kbd {
   stroke-dashoffset: 0;
   opacity: 1;
   transition-delay: 0s;
-}
-.app-shell details::details-content {
-  opacity: 0;
-  transition:
-    opacity var(--interaction-reveal) var(--interaction-ease),
-    content-visibility var(--interaction-reveal) allow-discrete;
-}
-.app-shell details[open]::details-content {
-  opacity: 1;
 }
 .app-shell dialog {
   opacity: 0;
@@ -1097,7 +1055,7 @@ kbd {
 .app-shell dialog[open]::backdrop {
   opacity: 1;
 }
-.app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+.app-shell :is(.typed-case-field, .expected-field, .case-console) {
   transition: opacity var(--interaction-fast) var(--interaction-ease);
 }
 .app-shell details summary .icon-chevron {
@@ -1106,10 +1064,9 @@ kbd {
     filter var(--interaction-fast) var(--interaction-ease);
 }
 @starting-style {
-  .app-shell details[open]::details-content,
   .app-shell dialog[open],
   .app-shell dialog[open]::backdrop,
-  .app-shell :is([role="tabpanel"], .typed-case-field, .expected-field, .case-console) {
+  .app-shell :is(.typed-case-field, .expected-field, .case-console) {
     opacity: 0;
   }
   .app-shell dialog[open] {
@@ -1117,7 +1074,6 @@ kbd {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .app-shell :is(button, summary):active:not(:disabled),
   .app-shell dialog {
     transform: none;
   }

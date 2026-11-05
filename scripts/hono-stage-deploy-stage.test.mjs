@@ -112,6 +112,7 @@ function operations(events, fail) {
       step(`probe:${pinned === "0".repeat(64) ? "bootstrap" : "pinned"}`, {
         namespace: ns,
         scope: `remote:${"d".repeat(64)}`,
+        controlScope: `remote:${"e".repeat(64)}`,
       }),
     outputs: () => step("outputs", outputs),
     servicesOutputs: () =>

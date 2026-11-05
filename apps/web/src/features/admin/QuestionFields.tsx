@@ -1,3 +1,7 @@
+import { OdysseyIcon } from "../../ui/OdysseyIcon";
+import { TextInput } from "../../ui/TextControl";
+import { MarkdownField } from "../../ui/MarkdownField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import { initialOdysseySource } from "../odyssey/methodStubs";
@@ -22,29 +26,90 @@ import { AuthoringCases } from "./AuthoringCases";
 import { AuthoringStages } from "./AuthoringStages";
 import { Field } from "./AuthoringFields";
 import { ConstraintFields } from "./ConstraintFields";
-import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
+import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
+import { CodeLiteral } from "../editor/components/CodeLiteral";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
-import { StatementMarkdown } from "../editor/components/StatementMarkdown";
+import { ComplexityDetails } from "../editor/components/EditorialPanel";
+import { complexityMath } from "../editor/complexityMarkup";
+import {
+  Clock3,
+  Code2,
+  FileText,
+  FileCode2,
+  Database,
+  LockKeyhole,
+  ListFilter,
+  Settings2,
+  ChevronRight,
+  Braces,
+  FlaskConical,
+} from "lucide-react";
+import { inlineStatement, StatementMarkdown } from "../editor/components/StatementMarkdown";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
 import { revisions, type Language } from "./content";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
-const questionTypes = [
-  { value: "single", label: "Single question" },
-  { value: "staged", label: "Multi-stage question" },
-  { value: "sql-single", label: "SQL question" },
-  { value: "sql-staged", label: "SQL multi-stage question" },
-] as const;
-type QuestionType = (typeof questionTypes)[number]["value"];
+type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
+function QuestionTypeControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: QuestionType;
+  disabled: boolean;
+  onChange: (value: QuestionType) => void;
+}) {
+  const sql = value.startsWith("sql-");
+  const staged = value.endsWith("staged");
+  return (
+    <div className="admin-type-choices">
+      <SegmentedControl
+        label="Question type"
+        value={sql ? "sql" : "coding"}
+        disabled={disabled}
+        options={[
+          { value: "coding", label: "Coding", icon: <Code2 size={14} aria-hidden="true" /> },
+          { value: "sql", label: "SQL", icon: <Database size={14} aria-hidden="true" /> },
+        ]}
+        onChange={(type) =>
+          onChange(
+            type === "sql" ? (staged ? "sql-staged" : "sql-single") : staged ? "staged" : "single",
+          )
+        }
+      />
+      <SegmentedControl
+        label="Question structure"
+        iconOnly
+        value={staged ? "staged" : "single"}
+        disabled={disabled}
+        options={[
+          { value: "single", label: "Single", icon: <FileCode2 size={16} aria-hidden="true" /> },
+          { value: "staged", label: "Multi-stage (Odyssey)", icon: <OdysseyIcon /> },
+        ]}
+        onChange={(structure) =>
+          onChange(sql ? (structure === "staged" ? "sql-staged" : "sql-single") : structure)
+        }
+      />
+    </div>
+  );
+}
+type PreviewLanguage = Exclude<Language, "postgresql">;
+
 type AuthoringSection = "question" | "interface" | "tests" | "solutions";
 const languages = Object.keys(revisions).filter((key): key is Language =>
   Object.hasOwn(revisions, key),
 );
 
+function testShape(signature: Signature) {
+  return JSON.stringify([signature.parameters.map(({ type }) => type), signature.returnType]);
+}
+
 export function QuestionFields({
   content,
+  previewLanguage = "python",
+  onPreviewLanguageChange,
   disabled,
   invalidCases = false,
   lockSlug = false,
@@ -52,6 +117,8 @@ export function QuestionFields({
   onValidityChange,
 }: {
   content: QuestionContent;
+  previewLanguage?: PreviewLanguage;
+  onPreviewLanguageChange?: (language: PreviewLanguage) => void;
   disabled: boolean;
   invalidCases?: boolean;
   lockSlug?: boolean;
@@ -59,10 +126,12 @@ export function QuestionFields({
   onValidityChange: (label: string, invalid: boolean) => void;
 }) {
   const problem = content.problem;
+  const [codeSection, setCodeSection] = useState<"reference" | "editorial">("editorial");
   const [section, setSection] = useState<AuthoringSection>("question");
   const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
   const [pendingType, setPendingType] = useState<QuestionType>();
+  const [pendingSignature, setPendingSignature] = useState<Signature>();
   const questionType = problem.sql
     ? problem.odyssey
       ? "sql-staged"
@@ -71,13 +140,42 @@ export function QuestionFields({
       ? "staged"
       : "single";
   const tabs = [
-    { value: "question", label: "Overview" },
+    { value: "question", label: "Overview", icon: <FileText aria-hidden="true" /> },
     ...(problem.sql || !problem.odyssey
-      ? [{ value: "interface", label: problem.sql ? "Schema" : "Signature" } as const]
+      ? [
+          {
+            value: "interface",
+            label: problem.sql ? "Schema" : "Signature",
+            icon: problem.sql ? <Database aria-hidden="true" /> : <Braces aria-hidden="true" />,
+          } as const,
+        ]
       : []),
-    { value: "tests", label: problem.odyssey ? "Steps & tests" : "Tests" },
-    { value: "solutions", label: "Code & editorial" },
+    {
+      value: "tests",
+      label: problem.odyssey ? "Steps & tests" : "Tests",
+      icon: <FlaskConical aria-hidden="true" />,
+    },
+    { value: "solutions", label: "Code & editorial", icon: <Code2 aria-hidden="true" /> },
   ] as const;
+  const previewLanguagePicker = onPreviewLanguageChange && (
+    <SelectField
+      iconOnly
+      label="Signature preview language"
+      value={previewLanguage}
+      disabled={disabled}
+      options={languages
+        .filter((value) => value !== "postgresql")
+        .map((value) => ({
+          value,
+          label: languageLabels[value],
+          leading: <LanguageLogo language={value} />,
+        }))}
+      onChange={(value) => {
+        const next = languages.find((language) => language === value);
+        if (next && next !== "postgresql") onPreviewLanguageChange(next);
+      }}
+    />
+  );
   function setProblem(patch: Partial<ProblemVersion>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
@@ -204,6 +302,35 @@ export function QuestionFields({
             </button>
           </footer>
         </SessionDialog>
+        <SessionDialog
+          open={!!pendingSignature}
+          onOpenChange={(open) => {
+            if (!open) setPendingSignature(undefined);
+          }}
+          title="Change the test types?"
+          description="Changing the signature reloads examples and private tests from their last valid values. Unfinished test edits will be lost."
+        >
+          <footer className="competitive-dialog-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => setPendingSignature(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => {
+                if (!pendingSignature) return;
+                onChange(adaptSignature(content, pendingSignature));
+                setPendingSignature(undefined);
+              }}
+            >
+              Change types
+            </button>
+          </footer>
+        </SessionDialog>
         <AuthoringTabs
           id={id}
           label="Question authoring"
@@ -242,15 +369,14 @@ export function QuestionFields({
             onStatementChange={(statementMarkdown) => setProblem({ statementMarkdown })}
           />
           <div className="admin-overview-settings">
-            <Field label="Question type">
-              <SelectField
-                label="Question type"
+            <div className="admin-field">
+              <span>Question type</span>
+              <QuestionTypeControl
                 value={questionType}
-                disabled={disabled || invalidCases}
-                options={questionTypes}
+                disabled={disabled}
                 onChange={(value) => {
-                  const next = questionTypes.find((option) => option.value === value)?.value;
-                  if (!next || next === questionType) return;
+                  const next = value;
+                  if (next === questionType) return;
                   const hasCases =
                     problem.examples.length ||
                     content.hiddenCases.length ||
@@ -265,6 +391,7 @@ export function QuestionFields({
                       (item) => item.starterSource || item.referenceSource,
                     );
                   if (
+                    invalidCases ||
                     hasCases ||
                     problem.odyssey ||
                     (changesDialect &&
@@ -276,7 +403,7 @@ export function QuestionFields({
                   }
                 }}
               />
-            </Field>
+            </div>
             <div className="admin-field">
               <span>Difficulty</span>
               <DifficultySegments
@@ -290,20 +417,29 @@ export function QuestionFields({
             </div>
           </div>
           <TopicField tags={problem.tags} onChange={(tags) => setProblem({ tags })} />
-          <details className="authoring-options">
-            <summary>Constraints ({problem.constraints.length})</summary>
+          <details className="disclosure authoring-options">
+            <summary>
+              <ListFilter size={15} aria-hidden="true" /> Constraints{" "}
+              <span className="admin-count">{problem.constraints.length}</span>
+              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
             <ConstraintFields
+              onValidityChange={(invalid) => onValidityChange("constraints", invalid)}
               value={problem.constraints}
               signature={problem.sql ? undefined : problem.signature}
               disabled={disabled}
               onChange={(constraints) => setProblem({ constraints })}
             />
           </details>
-          <details className="authoring-options">
-            <summary>Advanced settings</summary>
+          <details className="disclosure authoring-options">
+            <summary>
+              <Settings2 size={15} aria-hidden="true" /> Advanced settings
+              <ChevronRight size={14} className="disclosure-chevron" aria-hidden="true" />
+            </summary>
             <div className="admin-field-pair">
               <Field label="Slug">
-                <input
+                <TextInput
+                  mono
                   readOnly={lockSlug}
                   value={problem.slug}
                   onChange={(event) => setProblem({ slug: event.target.value })}
@@ -322,7 +458,7 @@ export function QuestionFields({
               onChange={(companies) => setProblem({ companies })}
             />
             <Field label="Attribution">
-              <input
+              <TextInput
                 value={content.attribution}
                 onChange={(event) => onChange({ ...content, attribution: event.target.value })}
               />
@@ -354,18 +490,19 @@ export function QuestionFields({
                 onChange={(sql) => setProblem({ sql })}
               />
             ) : (
-              <>
-                <fieldset className="admin-fields" disabled={disabled || invalidCases}>
-                  <SignatureFields
-                    value={problem.signature}
-                    onChange={(signature) => onChange(adaptSignature(content, signature))}
-                    onValidityChange={onValidityChange}
-                  />
-                </fieldset>
-                {invalidCases && (
-                  <p className="admin-error">Fix test values before changing the method.</p>
-                )}
-              </>
+              <QuestionLanguage.Provider value={previewLanguage}>
+                <SignatureFields
+                  previewControl={previewLanguagePicker}
+                  disabled={disabled}
+                  value={problem.signature}
+                  onChange={(signature) => {
+                    if (invalidCases && testShape(signature) !== testShape(problem.signature))
+                      setPendingSignature(signature);
+                    else onChange(adaptSignature(content, signature));
+                  }}
+                  onValidityChange={onValidityChange}
+                />
+              </QuestionLanguage.Provider>
             )}
           </div>
         )}
@@ -378,21 +515,17 @@ export function QuestionFields({
           {problem.sql && problem.odyssey ? (
             <SqlStages content={content} onChange={onChange} onValidityChange={onValidityChange} />
           ) : problem.odyssey ? (
-            <AuthoringStages
-              content={content}
-              onChange={onChange}
-              onValidityChange={onValidityChange}
-            />
+            <QuestionLanguage.Provider value={previewLanguage}>
+              <div className="admin-signature-preview-language">{previewLanguagePicker}</div>
+              <AuthoringStages
+                content={content}
+                onChange={onChange}
+                onValidityChange={onValidityChange}
+              />
+            </QuestionLanguage.Provider>
           ) : (
             <AuthoringCases
-              key={
-                problem.sql
-                  ? "sql"
-                  : JSON.stringify([
-                      problem.signature.parameters.map((p) => p.type),
-                      problem.signature.returnType,
-                    ])
-              }
+              key={problem.sql ? "sql" : testShape(problem.signature)}
               content={content}
               onChange={onChange}
               onValidityChange={onValidityChange}
@@ -405,27 +538,40 @@ export function QuestionFields({
           aria-labelledby={`${id}-solutions`}
           hidden={section !== "solutions"}
         >
-          <div className="admin-authoring-compact">
-            <Field label={problem.sql ? "Dialect" : "Language"}>
-              <SelectField
-                label={problem.sql ? "SQL dialect" : "Question language"}
-                value={language}
-                disabled={disabled}
-                onChange={(value) => {
-                  const next = languages.find((item) => item === value);
-                  if (next) setLanguage(next);
-                }}
-                options={languages
-                  .filter((value) =>
-                    problem.sql ? value === "postgresql" : value !== "postgresql",
-                  )
-                  .map((value) => ({
-                    value,
-                    label: languageLabels[value],
-                    leading: <LanguageLogo language={value} />,
-                  }))}
-              />
-            </Field>
+          <div className="admin-code-toolbar">
+            <SegmentedControl
+              label="Code content"
+              value={codeSection}
+              onChange={setCodeSection}
+              options={[
+                {
+                  value: "reference",
+                  label: "Judge reference",
+                  icon: <LockKeyhole size={14} aria-hidden="true" />,
+                },
+                {
+                  value: "editorial",
+                  label: "Public editorial",
+                  icon: <FileText size={14} aria-hidden="true" />,
+                },
+              ]}
+            />
+            <SelectField
+              label={problem.sql ? "SQL dialect" : "Question language"}
+              value={language}
+              disabled={disabled}
+              onChange={(value) => {
+                const next = languages.find((item) => item === value);
+                if (next) setLanguage(next);
+              }}
+              options={languages
+                .filter((value) => (problem.sql ? value === "postgresql" : value !== "postgresql"))
+                .map((value) => ({
+                  value,
+                  label: languageLabels[value],
+                  leading: <LanguageLogo language={value} />,
+                }))}
+            />
           </div>
           {[language].map((language) => {
             const index = content.implementations.findIndex((item) => item.language === language);
@@ -470,81 +616,95 @@ export function QuestionFields({
                 )}
                 {implementation && (
                   <>
-                    <AuthoringCodeField
-                      label={`${solutionLanguageLabel(language)} private judge reference`}
-                      language={language}
-                      source={implementation.referenceSource}
-                      disabled={disabled}
-                      onChange={(source) => setImplementation(index, { referenceSource: source })}
-                    />
-                    <div className="admin-check">
-                      <span>Publish editorial solution</span>
-                      <ToggleSwitch
-                        label="Publish editorial solution"
+                    <div hidden={codeSection !== "reference"}>
+                      <p className="admin-authoring-hint">
+                        Private implementation used to verify test results.
+                      </p>
+                      <AuthoringCodeField
+                        label={`${solutionLanguageLabel(language)} private judge reference`}
+                        language={language}
+                        source={implementation.referenceSource}
                         disabled={disabled}
-                        checked={!!solution}
-                        onChange={(checked) =>
-                          checked
-                            ? setSolution(language, {})
-                            : onChange({
-                                ...content,
-                                solutions: content.solutions.filter(
-                                  (item) => item.language !== language,
-                                ),
-                              })
-                        }
+                        onChange={(source) => setImplementation(index, { referenceSource: source })}
                       />
                     </div>
-                    {solution && (
-                      <details className="authoring-options">
-                        <summary>Edit editorial solution</summary>
-                        <AuthoringCodeField
-                          label={`${solutionLanguageLabel(language)} editorial code`}
-                          language={language}
-                          source={solution.source}
+                    <div hidden={codeSection !== "editorial"}>
+                      <div className="admin-editorial-header">
+                        <h3 className="admin-editorial-heading">
+                          <FileText size={15} aria-hidden="true" /> Publish editorial
+                        </h3>
+                        <ToggleSwitch
+                          label="Publish editorial solution"
                           disabled={disabled}
-                          onChange={(source) => setSolution(language, { source })}
+                          checked={!!solution}
+                          onChange={(checked) =>
+                            checked
+                              ? setSolution(language, {})
+                              : onChange({
+                                  ...content,
+                                  solutions: content.solutions.filter(
+                                    (item) => item.language !== language,
+                                  ),
+                                })
+                          }
                         />
-                        <Field label={`${solutionLanguageLabel(language)} explanation`}>
-                          <textarea
-                            rows={5}
+                      </div>
+                      {solution && (
+                        <div className="admin-editorial-fields">
+                          <AuthoringCodeField
+                            label={`${solutionLanguageLabel(language)} editorial code`}
+                            language={language}
+                            source={solution.source}
+                            disabled={disabled}
+                            onChange={(source) => setSolution(language, { source })}
+                          />
+                          <MarkdownField
+                            label="Explanation"
                             value={solution.explanationMarkdown}
-                            onChange={(event) =>
-                              setSolution(language, { explanationMarkdown: event.target.value })
+                            onChange={(explanationMarkdown) =>
+                              setSolution(language, { explanationMarkdown })
                             }
                           />
-                        </Field>
-                        <div className="admin-field-pair">
-                          <Field label={`${solutionLanguageLabel(language)} time complexity`}>
-                            <input
-                              value={solution.timeComplexity}
-                              onChange={(event) =>
-                                setSolution(language, { timeComplexity: event.target.value })
+                          <section className="admin-editorial-complexity">
+                            <h3 className="admin-editorial-heading">
+                              <Clock3 size={15} /> Complexity
+                            </h3>
+                            <div className="admin-field-pair">
+                              {(
+                                [
+                                  ["timeComplexity", "Time"],
+                                  ["spaceComplexity", "Auxiliary space"],
+                                ] as const
+                              ).map(([field, label]) => (
+                                <Field label={label} key={field}>
+                                  <TextInput
+                                    mono
+                                    value={solution[field]}
+                                    placeholder="O(n)"
+                                    onChange={(event) =>
+                                      setSolution(language, { [field]: event.target.value })
+                                    }
+                                  />
+                                  {solution[field].trim() && (
+                                    <span className="admin-complexity-preview">
+                                      {inlineStatement(complexityMath(solution[field]))}
+                                    </span>
+                                  )}
+                                </Field>
+                              ))}
+                            </div>
+                            <MarkdownField
+                              label="Complexity notes"
+                              compact
+                              value={solution.complexityNotes}
+                              onChange={(complexityNotes) =>
+                                setSolution(language, { complexityNotes })
                               }
                             />
-                          </Field>
-                          <Field
-                            label={`${solutionLanguageLabel(language)} auxiliary space complexity`}
-                          >
-                            <input
-                              value={solution.spaceComplexity}
-                              onChange={(event) =>
-                                setSolution(language, { spaceComplexity: event.target.value })
-                              }
-                            />
-                          </Field>
+                          </section>
                         </div>
-                        <Field label={`${solutionLanguageLabel(language)} complexity definitions`}>
-                          <textarea
-                            rows={3}
-                            value={solution.complexityNotes}
-                            onChange={(event) =>
-                              setSolution(language, { complexityNotes: event.target.value })
-                            }
-                          />
-                        </Field>
-                      </details>
-                    )}
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -571,7 +731,7 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
                 ]
               ).map((signature, index) => (
                 <div key={index} className="authoring-signature-line">
-                  <MethodSignature signature={signature} />
+                  <MethodSignature signature={signature} showDocumentation />
                 </div>
               ))}
             </section>
@@ -584,15 +744,15 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
           {solution.explanationMarkdown && (
             <StatementMarkdown source={solution.explanationMarkdown} />
           )}
-          <pre className="editorial-source">
-            <code>{solution.source}</code>
-          </pre>
-          {solution.timeComplexity && solution.spaceComplexity && (
-            <p>
-              Time: {solution.timeComplexity} · Auxiliary space: {solution.spaceComplexity}
-            </p>
+          <CodeLiteral
+            block
+            source={solution.source}
+            language={solution.language}
+            className="editorial-source statement-code"
+          />
+          {(solution.timeComplexity || solution.spaceComplexity || solution.complexityNotes) && (
+            <ComplexityDetails value={solution} />
           )}
-          {solution.complexityNotes && <StatementMarkdown source={solution.complexityNotes} />}
         </section>
       ))}
     </div>

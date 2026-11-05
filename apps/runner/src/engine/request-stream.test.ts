@@ -37,8 +37,9 @@ void test("projects only active Odyssey methods and excludes all expected values
   const signature = (methodName: string) => ({
     className: "Solution",
     methodName,
-    parameters: [],
-    returnType: "int",
+    parameters: [{ name: "head", type: "ListNode" }],
+    returnType: "ListNode",
+    nodeReferences: "return",
   });
   const meta = await fixture(
     JSON.stringify({
@@ -53,9 +54,12 @@ void test("projects only active Odyssey methods and excludes all expected values
     }),
     "metadata",
   );
-  const source = await fixture("class Solution:\n def a(self): return 7", "source");
+  const source = await fixture("class Solution:\n def a(self, head): return head.next", "source");
   const testcase = await fixture(
-    JSON.stringify({ args: [], calls: [{ methodName: "a", args: [], expected: "SECRET" }] }),
+    JSON.stringify({
+      args: [],
+      calls: [{ methodName: "a", args: [{ values: [1, 2], tail: [0, 1] }], expected: "SECRET" }],
+    }),
     "case",
   );
   try {
@@ -70,8 +74,10 @@ void test("projects only active Odyssey methods and excludes all expected values
     const wire = await text(result.input.open()),
       parsed = JSON.parse(wire);
     assert.deepEqual(Object.keys(parsed.methods), ["a"]);
-    assert.doesNotMatch(wire, /SECRET|private text|next/);
+    assert.doesNotMatch(wire, /SECRET|private text|statementMarkdown/);
     assert.equal(parsed.calls[0].methodName, "a");
+    assert.equal(parsed.methods.a.nodeReferences, "return");
+    assert.deepEqual(parsed.calls[0].args, [{ values: [1, 2], tail: [0, 1] }]);
   } finally {
     await Promise.all([source.dispose(), meta.dispose(), testcase.dispose()]);
   }

@@ -58,10 +58,10 @@ let dec_datetime v =
 let dec_list f v = List.map f (array v)
 let dec_array f v = Array.of_list (dec_list f v)
 let dec_optional f = function JNull -> None | v -> Some (f v)
-let dec_node = function JNull -> None | v -> List.fold_left (fun next x -> Some {value=dec_int x;next}) None (List.rev (array v))
-let dec_tree = function JNull -> None | v ->
+let dec_node f = function JNull -> None | v -> List.fold_left (fun next x -> Some {value=f x;next}) None (List.rev (array v))
+let dec_tree f = function JNull -> None | v ->
  let xs=Array.of_list (array v) in if Array.length xs=0 || xs.(0)=JNull then None else
- let node v : tree_node = {value=dec_int v;left=None;right=None} in
+ let node v : _ typed_tree_node = {value=f v;left=None;right=None} in
  let root=node xs.(0) and q=Queue.create () and i=ref 1 in
  Queue.add root q;
  while not (Queue.is_empty q) && !i<Array.length xs do
@@ -69,21 +69,96 @@ let dec_tree = function JNull -> None | v ->
   let child () = if !i>=Array.length xs then None else (let v=xs.(!i) in incr i;if v=JNull then None else (let n=node v in Queue.add n q;Some n)) in
   p.left<-child ();p.right<-child ()
  done;Some root
+let dec_nary f = function JNull -> None | v ->
+ match array v with
+ | [] | JNull::_ -> None
+ | item::tail ->
+  let node v : _ nary_tree_node = {value=f v;children=[]} in
+  let root = node item and parents = Queue.create () in
+  Queue.add root parents;
+  let rec children acc = function
+   | [] -> List.rev acc, []
+   | JNull::rest -> List.rev acc, rest
+   | item::rest ->
+    let child = node item in
+    Queue.add child parents;
+    children (child::acc) rest in
+  let rec groups = function
+   | [] -> ()
+   | items ->
+    let parent = Queue.take parents in
+    let nodes, rest = children [] items in
+    parent.children <- nodes;
+    groups rest in
+  (match tail with [] -> () | JNull::rest -> groups rest | _ -> invalid ());
+  Some root
+let original_nodes children root =
+ let q = Queue.create () and result = ref [] in
+ Option.iter (fun node -> Queue.add node q) root;
+ while not (Queue.is_empty q) do
+  let node = Queue.take q in
+  result := node :: !result;
+  List.iter (fun child -> Queue.add child q) (children node)
+ done;
+ Array.of_list (List.rev !result)
+let list_nodes root = original_nodes (fun (node:_ typed_list_node) -> Option.to_list node.next) root
+let tree_nodes root = original_nodes (fun (node:_ typed_tree_node) -> List.filter_map Fun.id [node.left;node.right]) root
+let nary_nodes root = original_nodes (fun (node:_ nary_tree_node) -> node.children) root
+let is_record = function JObject _ -> true | _ -> false
+let seed = function JObject _ as v -> field "values" v | v -> v
+let index_reference = function JArray [a;i] -> dec_int a, dec_int i | _ -> invalid ()
+let returned_index nodes node =
+ let rec find i = if i = Array.length nodes then None
+  else if nodes.(i) == node then Some i else find (i+1) in
+ find 0
 '''
 
 def decoder(t):
     if t.startswith('optional<'):return '(dec_optional '+decoder(t[9:-1])+')'
     if t.startswith('list<'):return '(dec_list '+decoder(t[5:-1])+')'
     if t.startswith('array<'):return '(dec_array '+decoder(t[6:-1])+')'
-    return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
+    if t == 'ListNode' or t.startswith('ListNode<'):
+        return '(dec_node ' + decoder(t[9:-1] if '<' in t else 'int') + ')'
+    if t == 'NaryTreeNode' or t.startswith('NaryTreeNode<'):
+        return '(dec_nary ' + decoder(t[13:-1] if '<' in t else 'int') + ')'
+    if t == 'TreeNode' or t.startswith('TreeNode<'):
+        return '(dec_tree ' + decoder(t[9:-1] if '<' in t else 'int') + ')'
+    return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime'}[t]
 
 def source(r,h):
     signatures=dict(r.get('methods') or {})
     signatures[r['signature']['methodName']]=r['signature']
     branches=[]
     for name,sig in signatures.items():
-        args=' '.join('('+decoder(p['type'])+' args.('+str(i)+'))' for i,p in enumerate(sig['parameters'])) or '()'
-        branches.append('| '+json.dumps(name)+' -> if Array.length args<>'+str(len(sig['parameters']))+' then invalid ();let value=Solution.'+name+' '+args+' in count:=0;'+h['ocaml_encoder'](sig['returnType'])+' 0 value')
+        types = [p['type'] for p in sig['parameters']]
+        node_helpers = {'ListNode': 'list_nodes', 'TreeNode': 'tree_nodes', 'NaryTreeNode': 'nary_nodes'}
+        nodes = {i: node_helpers[t.split('<')[0]] for i,t in enumerate(types) if t.split('<')[0] in node_helpers}
+        binding = []
+        for i,t in enumerate(types):
+            expression = f'(seed args.({i}))' if i in nodes else f'args.({i})'
+            binding.append(f'let arg{i}={decoder(t)} {expression} in ')
+        return_type = sig['returnType']
+        reference = sig.get('nodeReferences') == 'return'
+        if nodes:
+            binding.append('let needs_seeds=' + ('true' if reference else 'Array.exists is_record args') + ' in ')
+        for i, helper in nodes.items():
+            binding.append(f'let seed{i}=if needs_seeds then {helper} arg{i} else [||] in ')
+        for i,helper in nodes.items():
+            candidates = ' '.join(f'| {j} -> seed{j}.(index)' for j in nodes if types[j] == types[i])
+            binding.append(f'let resolve{i} ref_value=let argument,index=index_reference ref_value in match argument with {candidates} | _ -> invalid () in ')
+            if helper == 'list_nodes':
+                binding.append(f'(if is_record args.({i}) then match field "tail" args.({i}) with JNull -> () | tail -> seed{i}.(Array.length seed{i}-1).next <- Some (resolve{i} tail)); ')
+            binding.append(f'let arg{i}=if is_record args.({i}) then match field "ref" args.({i}) with JNull -> arg{i} | ref_value -> Some (resolve{i} ref_value) else arg{i} in ')
+        args = ' '.join(f'arg{i}' for i in range(len(types))) or '()'
+        if reference:
+            encoded = 'failwith "invalid_output"'
+            for i in reversed(nodes):
+                if types[i] == return_type:
+                    encoded = f'(match returned_index seed{i} node with Some index -> Printf.sprintf "{{\\"ref\\":[{i},%d]}}" index | None -> {encoded})'
+            encoded = f'(match value with None -> "null" | Some node -> {encoded})'
+        else:
+            encoded = h['ocaml_encoder'](return_type)+' 0 value'
+        branches.append(f'| {json.dumps(name)} -> if Array.length args<>{len(types)} then invalid ();{"".join(binding)}let value=Solution.{name} {args} in count:=0;{encoded}')
     call='let call name args = let args=Array.of_list (array args) in match name with '+''.join(branches)+' | _ -> invalid ()\n'
     main='''let () = try
  let request=parse_json (read_all stdin) in

@@ -100,9 +100,6 @@
     min-width: 44px;
     min-height: 44px;
   }
-  .global-nav .save-indicator:not(.save-offline):not(.save-error) {
-    display: none;
-  }
 }
 @media (pointer: coarse) {
   .global-nav .nav-match-action,
@@ -132,20 +129,6 @@
   }
 }
 
-.match-rule-notice {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  color: var(--color-warning);
-  font-size: 12px;
-  border-top: 1px solid var(--color-border);
-  animation: tooltip-enter var(--motion-standard) var(--motion-easing);
-}
-.match-rule-notice .icon-button {
-  margin-left: auto;
-}
-
 .competitive-scoreboard {
   overflow-x: auto;
   flex-wrap: nowrap;
@@ -154,11 +137,6 @@
 .competitive-clock-actions {
   flex-shrink: 0;
   white-space: nowrap;
-}
-@media (prefers-reduced-motion: reduce) {
-  .match-rule-notice {
-    animation: none;
-  }
 }
 
 .nav-profile[data-state="closed"] {

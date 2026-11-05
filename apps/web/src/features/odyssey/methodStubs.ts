@@ -4,24 +4,67 @@ import { methodDocumentation } from "./methodDocumentation";
 
 import { questionTypeName as typeName } from "../editor/questionTypes";
 
-export function methodStub(method: Signature, language: EditorLanguage, indent = "    "): string {
-  const parameters = method.parameters.map(({ name, type }) => {
-    const t = typeName(type, language);
-    return language === "java"
-      ? `${t} ${name}`
-      : language === "ocaml"
-        ? `(${name} : ${t})`
-        : `${name}: ${t}`;
+type DeclarationPart = {
+  text: string;
+  role: "keyword" | "type" | "parameter" | "function" | "operator";
+};
+
+export function methodDeclarationParts(
+  method: Signature,
+  language: EditorLanguage,
+): DeclarationPart[] {
+  const parts: DeclarationPart[] = [];
+  const add = (text: string, role: DeclarationPart["role"] = "operator") =>
+    parts.push({ text, role });
+
+  if (language === "java") {
+    add("public", "keyword");
+    add(" ");
+    add(typeName(method.returnType, language), "type");
+    add(" ");
+  } else if (language === "python" || language === "ocaml") {
+    add(language === "python" ? "def" : "let", "keyword");
+    add(" ");
+  }
+  add(method.methodName, "function");
+  if (language === "ocaml") add(method.parameters.length ? " " : " ()");
+  else add("(");
+  if (language === "python") {
+    add("self", "parameter");
+    if (method.parameters.length) add(", ");
+  }
+  method.parameters.forEach(({ name, type }, index) => {
+    if (index > 0) add(language === "ocaml" ? " " : ", ");
+    if (language === "java") {
+      add(typeName(type, language), "type");
+      add(" ");
+      add(name, "parameter");
+    } else {
+      if (language === "ocaml") add("(");
+      add(name, "parameter");
+      add(language === "ocaml" ? " : " : ": ");
+      add(typeName(type, language), "type");
+      if (language === "ocaml") add(")");
+    }
   });
-  const result = typeName(method.returnType, language);
+  if (language !== "ocaml") add(")");
+  if (language !== "java") {
+    add(language === "python" ? " -> " : language === "ocaml" ? " : " : ": ");
+    add(typeName(method.returnType, language), "type");
+    if (language === "ocaml") add(" =");
+    if (language === "python") add(":");
+  }
+  return parts;
+}
+
+export function methodStub(method: Signature, language: EditorLanguage, indent = "    "): string {
+  const head = methodDeclarationParts(method, language)
+    .map(({ text }) => text)
+    .join("");
   if (language === "python")
-    return `${indent}def ${method.methodName}(${["self", ...parameters].join(", ")}) -> ${result}:\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
+    return `${indent}${head}\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
   if (language === "ocaml")
-    return `${methodDocumentation(method, language, "")}let ${method.methodName} ${parameters.join(" ") || "()"} : ${result} =\n    failwith "Implement solution"\n`;
-  const head =
-    language === "java"
-      ? `public ${result} ${method.methodName}(${parameters.join(", ")})`
-      : `${method.methodName}(${parameters.join(", ")}): ${result}`;
+    return `${methodDocumentation(method, language, "")}${head}\n    failwith "Implement solution"\n`;
   const error =
     language === "java"
       ? 'new UnsupportedOperationException("Implement solution")'

@@ -119,6 +119,7 @@ async function fixtureTables(client) {
     "execution_verification_challenges",
     "execution_verified_cases",
     "runner_job_input_cases",
+    "runner_job_input_digests",
     "runner_job_inputs",
   ])
     checks.set(

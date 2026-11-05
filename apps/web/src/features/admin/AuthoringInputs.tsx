@@ -1,4 +1,9 @@
-import { X } from "lucide-react";
+import { NoticeRegion } from "../../ui/PersistentNotice";
+import { TextInput } from "../../ui/TextControl";
+import { AnimatedRows } from "../../ui/AnimatedRows";
+import "../../ui/topic-chip.css";
+import { formatLabel } from "../../ui/formatLabel";
+import { Plus, Tags, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
 import { Field } from "./AuthoringFields";
@@ -60,6 +65,7 @@ export function TopicField({
 }) {
   const [source, setSource] = useState("");
   const id = useId();
+  const field = useRef<HTMLInputElement>(null);
   const next = source.trim();
   const canAdd =
     tags.length < limit && !!next && !tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
@@ -70,37 +76,54 @@ export function TopicField({
   }
   return (
     <div className="admin-field">
-      <label htmlFor={id}>{label}</label>
-      {!!tags.length && (
-        <ul className="authoring-chips" aria-label={label}>
-          {tags.map((tag, index) => (
-            <li key={index}>
-              {tag}
+      <label htmlFor={id} className="admin-icon-label">
+        <Tags size={14} aria-hidden="true" />
+        {label}
+      </label>
+      <div className="authoring-tag-entry">
+        <AnimatedRows
+          as="ul"
+          inline
+          className="authoring-chips"
+          label={label}
+          items={tags}
+          focusFallback={field}
+          getKey={(tag) => tag}
+          renderRow={(tag, index) => (
+            <span className="topic-chip">
+              {formatLabel(tag)}
               <button
                 type="button"
-                aria-label={`Remove ${tag}`}
+                aria-label={`Remove ${formatLabel(tag)}`}
                 onClick={() => onChange(tags.filter((_, position) => position !== index))}
               >
                 <X size={12} aria-hidden="true" />
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="authoring-inline-input">
-        <input
-          id={id}
-          value={source}
-          onChange={(event) => setSource(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
-            event.preventDefault();
-            add();
-          }}
+            </span>
+          )}
         />
-        <button type="button" className="button button-secondary" disabled={!canAdd} onClick={add}>
-          Add
-        </button>
+        <div className="authoring-inline-input">
+          <TextInput
+            id={id}
+            ref={field}
+            placeholder={label === "Topics" ? "Add topic…" : "Add company…"}
+            value={source}
+            onChange={(event) => setSource(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              add();
+            }}
+          />
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={!canAdd}
+            onClick={add}
+          >
+            <Plus size={14} aria-hidden="true" /> Add
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -124,29 +147,31 @@ export function AuthoringNumberField({
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
   return (
-    <Field label={label}>
-      <input
-        type="number"
-        min={1}
-        step={1}
-        value={source}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? id : undefined}
-        onChange={(event) => {
-          setSource(event.target.value);
-          const next = event.target.valueAsNumber;
-          const bad = !Number.isSafeInteger(next) || next < 1;
-          setInvalid(bad);
-          onValidityChange(bad);
-          if (!bad) onChange(next);
-        }}
-      />
-      {invalid && (
-        <span className="admin-error" id={id}>
-          Enter a positive whole number.
-        </span>
-      )}
-    </Field>
+    <NoticeRegion
+      id={id}
+      message={invalid ? "Enter a positive whole number." : undefined}
+      label={`Check ${label}`}
+    >
+      <Field label={label}>
+        <TextInput
+          mono
+          type="number"
+          min={1}
+          step={1}
+          value={source}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? id : undefined}
+          onChange={(event) => {
+            setSource(event.target.value);
+            const next = event.target.valueAsNumber;
+            const bad = !Number.isSafeInteger(next) || next < 1;
+            setInvalid(bad);
+            onValidityChange(bad);
+            if (!bad) onChange(next);
+          }}
+        />
+      </Field>
+    </NoticeRegion>
   );
 }
 
@@ -160,31 +185,39 @@ export function LeetcodeIDField({
   onValidityChange: (invalid: boolean) => void;
 }) {
   const [source, setSource] = useState(value === null ? "" : String(value));
+  const id = useId();
   const [invalid, setInvalid] = useState(false);
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
   return (
-    <Field label="LeetCode ID (global questions)">
-      <input
-        type="number"
-        min={1}
-        max={2147483647}
-        step={1}
-        value={source}
-        aria-invalid={invalid}
-        onChange={(event) => {
-          const text = event.target.value;
-          const number = event.target.valueAsNumber;
-          const bad =
-            text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
-          setSource(text);
-          setInvalid(bad);
-          onValidityChange(bad);
-          if (!bad) onChange(text === "" ? null : number);
-        }}
-      />
-      {invalid && <span className="admin-error">Enter a positive whole number.</span>}
-    </Field>
+    <NoticeRegion
+      message={invalid ? "Enter a positive whole number." : undefined}
+      label="Check LeetCode ID"
+      id={id}
+    >
+      <Field label="LeetCode ID (global questions)">
+        <TextInput
+          mono
+          type="number"
+          min={1}
+          max={2147483647}
+          step={1}
+          value={source}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? id : undefined}
+          onChange={(event) => {
+            const text = event.target.value;
+            const number = event.target.valueAsNumber;
+            const bad =
+              text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
+            setSource(text);
+            setInvalid(bad);
+            onValidityChange(bad);
+            if (!bad) onChange(text === "" ? null : number);
+          }}
+        />
+      </Field>
+    </NoticeRegion>
   );
 }

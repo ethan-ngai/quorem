@@ -2,6 +2,8 @@
 import { useEffect, useMemo } from "react";
 import { Bell, ClipboardPaste, Focus } from "lucide-react";
 import { toast } from "sonner";
+import { AnimatedRows } from "../../ui/AnimatedRows";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { createAlertTracker } from "./alertTracker";
@@ -33,6 +35,7 @@ export function RoomAlerts({
   limit: number;
   label: string;
 }) {
+  const count = useChangeMotion<HTMLSpanElement>(events.length);
   const tracking = useMemo(
     () => ({ track: createAlertTracker<RoomAlert>(), notified: new Set<string>() }),
     [scope],
@@ -70,7 +73,7 @@ export function RoomAlerts({
           >
             <Bell size={16} />
             {!!events.length && (
-              <span className="room-alerts-count" aria-hidden="true">
+              <span ref={count} className="room-alerts-count motion-reveal" aria-hidden="true">
                 {events.length}
               </span>
             )}
@@ -83,27 +86,28 @@ export function RoomAlerts({
             <strong>Alerts</strong>
             {events.length === limit && <small>Most recent {limit} events</small>}
           </header>
-          {events.length ? (
-            <ol>
-              {[...events].reverse().map((event) => (
-                <li key={event.id}>
-                  <EventIcon kind={event.kind} />
-                  <div>
-                    <strong>{event.name}</strong> {event.description}
-                    <time dateTime={event.occurredAt}>
-                      {new Date(event.occurredAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </time>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p>No monitoring events.</p>
-          )}
+          <AnimatedRows
+            as="ol"
+            className="room-alerts-history"
+            items={[...events].reverse()}
+            getKey={(event) => event.id}
+            renderRow={(event) => (
+              <>
+                <EventIcon kind={event.kind} />
+                <div>
+                  <strong>{event.name}</strong> {event.description}
+                  <time dateTime={event.occurredAt}>
+                    {new Date(event.occurredAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}
+                  </time>
+                </div>
+              </>
+            )}
+          />
+          {events.length === 0 && <p className="motion-reveal">No monitoring events.</p>}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

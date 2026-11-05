@@ -17,6 +17,20 @@ const encoder = new TextEncoder();
 async function digest(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data)));
 }
+function validateChunk(item: CompletionFieldChunk): void {
+  if (
+    !["public", "sample", "private", "header"].includes(item.channel) ||
+    !["actual", "stdout", "stderr", "diagnostics", "sqlTypes"].includes(item.field) ||
+    !Number.isInteger(item.ordinal) ||
+    item.ordinal < 0 ||
+    item.ordinal > 2147483646 ||
+    !Number.isSafeInteger(item.chunkOrdinal) ||
+    item.chunkOrdinal < 0 ||
+    item.bytes.length < 1 ||
+    item.bytes.length > 65536
+  )
+    throw new Error("Invalid completion chunk");
+}
 function counts(header: CompletionHeader): void {
   for (const count of [header.publicCount, header.sampleCount, header.privateCount])
     if (!Number.isInteger(count) || count < 0 || count > 2147483647)
@@ -52,7 +66,10 @@ export function postgresCompletionStaging(
 ) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
-  return {
+  const api = {
+    async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
+      return api.chunks(job, [item]);
+    },
     async sealDiagnostics(job: Job): Promise<void> {
       await transact(async (tx) => {
         if (!(await locked(tx, job))) throw new Error("Stale completion");
@@ -95,20 +112,20 @@ export function postgresCompletionStaging(
         signed.fields,
       );
     },
-    async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
-      if (
-        !["public", "sample", "private", "header"].includes(item.channel) ||
-        !["actual", "stdout", "stderr", "diagnostics", "sqlTypes"].includes(item.field) ||
-        !Number.isInteger(item.ordinal) ||
-        item.ordinal < 0 ||
-        item.ordinal > 2147483646 ||
-        !Number.isSafeInteger(item.chunkOrdinal) ||
-        item.chunkOrdinal < 0 ||
-        item.bytes.length < 1 ||
-        item.bytes.length > 65536
-      )
-        throw new Error("Invalid completion chunk");
-      const hash = await digest(item.bytes);
+    async chunks(job: Job, items: readonly CompletionFieldChunk[]): Promise<void> {
+      if (!items.length || items.length > 16) throw new Error("Invalid completion batch");
+      const item = items[0];
+      const keys = new Set<string>();
+      for (const candidate of items) {
+        if (candidate.channel !== item.channel || candidate.ordinal !== item.ordinal)
+          throw new Error("Completion batch crosses frames");
+        const key = `${candidate.field}:${candidate.chunkOrdinal}`;
+        if (keys.has(key)) throw new Error("Duplicate completion chunk");
+        keys.add(key);
+        validateChunk(candidate);
+        if (candidate.channel === "header" && candidate.field !== "diagnostics")
+          throw new Error("Invalid header field");
+      }
       await transact(async (tx) => {
         if (!(await locked(tx, job))) throw new Error("Stale completion");
         const stage = (
@@ -147,22 +164,26 @@ export function postgresCompletionStaging(
               UNION ALL SELECT 1 FROM execution_verification_challenges
               WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel}
                 AND result_ordinal=${item.ordinal}`;
+        const incoming = sql.join(
+          items.map(
+            (chunk) => sql`(${chunk.field}::text,${chunk.chunkOrdinal}::int,${chunk.bytes}::bytea)`,
+          ),
+          sql`, `,
+        );
         const {
           rows: [result],
-        } = await tx.execute<{ accepted: boolean; sealed: boolean }>(
-          sql`WITH seal AS (SELECT EXISTS(${sealedQuery}) AS sealed), inserted AS (
+        } = await tx.execute<{ matched: number; sealed: boolean }>(sql`
+          WITH incoming(field,chunk_ordinal,data) AS (VALUES ${incoming}),
+          seal AS (SELECT EXISTS(${sealedQuery}) AS sealed),
+          inserted AS (
             INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash)
-            SELECT ${job.jobId}::uuid,${item.channel},${item.ordinal},${item.field},${item.chunkOrdinal},
-              ${item.bytes},${hash} FROM seal WHERE NOT sealed
-            ON CONFLICT DO NOTHING RETURNING 1
-          )
-          SELECT seal.sealed, EXISTS(SELECT 1 FROM inserted) OR EXISTS (
-            SELECT 1 FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid
-              AND channel=${item.channel} AND ordinal=${item.ordinal} AND field=${item.field}
-              AND chunk_ordinal=${item.chunkOrdinal} AND chunk_hash=${hash} AND chunk_data=${item.bytes}
-          ) AS accepted FROM seal`,
-        );
-        if (!result.accepted)
+            SELECT ${job.jobId}::uuid,${item.channel},${item.ordinal},i.field,i.chunk_ordinal,i.data,sha256(i.data)
+            FROM incoming i,seal WHERE NOT seal.sealed ON CONFLICT DO NOTHING RETURNING 1
+          ) SELECT seal.sealed,((SELECT count(*) FROM inserted)+(SELECT count(*) FROM incoming i
+            JOIN execution_completion_field_chunks c ON c.job_id=${job.jobId}::uuid
+              AND c.channel=${item.channel} AND c.ordinal=${item.ordinal} AND c.field=i.field
+              AND c.chunk_ordinal=i.chunk_ordinal AND c.chunk_data=i.data AND c.chunk_hash=sha256(i.data)))::int AS matched FROM seal`);
+        if (result.matched !== items.length)
           throw new Error(result.sealed ? "Completion frame sealed" : "Completion chunk conflict");
       });
     },
@@ -228,6 +249,7 @@ export function postgresCompletionStaging(
       await transact((tx) => sealCompletionStream(tx, job));
     },
   };
+  return api;
 }
 
 export async function sealCompletionStream(tx: Transaction, job: Job): Promise<void> {

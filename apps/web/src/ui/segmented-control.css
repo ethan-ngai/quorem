@@ -21,6 +21,10 @@
 }
 .segmented-control > button {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
   min-height: 26px;
   padding: 3px 12px;
   border: 0;
@@ -28,11 +32,22 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
-  transition: color var(--motion-fast) var(--motion-easing);
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--motion-fast) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing),
+    opacity var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
+}
+.segmented-control > button:not(:disabled):hover {
+  background-color: color-mix(in oklch, var(--color-overlay) 65%, transparent);
+}
+.segmented-control > button:disabled {
+  opacity: 0.5;
 }
 .segmented-control > button[aria-checked="true"] {
   color: var(--color-text);
-  font-weight: 500;
 }
 @media (prefers-reduced-motion: reduce) {
   .segmented-control-selection,
@@ -42,8 +57,6 @@
 }
 
 .segmented-control[data-icon-only="true"] > button {
-  display: grid;
-  place-items: center;
   min-width: 32px;
   padding: 3px 8px;
 }
@@ -52,4 +65,13 @@
     min-width: 44px;
     min-height: var(--narrow-touch-target);
   }
+}
+
+.segmented-control[data-mono] > button {
+  font-family: var(--font-code);
+  font-variant-ligatures: none;
+}
+
+.segmented-control[data-has-selection="false"] > .segmented-control-selection {
+  opacity: 0;
 }

@@ -137,8 +137,26 @@ summary:focus-visible {
   align-items: center;
   gap: 14px;
 }
+:is(.site-header, .site-footer, .site-legal-footer) a:not(.marketing-button),
+.hero-cta,
 .quiet-link {
-  transition: color var(--motion-fast) var(--motion-easing);
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(.site-header, .site-footer, .site-legal-footer) a:not(.marketing-button):active,
+  .hero-cta:active,
+  .quiet-link:active {
+    translate: 0 1px;
+  }
+}
+.quiet-link:focus-visible {
+  color: var(--color-brand-accent);
+}
+.quiet-link:focus-visible span {
+  transform: translateX(3px);
 }
 .quiet-link span {
   display: inline-block;
@@ -158,8 +176,9 @@ summary:focus-visible {
   font-weight: 550;
   white-space: nowrap;
   transition:
-    transform var(--motion-standard) var(--motion-easing),
-    background-color var(--motion-standard) var(--motion-easing);
+    transform 240ms var(--hero-easing),
+    background-color var(--motion-standard) var(--motion-easing),
+    color var(--motion-standard) var(--motion-easing);
 }
 .marketing-button:active:not(:disabled):not([aria-disabled="true"]) {
   transform: scale(0.98);
@@ -186,7 +205,10 @@ summary:focus-visible {
   cursor: pointer;
   list-style: none;
   color: var(--color-text-secondary);
-  transition: background-color var(--motion-fast) var(--motion-easing);
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
 }
 .site-menu summary::-webkit-details-marker {
   display: none;
@@ -199,8 +221,38 @@ summary:focus-visible {
   stroke-width: 1.5;
   stroke-linecap: round;
 }
-.site-menu[open] summary {
+.site-menu summary path:first-child {
+  transform-origin: 12px 6px;
+}
+.site-menu summary path:last-child {
+  transform-origin: 12px 18px;
+}
+.site-menu[open] summary path:first-child {
+  transform: translateY(6px) rotate(45deg);
+}
+.site-menu[open] summary path:nth-child(2) {
+  opacity: 0;
+}
+.site-menu[open] summary path:last-child {
+  transform: translateY(-6px) rotate(-45deg);
+}
+.site-menu[open] summary,
+.site-menu summary:focus-visible {
   background: var(--color-overlay);
+  color: var(--color-text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .site-menu summary path {
+    transition:
+      transform var(--motion-standard) var(--motion-easing),
+      opacity var(--motion-fast) var(--motion-easing);
+  }
+  .site-header .site-menu nav {
+    transition: translate var(--motion-standard) var(--motion-easing);
+  }
+  .site-menu:not([open]) nav {
+    translate: 0 -4px;
+  }
 }
 .site-header .site-menu nav {
   position: absolute;
@@ -218,7 +270,9 @@ summary:focus-visible {
 .site-menu nav a {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
-  transition: background-color var(--motion-fast) var(--motion-easing);
+}
+.site-menu nav a:focus-visible {
+  background: var(--color-overlay);
 }
 .hero {
   position: relative;
@@ -1088,10 +1142,13 @@ summary:focus-visible {
 }
 .footer-sitemap a {
   justify-self: start;
-  transition: color var(--motion-standard) var(--motion-easing);
 }
-.footer-sitemap a:hover {
+.footer-sitemap a:is(:hover, :focus-visible),
+.site-legal-footer a:focus-visible {
   color: var(--color-text);
+}
+:is(.brand-logo, .footer-brand):is(:hover, :focus-visible) {
+  color: var(--color-brand-accent);
 }
 @media (max-width: 620px) {
   .footer-main {
@@ -1105,16 +1162,13 @@ summary:focus-visible {
 .theme-switch {
   display: grid;
   place-items: center;
-  flex-shrink: 0;
   width: 44px;
   height: 44px;
-  color: var(--color-text-secondary);
-  background: transparent;
-  border: 0;
   padding: 0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background-color var(--motion-fast) var(--motion-easing);
+}
+.theme-switch:focus-visible {
+  background: var(--color-overlay);
+  color: var(--color-text);
 }
 .theme-switch svg {
   grid-area: 1/1;
@@ -1126,14 +1180,26 @@ summary:focus-visible {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.sun-icon {
-  display: none;
+.theme-switch .sun-icon,
+:root[data-theme="dark"] .theme-switch .moon-icon {
+  opacity: 0;
 }
-:root[data-theme="dark"] .sun-icon {
-  display: block;
+:root[data-theme="dark"] .theme-switch .sun-icon {
+  opacity: 1;
 }
-:root[data-theme="dark"] .moon-icon {
-  display: none;
+@media (prefers-reduced-motion: no-preference) {
+  .theme-switch svg {
+    transition:
+      opacity var(--motion-fast) var(--motion-easing),
+      transform var(--motion-standard) var(--motion-easing);
+  }
+  .theme-switch .sun-icon,
+  :root[data-theme="dark"] .theme-switch .moon-icon {
+    transform: rotate(-20deg) scale(0.8);
+  }
+  :root[data-theme="dark"] .theme-switch .sun-icon {
+    transform: none;
+  }
 }
 [data-reveal] {
   transition:
@@ -1170,10 +1236,12 @@ summary:focus-visible {
     color: var(--color-on-primary);
     filter: none;
   }
-  .theme-switch:hover,
   .site-menu summary:hover,
   .site-menu nav a:hover {
     background: var(--color-overlay);
+  }
+  .site-menu summary:hover {
+    color: var(--color-text);
   }
 }
 .site-menu .registration-menu-link {
@@ -1371,23 +1439,10 @@ summary:focus-visible {
   .match-scene {
     animation: marketing-enter var(--hero-entry) var(--hero-easing) 340ms both;
   }
-  .site-menu[open] nav {
-    animation: marketing-popover 180ms var(--marketing-spring);
-  }
   @keyframes marketing-enter {
     from {
       opacity: 0;
       transform: translateY(16px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  @keyframes marketing-popover {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
     }
     to {
       opacity: 1;
@@ -3323,12 +3378,6 @@ summary:focus-visible {
   );
 }
 
-.marketing-button {
-  transition:
-    transform 240ms var(--hero-easing),
-    background-color var(--motion-standard) var(--motion-easing),
-    color var(--motion-standard) var(--motion-easing);
-}
 .marketing-button:is(:disabled, [aria-disabled="true"]) {
   transform: none;
 }

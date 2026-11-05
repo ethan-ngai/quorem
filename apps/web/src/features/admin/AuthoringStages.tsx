@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { initialOdysseySource } from "../odyssey/methodStubs";
 import { useEffect, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
@@ -60,7 +61,7 @@ export function AuthoringStages({
     }
   }
   return (
-    <>
+    <NoticeRegion message={error} label="Check stages">
       <StageAuthoring
         value={stages}
         onChange={change}
@@ -70,11 +71,6 @@ export function AuthoringStages({
           if (invalid || invalidTypes[id]) change(stages, next);
         }}
       />
-      {error && (
-        <p className="admin-error" role="alert">
-          {error}
-        </p>
-      )}
-    </>
+    </NoticeRegion>
   );
 }

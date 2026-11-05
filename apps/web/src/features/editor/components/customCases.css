@@ -145,7 +145,23 @@
   gap: 8px;
 }
 .typed-case-label label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
   margin-right: auto;
+}
+
+.typed-case-type {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-family: var(--font-code);
+}
+
+.typed-input-row > .typed-null {
+  align-self: center;
 }
 .custom-case-heading .icon-button,
 .typed-case-label .icon-button {

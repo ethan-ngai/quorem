@@ -177,22 +177,6 @@
   gap: var(--space-1);
   margin-top: var(--space-2);
 }
-.practice-topic-list button {
-  border: 0;
-  border-radius: var(--radius-sm);
-  padding: 2px var(--space-2);
-  color: var(--color-text-secondary);
-  background: var(--color-overlay);
-  font-size: var(--text-label);
-  transition:
-    color var(--motion-fast),
-    background var(--motion-fast);
-}
-.practice-topic-list button:hover {
-  color: var(--color-text);
-  background: var(--color-overlay);
-}
-
 .practice-state {
   padding: var(--space-6) var(--space-4);
   text-align: center;

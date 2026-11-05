@@ -27,6 +27,7 @@
     "@lezer/highlight": "1.2.5",
     "@noble/hashes": "2.4.0",
     "@quorem/contracts": "workspace:*",
+    "@quorem/questions": "workspace:*",
     "@quorem/ui": "workspace:*",
     "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-dismissable-layer": "1.1.20",
@@ -40,10 +41,12 @@
     "@typescript/vfs": "^1.6.5",
     "@valtown/codemirror-continue": "^2.3.2",
     "@valtown/codemirror-ts": "^2.3.1",
+    "@xyflow/react": "^12.12.1",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "better-auth": "1.7.7",
     "comlink": "^4.4.2",
+    "d3-flextree": "^2.1.2",
     "dompurify": "^3.3.3",
     "katex": "^0.19.0",
     "lucide-react": "^1.55.0",
@@ -58,6 +61,7 @@
     "sonner": "^2.0.8"
   },
   "devDependencies": {
+    "@types/d3-flextree": "^2.1.4",
     "@types/katex": "^0.16.8",
     "@types/mdast": "^4.0.4",
     "@types/node": "^24.19.2",

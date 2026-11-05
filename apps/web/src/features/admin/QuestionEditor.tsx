@@ -1,7 +1,12 @@
-import { useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
+import { PersistentNotice } from "../../ui/PersistentNotice";
+import * as Popover from "../../ui/Popover";
+import { QuestionLanguage } from "../editor/QuestionLanguage";
+import type { EditorLanguage } from "../editor/editorLanguages";
+import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { SelectField } from "../../ui/SelectField";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based question authoring. @module admin */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -24,7 +29,19 @@ import {
 } from "./api";
 import { blankQuestion } from "./content";
 import { QuestionFields, PublicPreview } from "./QuestionFields";
-import { Globe, LockKeyhole, FileJson } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Ellipsis,
+  Eye,
+  FilePlus2,
+  Globe,
+  LockKeyhole,
+  FileJson,
+  Pencil,
+  Save,
+  Trash2,
+} from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import "../../ui/question-hints.css";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -59,22 +76,78 @@ export function QuestionEditor() {
           <a href="/practice">Return to practice</a>
         </main>
       ) : (
-        <AuthoringWorkspace admin={session.data.user.role === "admin"} />
+        <QuestionSelection
+          admin={session.data.user.role === "admin"}
+          userId={session.data.user.id}
+        />
       )}
     </>
   );
 }
 
+function questionKey(userId: string, draft?: string, publication?: string) {
+  return ["admin-open-question", userId, draft, publication] as const;
+}
+
+function QuestionSelection({ admin, userId }: { admin: boolean; userId: string }) {
+  const search = useSearch({ from: "/admin/questions" });
+  const { draft, publication } = search;
+  const question = useQuery({
+    queryKey: questionKey(userId, draft, publication),
+    enabled: !!(draft || publication),
+    retry: false,
+    staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    queryFn: () =>
+      publication ? createDraft({ problemVersionId: publication, edit: true }) : getDraft(draft!),
+  });
+  if (draft || publication) {
+    if (question.isPending || question.isFetching)
+      return <LoadingScreen label="Opening question…" />;
+    if (!question.data)
+      return (
+        <main className="admin-workspace">
+          <p role="alert">
+            {userFacingErrorMessage(question.error, "Could not open the question.")}
+          </p>
+          <Link
+            to="/admin/questions"
+            search={{ ...search, draft: undefined, publication: undefined }}
+          >
+            Back to questions
+          </Link>
+        </main>
+      );
+  }
+  return (
+    <AuthoringWorkspace
+      key={`${userId}:${publication ?? draft ?? "catalog"}`}
+      userId={userId}
+      admin={admin}
+      initialDraft={question.data}
+    />
+  );
+}
+
 /** Keeps unsaved edits local; changing drafts requires an explicit discard. */
-function AuthoringWorkspace({ admin }: { admin: boolean }) {
+function AuthoringWorkspace({
+  admin,
+  initialDraft,
+  userId,
+}: {
+  admin: boolean;
+  userId: string;
+  initialDraft?: QuestionDraft;
+}) {
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
   const search = useSearch({ from: "/admin/questions" });
   const navigate = useNavigate({ from: "/admin/questions" });
-  const { section, readiness, ...filters } = search;
+  const { section, readiness, draft: draftId, publication, ...filters } = search;
   const drafts = useInfiniteQuery({
     queryKey: ["admin-drafts", admin, filters, readiness],
-    enabled: section !== "publications",
+    enabled: !initialDraft && section !== "publications",
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) => listDrafts({ ...filters, readiness }, pageParam, signal),
     getNextPageParam: (page) => page.nextCursor,
@@ -82,11 +155,11 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   const draftItems = drafts.data?.pages.flatMap((page) => page.items) ?? [];
   const problems = useQuery({
     queryKey: ["admin-problems", admin, filters],
-    enabled: section === "publications",
+    enabled: !initialDraft && section === "publications",
     queryFn: ({ signal }) => listPublications(filters, signal),
   });
-  const [draft, setDraft] = useState<QuestionDraft>();
-  const [content, setContent] = useState<QuestionContent>();
+  const [draft, setDraft] = useState<QuestionDraft | undefined>(initialDraft);
+  const [content, setContent] = useState<QuestionContent | undefined>(initialDraft?.content);
   const [dirty, setDirty] = useState(false);
   const navigationBlocker = useBlocker({
     shouldBlockFn: () => dirty,
@@ -95,11 +168,13 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useErrorNotification(error);
+  useErrorNotification(draft ? undefined : error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
+  const [previewLanguage, setPreviewLanguage] =
+    useState<Exclude<EditorLanguage, "postgresql">>("python");
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "global">("private");
-  const [discard, setDiscard] = useState(false);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
   const [replacement, setReplacement] = useState("");
@@ -126,9 +201,8 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         deletion.current ? (replacement === "unpublish" ? null : replacement) : undefined,
       );
       setDeletion(undefined);
-      setDraft(undefined);
-      setContent(undefined);
-      setNotice("Published version deleted.");
+      cache.removeQueries({ queryKey: questionKey(userId, draftId, publication), exact: true });
+      closeEditor();
       await Promise.all([
         cache.invalidateQueries({ queryKey: ["admin-drafts"] }),
         cache.invalidateQueries({ queryKey: ["admin-problems"] }),
@@ -145,6 +219,8 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     enabled: !!draft?.publishedVersionId,
     queryFn: () => fetchDeletionImpact(draft!.id),
   });
+  const saveStatus = dirty ? "Unsaved edits" : draft?.publishedVersionId ? "Published" : "Draft";
+  const saveStatusElement = useChangeMotion<HTMLSpanElement>(saveStatus);
   const [invalidFields, setInvalidFields] = useState<Set<string>>(() => new Set());
   useEffect(() => {
     if (!dirty) return;
@@ -162,25 +238,31 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
     setPreview(false);
     setError("");
     setNotice("");
-    setDiscard(false);
     setInvalidFields(new Set());
   }
   function closeEditor() {
-    setDraft(undefined);
-    setContent(undefined);
-    setDirty(false);
-    setDiscard(false);
-    setError("");
-    setNotice("");
-    setInvalidFields(new Set());
+    void navigate({
+      search: (previous) => ({ ...previous, draft: undefined, publication: undefined }),
+    });
   }
   async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      open(await action());
-      setNotice(message);
+      const next = await action();
+      const nextPublication = next.publishedVersionId;
+      const nextDraft = nextPublication ? undefined : next.id;
+      cache.setQueryData(questionKey(userId, nextDraft, nextPublication), next);
+      if (nextDraft !== draftId || nextPublication !== publication) {
+        await navigate({
+          search: (previous) => ({ ...previous, draft: nextDraft, publication: nextPublication }),
+          replace: !!draftId && !!nextPublication,
+        });
+      } else {
+        open(next);
+        setNotice(message);
+      }
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
       await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
@@ -253,7 +335,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
             disabled={busy || (deletion?.current && !replacement)}
             onClick={() => void confirmDeletion()}
           >
-            Delete version
+            <Trash2 size={16} aria-hidden="true" /> Delete version
           </button>
         </footer>
       </SessionDialog>
@@ -263,22 +345,17 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
         onCreated={() => void cache.invalidateQueries({ queryKey: ["admin-drafts"] })}
         onOpenDraft={(id) => {
           setImportOpen(false);
-          void perform(() => getDraft(id), "", "Could not open the imported draft.");
+          void navigate({
+            search: (previous) => ({ ...previous, draft: id, publication: undefined }),
+          });
         }}
       />
       <header className="admin-heading">
         <h1>{draft ? draft.content.problem.title || "Untitled question" : "Questions"}</h1>
         <div className="admin-toolbar">
           {draft ? (
-            <button
-              className="button button-secondary"
-              disabled={busy}
-              onClick={() => {
-                if (dirty || invalidFields.size) setDiscard(true);
-                else closeEditor();
-              }}
-            >
-              Back to questions
+            <button className="button button-secondary" disabled={busy} onClick={closeEditor}>
+              <ArrowLeft size={16} aria-hidden="true" /> Back to questions
             </button>
           ) : (
             <>
@@ -337,14 +414,13 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           loadMore={drafts.hasNextPage ? () => void drafts.fetchNextPage() : undefined}
           loadingMore={drafts.isFetchingNextPage}
           onOpen={(row) =>
-            void perform(
-              () =>
-                "revision" in row
-                  ? getDraft(row.id)
-                  : createDraft({ problemVersionId: row.id, edit: true }),
-              "",
-              "Could not open the question.",
-            )
+            void navigate({
+              search: (previous) => ({
+                ...previous,
+                draft: "revision" in row ? row.id : undefined,
+                publication: "revision" in row ? undefined : row.id,
+              }),
+            })
           }
           onChanged={() =>
             Promise.all([
@@ -355,34 +431,45 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
           }
         />
       )}
-      <SessionDialog
-        open={discard}
-        onOpenChange={setDiscard}
-        title="Discard unsaved edits?"
-        description="Your saved question will remain unchanged."
-      >
-        <footer className="competitive-dialog-actions">
-          <button className="button button-secondary" onClick={() => setDiscard(false)}>
-            Keep editing
-          </button>
-          <button className="button button-primary" onClick={closeEditor}>
-            Discard and return
-          </button>
-        </footer>
-      </SessionDialog>
       {draft && content && (
         <section className="admin-form-pane" aria-label="Question content">
           <div className="admin-toolbar admin-edit-toolbar">
-            <span role="status">
-              {dirty ? "Unsaved edits" : draft.publishedVersionId ? "Published" : "Draft"}
+            <span ref={saveStatusElement}>
+              <span role="status">{saveStatus}</span>
+              <PersistentNotice
+                label={invalidFields.size ? "Saving blocked" : "Question update failed"}
+                message={[
+                  ...(invalidFields.size
+                    ? ["Fix invalid fields before saving or previewing."]
+                    : []),
+                  error,
+                ]}
+              />
             </span>
-            <button
-              className="quiet-button"
-              disabled={invalidFields.size > 0}
-              onClick={() => setPreview(!preview)}
-            >
-              {preview ? "Edit content" : "Preview public content"}
-            </button>
+            <Tooltip content={preview ? "Edit content" : "Preview public content"}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={preview ? "Edit content" : "Preview public content"}
+                aria-pressed={preview}
+                disabled={invalidFields.size > 0}
+                onClick={() => setPreview(!preview)}
+              >
+                {preview ? <Pencil size={17} /> : <Eye size={17} />}
+              </button>
+            </Tooltip>
+            {draft.publishedVersionId && (
+              <Tooltip content="Open published question">
+                <Link
+                  className="icon-button"
+                  to="/practice/$slug"
+                  params={{ slug: draft.content.problem.slug }}
+                  aria-label="Open published question"
+                >
+                  <ArrowUpRight size={17} />
+                </Link>
+              </Tooltip>
+            )}
             {draft.publishedVersionId ? (
               <>
                 <button
@@ -396,57 +483,78 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     )
                   }
                 >
-                  Save published changes
+                  <Save size={16} aria-hidden="true" /> Save changes
                 </button>
-                <details className="admin-publication-actions">
-                  <summary>Publication options</summary>
-                  <div>
-                    {!!versionHistory.data?.replacements.length && (
-                      <SelectField
-                        label="Published versions"
-                        value={draft.publishedVersionId}
+                <Popover.Root open={optionsOpen} onOpenChange={setOptionsOpen}>
+                  <Tooltip content="Publication options">
+                    <Popover.Trigger asChild>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        aria-label="Publication options"
+                      >
+                        <Ellipsis size={18} />
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                  <Popover.Portal>
+                    <Popover.Content
+                      className="admin-publication-actions"
+                      align="end"
+                      aria-label="Publication options"
+                    >
+                      {!!versionHistory.data?.replacements.length && (
+                        <SelectField
+                          label="Published versions"
+                          value={draft.publishedVersionId}
+                          disabled={busy || dirty || invalidFields.size > 0}
+                          onChange={(id) => {
+                            setOptionsOpen(false);
+                            void perform(
+                              () => createDraft({ problemVersionId: id, edit: true }),
+                              "",
+                              "Could not open the version.",
+                            );
+                          }}
+                          options={[
+                            {
+                              value: draft.publishedVersionId,
+                              label: `Version ${content.problem.version}`,
+                            },
+                            ...versionHistory.data.replacements.map((version) => ({
+                              value: version.id,
+                              label: `Version ${version.version} · ${version.title}`,
+                            })),
+                          ]}
+                        />
+                      )}
+                      <button
+                        className="button button-secondary"
                         disabled={busy || dirty || invalidFields.size > 0}
-                        onChange={(id) =>
+                        onClick={() => {
+                          setOptionsOpen(false);
                           void perform(
-                            () => createDraft({ problemVersionId: id, edit: true }),
-                            "",
-                            "Could not open the version.",
-                          )
-                        }
-                        options={[
-                          {
-                            value: draft.publishedVersionId,
-                            label: `Version ${content.problem.version}`,
-                          },
-                          ...versionHistory.data.replacements.map((version) => ({
-                            value: version.id,
-                            label: `Version ${version.version} · ${version.title}`,
-                          })),
-                        ]}
-                      />
-                    )}
-                    <button
-                      className="button button-secondary"
-                      disabled={busy || dirty || invalidFields.size > 0}
-                      onClick={() =>
-                        void perform(
-                          () => createDraft({ problemVersionId: draft.publishedVersionId! }),
-                          "New version draft created.",
-                          "Could not create a version draft. Try again.",
-                        )
-                      }
-                    >
-                      Create next version
-                    </button>
-                    <button
-                      className="quiet-button"
-                      disabled={busy || dirty}
-                      onClick={() => void requestDeletion()}
-                    >
-                      Delete version
-                    </button>
-                  </div>
-                </details>
+                            () => createDraft({ problemVersionId: draft.publishedVersionId! }),
+                            "New version draft created.",
+                            "Could not create a version draft. Try again.",
+                          );
+                        }}
+                      >
+                        <FilePlus2 size={16} aria-hidden="true" /> Create next version
+                      </button>
+                      <button
+                        className="button button-secondary admin-delete-action"
+                        disabled={busy || dirty}
+                        onClick={() => {
+                          setOptionsOpen(false);
+                          void requestDeletion();
+                        }}
+                      >
+                        <Trash2 size={16} aria-hidden="true" /> Delete version
+                      </button>
+                    </Popover.Content>
+                  </Popover.Portal>
+                </Popover.Root>
               </>
             ) : (
               <>
@@ -461,7 +569,7 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                     )
                   }
                 >
-                  Save draft
+                  <Save size={16} aria-hidden="true" /> Save draft
                 </button>
                 {admin && !draft.editVersionId && (
                   <SegmentedControl
@@ -514,19 +622,20 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
               </>
             )}
           </div>
-          {invalidFields.size > 0 && (
-            <p className="admin-error" role="status">
-              Fix invalid fields before saving or previewing.
-            </p>
-          )}
           {preview ? (
             <PreviewBoundary>
-              <PublicPreview content={content} />
+              <QuestionLanguage.Provider
+                value={content.problem.sql ? "postgresql" : previewLanguage}
+              >
+                <PublicPreview content={content} />
+              </QuestionLanguage.Provider>
             </PreviewBoundary>
           ) : (
             <QuestionFields
               key={`${draft.id}:${draft.revision}`}
               content={content}
+              previewLanguage={previewLanguage}
+              onPreviewLanguageChange={setPreviewLanguage}
               disabled={locked}
               lockSlug={!!(draft.publishedVersionId || draft.editVersionId)}
               invalidCases={[...invalidFields].some((key) => key.startsWith("cases:"))}
@@ -545,13 +654,6 @@ function AuthoringWorkspace({ admin }: { admin: boolean }) {
                 setNotice("");
               }}
             />
-          )}
-          {draft.publishedVersionId && (
-            <p>
-              <a href={`/practice/${encodeURIComponent(content.problem.slug)}`}>
-                Open published question
-              </a>
-            </p>
           )}
         </section>
       )}

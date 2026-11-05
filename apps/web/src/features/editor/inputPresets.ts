@@ -1,8 +1,17 @@
+import { parseNodeLiteral, formatNodeLiteral, type NodeContext } from "./nodeLiterals";
+import type { Signature } from "@quorem/contracts";
+import { nodeType } from "@quorem/contracts/node-type";
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
 import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
-export type InputConfig = { preset: string; placeholder?: string; rows?: number };
+export type InputConfig = {
+  preset: string;
+  placeholder?: string;
+  rows?: number;
+  nodeReference?: true;
+  nodeContext?: NodeContext;
+};
 export type InputKind =
   | "number"
   | "text"
@@ -17,6 +26,7 @@ export type InputKind =
 export abstract class InputPreset {
   abstract readonly kind: InputKind;
   readonly delimiters?: readonly [string, string];
+  readonly autoformat: boolean = false;
   constructor(
     readonly type: string,
     readonly config?: InputConfig,
@@ -26,7 +36,7 @@ export abstract class InputPreset {
   parse(source: string): WireValue {
     if (source.length > MAX_CUSTOM_CASE_BYTES) throw new Error("Input exceeds 2 MiB.");
     const value = this.parseValue(source);
-    validateTypedValue(this.type, value);
+    if (!this.config?.nodeReference) validateTypedValue(this.type, value);
     return value;
   }
   format(value: WireValue): string {
@@ -83,7 +93,8 @@ function scalarSource(type: string, source: string, depth = 0): WireValue {
   const optional = innerType(type, "optional");
   if (optional) return source.trim() === "null" ? null : scalarSource(optional, source, depth + 1);
   const list = innerType(type, "list");
-  if (list || type === "TreeNode" || type === "ListNode") {
+  const node = nodeType(type);
+  if (list || node) {
     if (source.trim() === "null" && !list) return null;
     const trimmed = source.trim();
     if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
@@ -91,7 +102,11 @@ function scalarSource(type: string, source: string, depth = 0): WireValue {
     const contents = trimmed.slice(1, -1);
     if (!contents.trim()) return [];
     return splitEntries(contents).map((item) =>
-      scalarSource(list ?? (type === "TreeNode" ? "optional<int>" : "int"), item, depth + 1),
+      scalarSource(
+        list ?? (node && node.kind !== "ListNode" ? `optional<${node.payload}>` : node!.payload),
+        item,
+        depth + 1,
+      ),
     );
   }
   if (type === "long" && source.trim().startsWith('"')) return JSON.parse(source) as WireValue;
@@ -140,10 +155,9 @@ export class SequencePreset extends InputPreset {
     if (source.length > MAX_CUSTOM_CASE_BYTES) return false;
     let quoted = false,
       escaped = false;
-    const allowStrings = /(?:^|<)(?:str|long)(?:>|$)/.test(this.type);
+    const allowStrings = /(?:^|<)(?:str|long|datetime)(?:>|$)/.test(this.type);
     const allowBoolean = /(?:^|<)bool(?:>|$)/.test(this.type);
-    const allowNull =
-      this.type.includes("optional<") || this.type === "TreeNode" || this.type === "ListNode";
+    const allowNull = /(?:optional|NaryTreeNode|TreeNode|ListNode)(?:<|>|$)/.test(this.type);
     let outside = "";
     for (const character of source) {
       if (quoted) {
@@ -159,7 +173,7 @@ export class SequencePreset extends InputPreset {
     while (child && innerType(child, "optional")) child = innerType(child, "optional");
     const allowBrackets =
       child !== undefined &&
-      (innerType(child, "list") !== undefined || child === "TreeNode" || child === "ListNode");
+      (innerType(child, "list") !== undefined || nodeType(child) !== undefined);
     if (!allowBrackets && (outside.includes("[") || outside.includes("]"))) return false;
     const alphabet = `0-9\\s.eE+*/%()\\[\\],-${allowBoolean ? "truefals" : ""}${allowNull ? "nul" : ""}`;
     return new RegExp(`^[${alphabet.replace(",-", ",\\-")}]*$`).test(outside);
@@ -169,7 +183,7 @@ export class SequencePreset extends InputPreset {
   }
   override toEditorSource(source: string) {
     const trimmed = source.trim();
-    if (trimmed === "null" && (this.type === "TreeNode" || this.type === "ListNode")) return "";
+    if (trimmed === "null" && nodeType(this.type)) return "";
     return trimmed.startsWith("[") && trimmed.endsWith("]") ? trimmed.slice(1, -1) : source;
   }
   override fromEditorSource(source: string) {
@@ -179,8 +193,20 @@ export class SequencePreset extends InputPreset {
 export class MatrixPreset extends SequencePreset {
   override readonly kind = "matrix";
 }
-export class TreePreset extends SequencePreset {
-  override readonly kind = "tree";
+export class TreePreset extends InputPreset {
+  readonly kind: InputKind = "tree";
+  override readonly autoformat = true;
+  accepts(_source: string) {
+    return true;
+  }
+  protected parseValue(source: string) {
+    if (!this.config?.nodeReference && source.trimStart().startsWith("["))
+      return scalarSource(this.type, source);
+    return parseNodeLiteral(this.type, source, this.config?.nodeContext);
+  }
+  override format(value: WireValue) {
+    return formatNodeLiteral(this.type, value, this.config?.nodeContext);
+  }
 }
 export class LinkedListPreset extends SequencePreset {
   override readonly kind = "linkedList";
@@ -188,9 +214,11 @@ export class LinkedListPreset extends SequencePreset {
 export class NullablePreset extends InputPreset {
   readonly kind = "optional";
   readonly inner: InputPreset;
+  override readonly autoformat: boolean;
   constructor(type: string, config?: InputConfig) {
     super(type, config);
     this.inner = resolveInputPreset(innerType(type, "optional")!, config);
+    this.autoformat = this.inner.autoformat;
   }
   accepts(source: string) {
     return source === "null" || this.inner.accepts(source);
@@ -253,14 +281,31 @@ for (const [id, Preset] of Object.entries({
 })) {
   registerInputPreset(id, (type, config) => new Preset(type, config));
 }
+/** Use JSON fields when a node can be represented by a reference object. */
+export function caseFieldConfig(
+  signature: Signature,
+  type: string,
+  input?: InputConfig,
+  expected = false,
+  context?: Pick<NodeContext, "args" | "sources">,
+): InputConfig | undefined {
+  if (
+    !nodeType(type) ||
+    (expected ? signature.nodeReferences !== "return" : !signature.nodeReferences)
+  )
+    return input;
+  return { ...input, preset: "tree", nodeReference: true, nodeContext: { signature, ...context } };
+}
+
 export function resolveInputPreset(type: string, config?: InputConfig): InputPreset {
   let id: string;
+  if (config?.nodeReference) return new TreePreset(type, config);
   if (innerType(type, "optional")) return new NullablePreset(type, config);
   else if (type === "int" || type === "long" || type === "float") id = "number";
   else if (type === "str" || type === "datetime") id = "text";
   else if (type === "bool") id = "boolean";
-  else if (type === "TreeNode") id = "tree";
-  else if (type === "ListNode") id = "linkedList";
+  else if (nodeType(type)?.kind.endsWith("TreeNode")) id = "tree";
+  else if (nodeType(type)?.kind === "ListNode") id = "linkedList";
   else if (innerType(type, "list"))
     id = innerType(innerType(type, "list")!, "list") ? "matrix" : "sequence";
   else id = "structured";

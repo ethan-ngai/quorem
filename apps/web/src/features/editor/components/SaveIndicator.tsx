@@ -1,39 +1,22 @@
 /** @file SaveIndicator.tsx @description Shows draft persistence failures and recovery. @module editor */
-import { Tooltip } from "../../../ui/Tooltip";
+import { PersistentNotice } from "../../../ui/PersistentNotice";
 
 export type SaveState = "saved" | "dirty" | "saving" | "offline" | "error";
 
 /** Keep routine autosaves silent; surface failures with retry. */
 export function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry?: () => void }) {
-  if (state !== "offline" && state !== "error") return null;
-  const label = {
-    offline: "Offline · saved locally",
-    error: "Browser save failed",
-  }[state];
-  const content = (
-    <>
-      <i aria-hidden="true" />
-      <span>{label}</span>
-    </>
-  );
-  if (onRetry)
-    return (
-      <Tooltip content={`${label}. Click to retry saving.`}>
-        <button
-          className={`save-indicator save-${state} save-retry`}
-          type="button"
-          onClick={onRetry}
-          aria-label={`${label}. Retry saving.`}
-        >
-          {content}
-        </button>
-      </Tooltip>
-    );
   return (
-    <Tooltip content={label}>
-      <span tabIndex={0} className={`save-indicator save-${state}`} role="status">
-        {content}
-      </span>
-    </Tooltip>
+    <PersistentNotice
+      label={state === "offline" ? "Offline · saved locally" : "Browser save failed"}
+      severity={state === "offline" ? "warning" : "error"}
+      message={
+        state === "offline"
+          ? "Your code is saved locally in this browser."
+          : state === "error"
+            ? "Could not save your code in this browser. Retry saving before leaving."
+            : undefined
+      }
+      actions={onRetry ? [{ label: "Retry saving", onClick: onRetry }] : undefined}
+    />
   );
 }

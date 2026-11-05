@@ -1,12 +1,14 @@
+import { validateCodingCase, validateCodingSequence } from "@quorem/questions/coding-case";
+import { nodeType } from "@quorem/contracts/node-type";
 import { randomUUID } from "../../randomUUID";
 import type { Constraint, CustomCase, QuestionProblem, Signature } from "@quorem/contracts";
 
 import { bindArguments } from "./argumentBinding";
 import { validateConstraints, validateSequenceCallConstraints } from "./constraintValidation";
-import { MAX_CUSTOM_CASE_BYTES } from "./inputLimits";
+import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 import { normalizeSqlDraft } from "./sqlDraft";
 
-import { resolveInputPreset, type InputConfig } from "./inputPresets";
+import { caseFieldConfig, resolveInputPreset, type InputConfig } from "./inputPresets";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
 export { innerType, validateTypedValue } from "./typedValues";
 export type CustomCaseDraft = {
@@ -43,7 +45,7 @@ function defaultValue(type: string): WireValue {
   if (type === "long") return "0";
   if (type === "datetime") return "1970-01-01T00:00:00";
   if (type === "bool") return false;
-  if (type === "ListNode" || type === "TreeNode" || innerType(type, "optional")) return null;
+  if (nodeType(type) || innerType(type, "optional")) return null;
   if (innerType(type, "list")) return [];
   return 0;
 }
@@ -72,12 +74,19 @@ export function createCustomDraft(problem: QuestionProblem): CustomCaseDraft {
   return {
     id: randomUUID(),
     args: problem.signature.parameters.map(({ type, input }, index) =>
-      formatTypedField(type, inputs ? inputs[index]!.value : defaultValue(type), input),
+      formatTypedField(
+        type,
+        inputs ? inputs[index]!.value : defaultValue(type),
+        caseFieldConfig(problem.signature, type, input, false, { args: example?.args }),
+      ),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
       problem.signature.returnType,
       example?.expected ?? defaultValue(problem.signature.returnType),
+      caseFieldConfig(problem.signature, problem.signature.returnType, undefined, true, {
+        args: example?.args,
+      }),
     ),
   };
 }
@@ -97,6 +106,18 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProbl
       if (!Array.isArray(input) || !input.length || input.length > 100)
         throw new Error("Add between 1 and 100 calls.");
       const methods = problem.odyssey.levels.flatMap((level) => level.methods);
+      if (methods.some((method) => method.nodeReferences)) {
+        const value = { args: [], calls: input };
+        validateCodingSequence(
+          problem.signature,
+          problem.constraints,
+          methods,
+          JSON.stringify(value),
+          false,
+          MAX_INPUT_ELEMENTS,
+        );
+        return value as CustomCase;
+      }
       for (const call of input) {
         if (!call || typeof call !== "object" || Array.isArray(call))
           throw new Error("Each call must be an object.");
@@ -150,18 +171,31 @@ export function parseCustomDraft(
 ): CustomCase {
   const args = bindArguments(signature, draft.args).map(({ name, type, value, input }) => {
     try {
-      return parseTypedField(type, value, input);
+      return parseTypedField(
+        type,
+        value,
+        caseFieldConfig(signature, type, input, false, { sources: draft.args }),
+      );
     } catch (error) {
       throw new Error(`${name}: ${(error as Error).message}`);
     }
   });
-  validateConstraints(signature, args, constraints);
-  if (!draft.expectedEnabled) return { args };
-  try {
-    return { args, expected: parseTypedField(signature.returnType, draft.expected) };
-  } catch (error) {
-    throw new Error(`Expected output: ${(error as Error).message}`);
+  const test: CustomCase = { args };
+  if (draft.expectedEnabled) {
+    try {
+      test.expected = parseTypedField(
+        signature.returnType,
+        draft.expected,
+        caseFieldConfig(signature, signature.returnType, undefined, true, { sources: draft.args }),
+      );
+    } catch (error) {
+      throw new Error(`Expected output: ${(error as Error).message}`);
+    }
   }
+  if (signature.nodeReferences)
+    validateCodingCase(signature, constraints, JSON.stringify(test), false, MAX_INPUT_ELEMENTS);
+  else validateConstraints(signature, args, constraints);
+  return test;
 }
 
 export function parseCustomDrafts(
@@ -201,6 +235,10 @@ export function parseCustomCases(
       throw new Error("Unknown case field.");
     if (!Array.isArray(record.args) || record.args.length !== signature.parameters.length)
       throw new Error("Wrong argument count.");
+    if (signature.nodeReferences) {
+      validateCodingCase(signature, constraints, JSON.stringify(record), false, MAX_INPUT_ELEMENTS);
+      return record as CustomCase;
+    }
     bindArguments(signature, record.args).forEach(({ type, value }) =>
       validateTypedValue(type, value),
     );

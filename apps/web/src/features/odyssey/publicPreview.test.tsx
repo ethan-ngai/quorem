@@ -25,7 +25,7 @@ it("renders the first public Odyssey level without implying saved progress or ex
   const html = renderToStaticMarkup(<OdysseyPanel title="Ledger" progress={progress} />);
   expect(html).toContain("Deposits");
   expect(html).toContain("Add money to your balance.");
-  expect(html).toContain("Solution.deposit(amount: int)");
+  expect(html.replace(/<[^>]+>/g, "")).toContain("def deposit(self, amount: int)");
   expect(html).not.toContain("Future level");
   expect(html).not.toContain("Sign in to start");
   expect(publicOdysseyPreview({})).toBeUndefined();

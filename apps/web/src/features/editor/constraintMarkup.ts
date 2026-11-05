@@ -7,8 +7,8 @@ function code(value: string): string {
   return `${fence} ${value} ${fence}`;
 }
 
-function targetMarkup(target: ConstraintTarget): string {
-  return code(formatTarget(target));
+function targetMarkup(target: ConstraintTarget, qualifyNodes = false): string {
+  return code(formatTarget(target, qualifyNodes));
 }
 
 function boundMarkup(value: number): string {
@@ -18,6 +18,11 @@ function boundMarkup(value: number): string {
 /** Compose prose and inline math from constraint metadata, without rewriting source text. */
 export function constraintMarkup(constraint: Constraint | string): string {
   if (typeof constraint === "string") return constraint;
+  if (
+    (constraint.kind === "range" || constraint.kind === "comparison") &&
+    constraint.quantifier === "any"
+  )
+    return `$\\exists$ ${constraintMarkup({ ...constraint, quantifier: undefined })}`;
   switch (constraint.kind) {
     case "prose":
       return constraint.text;
@@ -27,15 +32,17 @@ export function constraintMarkup(constraint: Constraint | string): string {
         constraint.target.projection === "nodeValues"
           ? ` (nodes in ${code(constraint.target.parameter)})`
           : "";
+      const lower = constraint.minInclusive === false ? "<" : "\\le";
+      const upper = constraint.maxInclusive === false ? "<" : "\\le";
       if (constraint.min !== undefined && constraint.max !== undefined)
-        return `${boundMarkup(constraint.min)} $\\le$ ${target} $\\le$ ${boundMarkup(constraint.max)}${suffix}`;
+        return `${boundMarkup(constraint.min)} $${lower}$ ${target} $${upper}$ ${boundMarkup(constraint.max)}${suffix}`;
       return constraint.min !== undefined
-        ? `${target} $\\ge$ ${boundMarkup(constraint.min)}${suffix}`
-        : `${target} $\\le$ ${boundMarkup(constraint.max!)}${suffix}`;
+        ? `${target} $${constraint.minInclusive === false ? ">" : "\\ge"}$ ${boundMarkup(constraint.min)}${suffix}`
+        : `${target} $${upper}$ ${boundMarkup(constraint.max!)}${suffix}`;
     }
     case "comparison": {
       const operator = { eq: "=", le: "\\le", lt: "<", ge: "\\ge", gt: ">" }[constraint.operator];
-      return `${targetMarkup(constraint.left)} $${operator}$ ${targetMarkup(constraint.right)}`;
+      return `${targetMarkup(constraint.left, true)} $${operator}$ ${targetMarkup(constraint.right, true)}`;
     }
     case "property": {
       const nodes = constraint.target.projection === "nodeValues";
@@ -44,7 +51,7 @@ export function constraintMarkup(constraint: Constraint | string): string {
         : code(constraint.target.parameter);
       return constraint.property === "unique"
         ? `${subject} ${nodes ? "are unique" : "contains unique values"}`
-        : `${subject} ${nodes ? "are" : "is"} sorted in nondecreasing order`;
+        : `${subject} ${nodes ? "are" : "is"} sorted in ${constraint.direction === "desc" ? "nonincreasing" : "nondecreasing"} order`;
     }
   }
 }

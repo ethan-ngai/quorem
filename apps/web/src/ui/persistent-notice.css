@@ -1,0 +1,101 @@
+.persistent-notice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--control-height);
+  block-size: var(--control-height);
+  flex: 0 0 var(--control-height);
+  vertical-align: middle;
+}
+.persistent-notice-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-error);
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--motion-easing);
+}
+.persistent-notice[data-severity="warning"] .persistent-notice-trigger {
+  color: var(--color-warning);
+}
+.persistent-notice-trigger:hover,
+.persistent-notice-trigger[data-state="open"] {
+  background: var(--color-overlay);
+}
+.persistent-notice-trigger:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.persistent-notice-count {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-overlay);
+  padding-inline: 2px;
+  color: var(--color-text);
+  font: 500 10px/1.2 var(--font-interface);
+}
+.persistent-notice-details {
+  box-sizing: border-box;
+  inline-size: min(320px, calc(100vw - var(--space-6)));
+  max-block-size: var(--radix-popover-content-available-height);
+  overflow: auto;
+  padding: var(--space-4);
+  font: 400 var(--text-small)/1.5 var(--font-interface);
+  overflow-wrap: anywhere;
+}
+.persistent-notice-details h3 {
+  margin: 0 0 var(--space-2);
+  font: 500 var(--text-small)/1.5 var(--font-interface);
+}
+.persistent-notice-details p,
+.persistent-notice-details ul {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+.persistent-notice-details ul {
+  padding-inline-start: var(--space-4);
+}
+.persistent-notice-details li + li,
+.persistent-notice-actions {
+  margin-block-start: var(--space-2);
+}
+.notice-region {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--control-height);
+  align-items: start;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.notice-region-content {
+  min-inline-size: 0;
+}
+@media (pointer: coarse) {
+  .persistent-notice {
+    inline-size: var(--narrow-touch-target);
+    block-size: var(--narrow-touch-target);
+    flex-basis: var(--narrow-touch-target);
+  }
+  .notice-region {
+    grid-template-columns: minmax(0, 1fr) var(--narrow-touch-target);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .persistent-notice-trigger {
+    transition: none;
+  }
+}
+.persistent-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

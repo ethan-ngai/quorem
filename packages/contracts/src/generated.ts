@@ -996,6 +996,11 @@ export interface components {
             parameters: components["schemas"]["Parameter"][];
             returnType: string;
             /**
+             * @description Enable call-local node references. Return mode also compares the returned node by identity.
+             * @enum {string}
+             */
+            nodeReferences?: "arguments" | "return";
+            /**
              * @description Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant.
              * @enum {string}
              */
@@ -1286,12 +1291,30 @@ export interface components {
             target: components["schemas"]["ConstraintTarget"];
             min: number;
             max?: number;
+            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
+            minInclusive?: boolean;
+            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
+            maxInclusive?: boolean;
+            /**
+             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
+             * @enum {string}
+             */
+            quantifier?: "all" | "any";
         } | {
             /** @constant */
             kind: "range";
             target: components["schemas"]["ConstraintTarget"];
             min?: number;
             max: number;
+            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
+            minInclusive?: boolean;
+            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
+            maxInclusive?: boolean;
+            /**
+             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
+             * @enum {string}
+             */
+            quantifier?: "all" | "any";
         }) | {
             /** @constant */
             kind: "comparison";
@@ -1299,12 +1322,22 @@ export interface components {
             right: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
             operator: "eq" | "le" | "lt" | "ge" | "gt";
+            /**
+             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
+             * @enum {string}
+             */
+            quantifier?: "all" | "any";
         } | {
             /** @constant */
             kind: "property";
             target: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
             property: "sorted" | "nondecreasing" | "unique";
+            /**
+             * @description Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties.
+             * @enum {string}
+             */
+            direction?: "asc" | "desc";
         } | {
             /** @constant */
             kind: "prose";

@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { questionTypeName, questionValue } from "./questionTypes";
-import { validateTypedValue } from "./typedValues";
+import { formatValueType, parseValueType, validateTypedValue } from "./typedValues";
 it("renders language literals without modifying string contents", () => {
   expect(questionValue([null, true, false, "null True false"], "python")).toBe(
     '[None,True,False,"null True false"]',
@@ -9,22 +9,20 @@ it("renders language literals without modifying string contents", () => {
   expect(questionValue(null, "typescript", "void")).toBe("undefined");
 });
 it("maps shared lists and arrays to each language", () => {
-  expect(questionTypeName("list<int>", "java")).toBe("java.util.List<Integer>");
+  expect(questionTypeName("list<int>", "java")).toBe("List<Integer>");
   expect(questionTypeName("array<int>", "java")).toBe("int[]");
   for (const type of ["list<int>", "array<int>"])
     expect(questionTypeName(type, "python")).toBe("list[int]");
   expect(questionTypeName("optional<array<str>>", "python")).toBe("list[str] | None");
   expect(questionTypeName("void", "python")).toBe("None");
-  expect(questionTypeName("list<optional<int>>", "java")).toBe("java.util.List<Integer>");
+  expect(questionTypeName("list<optional<int>>", "java")).toBe("List<Integer>");
   expect(() => validateTypedValue("array<optional<int>>", [1, null])).not.toThrow();
   expect(() => validateTypedValue("array<int>", [null])).toThrow();
 });
 
 it("datetime types and wire validation", () => {
   expect(questionTypeName("datetime", "python")).toBe("datetime.datetime");
-  expect(questionTypeName("list<datetime>", "java")).toBe(
-    "java.util.List<java.time.LocalDateTime>",
-  );
+  expect(questionTypeName("list<datetime>", "java")).toBe("List<LocalDateTime>");
   expect(questionTypeName("datetime", "typescript")).toBe("Date");
   expect(questionTypeName("datetime", "ocaml")).toBe("Unix.tm");
   expect(() =>
@@ -32,4 +30,25 @@ it("datetime types and wire validation", () => {
   ).not.toThrow();
   expect(() => validateTypedValue("datetime", "2023-02-29T00:00:00")).toThrow();
   expect(() => validateTypedValue("datetime", "2024-01-01T00:00:00Z")).toThrow();
+});
+
+it("round-trips nested type components and rejects malformed legacy expressions", () => {
+  const source = "array<optional<list<TreeNode>>>";
+  const parsed = parseValueType(source);
+  expect(parsed).toBeDefined();
+  expect(formatValueType(parsed!)).toBe(source);
+  expect(parseValueType("array<int")).toBeUndefined();
+  expect(parseValueType("list<void>")).toBeUndefined();
+});
+
+it("renders nested optional types with one absence marker", () => {
+  expect(questionTypeName("optional<optional<optional<list<datetime>>>>", "python")).toBe(
+    "list[datetime.datetime] | None",
+  );
+  expect(questionTypeName("optional<TreeNode<str>>", "typescript")).toBe("TreeNode<string> | null");
+});
+
+it("renders bare node types as declared by the language starter", () => {
+  expect(questionTypeName("TreeNode", "typescript")).toBe("TreeNode | null");
+  expect(questionTypeName("ListNode", "ocaml")).toBe("list_node option");
 });

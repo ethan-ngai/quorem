@@ -1,5 +1,5 @@
 import { LockKeyhole } from "lucide-react";
-import { OdysseyIcon } from "./QuestionTypeFilter";
+import { OdysseyIcon } from "../../ui/OdysseyIcon";
 
 export function QuestionIndicators({
   privateQuestion,

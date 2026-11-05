@@ -9,6 +9,7 @@
   border-radius: var(--radius-sm);
   background: var(--color-field);
   color: var(--color-text-secondary);
+  transition: box-shadow var(--motion-fast) var(--motion-easing);
 }
 
 .search-field:focus-within {
@@ -38,4 +39,10 @@
 
 .search-field > span {
   display: inline-flex;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-field {
+    transition: none;
+  }
 }

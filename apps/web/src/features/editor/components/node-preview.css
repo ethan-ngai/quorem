@@ -1,0 +1,173 @@
+.case-with-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.case-preview-values {
+  display: grid;
+  gap: var(--space-3);
+  flex: 0 1 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+}
+.case-with-preview[data-editable="true"] > .case-preview-values {
+  flex: 1 1 280px;
+  width: auto;
+}
+.case-with-preview > .node-preview {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+.node-preview {
+  min-width: 0;
+  color: var(--color-text);
+  --xy-background-color: transparent;
+  --xy-node-color: var(--color-text);
+  --xy-node-background-color: var(--color-background);
+  --xy-node-border: 1px solid var(--color-border);
+  --xy-node-border-selected: 1px solid var(--color-border);
+  --xy-node-border-radius: 6px;
+  --xy-edge-stroke: var(--color-text-secondary);
+}
+.node-preview-hint,
+.node-preview-caption {
+  margin: var(--space-1) 0;
+  color: var(--color-text-secondary);
+  font: 10px/1.5 var(--font-interface);
+}
+.node-preview-message {
+  padding: 8px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+.node-preview-caption {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.node-preview-canvas {
+  width: 100%;
+  min-height: 40px;
+}
+.node-preview .react-flow__node-default {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font: 11px/16px var(--font-code);
+}
+.node-preview-value,
+.node-preview-name {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+}
+.node-preview .react-flow__node-default.selectable,
+.node-preview .react-flow__node-default.selectable:is(:focus, :focus-visible, .selected) {
+  outline: none;
+  box-shadow: none;
+  transition:
+    background-color var(--motion-fast) var(--motion-easing),
+    border-color var(--motion-fast) var(--motion-easing);
+}
+.node-preview .react-flow__node-default::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 1px solid color-mix(in oklab, var(--color-text-secondary) 55%, transparent);
+  border-radius: calc(var(--radius-sm) + 2px);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.94);
+  transition:
+    opacity var(--motion-fast) var(--motion-easing),
+    transform var(--motion-standard) var(--motion-easing);
+}
+.node-preview .react-flow__node-default.selected::after {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-preview .react-flow__node-default,
+  .node-preview .react-flow__node-default::after {
+    transition: none;
+  }
+}
+.node-preview .react-flow__node-default.is-empty {
+  border-style: dashed;
+}
+.node-preview .react-flow__node-default.is-missing {
+  border-style: dashed;
+  color: var(--color-text-secondary);
+}
+.node-preview .react-flow__handle {
+  visibility: hidden;
+  width: 0;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+}
+.node-preview .react-flow__handle-top.target {
+  top: -4px;
+}
+.node-preview .react-flow__handle-bottom.target {
+  bottom: -4px;
+}
+.node-preview .react-flow__handle-left.target {
+  left: -4px;
+}
+.node-preview .node-preview-name {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font: 9px/12px var(--font-code);
+  color: var(--color-text-secondary);
+}
+.node-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.node-preview-badge svg {
+  flex-shrink: 0;
+}
+
+.node-preview .react-flow__node-default.is-success {
+  border-color: var(--color-success);
+  background: color-mix(in oklab, var(--color-success) 8%, var(--color-background));
+}
+.node-preview .react-flow__node-default.is-error {
+  border-color: var(--color-error);
+  background: color-mix(in oklab, var(--color-error) 8%, var(--color-background));
+}
+
+.node-preview-value,
+.node-preview-badge.is-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.node-preview-badge.is-name {
+  display: block;
+  min-width: 0;
+}
+.node-preview-name {
+  max-width: 100%;
+}
+.node-preview-badge:not(.is-name) {
+  flex-shrink: 0;
+}
+.node-preview-detail {
+  max-height: 160px;
+  margin: 0;
+  padding: var(--space-2) 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--color-text);
+  font: var(--text-label)/1.5 var(--font-code);
+}

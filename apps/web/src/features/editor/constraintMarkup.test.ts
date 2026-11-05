@@ -42,3 +42,49 @@ describe("constraint Markdown composition", () => {
     ).toBe("`` a`b `` contains unique values");
   });
 });
+
+it("renders strict endpoints independently in math markup", () => {
+  const target = { parameter: "x", projection: "value" } as const;
+  expect(constraintMarkup({ kind: "range", target, min: 0, max: 1, minInclusive: false })).toBe(
+    "$0$ $<$ ` x ` $\\le$ $1$",
+  );
+  expect(constraintMarkup({ kind: "range", target, min: 0, max: 1, maxInclusive: false })).toBe(
+    "$0$ $\\le$ ` x ` $<$ $1$",
+  );
+  expect(
+    constraintMarkup({
+      kind: "range",
+      target,
+      min: 0,
+      max: 1,
+      minInclusive: false,
+      maxInclusive: false,
+    }),
+  ).toBe("$0$ $<$ ` x ` $<$ $1$");
+  expect(constraintMarkup({ kind: "range", target, min: 0, minInclusive: false })).toBe(
+    "` x ` $>$ $0$",
+  );
+  expect(constraintMarkup({ kind: "range", target, max: 1, maxInclusive: false })).toBe(
+    "` x ` $<$ $1$",
+  );
+});
+
+it("shows existential quantification and descending order in public content", () => {
+  expect(
+    constraintMarkup({
+      kind: "comparison",
+      left: { parameter: "a", projection: "elements" },
+      right: { parameter: "n", projection: "value" },
+      operator: "lt",
+      quantifier: "any",
+    }),
+  ).toContain("$\\exists$");
+  expect(
+    constraintMarkup({
+      kind: "property",
+      target: { parameter: "a", projection: "elements" },
+      property: "nondecreasing",
+      direction: "desc",
+    }),
+  ).toContain("nonincreasing");
+});

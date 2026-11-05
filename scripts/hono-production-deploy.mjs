@@ -1,5 +1,5 @@
 /** @file hono-production-deploy.mjs @description Snapshot, fence and activate the native production backend. @module deployment */
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { createRequire } from "node:module";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,7 +15,10 @@ import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { checkWorkerAuth } from "./hono-stage-preflight.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
 import { stageControls } from "./hono-stage-controls.mjs";
-import { productionMigrationComplete, transitionProductionDatabase } from "./hono-production-database.mjs";
+import {
+  productionMigrationComplete,
+  transitionProductionDatabase,
+} from "./hono-production-database.mjs";
 import { workerDiagnostic } from "./hono-worker-diagnostic.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
@@ -191,8 +194,9 @@ export async function deployProduction(env) {
     progress("snapshot-production-database");
     saved = await productionTerraform(bootstrap, "hono-production", "hono-production");
     keys = saved.secrets.value;
-    const migrationComplete = env.HONO_RESUME_PREPARED === "true" &&
-      await productionMigrationComplete(original.databaseURL, keys.RUNTIME_ROLE);
+    const migrationComplete =
+      env.HONO_RESUME_PREPARED === "true" &&
+      (await productionMigrationComplete(original.databaseURL, keys.RUNTIME_ROLE));
     console.log(JSON.stringify({ phase: "snapshot-preserved", branch: saved.backup_branch.value }));
     progress("resolve-validated-images");
     const images = productionImages(env);
@@ -234,7 +238,8 @@ export async function deployProduction(env) {
       }),
       { mode: 0o600 },
     );
-    if (!migrationComplete) runStageCommand(
+    if (!migrationComplete)
+      runStageCommand(
         "vp",
         ["-C", "apps/api", "exec", "wrangler", "deploy", "--config", maintenance],
         env,
@@ -398,22 +403,26 @@ export async function deployProduction(env) {
     progress("migrate-retained-production-data");
     const operatorURL = new URL(original.databaseURL);
     operatorURL.search = "?sslmode=verify-full";
-    const database = migrationComplete ? { resumed: true } : await transitionProductionDatabase(
-      {
-        databaseURL: operatorURL.href,
-        authOrigin: "https://quorem.app",
-        productionRunId: "41134339533",
-        runtimeRole: keys.RUNTIME_ROLE,
-        runtimePassword: keys.RUNTIME_PASSWORD,
-        report: (record) =>
-          console.log(JSON.stringify({ phase: "production-database-step", ...record })),
-        assertLegacyStopped,
-      },
-      { backfillProblemVersions: operatorInputs },
-    );
+    const database = migrationComplete
+      ? { resumed: true }
+      : await transitionProductionDatabase(
+          {
+            databaseURL: operatorURL.href,
+            authOrigin: "https://quorem.app",
+            productionRunId: "41134339533",
+            runtimeRole: keys.RUNTIME_ROLE,
+            runtimePassword: keys.RUNTIME_PASSWORD,
+            report: (record) =>
+              console.log(JSON.stringify({ phase: "production-database-step", ...record })),
+            assertLegacyStopped,
+          },
+          { backfillProblemVersions: operatorInputs },
+        );
     console.log(
       JSON.stringify({
-        phase: migrationComplete ? "production-data-migration-retained" : "production-data-migrated",
+        phase: migrationComplete
+          ? "production-data-migration-retained"
+          : "production-data-migrated",
         versions: database.versions,
         batches: database.batches,
       }),
@@ -478,7 +487,7 @@ export async function deployProduction(env) {
     progress("activate-native-execution-controls");
     const controls = await stageControls({
       namespace: namespace.namespace,
-      scope: namespace.scope,
+      scope: namespace.controlScope,
       release: privateOutput.origins.value.SERVICES_RELEASE,
       bindings: privateOutput.origins.value.SERVICES_BINDINGS,
       secret: keys.RECOVERY_CONTROL_SECRET,
@@ -508,7 +517,11 @@ export async function deployProduction(env) {
     await authReady.body?.cancel();
     if (!ready) {
       const error = new Error("Native auth unavailable");
-      error.diagnostic = await workerDiagnostic(env, "quorem-hono-production", "https://quorem.app");
+      error.diagnostic = await workerDiagnostic(
+        env,
+        "quorem-hono-production",
+        "https://quorem.app",
+      );
       throw error;
     }
     progress("record-native-activation");

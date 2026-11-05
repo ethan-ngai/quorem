@@ -1,3 +1,4 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { sha256 } from "../../sha256";
@@ -526,6 +527,19 @@ function InterviewPad({
                   </button>
                 </Tooltip>
               )}
+              <PersistentNotice
+                severity="warning"
+                label="Question changed"
+                message={
+                  changed || status === "replaced"
+                    ? "The question changed. Preserve your local code before continuing."
+                    : undefined
+                }
+                actions={[
+                  { label: "Copy my code", onClick: () => void copyCode() },
+                  { label: "Open new question", onClick: onOpenQuestion },
+                ]}
+              />
               <InterviewParticipants
                 snapshot={snapshot}
                 open={members}
@@ -566,17 +580,6 @@ function InterviewPad({
               )}
             </div>
           </div>
-          {(changed || status === "replaced") && (
-            <div className="match-rule-notice" role="alert">
-              <span>The question changed. Preserve your local code before continuing.</span>
-              <button className="quiet-button" onClick={() => void copyCode()}>
-                Copy my code
-              </button>
-              <button className="button button-secondary" onClick={() => onOpenQuestion()}>
-                Open new question
-              </button>
-            </div>
-          )}
         </>
       }
       problem={

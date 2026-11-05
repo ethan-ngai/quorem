@@ -206,6 +206,18 @@ export const runner_job_inputs = pgTable(
     index("runner_job_inputs_metadata_hash_idx").on(t.metadata_hash),
   ],
 );
+export const runner_job_input_digests = pgTable(
+  "runner_job_input_digests",
+  { job_id: uuid().primaryKey().notNull(), digest: bytea("digest").notNull() },
+  (t): PgTableExtraConfigValue[] => [
+    foreignKey({
+      columns: [t.job_id],
+      foreignColumns: [runner_job_inputs.job_id],
+      name: "runner_job_input_digests_job_id_fkey",
+    }).onDelete("cascade"),
+    check("runner_job_input_digests_digest_check", sql`octet_length(digest)=32`),
+  ],
+);
 export const runner_job_input_cases = pgTable(
   "runner_job_input_cases",
   {

@@ -1,6 +1,6 @@
 import type { Constraint, ConstraintTarget } from "@quorem/contracts";
 
-export function formatTarget(target: ConstraintTarget): string {
+export function formatTarget(target: ConstraintTarget, qualifyNodes = false): string {
   const name = target.parameter;
   switch (target.projection) {
     case "value":
@@ -14,7 +14,7 @@ export function formatTarget(target: ConstraintTarget): string {
     case "nodeCount":
       return `node_count(${name})`;
     case "nodeValues":
-      return `node.val`;
+      return qualifyNodes ? `node_values(${name})` : `node.val`;
   }
 }
 
@@ -32,6 +32,11 @@ export function formatBound(value: number): string {
 
 export function formatConstraint(constraint: Constraint | string): string {
   if (typeof constraint === "string") return constraint;
+  if (
+    (constraint.kind === "range" || constraint.kind === "comparison") &&
+    constraint.quantifier === "any"
+  )
+    return `∃: ${formatConstraint({ ...constraint, quantifier: undefined })}`;
   switch (constraint.kind) {
     case "prose":
       return constraint.text;
@@ -41,14 +46,16 @@ export function formatConstraint(constraint: Constraint | string): string {
         constraint.target.projection === "nodeValues"
           ? ` (nodes in ${constraint.target.parameter})`
           : "";
+      const lower = constraint.minInclusive === false ? "<" : "≤";
+      const upper = constraint.maxInclusive === false ? "<" : "≤";
       if (constraint.min !== undefined && constraint.max !== undefined)
-        return `${formatBound(constraint.min)} ≤ ${target} ≤ ${formatBound(constraint.max)}${suffix}`;
+        return `${formatBound(constraint.min)} ${lower} ${target} ${upper} ${formatBound(constraint.max)}${suffix}`;
       return constraint.min !== undefined
-        ? `${target} ≥ ${formatBound(constraint.min)}${suffix}`
-        : `${target} ≤ ${formatBound(constraint.max!)}${suffix}`;
+        ? `${target} ${constraint.minInclusive === false ? ">" : "≥"} ${formatBound(constraint.min)}${suffix}`
+        : `${target} ${upper} ${formatBound(constraint.max!)}${suffix}`;
     }
     case "comparison":
-      return `${formatTarget(constraint.left)} ${{ eq: "=", le: "≤", lt: "<", ge: "≥", gt: ">" }[constraint.operator]} ${formatTarget(constraint.right)}`;
+      return `${formatTarget(constraint.left, true)} ${{ eq: "=", le: "≤", lt: "<", ge: "≥", gt: ">" }[constraint.operator]} ${formatTarget(constraint.right, true)}`;
     case "property": {
       const nodes = constraint.target.projection === "nodeValues";
       const subject = nodes
@@ -56,7 +63,7 @@ export function formatConstraint(constraint: Constraint | string): string {
         : constraint.target.parameter;
       if (constraint.property === "unique")
         return `${subject} ${nodes ? "are unique" : "contains unique values"}`;
-      return `${subject} ${nodes ? "are" : "is"} sorted in nondecreasing order`;
+      return `${subject} ${nodes ? "are" : "is"} sorted in ${constraint.direction === "desc" ? "nonincreasing" : "nondecreasing"} order`;
     }
   }
 }

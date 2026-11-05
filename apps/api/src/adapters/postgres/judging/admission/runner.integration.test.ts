@@ -1,9 +1,12 @@
 /** @file runner.integration.test.ts @description Admitted work through the actual TypeScript runner. @module judging */
+import { benchmarkJudgingWorkload } from "../../../../../../../scripts/judging-workload-benchmark.mjs";
+import { confirmCaseOutput } from "../../../../../../runner/src/sandbox/proof.ts";
+import type { Notice } from "../../../../modules/events/dispatch/ports.ts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer } from "node:net";
-import { createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
+import { randomUUID, createHash, createPublicKey, generateKeyPairSync } from "node:crypto";
 import { once } from "node:events";
 import { setTimeout as sleep } from "node:timers/promises";
 import { claimNext } from "../../../../../../runner/src/queue/claim.ts";
@@ -78,8 +81,12 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     sessionId: "fixture",
     strongUntil: 0,
   };
+  const benchmarkActors = new Map<string, LocalPrincipal>();
+  const subscribers = new Map<string, Set<(notice: Notice) => void>>();
   const identify = async (request: Request) =>
-    request.headers.get("x-fixture-other") ? { ...principal, userId: "missing-user" } : principal;
+    request.headers.get("x-fixture-other")
+      ? { ...principal, userId: "missing-user" }
+      : (benchmarkActors.get(request.headers.get("x-fixture-actor") ?? "") ?? principal);
   const app = createApp({ allowedOrigins: ["https://fixture.test"], requestId: () => "fixture" });
   app.route(
     "/",
@@ -93,7 +100,24 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       commit: postgresWorkspaceAdmission(run, { losslessCases: true, guestExecution: true }),
     }),
   );
-  app.route("/", submissionRoutes({ identify, snapshots: submissionSnapshots(run) }));
+  app.route(
+    "/",
+    submissionRoutes({
+      identify,
+      snapshots: submissionSnapshots(run),
+      notices: {
+        async subscribe(channel, notice) {
+          const listeners = subscribers.get(channel) ?? new Set();
+          listeners.add(notice);
+          subscribers.set(channel, listeners);
+          return () => {
+            listeners.delete(notice);
+            if (!listeners.size) subscribers.delete(channel);
+          };
+        },
+      },
+    }),
+  );
   let stateRoot: string,
     verificationServer: Server,
     verificationPublicKey: CryptoKey,
@@ -1696,4 +1720,142 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       ).privateCaseResults.length,
     ).toBeGreaterThan(0);
   }, 120000);
+  it("eight users complete twenty-case SSE workloads with bounded native lanes", async () => {
+    const actors: { id: string; workspaceId: string; headers: Record<string, string> }[] = [];
+    let drainWork: Promise<unknown> | undefined;
+    const native = process.env.QUOREM_BENCHMARK_REAL_DOCKER === "true";
+    let active = 0,
+      peak = 0;
+    const sandbox = native
+      ? await dockerSandbox({
+          socket: socket!,
+          stateRoot,
+          namespace: "eight-user-workload",
+          cleanupMs: 10000,
+        })
+      : {
+          scope: "deterministic-workload-fixture",
+          teardownAttempt: async () => {},
+          async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
+            active++;
+            peak = Math.max(peak, active);
+            try {
+              await sleep(500, undefined, { signal });
+              return confirmCaseOutput(request, {
+                stdout: Buffer.from('\0{"status":"executed","actual":2}'),
+                stderr: Buffer.alloc(0),
+                exitCode: 0,
+              });
+            } finally {
+              active--;
+            }
+          },
+        };
+    const base = postgresExecutionCommands(
+      run,
+      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
+      { verifier, verificationPublicKey },
+    );
+    const commands = {
+      ...base,
+      async finalizeCompletion(...args: Parameters<NonNullable<typeof base.finalizeCompletion>>) {
+        await base.finalizeCompletion!(...args);
+        const job = args[0];
+        for (const listener of subscribers.get(`/submissions/${job.submissionId}`) ?? [])
+          listener({
+            id: randomUUID(),
+            aggregateId: job.submissionId,
+            version: "1",
+            type: "submission.updated",
+            occurredAt: new Date().toISOString(),
+          });
+      },
+    };
+    const drain = drainer({
+      repository: commands,
+      sandbox,
+      cancellations: controlPolling(),
+      queue: queueControl(commands, sandbox.scope),
+      engine: checkpointedEngine(
+        commands,
+        sandbox,
+        2000,
+        8,
+        async () => (await commands.queueState()).queued > 0,
+      ),
+      slots: 8,
+      resumable: true,
+      graceMs: 1,
+      claimWindowMs: 60000,
+    });
+    try {
+      for (let index = 0; index < 8; index++) {
+        const id = `workload-${randomUUID()}`,
+          workspaceId = randomUUID();
+        benchmarkActors.set(id, { ...principal, userId: id, sessionId: id });
+        await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Benchmark fixture')", [id]);
+        await pool.query(
+          "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+          [workspaceId, id, version],
+        );
+        actors.push({ id, workspaceId, headers: { "x-fixture-actor": id } });
+      }
+      const result = await benchmarkJudgingWorkload(
+        {
+          origin: "https://fixture.test",
+          actors,
+          cases: Array.from({ length: 20 }, () => ({ args: [1], expected: 2 })),
+          source: "class Solution:\n def f(self,x): return x+1",
+        },
+        async (input, init) => {
+          const response = await app.request(new Request(input, init));
+          if (
+            new URL(input instanceof Request ? input.url : input).pathname === "/v1/submissions" &&
+            response.status === 202 &&
+            !drainWork
+          ) {
+            drainWork = drain.drain(AbortSignal.timeout(120000));
+            void drainWork.catch(() => {});
+          }
+          return response;
+        },
+      );
+      await drainWork;
+      const measurement = {
+        ...result,
+        sandbox: native ? "real-docker" : "deterministic-500ms-fixture",
+        peakNativeCases: native ? null : peak,
+      };
+      console.log(JSON.stringify(measurement));
+      if (process.env.QUOREM_BENCHMARK_REPORT)
+        await writeFile(process.env.QUOREM_BENCHMARK_REPORT, JSON.stringify(measurement));
+      expect(result.samples).toHaveLength(8);
+      if (!native) {
+        expect(peak).toBe(64);
+        expect(result.meetsTarget).toBe(true);
+      }
+      expect(subscribers.size).toBe(0);
+    } finally {
+      await drainWork?.catch(() => {});
+      for (const actor of actors) {
+        benchmarkActors.delete(actor.id);
+        await pool.query(
+          "DELETE FROM execution_dispatch_intents WHERE job_id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE s.owner_id=$1)",
+          [actor.id],
+        );
+        await pool.query("DELETE FROM execution_idempotency WHERE owner_id=$1", [actor.id]);
+        await pool.query(
+          "DELETE FROM execution_attempt_usage WHERE submission_id IN (SELECT id FROM submissions WHERE owner_id=$1)",
+          [actor.id],
+        );
+        await pool.query(
+          "DELETE FROM execution_jobs WHERE submission_id IN (SELECT id FROM submissions WHERE owner_id=$1)",
+          [actor.id],
+        );
+        await pool.query("DELETE FROM submissions WHERE owner_id=$1", [actor.id]);
+        await pool.query("DELETE FROM workspaces WHERE owner_id=$1", [actor.id]);
+        await pool.query("DELETE FROM users WHERE id=$1", [actor.id]);
+      }
+    }
+  }, 180000);
 });

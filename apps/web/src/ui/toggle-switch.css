@@ -6,6 +6,7 @@
   border-radius: 999px;
   background: var(--color-border);
   flex-shrink: 0;
+  transition: background-color var(--motion-fast) var(--motion-easing);
 }
 .settings-switch[data-state="checked"] {
   background: var(--color-primary);
@@ -17,7 +18,9 @@
   border-radius: 50%;
   background: var(--color-text);
   transform: translateX(0);
-  transition: transform 140ms ease;
+  transition:
+    transform var(--motion-standard) var(--motion-easing),
+    background-color var(--motion-fast) var(--motion-easing);
 }
 .settings-switch[data-state="checked"] .settings-switch-thumb {
   transform: translateX(14px);
@@ -25,6 +28,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .settings-switch,
   .settings-switch-thumb {
     transition: none;
   }

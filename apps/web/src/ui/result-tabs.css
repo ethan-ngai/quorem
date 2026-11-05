@@ -12,10 +12,13 @@
   background: none;
   color: var(--color-text-secondary);
   font-size: 12px;
-}
-.result-tabs button[aria-selected="true"] {
-  color: var(--color-text);
   font-weight: 550;
+  transition:
+    color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
+}
+.result-tabs button:is(:hover, :focus-visible, [aria-selected="true"]) {
+  color: var(--color-text);
 }
 
 .result-tabs {
@@ -31,8 +34,6 @@
   position: relative;
   padding: var(--space-2) 0;
   cursor: pointer;
-  font-weight: 550;
-  transition: color var(--motion-fast) var(--motion-easing);
 }
 .result-tabs[data-appearance="underline"] button::after {
   content: "";
@@ -67,7 +68,7 @@
   height: 3px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .result-tabs[data-appearance="underline"] button,
+  .result-tabs button,
   .result-tabs[data-appearance="underline"] button::after {
     transition: none;
   }

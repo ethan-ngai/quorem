@@ -1,3 +1,4 @@
+import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import { Icon } from "../../ui/Icon";
 import "../../ui/result-tabs.css";
@@ -62,12 +63,26 @@ export function AuthoringCases({
     args: p.sql
       ? [JSON.stringify(test.args[0] ?? { tables: [] })]
       : p.signature.parameters.map((parameter, index) =>
-          format(parameter.type, test.args[index]!, defaults.args[index]!, parameter.input),
+          format(
+            parameter.type,
+            test.args[index]!,
+            defaults.args[index]!,
+            caseFieldConfig(p.signature, parameter.type, parameter.input, false, {
+              args: test.args,
+            }),
+          ),
         ),
     expectedEnabled: true,
     expected: p.sql
       ? JSON.stringify(test.expected ?? { rows: [] })
-      : format(p.signature.returnType, test.expected ?? null, defaults.expected),
+      : format(
+          p.signature.returnType,
+          test.expected ?? null,
+          defaults.expected,
+          caseFieldConfig(p.signature, p.signature.returnType, undefined, true, {
+            args: test.args,
+          }),
+        ),
   });
   const [values, setValues] = useState(() => ({
     public: examples.map(draft),
@@ -85,8 +100,6 @@ export function AuthoringCases({
       }
     }
   }, [values, p.sql, p.signature, p.constraints, caseKey]);
-  const selectedExample =
-    values.public.find((example) => example.id === selected.public) ?? values.public[0];
   const [explanations, setExplanations] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       values.public.map((test, index) => [test.id, examples[index]?.explanation ?? ""]),
@@ -183,30 +196,37 @@ export function AuthoringCases({
           requiredExpected
           minimumCases={0}
           maximumCases={collection === "hidden" ? 100 : 20}
+          customCaseDetails={
+            collection === "public"
+              ? (index) => {
+                  const example = values.public[index];
+                  if (!example) return null;
+                  return (
+                    <label className="typed-case-field admin-example-explanation">
+                      <span>
+                        <Icon name="samples" /> Example explanation <small>Optional</small>
+                      </span>
+                      <textarea
+                        rows={2}
+                        placeholder="Explain why this example produces the expected output."
+                        value={explanations[example.id] ?? ""}
+                        onChange={(event) => {
+                          const next = { ...explanations, [example.id]: event.target.value };
+                          setExplanations(next);
+                          change(values.public, next);
+                        }}
+                      />
+                    </label>
+                  );
+                }
+              : undefined
+          }
           selectedCustomId={selected[collection]}
           onSelectCustomCase={(value) =>
             setSelected((current) => ({ ...current, [collection]: value }))
           }
         />
       </div>
-      {collection === "public" &&
-        values.public.map(
-          (example, index) =>
-            selectedExample?.id === example.id && (
-              <label className="admin-field" key={example.id}>
-                <span>Example {index + 1} explanation</span>
-                <textarea
-                  rows={2}
-                  value={explanations[example.id] ?? ""}
-                  onChange={(event) => {
-                    const next = { ...explanations, [example.id]: event.target.value };
-                    setExplanations(next);
-                    change(values.public, next);
-                  }}
-                />
-              </label>
-            ),
-        )}
     </div>
   );
 }

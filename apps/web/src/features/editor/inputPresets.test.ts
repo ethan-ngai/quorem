@@ -6,9 +6,9 @@ import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCa
 describe("typed input presets", () => {
   it("declares presentation delimiters for each built-in literal shape", () => {
     expect(resolveInputPreset("str").delimiters).toEqual(['"', '"']);
-    for (const type of ["list<int>", "list<list<int>>", "ListNode", "TreeNode"])
+    for (const type of ["list<int>", "list<list<int>>", "ListNode"])
       expect(resolveInputPreset(type).delimiters).toEqual(["[", "]"]);
-    for (const type of ["int", "float", "bool"])
+    for (const type of ["int", "float", "bool", "TreeNode"])
       expect(resolveInputPreset(type).delimiters).toBeUndefined();
   });
   it("evaluates bounded arithmetic with Python precedence and division", () => {
@@ -155,4 +155,16 @@ it("round-trips long scalar, optional and list inputs without number coercion", 
   const list = resolveInputPreset("list<long>");
   expect(list.parse(`[${max},${min}]`)).toEqual([max, min]);
   expect(list.parse(list.format([max, min]))).toEqual([max, min]);
+});
+
+it("edits generic trees with structural nulls and lossless long payloads", () => {
+  const preset = resolveInputPreset("TreeNode<long>");
+  expect(preset.accepts('9007199254740993, null, "9223372036854775807"')).toBe(true);
+  expect(preset.parse('[9007199254740993, null, "9223372036854775807"]')).toEqual([
+    "9007199254740993",
+    null,
+    "9223372036854775807",
+  ]);
+  expect(() => resolveInputPreset("ListNode<bool>").parse("[true,null]")).toThrow();
+  expect(resolveInputPreset("TreeNode<datetime>").accepts('"2024-05-01T00:00:00",null')).toBe(true);
 });

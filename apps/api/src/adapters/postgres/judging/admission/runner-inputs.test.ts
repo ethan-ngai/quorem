@@ -169,15 +169,18 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       "utf8",
     );
     const problem = crypto.randomUUID(),
-      version = "e91ec728-4597-5dfb-9d19-7c4ba17138b7";
+      version = crypto.randomUUID();
+    const published = raw
+      .replaceAll("e91ec728-4597-5dfb-9d19-7c4ba17138b7", version)
+      .replace('"slug": "run-widths"', `"slug": "fixture-${problem}"`);
     try {
       await expect(
         withNodeConnection(pool, { lifetimeMs: 20000 }, (scope) =>
           scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
             await tx.execute(
-              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'run-widths')`,
+              sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${"fixture-" + problem})`,
             );
-            await persistQuestionVersion(tx, raw, problem, version, 3, null, (language) => {
+            await persistQuestionVersion(tx, published, problem, version, 3, null, (language) => {
               const value = languageRuntime(language);
               return value ? { revision: value.revision, harness: value.harness } : undefined;
             });
@@ -684,7 +687,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               fetch: async (input, init) => verify(new Request(input, init)),
             });
             const verified = await verifier.verify(challenge.id);
-            expect(sourceCalls[0]).toEqual({ path: "/internal/verification/bundle", scopes: 2 });
+            expect(sourceCalls[0]).toEqual({ path: "/internal/verification/bundle", scopes: 1 });
             expect(sourceCalls.map(({ path }) => path)).not.toContain(
               "/internal/verification/field",
             );

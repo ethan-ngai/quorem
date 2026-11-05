@@ -403,7 +403,7 @@ export async function deployStage(original, operations = defaults) {
     await operations.subdomains(env);
     controlClient = await operations.controls({
       namespace: verified.namespace,
-      scope: verified.scope,
+      scope: verified.controlScope,
       release: env.HONO_RELEASE_SHA,
       bindings: controlVars.SERVICES_BINDINGS,
       secret: services.RECOVERY_CONTROL_SECRET,
@@ -419,7 +419,7 @@ export async function deployStage(original, operations = defaults) {
         operations.phase?.("persist-stage-genesis");
         genesis = await operations.genesis(env, {
           namespace: verified.namespace,
-          scope: verified.scope,
+          scope: verified.controlScope,
           bindings: controlVars.SERVICES_BINDINGS,
           observation,
         });

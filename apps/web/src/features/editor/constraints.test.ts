@@ -126,7 +126,7 @@ describe("structured constraints", () => {
         [null, null],
         constraints,
       ),
-    ).toThrow("Unsupported constraint target");
+    ).toThrow(/projection value invalid for optional/);
   });
   it("renders and admits numeric totals as scalar targets", () => {
     const sum: Constraint = {
@@ -171,4 +171,60 @@ describe("signature binding", () => {
     expect(() => bindArguments(signature, [[1]])).toThrow("Wrong argument count");
     expect(() => bindArguments(signature, [[1], 2, 3])).toThrow("Wrong argument count");
   });
+});
+
+it("uses strict range boundaries in client validation and diagnostic text", () => {
+  const float: Signature = {
+    className: "Solution",
+    methodName: "solve",
+    parameters: [{ name: "x", type: "float" }],
+    returnType: "int",
+  };
+  const rule: Constraint = {
+    kind: "range",
+    target: { parameter: "x", projection: "value" },
+    min: 0.25,
+    max: 0.75,
+    minInclusive: false,
+    maxInclusive: false,
+  };
+  expect(formatConstraint(rule)).toBe("0.25 < x < 0.75");
+  expect(() => validateConstraints(float, [0.5], [rule])).not.toThrow();
+  expect(() => validateConstraints(float, [0.25], [rule])).toThrow("0.25 < x < 0.75");
+  expect(() => validateConstraints(float, [0.75], [rule])).toThrow("0.25 < x < 0.75");
+  const long: Signature = { ...float, parameters: [{ name: "x", type: "long" }] };
+  const lower: Constraint = {
+    kind: "range",
+    target: rule.target,
+    min: Number.MAX_SAFE_INTEGER,
+    minInclusive: false,
+  };
+  expect(() => validateConstraints(long, ["9007199254740992"], [lower])).not.toThrow();
+  expect(() => validateConstraints(long, ["9007199254740991"], [lower])).toThrow("Constraint:");
+});
+
+it("matches quantified comparisons and DESC ordering with server semantics", () => {
+  const comparison: Constraint = {
+    kind: "comparison",
+    left: { parameter: "values", projection: "elements" },
+    right: { parameter: "limit", projection: "value" },
+    operator: "lt",
+  };
+  expect(() => validateConstraints(signature, [[1, 4], 3], [comparison])).toThrow();
+  expect(() =>
+    validateConstraints(signature, [[1, 4], 3], [{ ...comparison, quantifier: "any" }]),
+  ).not.toThrow();
+  expect(() =>
+    validateConstraints(signature, [[], 3], [{ ...comparison, quantifier: "any" }]),
+  ).toThrow();
+  const order: Constraint = {
+    kind: "property",
+    target: { parameter: "values", projection: "elements" },
+    property: "nondecreasing",
+    direction: "desc",
+  };
+  expect(() => validateConstraints(signature, [[4, 2, 2], 3], [order])).not.toThrow();
+  expect(() => validateConstraints(signature, [[2, 4], 3], [order])).toThrow();
+  expect(formatConstraint(order)).toContain("nonincreasing");
+  expect(formatConstraint({ ...comparison, quantifier: "any" })).toContain("∃");
 });

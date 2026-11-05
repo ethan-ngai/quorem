@@ -32,7 +32,13 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     attemptMs: config.attemptMs,
     fetch: accessFetch(config.commandOrigin, config.access),
     engine: (repository, isolated) => ({
-      ...checkpointedEngine(repository, isolated, config.sliceMs),
+      ...checkpointedEngine(
+        repository,
+        isolated,
+        config.sliceMs,
+        config.caseConcurrency,
+        async () => (await repository.queueState()).queued > 0,
+      ),
       inputProtocol: "manifest-v1",
     }),
   });

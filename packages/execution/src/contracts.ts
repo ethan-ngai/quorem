@@ -129,6 +129,11 @@ export interface ExecutionRepository {
   lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
   beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
   writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
+  writeCompletionChunks(
+    job: Job,
+    chunks: readonly CompletionFieldChunk[],
+    signal?: AbortSignal,
+  ): Promise<void>;
   sealCompletionFrame(
     job: Job,
     channel: "public" | "sample" | "private",

@@ -1,3 +1,5 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
+import { Link } from "@tanstack/react-router";
 import type { QuestionSearch } from "./questionSearch";
 /** @file QuestionDashboard.tsx @description Question catalog and bulk authoring actions. @module admin */
 import { CodeXml, FileCode2, FilePenLine, Globe, Layers } from "lucide-react";
@@ -236,6 +238,10 @@ export function QuestionDashboard({
       </fieldset>
       <div className="admin-toolbar admin-bulk-bar">
         <span>{chosen.length} selected</span>
+        <PersistentNotice
+          label="Some bulk actions failed"
+          message={errors.map((error) => `${error.title}: ${error.message}`)}
+        />
         <div className="admin-toolbar">
           {tab === "drafts" && (
             <button
@@ -265,15 +271,6 @@ export function QuestionDashboard({
         </div>
       </div>
       <p role="status">{progress}</p>
-      {!!errors.length && (
-        <ul aria-label="Bulk action errors" className="admin-bulk-errors">
-          {errors.map((error) => (
-            <li key={error.id}>
-              <strong>{error.title}</strong> · {error.message}
-            </li>
-          ))}
-        </ul>
-      )}
       {loading ? (
         <LoadingScreen inline label="Loading questions…" />
       ) : failed ? (
@@ -331,14 +328,23 @@ export function QuestionDashboard({
                 </td>
                 <th scope="row">
                   <div className="admin-question-heading">
-                    <button
-                      type="button"
-                      className="catalog-question-title"
-                      disabled={disabled}
-                      onClick={() => onOpen(row)}
-                    >
-                      {row.title || "Untitled question"}
-                    </button>
+                    {disabled ? (
+                      <span className="catalog-question-title">
+                        {row.title || "Untitled question"}
+                      </span>
+                    ) : (
+                      <Link
+                        to="/admin/questions"
+                        search={{
+                          ...search,
+                          draft: "revision" in row ? row.id : undefined,
+                          publication: "revision" in row ? undefined : row.id,
+                        }}
+                        className="catalog-question-title"
+                      >
+                        {row.title || "Untitled question"}
+                      </Link>
+                    )}
                     {"revision" in row ? (
                       <>
                         {row.editVersionId && (

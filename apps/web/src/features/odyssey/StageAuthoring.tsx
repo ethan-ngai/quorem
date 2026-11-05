@@ -2,6 +2,7 @@
 import { randomUUID } from "../../randomUUID";
 import { useId, useState } from "react";
 import { SignatureFields } from "../admin/SignatureFields";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import { SequenceTestsEditor } from "./SequenceTestsEditor";
@@ -134,27 +135,32 @@ export function StageAuthoring({
               />
             </label>
             <h3>Methods added in this step</h3>
-            {stage.methods.map((method) => (
-              <details className="admin-language" open key={method.id}>
-                <summary>{method.signature.methodName || "New method"}</summary>
-                <SignatureFields
-                  value={method.signature}
-                  allowVoid
-                  onValidityChange={onValidityChange}
-                  onChange={(signature) => onChange(updateMethod(value, method.id, signature))}
-                />
-                <button
-                  type="button"
-                  className="quiet-button"
-                  disabled={stage.methods.length <= 1}
-                  onClick={() =>
-                    patch(stage, { methods: stage.methods.filter((item) => item.id !== method.id) })
-                  }
-                >
-                  Remove method
-                </button>
-              </details>
-            ))}
+            <AnimatedRows
+              items={stage.methods}
+              renderRow={(method) => (
+                <details className="disclosure admin-language" open>
+                  <summary>{method.signature.methodName || "New method"}</summary>
+                  <SignatureFields
+                    value={method.signature}
+                    allowVoid
+                    onValidityChange={onValidityChange}
+                    onChange={(signature) => onChange(updateMethod(value, method.id, signature))}
+                  />
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    disabled={stage.methods.length <= 1}
+                    onClick={() =>
+                      patch(stage, {
+                        methods: stage.methods.filter((item) => item.id !== method.id),
+                      })
+                    }
+                  >
+                    Remove method
+                  </button>
+                </details>
+              )}
+            />
             <button
               type="button"
               className="quiet-button"

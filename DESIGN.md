@@ -50,15 +50,17 @@ Preserve approved product language, branding and interactions. Quorem uses its s
 
 `packages/ui/src/theme.css` implements the palette, typography, spacing, radii, layering and motion tokens above. `packages/ui/src/tokens.ts` provides layout values needed by JavaScript. Editor scheme palettes live beside the editor. Change the owning token once; keep this document about intent rather than duplicating implementation tables.
 
-Use Geist for interface/prose and JetBrains Mono for code and machine values. Keep literal operators readable; disable editor ligatures. Large light-mode reading and editor surfaces are white. Reserve closely spaced off-whites for compact controls and overlays, with darker neutrals limited to small elements or strong emphasis. Blue identifies actions and focus. Semantic colors accompany text or icons. Maintain readable contrast in light and dark themes. System theme is the initial preference; explicit choices persist. Editor schemes follow global appearance using separately saved light and dark choices. Default to the new JetBrains Light and Dark palettes; named alternatives remain scoped to the editor.
+Use Geist for interface/prose and JetBrains Mono for code and machine values. Keep literal operators readable; disable common, contextual and discretionary ligatures throughout monospace text, inputs, previews and editors. Large light-mode reading and editor surfaces are white. Reserve closely spaced off-whites for compact controls and overlays, with darker neutrals limited to small elements or strong emphasis. Blue identifies actions and focus. Semantic colors accompany text or icons. Maintain readable contrast in light and dark themes. System theme is the initial preference; explicit choices persist. Editor schemes follow global appearance using separately saved light and dark choices. Default to the new JetBrains Light and Dark palettes; named alternatives remain scoped to the editor.
 
-Separate content through spacing, thin rules and tonal changes. Workspace panes stay flat, without nested cards, ornamental gradients, glass or decorative shadows. Small control radii and restrained overlay elevation follow shared tokens.
+Separate content through spacing, thin rules and tonal changes. Workspace panes stay flat, without nested cards, ornamental gradients, glass or decorative shadows. Small control radii and restrained overlay elevation follow shared tokens. Node diagrams share a row with case literals when space permits, wrap below on narrower surfaces and fit the available space automatically, without enclosing cards, pan/zoom interactions or navigation controls. Empty node structures use a small dashed `∅` placeholder with the variable name and an empty-value tooltip; expected/output indicators keep their semantic colors.
 
 ## Primitive ownership
 
 Fix shared behavior and appearance at the lowest reusable layer. React primitives live in `apps/web/src/ui`; cross-app CSS foundations live in `packages/ui`. Features own content, dimensions and domain policy. A feature must not supply missing primitive typography, padding, focus, disabled behavior, portal layering or motion through ancestor selectors.
 
-Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs, sharing, loading and recovery. Extend a primitive for a recurring need; avoid feature-specific copies and compatibility re-exports. Compose primitives without erasing their accessible semantics. Keep native text editing and disclosure controls where appropriate.
+For small, bounded choice sets, expose options directly with segmented controls, radio groups or selectable chips. Keep choices visible and easy to compare. Use switches for binary on/off states; reserve dropdowns for longer or variable option lists.
+
+Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs, sharing, loading and recovery. Extend a primitive for a recurring need; avoid feature-specific copies and compatibility re-exports. Compose primitives without erasing their accessible semantics. Prefer descriptive icons with tooltips over prose in controls. Choose symbols that communicate the action or value; tooltips and accessible names supply the full label. Keep native text editing and disclosure controls where appropriate. Use the shared `disclosure` class on inline `details` so expanding and collapsing use the same motion throughout the app.
 
 Application and marketing product previews consume the same components and styles. Preview containers own scale and composition, not substitute button/editor/test styling. A preview must work without an application page ancestor. Label illustrative data and keep previews separate from real judging, sessions and persistence.
 
@@ -72,13 +74,15 @@ Share typed input/output rendering, case navigation and execution controls acros
 
 Transient failures and room events use shared toasts; room alerts retain accessible history. Field validation, execution diagnostics and blocking failures stay beside their recovery controls. Deduplicate reconnect/repeated background notifications. Keep recovery available after a toast expires. Routine successful autosave stays silent; save failures remain recoverable.
 
+Recoverable persistent errors use `PersistentNotice` in an always-mounted status slot, or `NoticeRegion` beside existing content. Keep the slot geometry stable when healthy; full details and recovery actions open in a shared popover. Closing details does not dismiss the underlying issue. Features own error state; primitives own presentation and accessibility. Avoid conditional error paragraphs that move surrounding controls.
+
 ## Accessibility and motion
 
 All working controls support keyboard focus and an accessible name; icon-only controls have shared tooltips. Overlays own focus trapping/restoration, dismissal, collision handling and layering. Disabled and pending controls prevent duplicate actions and retain stable geometry. Destructive actions use shared semantic treatment.
 
 Collaboration colors follow user identity across participant avatars, remote carets and selections. Photos carry a colored ring; initials use the color as their background. The local caret retains its editor scheme.
 
-Motion explains interaction or state changes. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
+Give interactive state changes motion through the shared control whenever possible. Animate editable row insertion and removal without delaying the underlying change. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
 
 ## Verification
 

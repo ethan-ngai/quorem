@@ -1,3 +1,5 @@
+import { useRef } from "react";
+import { AnimatedRows } from "../../../ui/AnimatedRows";
 import type { QuestionProblem } from "@quorem/contracts";
 import { Icon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
@@ -25,6 +27,7 @@ function EditableTable({
   onChange: (rows: unknown[][]) => void;
   maxRows?: number;
 }) {
+  const addRow = useRef<HTMLButtonElement>(null);
   function setCell(rowIndex: number, columnIndex: number, value: unknown) {
     onChange(
       rows.map((row, index) =>
@@ -52,85 +55,88 @@ function EditableTable({
               </th>
             </tr>
           </thead>
-          <tbody>
-            {rows.length ? (
-              rows.map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {columns.map((column, columnIndex) => {
-                    const value = row[columnIndex];
-                    const label = `${name} row ${rowIndex + 1} ${column.name}`;
-                    return (
-                      <td key={columnIndex}>
-                        <div className="sql-cell-editor">
-                          {value === null ? (
-                            <span className="sql-null">NULL</span>
-                          ) : column.type === "boolean" ? (
-                            <select
-                              aria-label={label}
-                              value={sqlCellText(value)}
-                              onChange={(event) =>
-                                setCell(rowIndex, columnIndex, event.target.value === "true")
-                              }
-                            >
-                              <option value="true">true</option>
-                              <option value="false">false</option>
-                            </select>
-                          ) : (
-                            <input
-                              aria-label={label}
-                              value={sqlCellText(value)}
-                              onChange={(event) =>
-                                setCell(rowIndex, columnIndex, event.target.value)
-                              }
-                            />
-                          )}
-                          <Tooltip content={value === null ? "Set value" : "Set NULL"}>
-                            <button
-                              type="button"
-                              className="sql-null-toggle"
-                              aria-label={`${value === null ? "Set value for" : "Set NULL for"} ${label}`}
-                              onClick={() =>
-                                setCell(
-                                  rowIndex,
-                                  columnIndex,
-                                  value === null ? sqlDefault(column.type) : null,
-                                )
-                              }
-                            >
-                              {value === null ? "Value" : "NULL"}
-                            </button>
-                          </Tooltip>
-                        </div>
-                      </td>
-                    );
-                  })}
-                  <td>
-                    <Tooltip content="Remove row">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label={`Remove ${name} row ${rowIndex + 1}`}
-                        onClick={() => onChange(rows.filter((_, index) => index !== rowIndex))}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
-                  </td>
-                </tr>
-              ))
-            ) : (
+          <AnimatedRows
+            as="tbody"
+            items={rows}
+            focusFallback={addRow}
+            getKey={(row) => JSON.stringify(row)}
+            preserveEdits
+            renderRow={(row, rowIndex) => (
+              <>
+                {columns.map((column, columnIndex) => {
+                  const value = row[columnIndex];
+                  const label = `${name} row ${rowIndex + 1} ${column.name}`;
+                  return (
+                    <td key={columnIndex}>
+                      <div className="sql-cell-editor">
+                        {value === null ? (
+                          <span className="sql-null motion-reveal">NULL</span>
+                        ) : column.type === "boolean" ? (
+                          <select
+                            aria-label={label}
+                            value={sqlCellText(value)}
+                            onChange={(event) =>
+                              setCell(rowIndex, columnIndex, event.target.value === "true")
+                            }
+                          >
+                            <option value="true">true</option>
+                            <option value="false">false</option>
+                          </select>
+                        ) : (
+                          <input
+                            aria-label={label}
+                            value={sqlCellText(value)}
+                            onChange={(event) => setCell(rowIndex, columnIndex, event.target.value)}
+                          />
+                        )}
+                        <Tooltip content={value === null ? "Set value" : "Set NULL"}>
+                          <button
+                            type="button"
+                            className="sql-null-toggle"
+                            aria-label={`${value === null ? "Set value for" : "Set NULL for"} ${label}`}
+                            onClick={() =>
+                              setCell(
+                                rowIndex,
+                                columnIndex,
+                                value === null ? sqlDefault(column.type) : null,
+                              )
+                            }
+                          >
+                            {value === null ? "Value" : "NULL"}
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </td>
+                  );
+                })}
+                <td>
+                  <Tooltip content="Remove row">
+                    <button
+                      type="button"
+                      className="icon-button destructive-icon"
+                      aria-label={`Remove ${name} row ${rowIndex + 1}`}
+                      onClick={() => onChange(rows.filter((_, index) => index !== rowIndex))}
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  </Tooltip>
+                </td>
+              </>
+            )}
+            empty={
               <tr>
                 <td className="sql-empty" colSpan={columns.length + 1}>
                   No rows
                 </td>
               </tr>
-            )}
-          </tbody>
+            }
+          />
         </table>
       </div>
       <button
         type="button"
         className="quiet-button sql-add-row"
+        ref={addRow}
         disabled={rows.length >= maxRows}
         onClick={() => onChange([...rows, columns.map((column) => sqlDefault(column.type))])}
       >

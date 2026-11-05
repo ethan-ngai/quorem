@@ -8,11 +8,13 @@ export function Tooltip({
   children,
   side = "top",
   disabled = false,
+  open: controlledOpen,
 }: {
   content: ReactNode;
   children: ReactElement;
   side?: "top" | "right" | "bottom" | "left";
   disabled?: boolean;
+  open?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -20,7 +22,7 @@ export function Tooltip({
   }, [disabled]);
   return (
     <RadixTooltip.Provider delayDuration={100}>
-      <RadixTooltip.Root open={!disabled && open} onOpenChange={setOpen}>
+      <RadixTooltip.Root open={!disabled && (controlledOpen ?? open)} onOpenChange={setOpen}>
         <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
         <RadixTooltip.Portal>
           <RadixTooltip.Content

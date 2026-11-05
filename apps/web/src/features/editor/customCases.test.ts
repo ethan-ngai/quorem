@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   associatedResultIndex,
   parseCustomCases,
+  createCustomDraft,
   parseCustomDrafts,
   parseProblemDrafts,
   parseTypedField,
@@ -29,6 +30,24 @@ const draft: CustomCaseDraft = {
 };
 
 describe("typed custom cases", () => {
+  it("round-trips a reference case and rejects an out-of-bounds node", () => {
+    const nodeSignature: Signature = {
+      ...signature,
+      parameters: [{ name: "head", type: "ListNode" }],
+      returnType: "ListNode",
+      nodeReferences: "return",
+    };
+    const example = { args: [{ values: [3, 2, 2], tail: [0, 1] }], expected: { ref: [0, 1] } };
+    const test = createCustomDraft({
+      signature: nodeSignature,
+      examples: [example],
+    } as unknown as ProblemVersion);
+    test.expectedEnabled = true;
+    expect(parseCustomDrafts([test], nodeSignature)).toEqual([example]);
+    expect(() =>
+      parseCustomDrafts([{ ...test, expected: '{"ref":[0,3]}' }], nodeSignature),
+    ).toThrow("argument seed");
+  });
   it("initializes SQL drafts from the example and runs their table data", () => {
     const problem = {
       signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },

@@ -412,11 +412,6 @@
   width: 24px;
   height: 24px;
 }
-.match-catalog-error {
-  margin: 0;
-  color: var(--color-error);
-  font-size: 12px;
-}
 .lobby-ready-actions {
   display: flex;
   align-items: center;

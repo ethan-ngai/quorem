@@ -1,3 +1,4 @@
+import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ProblemVersion, Submission } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
@@ -20,16 +21,16 @@ describe("sample case selection", () => {
       />,
     );
     expect(html).toContain('aria-pressed="true" aria-label="Case 2"');
-    expect(html).toContain("[1,2,3]");
-    expect(html).toContain("[1,1,1]");
-    expect(html).not.toContain("[1,1,2,2,2,1]");
+    expect(stripSyntaxMarkup(html)).toContain("[1,2,3]");
+    expect(stripSyntaxMarkup(html)).toContain("[1,1,1]");
+    expect(stripSyntaxMarkup(html)).not.toContain("[1,1,2,2,2,1]");
   });
   it("preserves first-sample selection without a controlled index", () => {
     const html = renderToStaticMarkup(
       <TestCases problem={problem} customMode={false} drafts={[]} onDraftsChange={() => {}} />,
     );
     expect(html).toContain('aria-pressed="true" aria-label="Case 1"');
-    expect(html).toContain("[1,1,2,2,2,1]");
+    expect(stripSyntaxMarkup(html)).toContain("[1,1,2,2,2,1]");
   });
 });
 
@@ -103,7 +104,7 @@ describe("pending case execution", () => {
     });
     expect(html).not.toContain("case-spinner");
     expect(html).toContain('aria-label="Case 1: accepted"');
-    expect(html).toContain("[2,3,1]");
+    expect(stripSyntaxMarkup(html)).toContain("[2,3,1]");
   });
 });
 
@@ -121,7 +122,7 @@ describe("Submit sample results and previous steps", () => {
   it("shows public Submit outputs without exposing the hidden case collection", () => {
     const html = renderCases(completed);
     expect(html).toContain('aria-label="Case 1: accepted"');
-    expect(html).toContain("[1,2]");
+    expect(stripSyntaxMarkup(html)).toContain("[1,2]");
     expect(html).not.toContain('aria-label="Select hidden case"');
   });
   function staged(results: Submission) {
@@ -139,7 +140,7 @@ describe("Submit sample results and previous steps", () => {
   }
   it("collapses passing previous steps and selects the current step", () => {
     const html = staged(completed);
-    expect(html).toContain('<details class="case-group">');
+    expect(html).toContain('<details class="case-group disclosure">');
     expect(html).toContain("Step 1");
     expect(html).toContain(": passed");
     expect(html).toContain('aria-pressed="true" aria-label="Case 2: wrong answer"');
@@ -152,7 +153,7 @@ describe("Submit sample results and previous steps", () => {
         { index: 1, status: "accepted", actual: [1] },
       ],
     });
-    expect(html).toContain('<details class="case-group" open="">');
+    expect(html).toContain('<details class="case-group disclosure" open="">');
     expect(html).toContain(": failing");
   });
 });

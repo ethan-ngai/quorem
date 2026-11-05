@@ -51,6 +51,7 @@ function signature(v: JsonValue): Obj {
       return { type: str(y.type), description: str(y.description) };
     });
   optional(out, "outputOrder", x.outputOrder);
+  optional(out, "nodeReferences", x.nodeReferences);
   out.className = str(x.className);
   out.methodName = str(x.methodName);
   out.parameters = arr(x.parameters).map((p) => {

@@ -114,6 +114,9 @@ void test("control authority gates drains and registers authorized case attempts
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v1"]))
+    .digest("hex")}`;
+  const controlScope = `remote:${createHash("sha256")
     .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
     .digest("hex")}`;
   let gate = true,
@@ -257,7 +260,7 @@ void test("control authority gates drains and registers authorized case attempts
   registered = true;
   assert.equal((await post()).status, 200);
   assert.deepEqual(events.splice(0), ["control:/register", "case"]);
-  const adminCase = (token, ownerScope = scope) =>
+  const adminCase = (token, ownerScope = controlScope) =>
     worker.fetch(
       new Request(`${env.CASE_ORIGIN}/internal/control/case/state`, {
         headers: {
@@ -281,7 +284,7 @@ void test("control authority gates drains and registers authorized case attempts
       new Request(`${env.DRAIN_ORIGIN}/internal/control/runner/state`, {
         headers: {
           authorization: `Bearer ${token}`,
-          "x-quorem-owner-scope": scope,
+          "x-quorem-owner-scope": controlScope,
           "x-quorem-owner-nonce": runnerNonce,
         },
       }),
@@ -302,7 +305,7 @@ void test("control authority gates drains and registers authorized case attempts
     await verifyCaseProbe(runnerState, {
       publicKey,
       kind: "runner-control-state",
-      scope,
+      scope: controlScope,
       attempt: "runner-control",
       nonce: runnerNonce,
       expectedNamespace: namespace,
@@ -316,7 +319,7 @@ void test("control authority gates drains and registers authorized case attempts
   );
   const invalidSigned = await signedCaseProbe(env, {
     kind: "runner-control-state",
-    scope,
+    scope: controlScope,
     attempt: "runner-control",
     nonce: runnerNonce,
     value: { generation: 1, status: "active", release: null, bindings: null },
@@ -325,7 +328,7 @@ void test("control authority gates drains and registers authorized case attempts
     verifyCaseProbe(invalidSigned, {
       publicKey,
       kind: "runner-control-state",
-      scope,
+      scope: controlScope,
       attempt: "runner-control",
       nonce: runnerNonce,
       expectedNamespace: namespace,
@@ -484,7 +487,7 @@ void test("signed live case observation follows execution and confirmed attempt 
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v1"]))
     .digest("hex")}`;
   const values = new Map();
   const context = {
@@ -493,10 +496,12 @@ void test("signed live case observation follows execution and confirmed attempt 
         return values.get(key);
       },
       async put(key, value) {
-        values.set(key, value);
+        if (typeof key === "object")
+          for (const [name, item] of Object.entries(key)) values.set(name, item);
+        else values.set(key, value);
       },
       async delete(key) {
-        values.delete(key);
+        for (const name of Array.isArray(key) ? key : [key]) values.delete(name);
       },
       async setAlarm() {},
       async deleteAlarm() {},
@@ -526,7 +531,19 @@ void test("signed live case observation follows execution and confirmed attempt 
   env.CASES = {
     idFromName: () => namespace,
     getByName: (id) => {
-      assert.equal(id, attempt);
+      if (id !== attempt) {
+        assert.ok(
+          Array.from({ length: 7 }, (_, index) => index + 1).some(
+            (lane) => id === `${attempt}-lane-${lane}`,
+          ),
+        );
+        return {
+          fetch: async (request) =>
+            request.method === "GET"
+              ? Response.json({ active: false, running: false, ordinal: null, tokenHash: null })
+              : new Response(null, { status: 204 }),
+        };
+      }
       return sandbox;
     },
   };
@@ -738,7 +755,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v1"]))
     .digest("hex")}`;
   let forwarded = 0;
   env.CASES = {
@@ -789,7 +806,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
   env.CASES.idFromName = () => secret("0");
   const zeroScope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint]))
+    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint, "case-lanes-v1"]))
     .digest("hex")}`;
   assert.equal((await request("DELETE", zeroScope)).status, 503);
   assert.equal((await request("POST", zeroScope)).status, 503);

@@ -46,7 +46,12 @@
   display: grid;
   gap: var(--space-3);
 }
-.sequence-call-editor + .sequence-call-editor {
+.sequence-call-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sequence-call-list > :not(:first-child) > .sequence-call-editor {
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-4);
 }

@@ -26,16 +26,18 @@ export function SequenceCaseValues({
               <span className="case-call-number">{index + 1}</span>
               <code>{call.methodName}</code>
             </header>
-            <CaseArguments signature={signature} args={call.args} />
-            {signature?.returnType !== "void" && call.expected !== undefined && (
-              <CaseValue
-                name={outputLabel}
-                purpose={outputLabel === "Output" ? "output" : "target"}
-                value={call.expected}
-                type={signature?.returnType}
-                tone={outputLabel === "Output" ? undefined : "verdict-success"}
-              />
-            )}
+            <CaseArguments signature={signature} args={call.args} expected={call.expected}>
+              {signature?.returnType !== "void" && call.expected !== undefined && (
+                <CaseValue
+                  name={outputLabel}
+                  purpose={outputLabel === "Output" ? "output" : "target"}
+                  value={call.expected}
+                  type={signature?.returnType}
+                  nodeContext={signature ? { signature, args: call.args } : undefined}
+                  tone={outputLabel === "Output" ? undefined : "verdict-success"}
+                />
+              )}
+            </CaseArguments>
           </section>
         );
       })}

@@ -9,6 +9,8 @@ export function checkpointedEngine(
   repository: ExecutionRepository & ExecutionInputReader,
   sandbox: IsolatedSandbox,
   sliceMs = 50000,
+  caseConcurrency = 1,
+  hasWaiting?: () => Promise<boolean>,
 ): AttemptEngine {
   if (!Number.isSafeInteger(sliceMs) || sliceMs < 1 || sliceMs > 600000)
     throw new Error("Invalid execution slice");
@@ -25,8 +27,9 @@ export function checkpointedEngine(
           repository,
           sandbox,
           signal,
-          () => performance.now() >= deadline,
+          async () => performance.now() >= deadline && (!hasWaiting || (await hasWaiting())),
           onFinalCase,
+          caseConcurrency,
         );
         return "complete";
       } catch (error) {

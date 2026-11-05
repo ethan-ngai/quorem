@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { useSession } from "../auth/session";
@@ -143,28 +144,25 @@ export function MatchSettings({
           <BookOpen />
           Problem
         </span>
-        <ProblemPicker
-          items={problems.filter((problem) =>
-            pools.includes(problem.difficulty as (typeof pools)[number]),
-          )}
-          identity={identity}
-          difficulties={pools}
-          filters={value.questionFilters}
-          onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
-          value={value.selectedProblemVersionId}
-          disabled={disabled}
-          allowRandom
-          onChange={(selectedProblemVersionId, problem) => {
-            setPickedProblem(problem);
-            onChange({ ...value, difficulties: pools, selectedProblemVersionId });
-          }}
-        />
+        <NoticeRegion message={catalogError} label="Problem list unavailable">
+          <ProblemPicker
+            items={problems.filter((problem) =>
+              pools.includes(problem.difficulty as (typeof pools)[number]),
+            )}
+            identity={identity}
+            difficulties={pools}
+            filters={value.questionFilters}
+            onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
+            value={value.selectedProblemVersionId}
+            disabled={disabled}
+            allowRandom
+            onChange={(selectedProblemVersionId, problem) => {
+              setPickedProblem(problem);
+              onChange({ ...value, difficulties: pools, selectedProblemVersionId });
+            }}
+          />
+        </NoticeRegion>
       </div>
-      {catalogError && (
-        <p className="match-catalog-error" role="status">
-          {catalogError}
-        </p>
-      )}
       <div className="match-option">
         <span>
           <Icon name="clock" />

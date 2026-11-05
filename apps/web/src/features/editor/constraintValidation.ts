@@ -1,4 +1,10 @@
-import { compareNumericValues } from "@quorem/contracts/long";
+import {
+  rangeMatches,
+  comparisonMatches,
+  propertyMatches,
+  validateConstraints as validateDefinitions,
+} from "@quorem/questions";
+import { nodeType } from "@quorem/contracts/node-type";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
 import { bindArguments } from "./argumentBinding";
 import { formatConstraint } from "./constraintFormatter";
@@ -8,18 +14,20 @@ export function validateConstraints(
   args: unknown[],
   constraints: Constraint[],
 ) {
+  validateDefinitions(signature, constraints);
   const bindings = bindArguments(signature, args);
   const project = (target: ConstraintTarget): unknown[] => {
     const binding = bindings.find(({ name }) => name === target.parameter);
     if (!binding) throw new Error(`Unknown constraint parameter ${target.parameter}.`);
     const type = binding.type.replaceAll("array<", "list<");
+    const node = nodeType(type);
     const supported = {
       value: ["int", "long", "float", "str"].includes(type),
       length: type === "str" || type.startsWith("list<"),
       elements: ["list<int>", "list<long>", "list<float>"].includes(type),
       sum: ["list<int>", "list<long>", "list<float>"].includes(type),
-      nodeCount: ["ListNode", "TreeNode"].includes(binding.type),
-      nodeValues: ["ListNode", "TreeNode"].includes(binding.type),
+      nodeCount: !!node,
+      nodeValues: ["int", "long", "float"].includes(node?.payload ?? ""),
     }[target.projection];
     if (!supported) throw new Error(`Unsupported constraint target ${target.parameter}.`);
     const value = binding.value;
@@ -53,29 +61,17 @@ export function validateConstraints(
           : [];
       case "nodeCount":
         return [Array.isArray(value) ? value.filter((item) => item !== null).length : 0];
-      case "nodeValues":
-        return Array.isArray(value) ? value.filter((item) => item !== null) : [];
+      case "nodeValues": {
+        const values = Array.isArray(value) ? value.filter((item) => item !== null) : [];
+        return node?.payload === "long" ? (values as string[]).map(BigInt) : values;
+      }
     }
   };
-  const numeric = (value: unknown): value is number | bigint =>
-    typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value));
   for (const constraint of constraints) {
     let valid = true;
-    if (constraint.kind === "range")
-      valid = project(constraint.target).every(
-        (value) =>
-          numeric(value) &&
-          (constraint.min === undefined || value >= constraint.min) &&
-          (constraint.max === undefined || value <= constraint.max),
-      );
-    if (constraint.kind === "comparison") {
-      const [left] = project(constraint.left),
-        [right] = project(constraint.right);
-      const cmp = numeric(left) && numeric(right) ? compareNumericValues(left, right) : NaN;
-      valid = { eq: cmp === 0, le: cmp <= 0, lt: cmp < 0, ge: cmp >= 0, gt: cmp > 0 }[
-        constraint.operator
-      ];
-    }
+    if (constraint.kind === "range") valid = rangeMatches(constraint, project(constraint.target));
+    if (constraint.kind === "comparison")
+      valid = comparisonMatches(constraint, project(constraint.left), project(constraint.right));
     if (constraint.kind === "property") {
       if (
         !["elements", "nodeValues"].includes(constraint.target.projection) &&
@@ -87,16 +83,7 @@ export function validateConstraints(
         constraint.target.projection === "value" && typeof projected[0] === "string"
           ? Array.from(projected[0])
           : projected;
-      valid =
-        constraint.property === "unique"
-          ? new Set(values).size === values.length
-          : values.every(
-              (value, index) =>
-                index === 0 ||
-                (numeric(value) &&
-                  numeric(values[index - 1]) &&
-                  value >= (values[index - 1] as number | bigint)),
-            );
+      valid = propertyMatches(constraint, values);
     }
     if (!valid) throw new Error(`Constraint: ${formatConstraint(constraint)}.`);
   }

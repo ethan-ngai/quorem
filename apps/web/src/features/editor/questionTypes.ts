@@ -1,23 +1,36 @@
+import { formatNodeLiteral, type NodeContext } from "./nodeLiterals";
+import type { WireValue } from "./typedValues";
+import { javaQuestionType } from "@quorem/contracts/java-type";
+import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
 import type { EditorLanguage } from "./editorLanguages";
 
 /** Wire types stay language-neutral; only presentation and generated source use these spellings. */
 export function questionTypeName(type: string, language: EditorLanguage): string {
+  if (language === "java") return javaQuestionType(type) ?? type;
+  const node = nodeType(type);
+  if (node && (node.generic || node.kind === "NaryTreeNode")) {
+    const inner = questionTypeName(node.payload, language);
+    if (language === "python") return `${node.kind}[${inner}]`;
+    if (language === "ocaml") return `${inner} ${ocamlNodeNames[node.kind]} option`;
+    return `${node.kind}<${inner}> | null`;
+  }
   if (type.startsWith("optional<")) {
-    const inner = questionTypeName(type.slice(9, -1), language);
+    let payload = type.slice(9, -1);
+    while (payload.startsWith("optional<")) payload = payload.slice(9, -1);
+    const inner = questionTypeName(payload, language);
     if (language === "python") return `${inner} | None`;
-    if (language === "typescript") return `${inner} | null`;
+    if (language === "typescript") return inner.endsWith(" | null") ? inner : `${inner} | null`;
     if (language === "ocaml") return `(${inner}) option`;
-    return boxJava(inner);
+    return inner;
   }
   const array = type.startsWith("array<");
   if (array || type.startsWith("list<")) {
     const inner = questionTypeName(type.slice(array ? 6 : 5, -1), language);
     if (language === "python") return `list[${inner}]`;
-    if (language === "java") return array ? `${inner}[]` : `java.util.List<${boxJava(inner)}>`;
     if (language === "ocaml") return `(${inner}) ${array ? "array" : "list"}`;
     return `(${inner})[]`.replace(/^\((\w+)\)/, "$1");
   }
-  const names: Record<EditorLanguage, Record<string, string>> = {
+  const names: Record<Exclude<EditorLanguage, "java">, Record<string, string>> = {
     python: {
       void: "None",
       int: "int",
@@ -27,15 +40,6 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       str: "str",
       datetime: "datetime.datetime",
     },
-    java: {
-      void: "void",
-      int: "int",
-      long: "long",
-      float: "double",
-      bool: "boolean",
-      str: "String",
-      datetime: "java.time.LocalDateTime",
-    },
     typescript: {
       void: "void",
       int: "number",
@@ -44,6 +48,8 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       bool: "boolean",
       str: "string",
       datetime: "Date",
+      ListNode: "ListNode | null",
+      TreeNode: "TreeNode | null",
     },
     postgresql: {},
     ocaml: {
@@ -54,22 +60,28 @@ export function questionTypeName(type: string, language: EditorLanguage): string
       bool: "bool",
       str: "string",
       datetime: "Unix.tm",
+      ListNode: "list_node option",
+      TreeNode: "tree_node option",
     },
   };
   return names[language][type] ?? type;
 }
-function boxJava(type: string) {
-  return (
-    (
-      { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
-        string,
-        string
-      >
-    )[type] ?? type
-  );
-}
-
-export function questionValue(value: unknown, language: EditorLanguage, type?: string): string {
+export function questionValue(
+  value: unknown,
+  language: EditorLanguage,
+  type?: string,
+  context?: NodeContext,
+): string {
+  let literalType = type;
+  while (literalType?.startsWith("optional<")) literalType = literalType.slice(9, -1);
+  const node = literalType ? nodeType(literalType) : undefined;
+  if (node && (node.kind !== "ListNode" || (value !== null && !Array.isArray(value)))) {
+    try {
+      return formatNodeLiteral(literalType!, value as WireValue, context);
+    } catch {
+      return JSON.stringify(value) ?? "";
+    }
+  }
   if (value === null)
     return language === "python" || language === "ocaml"
       ? "None"
@@ -84,9 +96,10 @@ export function questionValue(value: unknown, language: EditorLanguage, type?: s
     const collectionType = type?.startsWith("optional<") ? type.slice(9, -1) : type;
     const array = collectionType?.startsWith("array<");
     const inner =
-      collectionType?.startsWith("list<") || array
+      (collectionType ? nodeType(collectionType)?.payload : undefined) ??
+      (collectionType?.startsWith("list<") || array
         ? collectionType!.slice(array ? 6 : 5, -1)
-        : undefined;
+        : undefined);
     const elements = value
       .map((item) => questionValue(item, language, inner))
       .join(language === "ocaml" ? "; " : ",");

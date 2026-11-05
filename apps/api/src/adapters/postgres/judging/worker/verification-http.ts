@@ -80,13 +80,12 @@ export function createVerificationSourceHandler(run: Run, credential: Uint8Array
       let result: unknown;
       switch (url.pathname) {
         case "/internal/verification/bundle": {
-          const { frozen, actual, sqlTypes } = await source.frozenCaseWithPages(id);
+          const { frozen, actual, sqlTypes, bundle } = await source.frozenCaseWithPages(id);
           const encoded = <T extends { bytes: Uint8Array }>(value: T) => ({
             ...value,
             bytes: base64(value.bytes),
           });
-          const bundle = await inputs.inputBundle(frozen.job, frozen.ordinal, false);
-          if (!bundle.ref) throw new Error("Verification input unavailable");
+          if (!bundle?.ref) throw new Error("Verification input unavailable");
           result = {
             frozen,
             manifest: bundle.manifest,

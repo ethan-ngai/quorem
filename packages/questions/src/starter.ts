@@ -1,4 +1,6 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
+import { javaQuestionType } from "@quorem/contracts/java-type";
+import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
 import type { Signature } from "./model.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
@@ -45,41 +47,26 @@ function languageType(
   kind: string,
   language: Exclude<StarterLanguage, "python" | "postgresql">,
 ): string {
+  if (language === "java") {
+    const type = javaQuestionType(kind);
+    if (!type) throw new Error(`unsupported type ${kind} for ${language}`);
+    return type;
+  }
+  const node = nodeType(kind);
+  if (node && (node.generic || node.kind === "NaryTreeNode")) {
+    const inner = languageType(node.payload, language);
+    if (language === "typescript") return `${node.kind}<${inner}> | null`;
+    return `${inner} ${ocamlNodeNames[node.kind]} option`;
+  }
   for (const wrapper of ["optional", "array", "list"] as const) {
     if (kind.startsWith(`${wrapper}<`) && kind.endsWith(">")) {
-      let inner = languageType(kind.slice(wrapper.length + 1, -1), language);
-      if (language === "java") {
-        if (wrapper !== "array")
-          inner =
-            (
-              { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
-                string,
-                string
-              >
-            )[inner] ?? inner;
-        return wrapper === "optional"
-          ? inner
-          : wrapper === "array"
-            ? `${inner}[]`
-            : `java.util.List<${inner}>`;
-      }
+      const inner = languageType(kind.slice(wrapper.length + 1, -1), language);
       if (language === "typescript")
         return wrapper === "optional" ? `${inner} | null` : `(${inner})[]`;
       return `(${inner}) ${wrapper === "optional" ? "option" : wrapper}`;
     }
   }
   const types: Record<string, Record<string, string>> = {
-    java: {
-      void: "void",
-      int: "int",
-      long: "long",
-      float: "double",
-      bool: "boolean",
-      str: "String",
-      datetime: "java.time.LocalDateTime",
-      ListNode: "ListNode",
-      TreeNode: "TreeNode",
-    },
     typescript: {
       void: "void",
       int: "number",
@@ -117,8 +104,8 @@ function starter(sig: Signature, language: Exclude<StarterLanguage, "postgresql"
   const note = !node
     ? ""
     : language === "ocaml"
-      ? "(* Judge supplies mutable list_node {value:int; next:list_node option} and tree_node {value:int; left:tree_node option; right:tree_node option}. *)\n"
-      : "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\n";
+      ? "(* Judge supplies mutable list_node, tree_node and nary_tree_node records. *)\n"
+      : "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n";
   const result = languageType(sig.returnType, language);
   const params = sig.parameters.map((p) => {
     const t = languageType(p.type, language);

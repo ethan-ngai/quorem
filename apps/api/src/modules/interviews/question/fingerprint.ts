@@ -39,6 +39,7 @@ function signature(v: unknown): Obj {
         }
       : {}),
     ...(opt(s, "outputOrder") ? { outputOrder: s.outputOrder } : {}),
+    ...(s.nodeReferences ? { nodeReferences: s.nodeReferences } : {}),
     className: s.className ?? "",
     methodName: s.methodName ?? "",
     parameters:

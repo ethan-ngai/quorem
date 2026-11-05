@@ -112,3 +112,13 @@
 :root[data-theme="light"] {
   color-scheme: light;
 }
+
+/* Override font shorthands and embedded editor styles that reset shaping features. */
+* {
+  font-variant-ligatures: none !important;
+  font-feature-settings:
+    "liga" 0,
+    "clig" 0,
+    "calt" 0,
+    "dlig" 0 !important;
+}

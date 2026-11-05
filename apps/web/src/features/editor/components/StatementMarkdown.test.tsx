@@ -1,3 +1,4 @@
+import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { StatementMarkdown } from "./StatementMarkdown";
@@ -9,11 +10,11 @@ describe("restricted statement Markdown", () => {
     const markup = render("**strong *nested*** and \\*literal\\* with ``a`b``.");
     expect(markup).toContain("<strong>strong <em>nested</em></strong>");
     expect(markup).toContain("*literal*");
-    expect(markup).toContain("<code>a`b</code>");
+    expect(markup).toContain('<code class="code-literal">a`b</code>');
   });
   it("renders deliberate math, without interpreting math inside code", () => {
     const markup = render("`$x^2$` and $x^2 \\le 10^{4}$");
-    expect(markup).toContain("<code>$x^2$</code>");
+    expect(stripSyntaxMarkup(markup)).toContain('<code class="code-literal">$x^2$</code>');
     expect(markup).toContain('class="katex"');
     expect(markup).toContain("<msup>");
     expect(markup).toContain("<mo>≤</mo>");
@@ -31,9 +32,10 @@ describe("restricted statement Markdown", () => {
     expect(markup).toContain('href="https://example.com/"');
     expect(markup).toContain("![image](x)");
     expect(markup).toContain("# Heading");
-    expect(markup).toContain("```python");
+    expect(markup).toContain('<pre class="statement-code"><code class="code-literal">');
+    expect(markup).toContain('<span class="code-keyword">return</span>');
     expect(markup).toContain("<ul>");
-    expect(markup).not.toMatch(/<(img|h2|pre)\b/);
+    expect(markup).not.toMatch(/<(img|h2)\b/);
   });
   it("renders source diagrams and tables but rejects script URLs", () => {
     const markup = render(

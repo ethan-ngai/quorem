@@ -1,3 +1,4 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
 import type { InterviewMonitoring } from "@quorem/contracts";
 import "../../ui/result-tabs.css";
@@ -341,11 +342,6 @@ export function QuestionSetup({
             </fieldset>
           </fieldset>
         </fieldset>
-        {error && (
-          <p className="admin-error" role="alert">
-            {error}
-          </p>
-        )}
         {showHints && (
           <InterviewMonitoringControls
             value={monitoring}
@@ -364,7 +360,7 @@ export function QuestionSetup({
           />
         )}
         <footer className="competitive-dialog-actions">
-          <span />
+          <PersistentNotice message={error} label="Question setup needs attention" />
           <button className="button button-primary" disabled={busy}>
             {busy ? "Working…" : label}
           </button>

@@ -1,3 +1,8 @@
+import { useRef } from "react";
+import { Trash2 } from "lucide-react";
+import { AnimatedRows } from "../../ui/AnimatedRows";
+import { Tooltip } from "../../ui/Tooltip";
+import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import type { ProblemVersion } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
 import { Field } from "./AuthoringFields";
@@ -34,6 +39,7 @@ function SqlColumns({
   disabled: boolean;
   onChange: (columns: Column[]) => void;
 }) {
+  const addColumn = useRef<HTMLButtonElement>(null);
   function update(index: number, patch: Partial<Column>) {
     onChange(
       columns.map((column, position) => (position === index ? { ...column, ...patch } : column)),
@@ -42,37 +48,43 @@ function SqlColumns({
   return (
     <fieldset className="admin-fields admin-sql-columns">
       <legend>{label}</legend>
-      {columns.map((column, index) => (
-        <div className="admin-sql-column" key={index}>
-          <input
-            aria-label={`Column ${index + 1} name`}
-            placeholder="Column name"
-            value={column.name}
-            onChange={(event) => update(index, { name: event.target.value })}
-          />
-          <SelectField
-            label={`Column ${index + 1} type`}
-            value={column.type}
-            disabled={disabled}
-            options={types.map((type) => ({ value: type, label: type }))}
-            onChange={(value) => {
-              const type = types.find((type) => type === value);
-              if (type) update(index, { type });
-            }}
-          />
-          <button
-            type="button"
-            className="quiet-button"
-            aria-label={`Remove column ${index + 1}`}
-            onClick={() => onChange(columns.filter((_, position) => position !== index))}
-          >
-            Remove
-          </button>
-        </div>
-      ))}
+      <AnimatedRows
+        items={columns}
+        className="admin-sql-column-list"
+        focusFallback={addColumn}
+        renderRow={(column, index) => (
+          <div className="admin-sql-column">
+            <input
+              className="admin-code"
+              aria-label={`Column ${index + 1} name`}
+              placeholder="Column name"
+              value={column.name}
+              onChange={(event) => update(index, { name: event.target.value })}
+            />
+            <SearchableTypeSelect
+              label={`Column ${index + 1} type`}
+              value={column.type}
+              disabled={disabled}
+              choices={types}
+              onChange={(type) => update(index, { type })}
+            />
+            <Tooltip content="Remove column">
+              <button
+                type="button"
+                className="icon-button destructive-icon"
+                aria-label={`Remove column ${index + 1}`}
+                onClick={() => onChange(columns.filter((_, position) => position !== index))}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </div>
+        )}
+      />
       <button
         type="button"
         className="button button-secondary"
+        ref={addColumn}
         disabled={columns.length >= 32}
         onClick={() => onChange([...columns, { name: "", type: "text" }])}
       >
@@ -92,6 +104,7 @@ export function SqlSchemaFields({
   onChange: (value: SqlSchema) => void;
 }) {
   const tables = value.tables ?? [];
+  const addTable = useRef<HTMLButtonElement>(null);
   function updateTable(index: number, patch: Partial<(typeof tables)[number]>) {
     onChange({
       ...value,
@@ -107,36 +120,41 @@ export function SqlSchemaFields({
         {!tables.length && (
           <p className="admin-authoring-hint">Add the tables available to the query.</p>
         )}
-        {tables.map((table, index) => (
-          <fieldset className="admin-fields admin-sql-table" key={index}>
-            <legend>Table {index + 1}</legend>
-            <Field label="Table name">
-              <input
-                value={table.name}
-                onChange={(event) => updateTable(index, { name: event.target.value })}
+        <AnimatedRows
+          items={tables}
+          focusFallback={addTable}
+          renderRow={(table, index) => (
+            <fieldset className="admin-fields admin-sql-table">
+              <legend>Table {index + 1}</legend>
+              <Field label="Table name">
+                <input
+                  value={table.name}
+                  onChange={(event) => updateTable(index, { name: event.target.value })}
+                />
+              </Field>
+              <SqlColumns
+                label="Input columns"
+                columns={table.columns}
+                types={inputTypes}
+                disabled={disabled}
+                onChange={(columns) => updateTable(index, { columns })}
               />
-            </Field>
-            <SqlColumns
-              label="Input columns"
-              columns={table.columns}
-              types={inputTypes}
-              disabled={disabled}
-              onChange={(columns) => updateTable(index, { columns })}
-            />
-            <button
-              type="button"
-              className="quiet-button admin-delete-action"
-              onClick={() =>
-                onChange({ ...value, tables: tables.filter((_, position) => position !== index) })
-              }
-            >
-              Remove table
-            </button>
-          </fieldset>
-        ))}
+              <button
+                type="button"
+                className="quiet-button admin-delete-action"
+                onClick={() =>
+                  onChange({ ...value, tables: tables.filter((_, position) => position !== index) })
+                }
+              >
+                <Trash2 size={16} aria-hidden="true" /> Remove table
+              </button>
+            </fieldset>
+          )}
+        />
         <button
           type="button"
           className="button button-secondary"
+          ref={addTable}
           disabled={tables.length >= 16}
           onClick={() => onChange({ ...value, tables: [...tables, { name: "", columns: [] }] })}
         >

@@ -3,10 +3,17 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createRequire } from "node:module";
+import { judgingScopeIdle, judgingPeerSecret } from "./hono-judging-release.mjs";
+import { configureRestrictedRole } from "./hono-stage-database-role.mjs";
+import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 
+const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
+  "pg",
+);
 const worker = "quorem-hono-production";
 const origin = "https://quorem.app";
 function outputs(env, directory, key) {
@@ -125,6 +132,42 @@ async function release(env) {
         DATABASE_URL: database.href,
       },
     );
+    const keys = bootstrap.secrets.value;
+    if (!/^quorem_hono_runtime_[a-f0-9]{12,32}$/.test(keys.RUNTIME_ROLE ?? ""))
+      throw new Error("Invalid active runtime role");
+    database.search = "?sslmode=verify-full";
+    const operator = new Client({
+      connectionString: database.href,
+      connectionTimeoutMillis: 10000,
+      query_timeout: 10000,
+    });
+    try {
+      await operator.connect();
+      await operator.query("BEGIN");
+      await configureRestrictedRole(operator, keys.RUNTIME_ROLE, keys.RUNTIME_PASSWORD, () => {}, {
+        databaseName: "neondb",
+        isolateConnections: false,
+        existing: true,
+      });
+      if (env.HONO_JUDGING_SCOPE_UPDATE === "true") {
+        if (!(await judgingScopeIdle(operator)))
+          throw new Error("Prior judging scope is not drained");
+      }
+      await operator.query("COMMIT");
+    } catch (error) {
+      await operator.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      await operator.end().catch(() => {});
+    }
+    if (env.HONO_JUDGING_SCOPE_UPDATE === "true") {
+      putWorkerSecrets(
+        worker,
+        { RUNNER_PEERS: judgingPeerSecret(keys, services.origins.value, env.GITHUB_SHA) },
+        env,
+      );
+    }
+
     runStageCommand("bash", ["scripts/require-main.sh"], env);
     console.log(JSON.stringify({ phase: "deploy-active-api" }));
     runStageCommand(

@@ -78,7 +78,11 @@ export function SocialAccounts({ userId }: { userId: string }) {
                   <SocialProviderIcon provider={provider} color />
                   <span>{labels[provider]}</span>
                   {connected.length > 0 && (
-                    <Check className="social-account-check" size={16} aria-label="Connected" />
+                    <Check
+                      className="social-account-check motion-reveal"
+                      size={16}
+                      aria-label="Connected"
+                    />
                   )}
                 </span>
                 {connected.length ? (

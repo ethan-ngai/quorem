@@ -169,7 +169,6 @@
   border: 1px solid var(--color-border);
   background: var(--color-field);
 }
-.auth-content .auth-error,
 .auth-content [role="alert"] {
   color: var(--color-error);
   margin-top: 16px;
@@ -371,4 +370,8 @@
 
 .auth-content .auth-forgot {
   padding-inline: 0;
+}
+
+.passkey-list:empty {
+  display: none;
 }

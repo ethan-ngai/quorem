@@ -9,12 +9,14 @@ export function SegmentedControl<Value extends string>({
   options,
   disabled = false,
   iconOnly = false,
+  mono = false,
   onChange,
 }: {
   label: string;
   value: Value;
   options: readonly { value: Value; label: string; icon?: ReactNode }[];
   iconOnly?: boolean;
+  mono?: boolean;
   disabled?: boolean;
   onChange: (value: Value) => void;
 }) {
@@ -26,7 +28,9 @@ export function SegmentedControl<Value extends string>({
   return (
     <div
       className="segmented-control"
+      data-has-selection={options.some((option) => option.value === value)}
       data-icon-only={iconOnly || undefined}
+      data-mono={mono || undefined}
       role="radiogroup"
       aria-label={label}
       aria-disabled={disabled}
@@ -65,7 +69,8 @@ export function SegmentedControl<Value extends string>({
               document.getElementById(`${id}-${next}`)?.focus();
             }}
           >
-            {iconOnly ? (option.icon ?? option.label) : option.label}
+            {option.icon}
+            {(!iconOnly || !option.icon) && option.label}
           </button>
         </Tooltip>
       ))}

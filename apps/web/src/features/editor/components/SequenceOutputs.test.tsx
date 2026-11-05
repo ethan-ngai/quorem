@@ -1,3 +1,4 @@
+import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MethodCall, Signature } from "@quorem/contracts";
@@ -45,7 +46,7 @@ it("omits void output but retains an optional None and a list-valued return", ()
   expect(html).toContain(">None<");
   expect(html).toContain('aria-label="Call 3: count"');
   expect(html).toContain('aria-label="Call 4: top_k"');
-  expect(html).toContain("[&quot;a&quot;,&quot;b&quot;]");
+  expect(stripSyntaxMarkup(html)).toContain("[&quot;a&quot;,&quot;b&quot;]");
 });
 it("groups statement examples by numbered calls and omits void outputs", () => {
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
@@ -80,7 +81,7 @@ it("groups inputs with paired actual and expected values, including void call in
   expect(html).toContain('class="case-output-comparison"');
   expect(html).toContain(">Output</span>");
   expect(html).toContain(">Expected</span>");
-  expect(html).toContain('verdict-error">0</code>');
-  expect(html).toContain('verdict-success">1</code>');
+  expect(stripSyntaxMarkup(html)).toContain('verdict-error">0</code>');
+  expect(stripSyntaxMarkup(html)).toContain('verdict-success">1</code>');
   expect(html.match(/class="case-output-comparison"/g)).toHaveLength(1);
 });

@@ -1,5 +1,12 @@
 /** @file CatalogLayout.tsx @description Shared discovery heading, table and loading surfaces. @module practice */
-import type { ComponentPropsWithoutRef, MouseEventHandler, ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  type ComponentPropsWithoutRef,
+  type MouseEventHandler,
+  type ReactNode,
+} from "react";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import "./practice.css";
 
 export function CatalogLayout({
@@ -38,11 +45,15 @@ export function CatalogTable({
   children: ReactNode;
   className?: string;
 }) {
+  const rowKeys = Children.toArray(children).map((row) => (isValidElement(row) ? row.key : row));
+  const body = useChangeMotion<HTMLTableSectionElement>(JSON.stringify(rowKeys));
   return (
     <table className={className ? `practice-table ${className}` : "practice-table"}>
       <caption className="sr-only">{label}</caption>
       <thead>{heading}</thead>
-      <tbody>{children}</tbody>
+      <tbody ref={body} className="motion-reveal">
+        {children}
+      </tbody>
     </table>
   );
 }

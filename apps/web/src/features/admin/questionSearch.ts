@@ -7,12 +7,21 @@ export type QuestionSearch = Pick<
 > & {
   section: "drafts" | "publications";
   source?: "leetcode" | "other";
+  draft?: string;
+  publication?: string;
   readiness?: "ready" | "needs-fixes";
 };
 
 export function questionSearch(raw: Record<string, unknown>): QuestionSearch {
   const { sql, type, difficulty, topic, company } = catalogSearch(raw);
+  const uuid = (value: unknown) =>
+    typeof value === "string" && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value)
+      ? value
+      : undefined;
+  const publication = uuid(raw.publication);
   return {
+    publication,
+    draft: publication ? undefined : uuid(raw.draft),
     q: typeof raw.q === "string" && raw.q ? Array.from(raw.q).slice(0, 120).join("") : undefined,
     sql,
     type,

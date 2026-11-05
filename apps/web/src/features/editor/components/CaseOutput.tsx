@@ -1,4 +1,7 @@
+import { CasePreviewLayout } from "./NodePreview";
+import type { NodeContext } from "../nodeLiterals";
 import "./machine-values.css";
+import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
 import type { MethodCall, ProblemVersion, Signature } from "@quorem/contracts";
@@ -26,6 +29,7 @@ export function CaseValue({
   type,
   sql,
   sqlTypes,
+  nodeContext,
 }: {
   name: string;
   value: unknown;
@@ -35,6 +39,7 @@ export function CaseValue({
   type?: string;
   sql?: ProblemVersion["sql"];
   sqlTypes?: readonly string[];
+  nodeContext?: NodeContext;
 }) {
   const language = useQuestionLanguage();
   return (
@@ -60,9 +65,11 @@ export function CaseValue({
             useSchemaTypes={purpose !== "output"}
           />
         ) : (
-          <code className={`machine-value ${tone ?? ""}`}>
-            {questionValue(value, language, type)}
-          </code>
+          <CodeLiteral
+            className={`machine-value ${tone ?? ""}${type?.includes("TreeNode") ? " node-tree-literal" : ""}`}
+            source={questionValue(value, language, type, nodeContext)}
+            language={language}
+          />
         )}
       </div>
     </div>
@@ -72,20 +79,43 @@ export function CaseValue({
 export function CaseArguments({
   signature,
   args,
+  expected,
+  actual,
+  preview = true,
+  children,
 }: {
   signature?: Signature;
   args: readonly unknown[];
+  expected?: unknown;
+  actual?: unknown;
+  preview?: boolean;
+  children?: ReactNode;
 }) {
   const inputs = signature
     ? bindArguments(signature, args)
     : args.map((value, index) => ({ name: `Argument ${index + 1}`, value, type: undefined }));
   return (
-    <div className="case-call-inputs">
-      {inputs.map(({ name, value, type }) => (
-        <CaseValue key={name} name={name} value={value} type={type} parameter />
-      ))}
-      {!inputs.length && <span className="case-no-inputs">No arguments</span>}
-    </div>
+    <CasePreviewLayout
+      enabled={preview}
+      context={signature ? { signature, args: args as NodeContext["args"] } : undefined}
+      expected={expected}
+      actual={actual}
+    >
+      <div className="case-call-inputs">
+        {inputs.map(({ name, value, type }) => (
+          <CaseValue
+            key={name}
+            name={name}
+            value={value}
+            type={type}
+            parameter
+            nodeContext={signature ? { signature, args: args as NodeContext["args"] } : undefined}
+          />
+        ))}
+        {!inputs.length && <span className="case-no-inputs">No arguments</span>}
+      </div>
+      {children}
+    </CasePreviewLayout>
   );
 }
 
@@ -95,10 +125,12 @@ export function CaseOutput({
   sequence,
   sql,
   returnType,
+  nodeContext,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
   returnType?: string;
+  nodeContext?: NodeContext;
   sql?: ProblemVersion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
@@ -131,58 +163,71 @@ export function CaseOutput({
             >
               <header className="case-call-heading">
                 <span className="case-call-number">{index + 1}</span>
-                <code>{call.methodName}</code>
+                <code className="code-function">{call.methodName}</code>
               </header>
-              <CaseArguments signature={signature} args={call.args} />
-              {hasOutput && (actual !== undefined || (showExpected && expected !== undefined)) && (
-                <div className="case-output-comparison">
-                  {actual !== undefined && (
-                    <CaseValue
-                      name="Output"
-                      purpose="output"
-                      value={actual}
-                      type={signature?.returnType}
-                      tone={tone}
-                    />
+              <CaseArguments
+                signature={signature}
+                args={call.args}
+                expected={expected}
+                actual={actual}
+              >
+                {hasOutput &&
+                  (actual !== undefined || (showExpected && expected !== undefined)) && (
+                    <div className="case-output-comparison">
+                      {actual !== undefined && (
+                        <CaseValue
+                          name="Output"
+                          purpose="output"
+                          value={actual}
+                          type={signature?.returnType}
+                          nodeContext={signature ? { signature, args: call.args } : undefined}
+                          tone={tone}
+                        />
+                      )}
+                      {showExpected && expected !== undefined && (
+                        <CaseValue
+                          name="Expected"
+                          purpose="target"
+                          value={expected}
+                          type={signature?.returnType}
+                          nodeContext={signature ? { signature, args: call.args } : undefined}
+                          tone="verdict-success"
+                        />
+                      )}
+                    </div>
                   )}
-                  {showExpected && expected !== undefined && (
-                    <CaseValue
-                      name="Expected"
-                      purpose="target"
-                      value={expected}
-                      type={signature?.returnType}
-                      tone="verdict-success"
-                    />
-                  )}
-                </div>
-              )}
+              </CaseArguments>
             </section>
           );
         })
       ) : (
-        <div className="case-output-comparison">
-          {result.actual !== undefined && (
-            <CaseValue
-              name="Output"
-              purpose="output"
-              value={result.actual}
-              type={returnType}
-              tone={tone}
-              sql={sql}
-              sqlTypes={result.sqlTypes}
-            />
-          )}
-          {showExpected && result.expected !== undefined && (
-            <CaseValue
-              name="Expected output"
-              purpose="target"
-              value={result.expected}
-              type={returnType}
-              tone="verdict-success"
-              sql={sql}
-            />
-          )}
-        </div>
+        <CasePreviewLayout context={nodeContext} expected={result.expected} actual={result.actual}>
+          <div className="case-output-comparison">
+            {result.actual !== undefined && (
+              <CaseValue
+                name="Output"
+                purpose="output"
+                value={result.actual}
+                type={returnType}
+                nodeContext={nodeContext}
+                tone={tone}
+                sql={sql}
+                sqlTypes={result.sqlTypes}
+              />
+            )}
+            {showExpected && result.expected !== undefined && (
+              <CaseValue
+                name="Expected output"
+                purpose="target"
+                value={result.expected}
+                type={returnType}
+                nodeContext={nodeContext}
+                tone="verdict-success"
+                sql={sql}
+              />
+            )}
+          </div>
+        </CasePreviewLayout>
       )}
       {(!!result.stdout?.trim() || !!result.stderr?.trim()) && (
         <ConsoleSection label="Standard output">

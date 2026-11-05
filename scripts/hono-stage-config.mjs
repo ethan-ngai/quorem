@@ -1,4 +1,5 @@
 /** Build an isolated Wrangler configuration; credentials belong in Worker secrets. */
+import { judgingCapacity } from "../packages/execution/src/scheduling.ts";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,9 @@ const allowed = new Set([
   "PROFILE_IMAGE_SERVICE_URL",
   "PROFILE_IMAGE_ACCESS_MODE",
   "HTTP_MAX_REQUESTS",
+  "JUDGING_SLOTS",
+  "JUDGING_CASE_LANES",
+  "JUDGING_SLICE_MS",
   "DEADLINE_SHARDS",
   "GUEST_CREATION",
   "GUEST_ADMISSION",
@@ -47,6 +51,7 @@ export function stageConfig(input, outputs, output) {
 export function workerConfig(input, outputs, output, scope) {
   if (!["stage", "production"].includes(scope)) throw new Error("Invalid deployment scope");
   const { stageZone, vars } = input;
+  judgingCapacity(vars);
   const runnerWakeService =
     scope === "production" ? "quorem-hono-services-production" : input.runnerWakeService;
   if (
