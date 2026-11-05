@@ -21,6 +21,7 @@ const styles = tagHighlighter([
   { tag: [parameterTag, tags.propertyName], class: "code-parameter" },
   { tag: [tags.comment, tags.docComment], class: "code-comment" },
   { tag: tags.operator, class: "code-operator" },
+  { tag: tags.punctuation, class: "code-punctuation" },
 ]);
 
 function highlight(source: string, tree: Tree): ReactNode[] {

@@ -45,8 +45,11 @@ const language = typescriptLanguage.configure({
       "MethodDeclaration/PrivatePropertyDefinition": tags.function(
         tags.definition(tags.special(tags.propertyName)),
       ),
+      "NamespaceDeclaration/VariableDefinition": tags.namespace,
       PropertyDefinition: tags.definition(tags.propertyName),
-      "MethodDeclaration/PropertyDefinition": tags.function(tags.definition(tags.propertyName)),
+      "MethodDeclaration/PropertyDefinition MethodType/PropertyDefinition": tags.function(
+        tags.definition(tags.propertyName),
+      ),
     }),
   ],
 });

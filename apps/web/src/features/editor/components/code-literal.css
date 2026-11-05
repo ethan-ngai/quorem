@@ -41,6 +41,9 @@ code[class^="code-"],
 .code-operator {
   color: var(--editor-operator, var(--color-text-secondary));
 }
+.code-punctuation {
+  color: var(--editor-foreground, var(--color-text));
+}
 
 .code-comment {
   color: var(--editor-comment, var(--color-editor-comment));
