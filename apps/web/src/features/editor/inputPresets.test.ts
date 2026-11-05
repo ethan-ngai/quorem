@@ -6,9 +6,9 @@ import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCa
 describe("typed input presets", () => {
   it("declares presentation delimiters for each built-in literal shape", () => {
     expect(resolveInputPreset("str").delimiters).toEqual(['"', '"']);
-    for (const type of ["list<int>", "list<list<int>>", "ListNode", "TreeNode"])
+    for (const type of ["list<int>", "list<list<int>>", "ListNode"])
       expect(resolveInputPreset(type).delimiters).toEqual(["[", "]"]);
-    for (const type of ["int", "float", "bool"])
+    for (const type of ["int", "float", "bool", "TreeNode"])
       expect(resolveInputPreset(type).delimiters).toBeUndefined();
   });
   it("evaluates bounded arithmetic with Python precedence and division", () => {

@@ -44,7 +44,9 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
               formatTypedField(
                 parameter.type,
                 call.args[i]!,
-                caseFieldConfig(method.signature, parameter.type, parameter.input),
+                caseFieldConfig(method.signature, parameter.type, parameter.input, false, {
+                  args: call.args,
+                }),
               ),
             ),
             expected:
@@ -53,7 +55,13 @@ export function hydrateStages(content: QuestionContent): StageDraft[] {
                 : formatTypedField(
                     method.signature.returnType,
                     call.expected ?? null,
-                    caseFieldConfig(method.signature, method.signature.returnType, undefined, true),
+                    caseFieldConfig(
+                      method.signature,
+                      method.signature.returnType,
+                      undefined,
+                      true,
+                      { args: call.args },
+                    ),
                   ),
           },
         };

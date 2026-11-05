@@ -77,14 +77,16 @@ export function createCustomDraft(problem: QuestionProblem): CustomCaseDraft {
       formatTypedField(
         type,
         inputs ? inputs[index]!.value : defaultValue(type),
-        caseFieldConfig(problem.signature, type, input),
+        caseFieldConfig(problem.signature, type, input, false, { args: example?.args }),
       ),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
       problem.signature.returnType,
       example?.expected ?? defaultValue(problem.signature.returnType),
-      caseFieldConfig(problem.signature, problem.signature.returnType, undefined, true),
+      caseFieldConfig(problem.signature, problem.signature.returnType, undefined, true, {
+        args: example?.args,
+      }),
     ),
   };
 }
@@ -169,7 +171,11 @@ export function parseCustomDraft(
 ): CustomCase {
   const args = bindArguments(signature, draft.args).map(({ name, type, value, input }) => {
     try {
-      return parseTypedField(type, value, caseFieldConfig(signature, type, input));
+      return parseTypedField(
+        type,
+        value,
+        caseFieldConfig(signature, type, input, false, { sources: draft.args }),
+      );
     } catch (error) {
       throw new Error(`${name}: ${(error as Error).message}`);
     }
@@ -180,7 +186,7 @@ export function parseCustomDraft(
       test.expected = parseTypedField(
         signature.returnType,
         draft.expected,
-        caseFieldConfig(signature, signature.returnType, undefined, true),
+        caseFieldConfig(signature, signature.returnType, undefined, true, { sources: draft.args }),
       );
     } catch (error) {
       throw new Error(`Expected output: ${(error as Error).message}`);

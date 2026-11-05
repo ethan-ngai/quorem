@@ -144,6 +144,7 @@ export function ProblemStatement({
                           purpose="output"
                           value={example.expected}
                           type={problem.signature.returnType}
+                          nodeContext={{ signature: problem.signature, args: example.args }}
                         />
                       </div>
                     )}

@@ -53,8 +53,8 @@ export function TypedCaseInput({
   if (touched && !error) {
     try {
       preset.parse(value);
-    } catch {
-      error = "Check the value matches the expected input format.";
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : "Check the input format.";
     }
   }
   const errorId = `${id}-error`;
@@ -64,7 +64,16 @@ export function TypedCaseInput({
     placeholder: input?.placeholder,
     "aria-invalid": !!error,
     "aria-describedby": error ? errorId : undefined,
-    onBlur: () => setTouched(true),
+    onBlur: () => {
+      setTouched(true);
+      if (preset.autoformat) {
+        try {
+          onChange(preset.format(preset.parse(value)));
+        } catch {
+          /* Keep incomplete input editable. */
+        }
+      }
+    },
     onChange: (event: { target: { value: string } }) => {
       const source = event.target.value;
       if (!preset.accepts(source)) {
@@ -135,7 +144,9 @@ export function TypedCaseInput({
             }}
           />
         ) : (
-          <div className={framed ? "typed-collection" : "typed-control"}>
+          <div
+            className={`${framed ? "typed-collection" : "typed-control"}${control.kind === "tree" ? " typed-node-literal" : ""}`}
+          >
             {framed && (
               <span className="collection-delimiter" aria-hidden="true">
                 {control.delimiters![0]}
@@ -148,7 +159,16 @@ export function TypedCaseInput({
             ) : (
               <textarea
                 {...props}
-                rows={input?.rows ?? (control.kind === "text" ? 1 : framed ? 2 : 1)}
+                rows={
+                  input?.rows ??
+                  (control.kind === "tree"
+                    ? Math.min(12, Math.max(1, props.value.split("\n").length))
+                    : control.kind === "text"
+                      ? 1
+                      : framed
+                        ? 2
+                        : 1)
+                }
                 spellCheck={false}
               />
             )}

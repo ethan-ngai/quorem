@@ -67,7 +67,9 @@ export function AuthoringCases({
             parameter.type,
             test.args[index]!,
             defaults.args[index]!,
-            caseFieldConfig(p.signature, parameter.type, parameter.input),
+            caseFieldConfig(p.signature, parameter.type, parameter.input, false, {
+              args: test.args,
+            }),
           ),
         ),
     expectedEnabled: true,
@@ -77,7 +79,9 @@ export function AuthoringCases({
           p.signature.returnType,
           test.expected ?? null,
           defaults.expected,
-          caseFieldConfig(p.signature, p.signature.returnType, undefined, true),
+          caseFieldConfig(p.signature, p.signature.returnType, undefined, true, {
+            args: test.args,
+          }),
         ),
   });
   const [values, setValues] = useState(() => ({

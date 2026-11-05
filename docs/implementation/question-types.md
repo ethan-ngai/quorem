@@ -40,3 +40,17 @@ Set a method's `nodeReferences` to `"arguments"` for reference inputs, or to `"r
 - `{"ref":[0,1]}` as an argument passes the second node of the first argument. That argument must contain its own node values.
 - `{"values":[3,2,0,-4],"tail":[0,1]}` as the first list argument connects its tail to its second node. Target another list argument to share a tail.
 - In return mode, `{"ref":[0,1]}` as the expected output checks the original node instance. `null` expects no node.
+
+### Editing node literals
+
+Tree fields display centered levels. Each parenthesized group belongs to a non-null parent on the preceding level, in order. Whitespace is cosmetic. Groups stay compact, and the editor centers complete rows on blur.
+
+```text
+      1
+  (3, 2, 4)
+(5, 6) () ()
+```
+
+Use `()` for a parent with no children when a later parent has children. Trailing empty groups can be omitted when typing. Inside a child group, `null`, `_`, and an empty comma entry mark missing children. Binary groups allow up to two slots and preserve missing positions. N-ary groups remove missing slots. The formatter expands binary holes as `null` and restores leaf groups needed for the displayed level.
+
+Node reference fields accept `parameter[index]`. Tree indices follow preorder, top to bottom through each subtree from left to right, including explicit binary holes. N-ary indices count actual nodes after missing slots are removed. For the tree above, `root[2]` selects value 5. Linked-list indices follow list order. Connect a list tail with `[3,2,0,-4] -> head[1]`. The editor translates these literals to the canonical wire values described above.

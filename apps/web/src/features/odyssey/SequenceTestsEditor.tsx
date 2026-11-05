@@ -150,6 +150,8 @@ export function SequenceTestsEditor({
                               method.signature,
                               parameter.type,
                               parameter.input,
+                              false,
+                              { sources: call.values.args },
                             )}
                             value={call.values.args[index] ?? ""}
                             onChange={(source) =>
@@ -177,6 +179,7 @@ export function SequenceTestsEditor({
                               method.signature.returnType,
                               undefined,
                               true,
+                              { sources: call.values.args },
                             )}
                             value={call.values.expected}
                             onChange={(expected) =>

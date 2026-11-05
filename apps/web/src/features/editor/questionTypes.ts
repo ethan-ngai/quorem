@@ -1,3 +1,5 @@
+import { formatNodeLiteral, type NodeContext } from "./nodeLiterals";
+import type { WireValue } from "./typedValues";
 import { javaQuestionType } from "@quorem/contracts/java-type";
 import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
 import type { EditorLanguage } from "./editorLanguages";
@@ -64,7 +66,22 @@ export function questionTypeName(type: string, language: EditorLanguage): string
   };
   return names[language][type] ?? type;
 }
-export function questionValue(value: unknown, language: EditorLanguage, type?: string): string {
+export function questionValue(
+  value: unknown,
+  language: EditorLanguage,
+  type?: string,
+  context?: NodeContext,
+): string {
+  let literalType = type;
+  while (literalType?.startsWith("optional<")) literalType = literalType.slice(9, -1);
+  const node = literalType ? nodeType(literalType) : undefined;
+  if (node && (node.kind !== "ListNode" || (value !== null && !Array.isArray(value)))) {
+    try {
+      return formatNodeLiteral(literalType!, value as WireValue, context);
+    } catch {
+      return JSON.stringify(value) ?? "";
+    }
+  }
   if (value === null)
     return language === "python" || language === "ocaml"
       ? "None"

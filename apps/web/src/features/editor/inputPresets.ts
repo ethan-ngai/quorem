@@ -1,3 +1,4 @@
+import { parseNodeLiteral, formatNodeLiteral, type NodeContext } from "./nodeLiterals";
 import type { Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
@@ -9,6 +10,7 @@ export type InputConfig = {
   placeholder?: string;
   rows?: number;
   nodeReference?: true;
+  nodeContext?: NodeContext;
 };
 export type InputKind =
   | "number"
@@ -24,6 +26,7 @@ export type InputKind =
 export abstract class InputPreset {
   abstract readonly kind: InputKind;
   readonly delimiters?: readonly [string, string];
+  readonly autoformat: boolean = false;
   constructor(
     readonly type: string,
     readonly config?: InputConfig,
@@ -190,8 +193,20 @@ export class SequencePreset extends InputPreset {
 export class MatrixPreset extends SequencePreset {
   override readonly kind = "matrix";
 }
-export class TreePreset extends SequencePreset {
-  override readonly kind = "tree";
+export class TreePreset extends InputPreset {
+  readonly kind: InputKind = "tree";
+  override readonly autoformat = true;
+  accepts(_source: string) {
+    return true;
+  }
+  protected parseValue(source: string) {
+    if (!this.config?.nodeReference && source.trimStart().startsWith("["))
+      return scalarSource(this.type, source);
+    return parseNodeLiteral(this.type, source, this.config?.nodeContext);
+  }
+  override format(value: WireValue) {
+    return formatNodeLiteral(this.type, value, this.config?.nodeContext);
+  }
 }
 export class LinkedListPreset extends SequencePreset {
   override readonly kind = "linkedList";
@@ -199,9 +214,11 @@ export class LinkedListPreset extends SequencePreset {
 export class NullablePreset extends InputPreset {
   readonly kind = "optional";
   readonly inner: InputPreset;
+  override readonly autoformat: boolean;
   constructor(type: string, config?: InputConfig) {
     super(type, config);
     this.inner = resolveInputPreset(innerType(type, "optional")!, config);
+    this.autoformat = this.inner.autoformat;
   }
   accepts(source: string) {
     return source === "null" || this.inner.accepts(source);
@@ -270,17 +287,19 @@ export function caseFieldConfig(
   type: string,
   input?: InputConfig,
   expected = false,
+  context?: Pick<NodeContext, "args" | "sources">,
 ): InputConfig | undefined {
   if (
     !nodeType(type) ||
     (expected ? signature.nodeReferences !== "return" : !signature.nodeReferences)
   )
     return input;
-  return { ...input, preset: "structured", nodeReference: true };
+  return { ...input, preset: "tree", nodeReference: true, nodeContext: { signature, ...context } };
 }
 
 export function resolveInputPreset(type: string, config?: InputConfig): InputPreset {
   let id: string;
+  if (config?.nodeReference) return new TreePreset(type, config);
   if (innerType(type, "optional")) return new NullablePreset(type, config);
   else if (type === "int" || type === "long" || type === "float") id = "number";
   else if (type === "str" || type === "datetime") id = "text";

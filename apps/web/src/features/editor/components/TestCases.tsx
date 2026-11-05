@@ -352,7 +352,9 @@ export function TestCases({
                 id={`custom-${draft.id}-${index}`}
                 name={name}
                 type={type}
-                input={caseFieldConfig(problem.signature, type, input)}
+                input={caseFieldConfig(problem.signature, type, input, false, {
+                  sources: draft.args,
+                })}
                 value={draft.args[index] ?? ""}
                 onChange={(value) =>
                   updateDraft({
@@ -398,6 +400,7 @@ export function TestCases({
                       problem.signature.returnType,
                       undefined,
                       true,
+                      { sources: draft.args },
                     )}
                     value={draft.expected}
                     onChange={(expected) => updateDraft({ expected })}
@@ -431,6 +434,7 @@ export function TestCases({
           <CaseValue
             name="Expected output"
             purpose="target"
+            nodeContext={{ signature: problem.signature, args: example.args }}
             value={example.expected}
             type={problem.signature.returnType}
             tone="verdict-success"
@@ -476,6 +480,7 @@ export function TestCases({
         <CaseOutput
           result={result}
           returnType={problem.signature.returnType}
+          nodeContext={{ signature: problem.signature, args: currentValue?.args }}
           sql={problem.sql}
           sequence={
             example?.calls?.length

@@ -33,6 +33,7 @@ export function SequenceCaseValues({
                 purpose={outputLabel === "Output" ? "output" : "target"}
                 value={call.expected}
                 type={signature?.returnType}
+                nodeContext={signature ? { signature, args: call.args } : undefined}
                 tone={outputLabel === "Output" ? undefined : "verdict-success"}
               />
             )}

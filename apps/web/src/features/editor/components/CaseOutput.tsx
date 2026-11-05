@@ -1,3 +1,4 @@
+import type { NodeContext } from "../nodeLiterals";
 import "./machine-values.css";
 import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
@@ -27,6 +28,7 @@ export function CaseValue({
   type,
   sql,
   sqlTypes,
+  nodeContext,
 }: {
   name: string;
   value: unknown;
@@ -36,6 +38,7 @@ export function CaseValue({
   type?: string;
   sql?: ProblemVersion["sql"];
   sqlTypes?: readonly string[];
+  nodeContext?: NodeContext;
 }) {
   const language = useQuestionLanguage();
   return (
@@ -62,8 +65,8 @@ export function CaseValue({
           />
         ) : (
           <CodeLiteral
-            className={`machine-value ${tone ?? ""}`}
-            source={questionValue(value, language, type)}
+            className={`machine-value ${tone ?? ""}${type?.includes("TreeNode") ? " node-tree-literal" : ""}`}
+            source={questionValue(value, language, type, nodeContext)}
             language={language}
           />
         )}
@@ -85,7 +88,14 @@ export function CaseArguments({
   return (
     <div className="case-call-inputs">
       {inputs.map(({ name, value, type }) => (
-        <CaseValue key={name} name={name} value={value} type={type} parameter />
+        <CaseValue
+          key={name}
+          name={name}
+          value={value}
+          type={type}
+          parameter
+          nodeContext={signature ? { signature, args: args as NodeContext["args"] } : undefined}
+        />
       ))}
       {!inputs.length && <span className="case-no-inputs">No arguments</span>}
     </div>
@@ -98,10 +108,12 @@ export function CaseOutput({
   sequence,
   sql,
   returnType,
+  nodeContext,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
   returnType?: string;
+  nodeContext?: NodeContext;
   sql?: ProblemVersion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
@@ -145,6 +157,7 @@ export function CaseOutput({
                       purpose="output"
                       value={actual}
                       type={signature?.returnType}
+                      nodeContext={signature ? { signature, args: call.args } : undefined}
                       tone={tone}
                     />
                   )}
@@ -154,6 +167,7 @@ export function CaseOutput({
                       purpose="target"
                       value={expected}
                       type={signature?.returnType}
+                      nodeContext={signature ? { signature, args: call.args } : undefined}
                       tone="verdict-success"
                     />
                   )}
@@ -170,6 +184,7 @@ export function CaseOutput({
               purpose="output"
               value={result.actual}
               type={returnType}
+              nodeContext={nodeContext}
               tone={tone}
               sql={sql}
               sqlTypes={result.sqlTypes}
@@ -181,6 +196,7 @@ export function CaseOutput({
               purpose="target"
               value={result.expected}
               type={returnType}
+              nodeContext={nodeContext}
               tone="verdict-success"
               sql={sql}
             />
