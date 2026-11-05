@@ -1,3 +1,4 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import * as Popover from "../../ui/Popover";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
 import type { EditorLanguage } from "../editor/editorLanguages";
@@ -167,7 +168,7 @@ function AuthoringWorkspace({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useErrorNotification(error);
+  useErrorNotification(draft ? undefined : error);
   const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [previewLanguage, setPreviewLanguage] =
@@ -433,8 +434,17 @@ function AuthoringWorkspace({
       {draft && content && (
         <section className="admin-form-pane" aria-label="Question content">
           <div className="admin-toolbar admin-edit-toolbar">
-            <span ref={saveStatusElement} role="status">
-              {saveStatus}
+            <span ref={saveStatusElement}>
+              <span role="status">{saveStatus}</span>
+              <PersistentNotice
+                label={invalidFields.size ? "Saving blocked" : "Question update failed"}
+                message={[
+                  ...(invalidFields.size
+                    ? ["Fix invalid fields before saving or previewing."]
+                    : []),
+                  error,
+                ]}
+              />
             </span>
             <Tooltip content={preview ? "Edit content" : "Preview public content"}>
               <button
@@ -612,11 +622,6 @@ function AuthoringWorkspace({
               </>
             )}
           </div>
-          {invalidFields.size > 0 && (
-            <p className="admin-error" role="status">
-              Fix invalid fields before saving or previewing.
-            </p>
-          )}
           {preview ? (
             <PreviewBoundary>
               <QuestionLanguage.Provider

@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { toast } from "sonner";
 import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
@@ -79,49 +80,46 @@ export function PasswordReset() {
           ) : (
             <>
               <p>Use at least 8 characters, including one special character.</p>
-              <form onSubmit={(event) => void submit(event)}>
-                <label htmlFor="reset-password">New password</label>
-                <div className="auth-password">
+              <NoticeRegion message={error} label="Check password reset">
+                <form onSubmit={(event) => void submit(event)}>
+                  <label htmlFor="reset-password">New password</label>
+                  <div className="auth-password">
+                    <input
+                      id="reset-password"
+                      type={visible ? "text" : "password"}
+                      autoComplete="new-password"
+                      minLength={8}
+                      maxLength={128}
+                      required
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      disabled={busy}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={visible ? "Hide password" : "Show password"}
+                      onClick={() => setVisible(!visible)}
+                    >
+                      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <label htmlFor="reset-confirm">Confirm password</label>
                   <input
-                    id="reset-password"
+                    id="reset-confirm"
                     type={visible ? "text" : "password"}
                     autoComplete="new-password"
-                    minLength={8}
-                    maxLength={128}
                     required
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
+                    value={confirmation}
+                    onChange={(event) => setConfirmation(event.target.value)}
                     disabled={busy}
                   />
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label={visible ? "Hide password" : "Show password"}
-                    onClick={() => setVisible(!visible)}
-                  >
-                    {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  <button className="button button-primary auth-submit" disabled={busy}>
+                    {busy ? "Updating…" : "Update password"}
                   </button>
-                </div>
-                <label htmlFor="reset-confirm">Confirm password</label>
-                <input
-                  id="reset-confirm"
-                  type={visible ? "text" : "password"}
-                  autoComplete="new-password"
-                  required
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  disabled={busy}
-                />
-                <button className="button button-primary auth-submit" disabled={busy}>
-                  {busy ? "Updating…" : "Update password"}
-                </button>
-              </form>
+                </form>
+              </NoticeRegion>
             </>
-          )}
-          {error && (
-            <p className="auth-error" role="alert">
-              {error}
-            </p>
           )}
         </section>
       </div>
@@ -142,56 +140,53 @@ function ResetEmailRequest() {
           ? "This link expired. Request a fresh reset email."
           : "Enter your email to receive a password-reset link."}
       </p>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError("");
-          const result = emailSchema.safeParse(email);
-          if (!result.success) {
-            setError("Enter a valid email address.");
-            return;
-          }
-          setBusy(true);
-          void requestPasswordReset(result.data)
-            .then(() => {
-              setSent(true);
-              cooldown.start(60);
-            })
-            .catch((cause) => {
-              if (cause instanceof AccountRateLimitError) cooldown.start(cause.retryAfter);
-              toast.error(authErrorMessage(cause, "Could not request reset."));
-            })
-            .finally(() => setBusy(false));
-        }}
-      >
-        <label htmlFor="reset-email">Email</label>
-        <input
-          id="reset-email"
-          type="email"
-          autoComplete="email"
-          required
-          maxLength={254}
-          value={email}
-          onChange={(event) => {
-            if (emailInputSchema.safeParse(event.target.value).success)
-              setEmail(event.target.value);
+      <NoticeRegion message={error} label="Check reset email">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            setError("");
+            const result = emailSchema.safeParse(email);
+            if (!result.success) {
+              setError("Enter a valid email address.");
+              return;
+            }
+            setBusy(true);
+            void requestPasswordReset(result.data)
+              .then(() => {
+                setSent(true);
+                cooldown.start(60);
+              })
+              .catch((cause) => {
+                if (cause instanceof AccountRateLimitError) cooldown.start(cause.retryAfter);
+                toast.error(authErrorMessage(cause, "Could not request reset."));
+              })
+              .finally(() => setBusy(false));
           }}
-          disabled={busy}
-        />
-        <button
-          className="button button-primary auth-submit"
-          disabled={busy || cooldown.remaining > 0}
         >
-          {cooldown.remaining ? `Resend available in ${cooldown.remaining}s` : "Send reset link"}
-        </button>
-      </form>
+          <label htmlFor="reset-email">Email</label>
+          <input
+            id="reset-email"
+            type="email"
+            autoComplete="email"
+            required
+            maxLength={254}
+            value={email}
+            onChange={(event) => {
+              if (emailInputSchema.safeParse(event.target.value).success)
+                setEmail(event.target.value);
+            }}
+            disabled={busy}
+          />
+          <button
+            className="button button-primary auth-submit"
+            disabled={busy || cooldown.remaining > 0}
+          >
+            {cooldown.remaining ? `Resend available in ${cooldown.remaining}s` : "Send reset link"}
+          </button>
+        </form>
+      </NoticeRegion>
       {sent && (
         <p role="status">If this address has an account, check its inbox for a reset link.</p>
-      )}
-      {error && (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
       )}
     </>
   );

@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { TextInput } from "../../ui/TextControl";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import "../../ui/topic-chip.css";
@@ -146,30 +147,31 @@ export function AuthoringNumberField({
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
   return (
-    <Field label={label}>
-      <TextInput
-        mono
-        type="number"
-        min={1}
-        step={1}
-        value={source}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? id : undefined}
-        onChange={(event) => {
-          setSource(event.target.value);
-          const next = event.target.valueAsNumber;
-          const bad = !Number.isSafeInteger(next) || next < 1;
-          setInvalid(bad);
-          onValidityChange(bad);
-          if (!bad) onChange(next);
-        }}
-      />
-      {invalid && (
-        <span className="admin-error" id={id}>
-          Enter a positive whole number.
-        </span>
-      )}
-    </Field>
+    <NoticeRegion
+      id={id}
+      message={invalid ? "Enter a positive whole number." : undefined}
+      label={`Check ${label}`}
+    >
+      <Field label={label}>
+        <TextInput
+          mono
+          type="number"
+          min={1}
+          step={1}
+          value={source}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? id : undefined}
+          onChange={(event) => {
+            setSource(event.target.value);
+            const next = event.target.valueAsNumber;
+            const bad = !Number.isSafeInteger(next) || next < 1;
+            setInvalid(bad);
+            onValidityChange(bad);
+            if (!bad) onChange(next);
+          }}
+        />
+      </Field>
+    </NoticeRegion>
   );
 }
 
@@ -183,32 +185,39 @@ export function LeetcodeIDField({
   onValidityChange: (invalid: boolean) => void;
 }) {
   const [source, setSource] = useState(value === null ? "" : String(value));
+  const id = useId();
   const [invalid, setInvalid] = useState(false);
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
   return (
-    <Field label="LeetCode ID (global questions)">
-      <TextInput
-        mono
-        type="number"
-        min={1}
-        max={2147483647}
-        step={1}
-        value={source}
-        aria-invalid={invalid}
-        onChange={(event) => {
-          const text = event.target.value;
-          const number = event.target.valueAsNumber;
-          const bad =
-            text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
-          setSource(text);
-          setInvalid(bad);
-          onValidityChange(bad);
-          if (!bad) onChange(text === "" ? null : number);
-        }}
-      />
-      {invalid && <span className="admin-error">Enter a positive whole number.</span>}
-    </Field>
+    <NoticeRegion
+      message={invalid ? "Enter a positive whole number." : undefined}
+      label="Check LeetCode ID"
+      id={id}
+    >
+      <Field label="LeetCode ID (global questions)">
+        <TextInput
+          mono
+          type="number"
+          min={1}
+          max={2147483647}
+          step={1}
+          value={source}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? id : undefined}
+          onChange={(event) => {
+            const text = event.target.value;
+            const number = event.target.valueAsNumber;
+            const bad =
+              text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
+            setSource(text);
+            setInvalid(bad);
+            onValidityChange(bad);
+            if (!bad) onChange(text === "" ? null : number);
+          }}
+        />
+      </Field>
+    </NoticeRegion>
   );
 }

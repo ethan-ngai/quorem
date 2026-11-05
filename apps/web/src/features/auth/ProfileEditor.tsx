@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { toast } from "sonner";
 
 import { PasswordResetSetting } from "./PasswordResetSetting";
@@ -104,153 +105,150 @@ export function ProfileEditor({
     </FieldAction>
   );
   return (
-    <div className="profile-editor">
-      {section === "profile" && (
-        <>
-          <ProfileField
-            label="Name (optional)"
-            value={profile.name || "Not set"}
-            editing={editing === "name"}
-            onEdit={() => edit("name")}
-            disabled={busy}
-          >
-            <form className="account-form" onSubmit={save}>
-              <input
-                aria-label="Name (optional)"
-                autoFocus
-                autoComplete="name"
-                maxLength={80}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={busy}
-              />
-              <div className="profile-edit-actions">
-                <FieldAction label="Save name" type="submit" disabled={busy}>
-                  <Check size={16} />
-                </FieldAction>
-                {cancel}
-              </div>
-            </form>
-          </ProfileField>
-          {localCredentials && (
+    <NoticeRegion message={error} label="Check account details">
+      <div className="profile-editor">
+        {section === "profile" && (
+          <>
             <ProfileField
-              label="Username"
-              value={profile.username ?? "Not set"}
-              hint={<UsernameRules id="profile-username-rules" />}
-              editing={editing === "username"}
-              onEdit={() => edit("username")}
+              label="Name (optional)"
+              value={profile.name || "Not set"}
+              editing={editing === "name"}
+              onEdit={() => edit("name")}
               disabled={busy}
             >
               <form className="account-form" onSubmit={save}>
                 <input
-                  aria-label="Username"
+                  aria-label="Name (optional)"
                   autoFocus
-                  autoComplete="username"
-                  required
-                  minLength={3}
-                  maxLength={30}
-                  aria-describedby="profile-username-rules"
-                  value={username}
-                  onChange={(event) => {
-                    const value = event.target.value.toLowerCase().replace(/[^a-z0-9]/g, "");
-                    if (usernameInputSchema.safeParse(value).success) setUsername(value);
-                  }}
+                  autoComplete="name"
+                  maxLength={80}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
                   disabled={busy}
                 />
                 <div className="profile-edit-actions">
-                  <FieldAction label="Save username" type="submit" disabled={busy}>
+                  <FieldAction label="Save name" type="submit" disabled={busy}>
                     <Check size={16} />
                   </FieldAction>
                   {cancel}
                 </div>
               </form>
             </ProfileField>
-          )}
-        </>
-      )}
-      {section === "security" && (
-        <>
-          <ProfileField
-            label="Email"
-            value={profile.email}
-            editing={editing === "email"}
-            onEdit={capabilities.data?.registration ? () => edit("email") : undefined}
-            disabled={busy}
-          >
-            <form
-              className="account-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!emailSchema.safeParse(email).success) {
-                  setError("Enter a valid email address.");
-                  return;
-                }
-                void run(
-                  async () => {
-                    await requestEmailChange(email);
-                    emailCooldown.start(60);
-                    setEditing(null);
-                  },
-                  "Check your current inbox to approve the change, then verify the new address.",
-                  (seconds) => emailCooldown.start(seconds),
-                );
-              }}
-            >
-              <input
-                aria-label="Email"
-                autoFocus
-                type="email"
-                autoComplete="email"
-                required
-                maxLength={254}
-                value={email}
-                onChange={(event) => {
-                  if (emailInputSchema.safeParse(event.target.value).success)
-                    setEmail(event.target.value);
-                }}
+            {localCredentials && (
+              <ProfileField
+                label="Username"
+                value={profile.username ?? "Not set"}
+                hint={<UsernameRules id="profile-username-rules" />}
+                editing={editing === "username"}
+                onEdit={() => edit("username")}
                 disabled={busy}
-              />
-              <div className="profile-edit-actions">
-                <FieldAction
-                  type="submit"
-                  label={
-                    emailCooldown.remaining
-                      ? `Retry in ${emailCooldown.remaining}s`
-                      : "Verify email change"
+              >
+                <form className="account-form" onSubmit={save}>
+                  <input
+                    aria-label="Username"
+                    autoFocus
+                    autoComplete="username"
+                    required
+                    minLength={3}
+                    maxLength={30}
+                    aria-describedby="profile-username-rules"
+                    value={username}
+                    onChange={(event) => {
+                      const value = event.target.value.toLowerCase().replace(/[^a-z0-9]/g, "");
+                      if (usernameInputSchema.safeParse(value).success) setUsername(value);
+                    }}
+                    disabled={busy}
+                  />
+                  <div className="profile-edit-actions">
+                    <FieldAction label="Save username" type="submit" disabled={busy}>
+                      <Check size={16} />
+                    </FieldAction>
+                    {cancel}
+                  </div>
+                </form>
+              </ProfileField>
+            )}
+          </>
+        )}
+        {section === "security" && (
+          <>
+            <ProfileField
+              label="Email"
+              value={profile.email}
+              editing={editing === "email"}
+              onEdit={capabilities.data?.registration ? () => edit("email") : undefined}
+              disabled={busy}
+            >
+              <form
+                className="account-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!emailSchema.safeParse(email).success) {
+                    setError("Enter a valid email address.");
+                    return;
                   }
-                  disabled={busy || email === profile.email || emailCooldown.remaining > 0}
-                >
-                  <Send size={16} />
-                </FieldAction>
-                {cancel}
-              </div>
-            </form>
-          </ProfileField>
-          {capabilities.data?.registration && (
-            <PasswordResetSetting
-              email={profile.email}
-              hasPassword={
-                connections.data
-                  ? connections.data.some((account) => account.providerId === "credential")
-                  : undefined
-              }
-              disabled={busy || connections.isPending || connections.isError}
-              onOpen={() => edit(null)}
-            />
-          )}
-        </>
-      )}
-      {message && (
-        <p className="settings-feedback" role="status">
-          {message}
-        </p>
-      )}
-      {error && (
-        <p className="account-error settings-feedback" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+                  void run(
+                    async () => {
+                      await requestEmailChange(email);
+                      emailCooldown.start(60);
+                      setEditing(null);
+                    },
+                    "Check your current inbox to approve the change, then verify the new address.",
+                    (seconds) => emailCooldown.start(seconds),
+                  );
+                }}
+              >
+                <input
+                  aria-label="Email"
+                  autoFocus
+                  type="email"
+                  autoComplete="email"
+                  required
+                  maxLength={254}
+                  value={email}
+                  onChange={(event) => {
+                    if (emailInputSchema.safeParse(event.target.value).success)
+                      setEmail(event.target.value);
+                  }}
+                  disabled={busy}
+                />
+                <div className="profile-edit-actions">
+                  <FieldAction
+                    type="submit"
+                    label={
+                      emailCooldown.remaining
+                        ? `Retry in ${emailCooldown.remaining}s`
+                        : "Verify email change"
+                    }
+                    disabled={busy || email === profile.email || emailCooldown.remaining > 0}
+                  >
+                    <Send size={16} />
+                  </FieldAction>
+                  {cancel}
+                </div>
+              </form>
+            </ProfileField>
+            {capabilities.data?.registration && (
+              <PasswordResetSetting
+                email={profile.email}
+                hasPassword={
+                  connections.data
+                    ? connections.data.some((account) => account.providerId === "credential")
+                    : undefined
+                }
+                disabled={busy || connections.isPending || connections.isError}
+                onOpen={() => edit(null)}
+              />
+            )}
+          </>
+        )}
+        {message && (
+          <p className="settings-feedback" role="status">
+            {message}
+          </p>
+        )}
+      </div>
+    </NoticeRegion>
   );
 }
 

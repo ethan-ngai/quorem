@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { useNodeReferenceSelection } from "./NodePreview";
 import "./machine-values.css";
 import { useQuestionLanguage } from "../QuestionLanguage";
@@ -133,76 +134,73 @@ export function TypedCaseInput({
         )}
       </div>
 
-      <div className="typed-input-row">
-        <Tooltip content={purpose === "expected" ? "Expected output" : "Input"}>
-          <span
-            tabIndex={0}
-            className="field-purpose"
-            aria-label={purpose === "expected" ? "Expected output" : "Input"}
-          >
-            <Icon name={purpose === "expected" ? "target" : "input"} />
-          </span>
-        </Tooltip>
-        {empty ? (
-          <code className="typed-null">{nullLabel}</code>
-        ) : control.kind === "boolean" ? (
-          <SelectField
-            label={name}
-            value={props.value}
-            options={[
-              { value: "false", label: questionValue(false, language) },
-              { value: "true", label: questionValue(true, language) },
-            ]}
-            onChange={(source) => props.onChange({ target: { value: source } })}
-            triggerProps={{
-              id,
-              "aria-invalid": props["aria-invalid"],
-              "aria-describedby": props["aria-describedby"],
-              onBlur: props.onBlur,
-            }}
-          />
-        ) : (
-          <div
-            className={`${framed ? "typed-collection" : "typed-control"}${control.kind === "tree" ? " typed-node-literal" : ""}`}
-          >
-            {framed && (
-              <span className="collection-delimiter" aria-hidden="true">
-                {control.delimiters![0]}
-              </span>
-            )}
-            {control.kind === "number" ||
-            ((control.kind === "sequence" || control.kind === "linkedList") &&
-              (input?.rows ?? 1) === 1) ? (
-              <input {...props} type="text" autoComplete="off" spellCheck={false} />
-            ) : (
-              <textarea
-                {...props}
-                rows={
-                  input?.rows ??
-                  (control.kind === "tree"
-                    ? Math.min(12, Math.max(1, props.value.split("\n").length))
-                    : control.kind === "text"
-                      ? 1
-                      : framed
-                        ? 2
-                        : 1)
-                }
-                spellCheck={false}
-              />
-            )}
-            {framed && (
-              <span className="collection-delimiter" aria-hidden="true">
-                {control.delimiters![1]}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-      {error && (
-        <p id={errorId} className="typed-case-error">
-          {error}
-        </p>
-      )}
+      <NoticeRegion id={errorId} message={error} label={`Check ${name}`}>
+        <div className="typed-input-row">
+          <Tooltip content={purpose === "expected" ? "Expected output" : "Input"}>
+            <span
+              tabIndex={0}
+              className="field-purpose"
+              aria-label={purpose === "expected" ? "Expected output" : "Input"}
+            >
+              <Icon name={purpose === "expected" ? "target" : "input"} />
+            </span>
+          </Tooltip>
+          {empty ? (
+            <code className="typed-null">{nullLabel}</code>
+          ) : control.kind === "boolean" ? (
+            <SelectField
+              label={name}
+              value={props.value}
+              options={[
+                { value: "false", label: questionValue(false, language) },
+                { value: "true", label: questionValue(true, language) },
+              ]}
+              onChange={(source) => props.onChange({ target: { value: source } })}
+              triggerProps={{
+                id,
+                "aria-invalid": props["aria-invalid"],
+                "aria-describedby": props["aria-describedby"],
+                onBlur: props.onBlur,
+              }}
+            />
+          ) : (
+            <div
+              className={`${framed ? "typed-collection" : "typed-control"}${control.kind === "tree" ? " typed-node-literal" : ""}`}
+            >
+              {framed && (
+                <span className="collection-delimiter" aria-hidden="true">
+                  {control.delimiters![0]}
+                </span>
+              )}
+              {control.kind === "number" ||
+              ((control.kind === "sequence" || control.kind === "linkedList") &&
+                (input?.rows ?? 1) === 1) ? (
+                <input {...props} type="text" autoComplete="off" spellCheck={false} />
+              ) : (
+                <textarea
+                  {...props}
+                  rows={
+                    input?.rows ??
+                    (control.kind === "tree"
+                      ? Math.min(12, Math.max(1, props.value.split("\n").length))
+                      : control.kind === "text"
+                        ? 1
+                        : framed
+                          ? 2
+                          : 1)
+                  }
+                  spellCheck={false}
+                />
+              )}
+              {framed && (
+                <span className="collection-delimiter" aria-hidden="true">
+                  {control.delimiters![1]}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </NoticeRegion>
     </div>
   );
 }

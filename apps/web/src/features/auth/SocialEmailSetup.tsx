@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useTheme } from "../editor/useTheme";
@@ -94,18 +95,19 @@ export function SocialEmailSetup() {
             {sent && (
               <p role="status">Check {email} for a verification link. Open it in this browser.</p>
             )}
-            {error && <p role="alert">{error}</p>}
-            <button className="button button-primary" disabled={busy || cooldown.remaining > 0}>
-              {busy
-                ? "Continuing…"
-                : token
-                  ? "Verify and continue"
-                  : cooldown.remaining
-                    ? `Resend in ${cooldown.remaining}s`
-                    : sent
-                      ? "Resend verification"
-                      : "Verify email"}
-            </button>
+            <NoticeRegion message={error} label="Email verification needs attention">
+              <button className="button button-primary" disabled={busy || cooldown.remaining > 0}>
+                {busy
+                  ? "Continuing…"
+                  : token
+                    ? "Verify and continue"
+                    : cooldown.remaining
+                      ? `Resend in ${cooldown.remaining}s`
+                      : sent
+                        ? "Resend verification"
+                        : "Verify email"}
+              </button>
+            </NoticeRegion>
           </form>
         </section>
       </div>

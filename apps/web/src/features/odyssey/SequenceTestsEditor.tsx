@@ -1,3 +1,4 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { NodeReferenceScope } from "../editor/components/NodePreview";
 /** @file SequenceTestsEditor.tsx @description Typed call-sequence authoring inside the shared case browser. @module odyssey */
 import { SelectField } from "../../ui/SelectField";
@@ -115,6 +116,10 @@ export function SequenceTestsEditor({
                           patchCall(call.id, { ...callDraft(next), id: call.id });
                         }}
                       />
+                      <PersistentNotice
+                        label="Choose a method"
+                        message={!method ? "Choose an available method for this call." : undefined}
+                      />
                       <Tooltip content="Remove call">
                         <button
                           type="button"
@@ -138,7 +143,7 @@ export function SequenceTestsEditor({
                         </button>
                       </Tooltip>
                     </div>
-                    {method ? (
+                    {method && (
                       <NodeReferenceScope key={call.id}>
                         <CaseFields
                           id={call.id}
@@ -150,8 +155,6 @@ export function SequenceTestsEditor({
                           }
                         />
                       </NodeReferenceScope>
-                    ) : (
-                      <p className="admin-error">Choose an available method for this call.</p>
                     )}
                   </div>
                 );

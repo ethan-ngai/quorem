@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { nodeKinds, nodePayloadTypes } from "@quorem/contracts/node-type";
 import { useEffect, useId, useRef } from "react";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
@@ -143,18 +144,18 @@ export function ValueTypeField({
   return (
     <div className="admin-field">
       {!hideLabel && <span>{label}</span>}
-      <TypeBlock
-        label={label}
-        type={type}
-        allowVoid={allowVoid}
-        disabled={disabled}
-        onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
-      />
-      {invalid && (
-        <span className="admin-error">
-          Replace unsupported type <code>{value}</code>.
-        </span>
-      )}
+      <NoticeRegion
+        message={invalid ? `Replace unsupported type ${value}.` : undefined}
+        label="Check type"
+      >
+        <TypeBlock
+          label={label}
+          type={type}
+          allowVoid={allowVoid}
+          disabled={disabled}
+          onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
+        />
+      </NoticeRegion>
     </div>
   );
 }

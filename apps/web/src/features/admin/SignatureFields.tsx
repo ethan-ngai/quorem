@@ -1,3 +1,4 @@
+import { PersistentNotice } from "../../ui/PersistentNotice";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
 import {
   ArrowDownToLine,
@@ -77,6 +78,11 @@ export function SignatureFields({
     <fieldset className="admin-fields" aria-labelledby={`${namesId}-method`}>
       <div className="admin-method-heading">
         <span id={`${namesId}-method`}>Method</span>
+        <PersistentNotice
+          id={`${namesId}-error`}
+          label="Check signature"
+          message={invalidNames ? "Use valid identifiers and unique parameter names." : undefined}
+        />
         {previewControl}
       </div>
       <div className="authoring-signature-line">
@@ -89,6 +95,7 @@ export function SignatureFields({
             className="admin-code"
             value={value.methodName}
             aria-invalid={invalidMethod}
+            aria-describedby={invalidMethod ? `${namesId}-error` : undefined}
             onChange={(event) => onChange({ ...value, methodName: event.target.value })}
             required
             pattern="[a-zA-Z_][a-zA-Z0-9_]*"
@@ -154,9 +161,6 @@ export function SignatureFields({
           </div>
         )}
       </div>
-      {invalidNames && (
-        <p className="admin-error">Use valid identifiers and unique parameter names.</p>
-      )}
       <div className="authoring-method-section-heading">
         <h3>Parameters</h3>
         <button
@@ -194,6 +198,7 @@ export function SignatureFields({
                 className="admin-code"
                 value={parameter.name}
                 aria-invalid={invalidParameter(parameter.name)}
+                aria-describedby={invalidParameter(parameter.name) ? `${namesId}-error` : undefined}
                 required
                 pattern="[a-zA-Z_][a-zA-Z0-9_]*"
                 onChange={(event) => updateParameter(index, { name: event.target.value })}

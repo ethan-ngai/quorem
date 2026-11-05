@@ -1,3 +1,4 @@
+import { NoticeRegion } from "../../ui/PersistentNotice";
 import { SocialEmailSetup } from "./SocialEmailSetup";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
@@ -177,19 +178,30 @@ function LoginForm() {
               Back
             </a>
           ) : null}
-          <h1 id="sign-in-title">
-            {setup.data?.registered
-              ? "Account already exists"
-              : setup.isError
-                ? "Link unavailable"
-                : submittedEmail
-                  ? "Check your email"
-                  : finishing
-                    ? "Finish your account"
-                    : creating
-                      ? "Create your account"
-                      : "Sign in to Quorem"}
-          </h1>
+          <NoticeRegion
+            label="Social sign-in needs attention"
+            message={
+              new URLSearchParams(location.search).has("error")
+                ? new URLSearchParams(location.search).get("error") === "account_not_linked"
+                  ? "An account with this email already exists. Sign in to that account first, then open Settings → Social accounts to connect this provider."
+                  : "Could not connect your social account. Sign in and try again from Settings → Social accounts."
+                : undefined
+            }
+          >
+            <h1 id="sign-in-title">
+              {setup.data?.registered
+                ? "Account already exists"
+                : setup.isError
+                  ? "Link unavailable"
+                  : submittedEmail
+                    ? "Check your email"
+                    : finishing
+                      ? "Finish your account"
+                      : creating
+                        ? "Create your account"
+                        : "Sign in to Quorem"}
+            </h1>
+          </NoticeRegion>
           <p>
             {setup.data?.registered || setup.isError
               ? "Continue below to get back into your account."
@@ -201,13 +213,6 @@ function LoginForm() {
                     ? "Verify your email first. Then choose your username and password."
                     : "Pick up where you left off."}
           </p>
-          {new URLSearchParams(location.search).has("error") && (
-            <p role="alert">
-              {new URLSearchParams(location.search).get("error") === "account_not_linked"
-                ? "An account with this email already exists. Sign in to that account first, then open Settings → Social accounts to connect this provider."
-                : "Could not connect your social account. Sign in and try again from Settings → Social accounts."}
-            </p>
-          )}
           {new URLSearchParams(location.search).has("emailChanged") && (
             <p className="auth-success" role="status">
               Email updated. Your new address is verified.

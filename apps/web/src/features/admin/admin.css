@@ -29,7 +29,7 @@
   justify-content: flex-start;
   margin-bottom: var(--space-5);
 }
-.admin-toolbar > span {
+.admin-toolbar > span:not(.persistent-notice) {
   color: var(--color-text-secondary);
   margin-right: auto;
 }
@@ -295,8 +295,7 @@
 .practice-table.admin-question-table tbody tr[data-selected="true"] {
   background: var(--color-overlay);
 }
-.admin-delete-action,
-.admin-bulk-errors {
+.admin-delete-action {
   color: var(--color-error);
 }
 
