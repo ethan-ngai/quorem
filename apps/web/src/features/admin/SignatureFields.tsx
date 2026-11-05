@@ -50,7 +50,7 @@ export function SignatureFields({
         {previewControl}
       </div>
       <div className="authoring-signature-line">
-        <MethodSignature signature={value} />
+        <MethodSignature signature={value} showDocumentation />
       </div>
       <div className="authoring-signature-fields">
         <label className="admin-field">
@@ -125,6 +125,7 @@ export function SignatureFields({
           <label className="admin-field">
             <span>Parameter description</span>
             <input
+              className="code-doc-comment"
               value={parameter.description ?? ""}
               onChange={(event) => updateParameter(index, { description: event.target.value })}
             />
@@ -167,6 +168,7 @@ export function SignatureFields({
           <span>Method description</span>
           <textarea
             rows={3}
+            className="code-doc-comment"
             value={documented.description ?? ""}
             onChange={(event) => onChange({ ...value, description: event.target.value })}
           />
@@ -176,6 +178,7 @@ export function SignatureFields({
             <span>Return description</span>
             <textarea
               rows={2}
+              className="code-doc-comment"
               value={documented.returns ?? ""}
               onChange={(event) => onChange({ ...value, returns: event.target.value })}
             />
@@ -188,6 +191,7 @@ export function SignatureFields({
               <label className="admin-field">
                 <span>Exception type</span>
                 <input
+                  className="code-doc-comment"
                   value={exception.type}
                   onChange={(event) =>
                     onChange({
@@ -202,6 +206,7 @@ export function SignatureFields({
               <label className="admin-field">
                 <span>Exception description</span>
                 <input
+                  className="code-doc-comment"
                   value={exception.description}
                   onChange={(event) =>
                     onChange({

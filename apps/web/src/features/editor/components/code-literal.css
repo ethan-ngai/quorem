@@ -46,6 +46,11 @@ code[class^="code-"],
   color: var(--editor-comment, var(--color-editor-comment));
 }
 
+.code-doc-comment {
+  color: var(--editor-doc-comment, var(--color-editor-doc-comment));
+  font-family: var(--font-code);
+}
+
 .statement-code {
   overflow: auto;
   padding: var(--space-3);

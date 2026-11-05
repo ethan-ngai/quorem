@@ -647,7 +647,7 @@ export function PublicPreview({ content }: { content: QuestionContent }) {
                 ]
               ).map((signature, index) => (
                 <div key={index} className="authoring-signature-line">
-                  <MethodSignature signature={signature} />
+                  <MethodSignature signature={signature} showDocumentation />
                 </div>
               ))}
             </section>
