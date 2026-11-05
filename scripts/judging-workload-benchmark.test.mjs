@@ -43,3 +43,19 @@ void test("eight distinct actors submit twenty cases concurrently and observe co
   assert.equal(result.samples.length, 8);
   assert.equal(result.meetsTarget, true);
 });
+
+void test("failed admissions retain bounded phase metrics instead of losing the workload report", async () => {
+  const result = await benchmarkJudgingWorkload(
+    {
+      origin: "https://fixture.test",
+      actors: [{ id: "a", workspaceId: "w", headers: {} }],
+      cases: [{ args: [], expected: 7 }],
+      source: "fixture",
+    },
+    async () => new Response(null, { status: 503 }),
+  );
+  assert.equal(result.meetsTarget, false);
+  assert.deepEqual(result.samples, []);
+  assert.equal(result.errors[0].stage, "admission");
+  assert.equal(result.errors[0].status, 503);
+});

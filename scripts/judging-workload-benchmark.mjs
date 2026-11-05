@@ -27,7 +27,8 @@ export async function benchmarkJudgingWorkload(
     rounds > 5
   )
     throw new Error("Invalid benchmark workload");
-  const samples = [];
+  const samples = [],
+    errors = [];
   for (let round = 0; round < rounds; round++) {
     const batchStart = performance.now();
     const outcomes = await Promise.allSettled(
@@ -50,11 +51,18 @@ export async function benchmarkJudgingWorkload(
             await response.body?.cancel();
             const error = new Error("Unexpected workload response");
             error.status = response.status;
+            error.stage =
+              path === "/v1/submissions"
+                ? "admission"
+                : path.endsWith("/events")
+                  ? "events"
+                  : "snapshot";
             throw error;
           }
           return response;
         };
         const start = performance.now();
+        let stage = "admission";
         try {
           const response = await call(
             "/v1/submissions",
@@ -73,6 +81,7 @@ export async function benchmarkJudgingWorkload(
           const { id } = await response.json(),
             admitted = performance.now();
           if (typeof id !== "string" || !id) throw new Error("Invalid benchmark submission");
+          stage = "events";
           const stream = await call(
             `/v1/submissions/${encodeURIComponent(id)}/events`,
             { headers: { accept: "text/event-stream" } },
@@ -88,9 +97,14 @@ export async function benchmarkJudgingWorkload(
           let sample;
           try {
             await readSubmissionEvents(stream.body, async () => {
+              stage = "snapshot";
               const result = await (
                 await call(`/v1/submissions/${encodeURIComponent(id)}`, {}, 200)
               ).json();
+              if (["failed", "cancelled"].includes(result.state)) {
+                stage = "execution";
+                throw new Error("Benchmark execution failed");
+              }
               if (!result.verdict) return;
               if (result.verdict !== "accepted" || result.publicCases?.length !== cases.length)
                 throw new Error("Unexpected benchmark verdict");
@@ -108,14 +122,25 @@ export async function benchmarkJudgingWorkload(
           }
           if (!sample) throw new Error("Benchmark SSE closed before completion");
           return sample;
+        } catch (error) {
+          error.workload = {
+            actor: index,
+            round,
+            stage: error.stage ?? stage,
+            status: Number.isInteger(error.status) ? error.status : undefined,
+            elapsedMs: Math.round(performance.now() - start),
+          };
+          throw error;
         } finally {
           controller.abort();
         }
       }),
     );
-    const failed = outcomes.find((value) => value.status === "rejected");
-    if (failed) throw failed.reason;
-    samples.push(...outcomes.map((value) => value.value));
+    for (const outcome of outcomes) {
+      if (outcome.status === "fulfilled") samples.push(outcome.value);
+      else errors.push(outcome.reason?.workload ?? { round, stage: "unknown" });
+    }
+    if (errors.length) break;
     if (round + 1 < rounds) await pause(Math.max(0, 6500 - (performance.now() - batchStart)));
   }
   const durations = samples.map((sample) => sample.totalMs).sort((a, b) => a - b);
@@ -126,8 +151,12 @@ export async function benchmarkJudgingWorkload(
     rounds,
     targetMs,
     samples,
-    p50Ms: durations[Math.floor(durations.length / 2)],
-    maxMs: durations.at(-1),
-    meetsTarget: durations.every((value) => value < targetMs),
+    errors,
+    p50Ms: durations[Math.floor(durations.length / 2)] ?? null,
+    maxMs: durations.at(-1) ?? null,
+    meetsTarget:
+      errors.length === 0 &&
+      samples.length === actors.length * rounds &&
+      durations.every((value) => value < targetMs),
   };
 }
