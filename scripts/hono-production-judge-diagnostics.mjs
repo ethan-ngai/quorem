@@ -43,6 +43,29 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
       (SELECT 1 FROM runner_job_input_digests d WHERE d.job_id=i.job_id)) AS missing_digests`,
     [keys.RUNTIME_ROLE],
   );
+  const { rows: completed } = await database.query(
+    `SELECT j.attempt_id,j.sandbox_scope FROM submissions s
+      JOIN workspaces w ON w.id=s.workspace_id JOIN execution_jobs j ON j.submission_id=s.id
+      WHERE j.finished AND j.attempt_id IS NOT NULL AND s.admitted_at>clock_timestamp()-interval '15 minutes'
+      AND s.source_hash=$1 AND w.problem_version_id=$2::uuid ORDER BY s.admitted_at DESC LIMIT 8`,
+    [createHash("sha256").update(acceptedSource).digest("hex"), version],
+  );
+  const nativeTimings = [];
+  for (const job of completed) {
+    if (job.sandbox_scope !== namespace.scope) continue;
+    const response = await fetch(`https://case-hono.quorem.app/internal/case/${job.attempt_id}`, {
+      headers: {
+        authorization: `Bearer ${keys.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-scope": job.sandbox_scope,
+        "x-quorem-owner-nonce": randomUUID(),
+        "x-quorem-case-probe": "diagnostics",
+      },
+      signal: AbortSignal.timeout(10000),
+      redirect: "error",
+    });
+    const value = await response.json().catch(() => null);
+    if (response.ok && value?.timing) nativeTimings.push(value.timing);
+  }
   const response = await fetch("https://api-hono.quorem.app/internal/runner/state", {
     method: "POST",
     headers: {
@@ -117,6 +140,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
   }
   return {
     profile,
+    nativeTimings,
     release: controls.runner.release,
     generation: controls.runner.generation,
     active: controls.runner.status === "active" && !controls.cases.paused,
