@@ -115,6 +115,7 @@ function TypeBlock({
 
 export function ValueTypeField({
   label,
+  hideLabel = false,
   value,
   allowVoid = false,
   disabled,
@@ -122,6 +123,7 @@ export function ValueTypeField({
   onValidityChange,
 }: {
   label: string;
+  hideLabel?: boolean;
   value: string;
   allowVoid?: boolean;
   disabled: boolean;
@@ -139,7 +141,7 @@ export function ValueTypeField({
   useEffect(() => () => validity.current?.(id, false), [id]);
   return (
     <div className="admin-field">
-      <span>{label}</span>
+      {!hideLabel && <span>{label}</span>}
       <TypeBlock
         label={label}
         type={type}

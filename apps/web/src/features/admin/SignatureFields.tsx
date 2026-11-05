@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
 import { SelectField } from "../../ui/SelectField";
@@ -101,12 +101,36 @@ export function SignatureFields({
       {invalidNames && (
         <p className="admin-error">Use valid identifiers and unique parameter names.</p>
       )}
-      <h3>Parameters</h3>
+      <div className="authoring-parameters-heading">
+        <h3>Parameters</h3>
+        <button
+          type="button"
+          className="quiet-button"
+          disabled={value.parameters.length >= 16}
+          onClick={() => {
+            let next = value.parameters.length + 1;
+            while (value.parameters.some(({ name }) => name === `arg${next}`)) next++;
+            onChange({
+              ...value,
+              parameters: [...value.parameters, { name: `arg${next}`, type: "int" }],
+            });
+          }}
+        >
+          <Plus size={15} aria-hidden="true" /> Add parameter
+        </button>
+      </div>
+      {!!value.parameters.length && (
+        <div className="authoring-parameter-row authoring-parameter-columns" aria-hidden="true">
+          <span>Name</span>
+          <span>Type</span>
+          <span>Description</span>
+        </div>
+      )}
       {value.parameters.map((parameter, index) => (
         <div className="authoring-parameter-row" key={index}>
-          <label className="admin-field">
-            <span>Parameter name</span>
+          <div className="admin-field">
             <input
+              aria-label={`Parameter ${index + 1} name`}
               className="admin-code"
               value={parameter.name}
               aria-invalid={invalidParameter(parameter.name)}
@@ -114,26 +138,28 @@ export function SignatureFields({
               pattern="[a-zA-Z_][a-zA-Z0-9_]*"
               onChange={(event) => updateParameter(index, { name: event.target.value })}
             />
-          </label>
+          </div>
           <ValueTypeField
+            hideLabel
             disabled={disabled}
             label={`Parameter ${index + 1} type`}
             value={parameter.type}
             onValidityChange={onValidityChange}
             onChange={(type) => updateParameter(index, { type })}
           />
-          <label className="admin-field">
-            <span>Parameter description</span>
+          <div className="admin-field authoring-parameter-description">
             <input
+              aria-label={`Parameter ${index + 1} description`}
+              placeholder="Optional description"
               className="code-doc-comment"
               value={parameter.description ?? ""}
               onChange={(event) => updateParameter(index, { description: event.target.value })}
             />
-          </label>
+          </div>
           <Tooltip content="Remove parameter">
             <button
               type="button"
-              className="icon-button destructive-icon authoring-remove-field"
+              className="icon-button destructive-icon authoring-parameter-remove"
               aria-label={`Remove parameter ${parameter.name}`}
               onClick={() =>
                 onChange({
@@ -147,21 +173,6 @@ export function SignatureFields({
           </Tooltip>
         </div>
       ))}
-      <button
-        type="button"
-        className="quiet-button"
-        disabled={value.parameters.length >= 16}
-        onClick={() => {
-          let next = value.parameters.length + 1;
-          while (value.parameters.some(({ name }) => name === `arg${next}`)) next++;
-          onChange({
-            ...value,
-            parameters: [...value.parameters, { name: `arg${next}`, type: "int" }],
-          });
-        }}
-      >
-        Add parameter
-      </button>
       <details className="authoring-options">
         <summary>Method documentation</summary>
         <label className="admin-field">
