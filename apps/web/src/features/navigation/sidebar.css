@@ -214,6 +214,10 @@
     width: var(--sidebar-width);
     flex: 1;
   }
+  .sidebar-peek[data-expanded="false"] .sidebar-link {
+    /* Tooltip anchors must match the visible rail, not the clipped label area. */
+    width: 44px;
+  }
   .sidebar-peek .sidebar-link > span {
     opacity: 0;
     visibility: hidden;
