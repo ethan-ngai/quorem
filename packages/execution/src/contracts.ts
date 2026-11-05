@@ -197,6 +197,13 @@ export interface InputPage extends InputBlobRef {
   readonly channel: "public" | "sample" | "private" | null;
 }
 export interface ExecutionInputReader {
+  /** Bounded immutable case refs and complete small pages under one live fence. */
+  inputWindow?(
+    job: Job,
+    start: number,
+    count: number,
+    signal?: AbortSignal,
+  ): Promise<readonly { ref: InputCaseRef; page?: InputPage }[]>;
   inputBundle?(
     job: Job,
     ordinal: number,

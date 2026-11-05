@@ -472,9 +472,7 @@ void test(
   },
 );
 
-void test("four native lanes overlap verification while checkpoints remain ordered", async () => {
-  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
-  const { setTimeout: delay } = await import("node:timers/promises");
+function fastFixture() {
   const runtime = languageRuntime("python")!;
   const spec: ExecutionSpec = {
     problemJson: JSON.stringify({
@@ -501,6 +499,13 @@ void test("four native lanes overlap verification while checkpoints remain order
     harnessRevision: runtime.harness,
     limits: defaultLimits(),
   };
+  return { fixture, spec, job };
+}
+
+void test("four native lanes overlap verification while checkpoints remain ordered", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const { fixture, spec, job } = fastFixture();
   let running = 0,
     peak = 0,
     verifying = 0,
@@ -573,3 +578,61 @@ void test("four native lanes overlap verification while checkpoints remain order
   assert.equal(verifying, 0);
   assert.equal(finalCalls, 1);
 });
+
+void test(
+  "twenty final cases use one fenced input window without retry checkpoints",
+  { timeout: 3000 },
+  async () => {
+    const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+    const { fixture, job } = fastFixture();
+    const readRef = fixture.port.inputCaseRef.bind(fixture.port);
+    const readPage = fixture.port.inputPage.bind(fixture.port);
+    let windows = 0,
+      entered = 0,
+      release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const signal = AbortSignal.timeout(1500);
+    const expired = new Promise<never>((_, reject) =>
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+    );
+    fixture.port.inputWindow = async (job, start, count) => {
+      windows++;
+      return Promise.all(
+        Array.from({ length: count }, async (_, index) => ({
+          ref: await readRef(job, start + index),
+          page: await readPage(job, "case", start + index, 0),
+        })),
+      );
+    };
+    fixture.port.inputCaseRef = async () => {
+      throw new Error("individual reference read");
+    };
+    fixture.port.inputPage = async (...args) => {
+      if (args[1] === "case") throw new Error("individual case page read");
+      return readPage(...args);
+    };
+    fixture.port.finalizeCompletion = async () => {};
+    fixture.port.saveCheckpoint = async () => {
+      throw new Error("final-window checkpoint");
+    };
+    const sandbox = {
+      async teardownAttempt() {},
+      async runCase(request: Parameters<typeof confirmCaseOutput>[0]) {
+        if (++entered === 20) release();
+        await Promise.race([ready, expired]);
+        return confirmCaseOutput(request, {
+          stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+          stderr: Buffer.alloc(0),
+          exitCode: 0,
+        });
+      },
+    };
+    await executeAndStage(job, fixture.port, sandbox, signal, undefined, undefined, 20);
+    assert.equal(entered, 20);
+    assert.equal(windows, 1);
+    assert.equal(fixture.seals.length, 20);
+    assert.equal(fixture.frames.length, 0);
+  },
+);

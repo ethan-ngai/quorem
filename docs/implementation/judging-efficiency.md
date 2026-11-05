@@ -24,7 +24,7 @@ Validation passed native PostgreSQL transaction/failure tests, workerd transacti
 
 ## Concurrent judging implementation
 
-Eight submission slots and up to eight fresh native case lanes per attempt replace the single-slot bottleneck. Checkpoints persist in ordinal order while bounded verification overlaps later native work. Two-second case-boundary slices yield when other submissions wait. Large input/artifact windows reduce fanout using an eight-MiB per-job input budget.
+Eight submission slots and up to twenty fresh native case lanes per attempt replace the single-slot bottleneck. Checkpoints persist in ordinal order while bounded verification overlaps later native work. Two-second case-boundary slices yield when other submissions wait. Large source/metadata/input/artifact windows reduce fanout using an eight-MiB per-job input budget.
 
 Suite digests now seal into an immutable database table. Checkpoint and verification preparation bind their inputs inside their existing fenced transaction. Completion fields use batches of at most sixteen 64-KiB chunks. Root sandbox cleanup covers every fixed lane after eviction and refuses confirmation if any child fails. Remote scope includes the lane protocol revision to prevent unsafe reclamation by older runners.
 
@@ -46,3 +46,5 @@ No universal under-five-second claim follows from this audit. Arbitrarily long c
 Production rollout exposed a cleanup regression: repeatedly constructing child Requests from an incoming streamed DELETE transfers its body, so subsequent lane requests fail and aggregate teardown remains unconfirmed. A streamed-DELETE regression reproduces HTTP 503. Lane control requests now construct fresh bodyless GET/DELETE commands, while POST forwarding retains its single body transfer. Hosted recovery confirmed: generation 8 returned a clean queue after this fix.
 
 Hosted concurrency evidence: sixteen 20-case submissions completed on their first attempt in 30.9–35.8s (persisted admission-to-completion); claim delays were 0.15–0.76s. Client observation encountered HTTP 503, so acceptance failed. Native startup waited before response headers, consuming the shared drain invocation's six pending-header connections. Empty admission frames now precede startup; native destruction still precedes the terminal frame. Durable used-lane inventory prevents cleanup from creating seven unused sibling objects for a one-case run. These changes use execution scope v2 and require an idle rollout. Hosted timing remains pending.
+
+Bounded case windows now fetch refs and small pages in one fenced read. Atomic finalization omits last-window resume checkpoints; earlier windows remain durable. Twenty hosted lanes fit the twenty-case acceptance suite into one native wave. Scope v3 requires an idle rollout. Controlled 500ms-native evidence is 2.25–2.27s for all eight users; hosted acceptance remains pending.

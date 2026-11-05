@@ -114,7 +114,7 @@ void test("control authority gates drains and registers authorized case attempts
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v2"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v3"]))
     .digest("hex")}`;
   const controlScope = `remote:${createHash("sha256")
     .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
@@ -487,7 +487,7 @@ void test("signed live case observation follows execution and confirmed attempt 
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v2"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v3"]))
     .digest("hex")}`;
   const values = new Map();
   const context = {
@@ -768,7 +768,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v2"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "case-lanes-v3"]))
     .digest("hex")}`;
   let forwarded = 0;
   env.CASES = {
@@ -819,7 +819,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
   env.CASES.idFromName = () => secret("0");
   const zeroScope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint, "case-lanes-v2"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint, "case-lanes-v3"]))
     .digest("hex")}`;
   assert.equal((await request("DELETE", zeroScope)).status, 503);
   assert.equal((await request("POST", zeroScope)).status, 503);

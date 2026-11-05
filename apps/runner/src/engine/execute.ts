@@ -18,6 +18,7 @@ import {
   type Job,
   type JudgeFrame,
   type InputCaseRef,
+  type InputPage,
 } from "@quorem/execution";
 import { CaseDeadline, CaseOutputLimit } from "../sandbox/budget.ts";
 import type { IsolatedSandbox } from "../sandbox/types.ts";
@@ -82,26 +83,26 @@ export async function executeAndStage(
     total = manifest.caseCount + (manifest.submitCasesAreSamples ? 0 : manifest.sampleCount);
   if (!Number.isSafeInteger(total) || total < 0 || total > 2147483647)
     throw new Error("Invalid admitted suite");
-  const inputs = bundle
-    ? {
-        ...repository,
-        inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal) {
-          return ordinal === 0 && bundle.ref
-            ? Promise.resolve(bundle.ref)
-            : repository.inputCaseRef(job, ordinal, signal);
-        },
-        inputPage(...args: Parameters<ExecutionInputReader["inputPage"]>) {
-          const [, kind, ordinal, offset] = args;
-          const cached =
-            offset === 0 && ordinal === 0
-              ? kind === "case"
-                ? bundle.testcase
-                : bundle[kind]
-              : undefined;
-          return cached ? Promise.resolve(cached) : repository.inputPage(...args);
-        },
-      }
-    : repository;
+  const caseCache = new Map<number, { ref: InputCaseRef; page?: InputPage }>();
+  const inputs = {
+    ...repository,
+    inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal) {
+      const cached = caseCache.get(ordinal)?.ref ?? (ordinal === 0 ? bundle?.ref : undefined);
+      return cached ? Promise.resolve(cached) : repository.inputCaseRef(job, ordinal, signal);
+    },
+    inputPage(...args: Parameters<ExecutionInputReader["inputPage"]>) {
+      const [, kind, ordinal, offset] = args;
+      const cached =
+        offset === 0 && kind === "case" && caseCache.has(ordinal)
+          ? caseCache.get(ordinal)?.page
+          : offset === 0 && ordinal === 0 && bundle
+            ? kind === "case"
+              ? bundle.testcase
+              : bundle[kind]
+            : undefined;
+      return cached ? Promise.resolve(cached) : repository.inputPage(...args);
+    },
+  };
   const source = await spoolInput({
     reader: inputs,
     job,
@@ -298,12 +299,20 @@ export async function executeAndStage(
             compiled && !artifact && !fatal ? 1 : caseConcurrency,
             total - start,
           );
+          caseCache.clear();
+          const window = await inputs.inputWindow?.(job, start, requested, signal);
+          if (window) {
+            if (window.length !== requested) throw new Error("Invalid input window");
+            window.forEach((entry, index) => caseCache.set(start + index, entry));
+          }
           const refs = await Promise.all(
             Array.from({ length: requested }, (_, index) =>
               inputs.inputCaseRef(job, start + index, signal),
             ),
           );
           const laneBytes =
+            manifest.source.size +
+            manifest.metadata.size +
             Math.max(1, ...refs.map((ref) => ref.size)) +
             (artifact ? Buffer.byteLength(artifact) : 0);
           const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
@@ -338,8 +347,8 @@ export async function executeAndStage(
                 ? { stdout: "", stderr: "", line: 0 }
                 : {}),
             };
-            // A one-case Run can retry its only case without resuming a partial suite.
-            if (!(repository.finalizeCompletion && manifest.kind === "run" && total === 1)) {
+            // Atomic finalization can retry the bounded final window without a resume checkpoint.
+            if (!(repository.finalizeCompletion && start + width === total)) {
               const fatalRaw = fatal
                 ? encodeJudgeFrame({ ...fatal, artifact: undefined })
                 : undefined;
