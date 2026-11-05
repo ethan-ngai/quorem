@@ -13,7 +13,11 @@ export function checkpointedEngine(
   if (!Number.isSafeInteger(sliceMs) || sliceMs < 1 || sliceMs > 600000)
     throw new Error("Invalid execution slice");
   return {
-    async execute(job: Job, signal: AbortSignal): Promise<AttemptOutcome> {
+    async execute(
+      job: Job,
+      signal: AbortSignal,
+      onFinalCase?: () => void,
+    ): Promise<AttemptOutcome> {
       const deadline = performance.now() + sliceMs;
       try {
         await executeAndStage(
@@ -22,6 +26,7 @@ export function checkpointedEngine(
           sandbox,
           signal,
           () => performance.now() >= deadline,
+          onFinalCase,
         );
         return "complete";
       } catch (error) {

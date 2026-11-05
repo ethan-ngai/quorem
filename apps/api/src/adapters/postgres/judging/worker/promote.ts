@@ -10,7 +10,7 @@ import {
 } from "@quorem/execution";
 import { savePrivateResultFrame } from "../../interviews/question/private-frame.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
-import { sealCompletionStream } from "./staging.ts";
+import { validateCompletionStream } from "./staging.ts";
 import { advanceOdyssey } from "./complete.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -34,17 +34,6 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
         await tx.execute(
           sql`SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid FOR UPDATE OF j,s`,
         );
-        const receipt = await tx.execute(
-          sql`SELECT 1 FROM execution_completion_receipts WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope}`,
-        );
-        if (receipt.rows.length) return;
-        if (seal) await sealCompletionStream(tx, job);
-        const staged = (
-          await tx.execute<{ header: Uint8Array; eof: boolean }>(
-            sql`SELECT header_data AS header,eof FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
-          )
-        ).rows[0];
-        if (!staged) throw new Error("Missing completion stream");
         const state = (
           await tx.execute<{
             live: boolean;
@@ -55,12 +44,31 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
             attempts: number;
             samples: number;
             fallback: boolean;
+            receipt: boolean;
+            header: Uint8Array | null;
+            eof: boolean | null;
+            sealedInputs: boolean;
           }>(
-            sql`SELECT NOT j.finished AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND s.state='running' AS live,s.cancel_requested AS cancelled,s.kind,i.case_count AS cases,i.sample_count AS samples,i.submit_cases_are_samples AS fallback,s.interview_id IS NOT NULL AS interview,j.attempts FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
+            sql`SELECT NOT j.finished AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND s.state='running' AS live,s.cancel_requested AS cancelled,s.kind,i.case_count AS cases,i.sample_count AS samples,i.submit_cases_are_samples AS fallback,s.interview_id IS NOT NULL AS interview,j.attempts,
+              i.job_id IS NOT NULL AS "sealedInputs",st.header_data AS header,st.eof,
+              EXISTS(SELECT 1 FROM execution_completion_receipts r
+                WHERE r.job_id=j.id AND r.attempt_id=${job.attemptId}::uuid
+                  AND r.sandbox_scope=${job.sandboxScope}) AS receipt
+              FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id
+              LEFT JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed
+              LEFT JOIN execution_completion_staging st ON st.job_id=j.id
+                AND st.attempt_id=${job.attemptId}::uuid AND st.sandbox_scope=${job.sandboxScope}
+                AND NOT ${seal}
+              WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
           )
         ).rows[0];
-        if (!state?.live || !staged.eof) throw new Error("Stale or incomplete completion");
-        const header = JSON.parse(decoder.decode(staged.header)) as CompletionHeader;
+        if (state?.receipt) return;
+        if (!state?.live || !state.sealedInputs || (!seal && (!state.eof || !state.header)))
+          throw new Error("Stale or incomplete completion");
+        // Atomic promotion consumes staging in this transaction, so only standalone sealing needs EOF.
+        const header = seal
+          ? await validateCompletionStream(tx, job)
+          : (JSON.parse(decoder.decode(state.header!)) as CompletionHeader);
         if (initial.match) await reconcileMatch(tx, initial.match);
         if (!state.cancelled && header.engineFailure && state.attempts < 3) {
           await tx.execute(
@@ -219,26 +227,21 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
           await tx.execute(
             sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,'hiddenCases',convert_to('['||COALESCE(string_agg(json_build_object('index',ordinal,'status',CASE WHEN status='accepted' THEN 'accepted' WHEN status='time_limit' THEN 'time_limit' ELSE 'wrong_answer' END)::text,',' ORDER BY ordinal),'')||']','UTF8') FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private'`,
           );
-        if (
-          !(
-            await tx.execute<{ live: boolean }>(
-              sql`SELECT lease_until>clock_timestamp() AS live FROM execution_jobs WHERE id=${job.jobId}::uuid`,
-            )
-          ).rows[0]?.live
+        const finished = await tx.execute(sql`WITH published AS (
+          UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,
+            result_payload=NULL,updated_at=clock_timestamp()
+          WHERE id=${job.submissionId}::uuid AND EXISTS (
+            SELECT 1 FROM execution_jobs WHERE id=${job.jobId}::uuid AND lease_until>clock_timestamp()
+          )
+          RETURNING id
+        ), receipt AS (
+          INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome)
+          SELECT ${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},${terminal} FROM published
+          RETURNING job_id
         )
-          throw new Error("Stale completion");
-        await tx.execute(
-          sql`UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,result_payload=NULL,updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
-        );
-        await tx.execute(
-          sql`INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES(${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},${terminal})`,
-        );
-        await tx.execute(
-          sql`DELETE FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid`,
-        );
-        await tx.execute(
-          sql`UPDATE execution_jobs SET finished=true,lease_until=NULL WHERE id=${job.jobId}::uuid`,
-        );
+        UPDATE execution_jobs SET finished=true,lease_until=NULL
+        FROM receipt WHERE execution_jobs.id=receipt.job_id RETURNING execution_jobs.id`);
+        if (!finished.rows.length) throw new Error("Stale completion");
         if (initial.match) await reconcileMatch(tx, initial.match);
       }),
     );
