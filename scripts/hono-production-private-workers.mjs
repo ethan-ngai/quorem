@@ -111,6 +111,11 @@ async function rollout(env, benchmarkOnly) {
       });
     const current = await controls(priorOutput.SERVICES_RELEASE, priorOutput.SERVICES_BINDINGS);
     const { runner, cases } = await current.observe();
+    if (env.JUDGING_DIAGNOSTICS === "true") {
+      await current.requireActive(runner.generation);
+      const { diagnoseProductionJudge } = await import("./hono-production-judge-diagnostics.mjs");
+      return { diagnostics: await diagnoseProductionJudge(db, keys, namespace, { runner, cases }) };
+    }
     const benchmarkEnv = { ...env };
     if (env.JUDGING_WORKLOAD === "true") {
       benchmarkEnv.DATABASE_URL = database.href;
@@ -287,13 +292,17 @@ async function rollout(env, benchmarkOnly) {
 if (import.meta.main) {
   try {
     const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
-    report("benchmark-python");
-    const result =
-      process.env.JUDGING_WORKLOAD === "true"
-        ? await benchmarkProductionWorkload(benchmarkEnv)
-        : await benchmarkProductionPython(benchmarkEnv);
-    console.log(JSON.stringify(result));
-    if (result.meetsTarget === false) process.exitCode = 1;
+    if (process.env.JUDGING_DIAGNOSTICS === "true") {
+      console.log(JSON.stringify(benchmarkEnv));
+    } else {
+      report("benchmark-python");
+      const result =
+        process.env.JUDGING_WORKLOAD === "true"
+          ? await benchmarkProductionWorkload(benchmarkEnv)
+          : await benchmarkProductionPython(benchmarkEnv);
+      console.log(JSON.stringify(result));
+      if (result.meetsTarget === false) process.exitCode = 1;
+    }
   } catch (error) {
     console.error(
       JSON.stringify({
