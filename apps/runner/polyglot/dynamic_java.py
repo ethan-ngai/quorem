@@ -13,9 +13,41 @@ static class Json {
  if(s.startsWith("null",i)){i+=4;return null;}if(s.startsWith("true",i)){i+=4;return true;}if(s.startsWith("false",i)){i+=5;return false;}
  int start=i;while(i<s.length()&&"-+0123456789.eE".indexOf(s.charAt(i))>=0)i++;String n=s.substring(start,i);if(n.indexOf('.')>=0||n.indexOf('e')>=0||n.indexOf('E')>=0)return Double.valueOf(n);return Integer.valueOf(n);}
 }
+static Object decodeTypedNode(String type, Object value) {
+    if (value == null) return null;
+    java.util.List<?> values = (java.util.List<?>) value;
+    String payload = type.substring(9, type.length() - 1);
+    if (type.startsWith("ListNode<")) {
+        TypedListNode<Object> next = null;
+        for (int i = values.size() - 1; i >= 0; i--)
+            next = new TypedListNode<>(decode(payload, values.get(i)), next);
+        return next;
+    }
+    if (values.isEmpty() || values.get(0) == null) return null;
+    TypedTreeNode<Object> root = new TypedTreeNode<>(decode(payload, values.get(0)));
+    java.util.ArrayList<TypedTreeNode<Object>> queue = new java.util.ArrayList<>();
+    queue.add(root);
+    for (int i = 1, parent = 0; i < values.size(); parent++) {
+        TypedTreeNode<Object> node = queue.get(parent);
+        Object left = values.get(i++);
+        if (left != null) {
+            node.left = new TypedTreeNode<>(decode(payload, left));
+            queue.add(node.left);
+        }
+        if (i < values.size()) {
+            Object right = values.get(i++);
+            if (right != null) {
+                node.right = new TypedTreeNode<>(decode(payload, right));
+                queue.add(node.right);
+            }
+        }
+    }
+    return root;
+}
 static Object decode(String t,Object v){
  if(t.startsWith("optional<"))return v==null?null:decode(t.substring(9,t.length()-1),v);
  if(t.startsWith("list<")||t.startsWith("array<")){java.util.List<?>xs=(java.util.List<?>)v;Object[]a=new Object[xs.size()];String inner=t.substring(t.startsWith("list<")?5:6,t.length()-1);for(int i=0;i<a.length;i++)a[i]=decode(inner,xs.get(i));return a;}
+ if(t.startsWith("ListNode<")||t.startsWith("TreeNode<"))return decodeTypedNode(t,v);
  if(t.equals("ListNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;ListNode node=null;for(int i=xs.size()-1;i>=0;i--)node=new ListNode(((Number)xs.get(i)).intValue(),node);return node;}
  if(t.equals("TreeNode")){if(v==null)return null;java.util.List<?>xs=(java.util.List<?>)v;if(xs.isEmpty()||xs.get(0)==null)return null;TreeNode root=new TreeNode(((Number)xs.get(0)).intValue());java.util.ArrayList<TreeNode>q=new java.util.ArrayList<>();q.add(root);int i=1;for(int p=0;p<q.size()&&i<xs.size();p++){TreeNode n=q.get(p);Object left=xs.get(i++);if(left!=null){n.left=new TreeNode(((Number)left).intValue());q.add(n.left);}if(i<xs.size()){Object right=xs.get(i++);if(right!=null){n.right=new TreeNode(((Number)right).intValue());q.add(n.right);}}}return root;}
  if(t.equals("long"))return Long.valueOf((String)v);

@@ -1,3 +1,4 @@
+import { nodeType } from "@quorem/contracts/node-type";
 import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
 import { bindArguments } from "./argumentBinding";
@@ -13,13 +14,14 @@ export function validateConstraints(
     const binding = bindings.find(({ name }) => name === target.parameter);
     if (!binding) throw new Error(`Unknown constraint parameter ${target.parameter}.`);
     const type = binding.type.replaceAll("array<", "list<");
+    const node = nodeType(type);
     const supported = {
       value: ["int", "long", "float", "str"].includes(type),
       length: type === "str" || type.startsWith("list<"),
       elements: ["list<int>", "list<long>", "list<float>"].includes(type),
       sum: ["list<int>", "list<long>", "list<float>"].includes(type),
-      nodeCount: ["ListNode", "TreeNode"].includes(binding.type),
-      nodeValues: ["ListNode", "TreeNode"].includes(binding.type),
+      nodeCount: !!node,
+      nodeValues: ["int", "long", "float"].includes(node?.payload ?? ""),
     }[target.projection];
     if (!supported) throw new Error(`Unsupported constraint target ${target.parameter}.`);
     const value = binding.value;
@@ -53,8 +55,10 @@ export function validateConstraints(
           : [];
       case "nodeCount":
         return [Array.isArray(value) ? value.filter((item) => item !== null).length : 0];
-      case "nodeValues":
-        return Array.isArray(value) ? value.filter((item) => item !== null) : [];
+      case "nodeValues": {
+        const values = Array.isArray(value) ? value.filter((item) => item !== null) : [];
+        return node?.payload === "long" ? (values as string[]).map(BigInt) : values;
+      }
     }
   };
   const numeric = (value: unknown): value is number | bigint =>

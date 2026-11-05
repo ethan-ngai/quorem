@@ -156,3 +156,15 @@ it("round-trips long scalar, optional and list inputs without number coercion", 
   expect(list.parse(`[${max},${min}]`)).toEqual([max, min]);
   expect(list.parse(list.format([max, min]))).toEqual([max, min]);
 });
+
+it("edits generic trees with structural nulls and lossless long payloads", () => {
+  const preset = resolveInputPreset("TreeNode<long>");
+  expect(preset.accepts('9007199254740993, null, "9223372036854775807"')).toBe(true);
+  expect(preset.parse('[9007199254740993, null, "9223372036854775807"]')).toEqual([
+    "9007199254740993",
+    null,
+    "9223372036854775807",
+  ]);
+  expect(() => resolveInputPreset("ListNode<bool>").parse("[true,null]")).toThrow();
+  expect(resolveInputPreset("TreeNode<datetime>").accepts('"2024-05-01T00:00:00",null')).toBe(true);
+});

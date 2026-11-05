@@ -1,10 +1,11 @@
 /** @file signature.ts @description Signature and input preset rules. @module questions */
+import { nodeType } from "@quorem/contracts/node-type";
 import type { InputPresetConfig, Signature } from "./model.ts";
 
 /** Check the recursive public value type grammar. */
 export function validQuestionType(type: string, depth = 0): boolean {
   if (depth > 100) return false;
-  if (["int", "long", "float", "bool", "str", "datetime", "ListNode", "TreeNode"].includes(type))
+  if (nodeType(type) || ["int", "long", "float", "bool", "str", "datetime"].includes(type))
     return true;
   return ["optional<", "list<", "array<"].some(
     (prefix) =>
@@ -34,8 +35,8 @@ export function validateInputConfig(type: string, config?: InputPresetConfig): v
     boolean: normalized === "bool",
     sequence: element !== undefined && primitive(element),
     matrix: inner !== undefined && primitive(inner),
-    tree: normalized === "TreeNode",
-    linkedList: normalized === "ListNode",
+    tree: nodeType(normalized)?.kind === "TreeNode",
+    linkedList: nodeType(normalized)?.kind === "ListNode",
   };
   if (!Object.hasOwn(compatible, config.preset))
     throw new Error(`unknown input preset ${JSON.stringify(config.preset)}`);

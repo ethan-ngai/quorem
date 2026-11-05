@@ -21,6 +21,10 @@ Datetime values are calendar fields formatted as `YYYY-MM-DDTHH:mm:ss`, years 00
 
 Java generic primitives are boxed (`List<Integer>`, `List<Boolean>`, etc.). Legacy Java questions using arrays for `list<T>` remain executable; the harness adapts inputs to declared parameter types. New generated signatures distinguish lists and arrays. Both collections retain ordering and duplicate values by default.
 
+Node types accept an explicit scalar payload, such as `ListNode<long>` or `TreeNode<str>`. Choose from `int`, `long`, `float`, `bool`, `str` and `datetime`. The judge reserves JSON `null` for an absent node and for holes in a level-order tree. Scalar payloads keep the node encoding unambiguous and use the same codecs as standalone values. Lists encode as arrays of payloads. Trees encode as level-order arrays and may omit trailing holes. An empty array normalizes to `null`. Use `nodeCount` with any payload and numeric `nodeValues` constraints with `int`, `long` and `float`.
+
+Bare `ListNode` and `TreeNode` retain signed 32-bit integer payloads. Python and TypeScript use generic classes with the existing node names. Java uses `TypedListNode<T>` and `TypedTreeNode<T>` for explicit payloads so the integer classes keep their primitive `val` fields. OCaml uses polymorphic `typed_list_node` and `typed_tree_node` records with integer aliases for the bare types.
+
 Void method return values are ignored; those calls remain in execution order and can still fail on exceptions. Tests check their state changes through subsequent value-returning methods. Examples and results show each meaningful return separately, labeled by method/call, with no void output row or editable void expectation. A returned collection remains one output value.
 
 A collection-returning signature may set `outputOrder: "unordered"`. The judge canonicalizes only that return value's outer collection for both actual and expected output. Duplicates and nested ordering remain significant. Other methods in the same stateful test keep their own comparison policy. Omitted `outputOrder` means ordered comparison.

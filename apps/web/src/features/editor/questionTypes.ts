@@ -1,7 +1,17 @@
+import { nodeType } from "@quorem/contracts/node-type";
 import type { EditorLanguage } from "./editorLanguages";
 
 /** Wire types stay language-neutral; only presentation and generated source use these spellings. */
 export function questionTypeName(type: string, language: EditorLanguage): string {
+  const node = nodeType(type);
+  if (node?.generic) {
+    const inner = questionTypeName(node.payload, language);
+    if (language === "java") return `Typed${node.kind}<${boxJava(inner)}>`;
+    if (language === "python") return `${node.kind}[${inner}]`;
+    if (language === "ocaml")
+      return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
+    return `${node.kind}<${inner}> | null`;
+  }
   if (type.startsWith("optional<")) {
     const inner = questionTypeName(type.slice(9, -1), language);
     if (language === "python") return `${inner} | None`;
@@ -84,9 +94,10 @@ export function questionValue(value: unknown, language: EditorLanguage, type?: s
     const collectionType = type?.startsWith("optional<") ? type.slice(9, -1) : type;
     const array = collectionType?.startsWith("array<");
     const inner =
-      collectionType?.startsWith("list<") || array
+      (collectionType ? nodeType(collectionType)?.payload : undefined) ??
+      (collectionType?.startsWith("list<") || array
         ? collectionType!.slice(array ? 6 : 5, -1)
-        : undefined;
+        : undefined);
     const elements = value
       .map((item) => questionValue(item, language, inner))
       .join(language === "ocaml" ? "; " : ",");

@@ -16,16 +16,16 @@ export function createBrowserTypeScriptEnvironment() {
   files.set(
     "/quorem.d.ts",
     `
-    declare class ListNode {
-      constructor(val?: number, next?: ListNode | null);
-      val: number;
-      next: ListNode | null;
+    declare class ListNode<T = number> {
+      constructor(val?: T, next?: ListNode<T> | null);
+      val: T;
+      next: ListNode<T> | null;
     }
-    declare class TreeNode {
-      constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null);
-      val: number;
-      left: TreeNode | null;
-      right: TreeNode | null;
+    declare class TreeNode<T = number> {
+      constructor(val?: T, left?: TreeNode<T> | null, right?: TreeNode<T> | null);
+      val: T;
+      left: TreeNode<T> | null;
+      right: TreeNode<T> | null;
     }
   `,
   );
