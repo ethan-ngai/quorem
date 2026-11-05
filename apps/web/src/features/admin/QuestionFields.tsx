@@ -22,7 +22,7 @@ import { AuthoringCases } from "./AuthoringCases";
 import { AuthoringStages } from "./AuthoringStages";
 import { Field } from "./AuthoringFields";
 import { ConstraintFields } from "./ConstraintFields";
-import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
+import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
 import { CodeLiteral } from "../editor/components/CodeLiteral";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ProblemStatement } from "../editor/components/ProblemStatement";
@@ -44,6 +44,10 @@ const languages = Object.keys(revisions).filter((key): key is Language =>
   Object.hasOwn(revisions, key),
 );
 
+function testShape(signature: Signature) {
+  return JSON.stringify([signature.parameters.map(({ type }) => type), signature.returnType]);
+}
+
 export function QuestionFields({
   content,
   disabled,
@@ -64,6 +68,7 @@ export function QuestionFields({
   const [language, setLanguage] = useState<Language>(content.problem.sql ? "postgresql" : "python");
   const id = useId();
   const [pendingType, setPendingType] = useState<QuestionType>();
+  const [pendingSignature, setPendingSignature] = useState<Signature>();
   const questionType = problem.sql
     ? problem.odyssey
       ? "sql-staged"
@@ -205,6 +210,35 @@ export function QuestionFields({
             </button>
           </footer>
         </SessionDialog>
+        <SessionDialog
+          open={!!pendingSignature}
+          onOpenChange={(open) => {
+            if (!open) setPendingSignature(undefined);
+          }}
+          title="Change the test types?"
+          description="Changing the signature reloads examples and private tests from their last valid values. Unfinished test edits will be lost."
+        >
+          <footer className="competitive-dialog-actions">
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => setPendingSignature(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => {
+                if (!pendingSignature) return;
+                onChange(adaptSignature(content, pendingSignature));
+                setPendingSignature(undefined);
+              }}
+            >
+              Change types
+            </button>
+          </footer>
+        </SessionDialog>
         <AuthoringTabs
           id={id}
           label="Question authoring"
@@ -247,7 +281,7 @@ export function QuestionFields({
               <SelectField
                 label="Question type"
                 value={questionType}
-                disabled={disabled || invalidCases}
+                disabled={disabled}
                 options={questionTypes}
                 onChange={(value) => {
                   const next = questionTypes.find((option) => option.value === value)?.value;
@@ -266,6 +300,7 @@ export function QuestionFields({
                       (item) => item.starterSource || item.referenceSource,
                     );
                   if (
+                    invalidCases ||
                     hasCases ||
                     problem.odyssey ||
                     (changesDialect &&
@@ -355,19 +390,16 @@ export function QuestionFields({
                 onChange={(sql) => setProblem({ sql })}
               />
             ) : (
-              <>
-                <fieldset className="admin-fields" disabled={disabled || invalidCases}>
-                  <SignatureFields
-                    disabled={disabled || invalidCases}
-                    value={problem.signature}
-                    onChange={(signature) => onChange(adaptSignature(content, signature))}
-                    onValidityChange={onValidityChange}
-                  />
-                </fieldset>
-                {invalidCases && (
-                  <p className="admin-error">Fix test values before changing the method.</p>
-                )}
-              </>
+              <SignatureFields
+                disabled={disabled}
+                value={problem.signature}
+                onChange={(signature) => {
+                  if (invalidCases && testShape(signature) !== testShape(problem.signature))
+                    setPendingSignature(signature);
+                  else onChange(adaptSignature(content, signature));
+                }}
+                onValidityChange={onValidityChange}
+              />
             )}
           </div>
         )}
@@ -387,14 +419,7 @@ export function QuestionFields({
             />
           ) : (
             <AuthoringCases
-              key={
-                problem.sql
-                  ? "sql"
-                  : JSON.stringify([
-                      problem.signature.parameters.map((p) => p.type),
-                      problem.signature.returnType,
-                    ])
-              }
+              key={problem.sql ? "sql" : testShape(problem.signature)}
               content={content}
               onChange={onChange}
               onValidityChange={onValidityChange}
