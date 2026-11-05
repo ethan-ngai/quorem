@@ -1,8 +1,8 @@
-import { caseFieldConfig } from "../editor/inputPresets";
+import { NodeReferenceScope } from "../editor/components/NodePreview";
 /** @file SequenceTestsEditor.tsx @description Typed call-sequence authoring inside the shared case browser. @module odyssey */
 import { SelectField } from "../../ui/SelectField";
 import { CaseBrowserLayout } from "../editor/components/CaseBrowserLayout";
-import { TypedCaseInput } from "../editor/components/TypedCaseInput";
+import { CaseFields } from "../editor/components/CaseFields";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
@@ -139,55 +139,17 @@ export function SequenceTestsEditor({
                       </Tooltip>
                     </div>
                     {method ? (
-                      <>
-                        {method.signature.parameters.map((parameter, index) => (
-                          <TypedCaseInput
-                            key={index}
-                            id={`${call.id}-${index}`}
-                            name={parameter.name}
-                            type={parameter.type}
-                            input={caseFieldConfig(
-                              method.signature,
-                              parameter.type,
-                              parameter.input,
-                              false,
-                              { sources: call.values.args },
-                            )}
-                            value={call.values.args[index] ?? ""}
-                            onChange={(source) =>
-                              patchCall(call.id, {
-                                values: {
-                                  ...call.values,
-                                  args: method.signature.parameters.map((_, position) =>
-                                    position === index
-                                      ? source
-                                      : (call.values.args[position] ?? ""),
-                                  ),
-                                },
-                              })
-                            }
-                          />
-                        ))}
-                        {method.signature.returnType !== "void" && (
-                          <TypedCaseInput
-                            id={`${call.id}-expected`}
-                            name="Expected output"
-                            purpose="expected"
-                            type={method.signature.returnType}
-                            input={caseFieldConfig(
-                              method.signature,
-                              method.signature.returnType,
-                              undefined,
-                              true,
-                              { sources: call.values.args },
-                            )}
-                            value={call.values.expected}
-                            onChange={(expected) =>
-                              patchCall(call.id, { values: { ...call.values, expected } })
-                            }
-                          />
-                        )}
-                      </>
+                      <NodeReferenceScope key={call.id}>
+                        <CaseFields
+                          id={call.id}
+                          signature={method.signature}
+                          args={call.values.args}
+                          expected={call.values.expected}
+                          onChange={(patch) =>
+                            patchCall(call.id, { values: { ...call.values, ...patch } })
+                          }
+                        />
+                      </NodeReferenceScope>
                     ) : (
                       <p className="admin-error">Choose an available method for this call.</p>
                     )}

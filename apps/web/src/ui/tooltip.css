@@ -10,6 +10,10 @@
   box-shadow: 0 2px 8px #0002;
   animation: tooltip-enter 120ms ease-out;
 }
+.workspace-tooltip code {
+  font-family: var(--font-code);
+  font-size: inherit;
+}
 .workspace-tooltip[data-state="closed"] {
   animation: tooltip-exit 100ms ease-in;
 }

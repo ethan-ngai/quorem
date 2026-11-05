@@ -1,3 +1,4 @@
+import { useNodeReferenceSelection } from "./NodePreview";
 import "./machine-values.css";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { TypeSyntax } from "./TypeSyntax";
@@ -5,7 +6,7 @@ import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
 import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
-import { useState, type ReactNode } from "react";
+import { useState, useRef, type ReactNode } from "react";
 import { innerType } from "../customCases";
 import { resolveInputPreset, type InputConfig } from "../inputPresets";
 
@@ -29,6 +30,9 @@ export function TypedCaseInput({
   onChange: (value: string) => void;
 }) {
   const language = useQuestionLanguage();
+  const referenceSelection = useNodeReferenceSelection();
+  const change = useRef(onChange);
+  change.current = onChange;
   const nullLabel = questionValue(null, language);
   const [touched, setTouched] = useState(false);
   const [rejected, setRejected] = useState<string>();
@@ -85,7 +89,20 @@ export function TypedCaseInput({
     },
   };
   return (
-    <div className="typed-case-field">
+    <div
+      className="typed-case-field"
+      onFocusCapture={(event) => {
+        if (
+          input?.nodeReference &&
+          (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
+        )
+          referenceSelection?.select({
+            type: controlType,
+            name,
+            choose: (reference) => change.current(reference),
+          });
+      }}
+    >
       <div className="typed-case-label">
         <label htmlFor={id}>
           {purpose === "input" ? <code className="parameter-name">{name}</code> : name}{" "}
@@ -115,6 +132,7 @@ export function TypedCaseInput({
           </button>
         )}
       </div>
+
       <div className="typed-input-row">
         <Tooltip content={purpose === "expected" ? "Expected output" : "Input"}>
           <span

@@ -138,14 +138,19 @@ export function ProblemStatement({
                       </div>
                     ) : (
                       <div className="example-data">
-                        <CaseArguments signature={problem.signature} args={example.args} />
-                        <CaseValue
-                          name="Output"
-                          purpose="output"
-                          value={example.expected}
-                          type={problem.signature.returnType}
-                          nodeContext={{ signature: problem.signature, args: example.args }}
-                        />
+                        <CaseArguments
+                          signature={problem.signature}
+                          args={example.args}
+                          expected={example.expected}
+                        >
+                          <CaseValue
+                            name="Output"
+                            purpose="output"
+                            value={example.expected}
+                            type={problem.signature.returnType}
+                            nodeContext={{ signature: problem.signature, args: example.args }}
+                          />
+                        </CaseArguments>
                       </div>
                     )}
                     <div className="example-explanation">

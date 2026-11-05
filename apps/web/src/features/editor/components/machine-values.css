@@ -111,6 +111,7 @@
 }
 .case-call-inputs {
   display: flex;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: var(--space-3) var(--space-4);
 }
@@ -125,6 +126,7 @@
 }
 .case-output-comparison {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
   min-width: 0;

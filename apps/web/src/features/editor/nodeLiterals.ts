@@ -1,10 +1,10 @@
+import { decodeTree, preorderNodes, type NodeValue } from "./nodeModel";
 /** @file nodeLiterals.ts @description Editable tree rows and call-local preorder node references. @module editor */
 import type { Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
 import { validateTypedValue, type WireValue } from "./typedValues";
 import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
-type Node = { value: WireValue; children: Node[]; dense?: number };
 export type NodeContext = {
   signature: Signature;
   args?: readonly WireValue[];
@@ -15,58 +15,6 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
-/** Build nodes from the canonical level-order array, retaining original judge indices. */
-function tree(type: string, value: WireValue): Node | undefined {
-  validateTypedValue(type, value);
-  if (value === null || !Array.isArray(value) || !value.length || value[0] === null) return;
-  const make = (value: WireValue): Node => ({ value, children: [] });
-  const root = make(value[0]);
-  root.dense = 0;
-  const parents = [root];
-  if (nodeType(type)?.kind === "TreeNode") {
-    let offset = 1;
-    for (let parent = 0; parent < parents.length && offset < value.length; parent++) {
-      for (let slot = 0; slot < 2; slot++) {
-        const child = make(value[offset++] ?? null);
-        parents[parent].children.push(child);
-        if (child.value !== null) {
-          child.dense = parents.length;
-          parents.push(child);
-        }
-      }
-    }
-    // Leaves omit their two implicit holes in the editable literal.
-    for (const parent of parents)
-      if (parent.children.every((child) => child.value === null)) parent.children = [];
-  } else {
-    let parent = 0;
-    for (const item of value.slice(2)) {
-      if (item === null) {
-        parent++;
-        continue;
-      }
-      const child = make(item);
-      child.dense = parents.length;
-      parents[parent].children.push(child);
-      parents.push(child);
-    }
-  }
-  return root;
-}
-
-/** Iterative preorder includes explicit binary holes and supports deep stored trees. */
-function preorder(root: Node | undefined) {
-  const result: Node[] = [];
-  const stack = root ? [root] : [];
-  while (stack.length) {
-    const node = stack.pop()!;
-    result.push(node);
-    for (let index = node.children.length - 1; index >= 0; index--)
-      stack.push(node.children[index]);
-  }
-  return result;
-}
-
 function scalar(type: string, value: WireValue) {
   return nodeType(type)?.payload === "long" && typeof value === "string"
     ? value
@@ -75,9 +23,9 @@ function scalar(type: string, value: WireValue) {
 
 /** Keep groups compact and center each level as a complete row. */
 function formatTree(type: string, value: WireValue): string {
-  const root = tree(type, value);
+  const root = decodeTree(type, value);
   if (!root) return "null";
-  const label = (node: Node) => scalar(type, node.value);
+  const label = (node: NodeValue) => scalar(type, node.value);
   const lines = [label(root)];
   let parents = [root];
   let size = lines[0].length;
@@ -187,7 +135,9 @@ function target(context: NodeContext | undefined, name: string, index: number, t
     throw new Error("References must select a parameter with its own node values.");
   const values = (record(seed)?.values ?? seed) as WireValue;
   const dense =
-    nodeType(type)?.kind === "ListNode" ? index : preorder(tree(type, values))[index]?.dense;
+    nodeType(type)?.kind === "ListNode"
+      ? index
+      : preorderNodes(decodeTree(type, values))[index]?.dense;
   if (
     !Number.isSafeInteger(index) ||
     index < 0 ||
@@ -230,7 +180,7 @@ function formatReference(type: string, ref: unknown, context?: NodeContext) {
   const index =
     nodeType(type)?.kind === "ListNode"
       ? dense
-      : preorder(tree(type, values)).findIndex((node) => node.dense === dense);
+      : preorderNodes(decodeTree(type, values)).findIndex((node) => node.dense === dense);
   if (index < 0) throw new Error("Node reference index is unavailable.");
   return `${parameter.name}[${index}]`;
 }
