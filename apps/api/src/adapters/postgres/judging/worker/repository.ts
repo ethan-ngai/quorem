@@ -41,6 +41,7 @@ export function postgresExecutionCommands(
     sealCompletionDiagnostics: (job) => staging.sealDiagnostics(job),
     finishCompletionStream: (job, proof) => staging.eof(job, proof),
     promoteCompletion: postgresCompletionPromotion(run),
+    finalizeCompletion: postgresCompletionPromotion(run, true),
     async loadCheckpoint(job) {
       resumable();
       return checkpoints.loadCheckpoint(job);

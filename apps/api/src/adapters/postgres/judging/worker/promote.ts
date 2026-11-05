@@ -10,13 +10,14 @@ import {
 } from "@quorem/execution";
 import { savePrivateResultFrame } from "../../interviews/question/private-frame.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
+import { sealCompletionStream } from "./staging.ts";
 import { advanceOdyssey } from "./complete.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 /** Caller must have actually awaited teardown of this exact scope and attempt. */
-export function postgresCompletionPromotion(run: Run) {
+export function postgresCompletionPromotion(run: Run, seal = false) {
   return async (job: Job, proof: AttemptFence): Promise<void> => {
     assertAttemptFence(job, proof);
     await run((scope) =>
@@ -37,6 +38,7 @@ export function postgresCompletionPromotion(run: Run) {
           sql`SELECT 1 FROM execution_completion_receipts WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope}`,
         );
         if (receipt.rows.length) return;
+        if (seal) await sealCompletionStream(tx, job);
         const staged = (
           await tx.execute<{ header: Uint8Array; eof: boolean }>(
             sql`SELECT header_data AS header,eof FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,

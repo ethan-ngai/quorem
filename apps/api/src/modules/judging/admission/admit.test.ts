@@ -132,3 +132,33 @@ describe("prearmed execution admission", () => {
     expect(attempts).toBe(1);
   });
 });
+
+it("returns committed admission while the immediate wake is pending or fails", async () => {
+  let rejectWake!: (error: Error) => void;
+  const pending = new Promise<void>((_, reject) => {
+    rejectWake = reject;
+  });
+  const deferred: Promise<unknown>[] = [];
+  const send = vi.fn(() => pending);
+  const create = vi.fn();
+  const prearm = vi.fn();
+  const commit = vi.fn(async () => 7);
+  const options = {
+    receipts: { create, settle: vi.fn(), acknowledge: vi.fn(), list: vi.fn() },
+    coordinator: { prearm, wake: vi.fn() },
+    publisher: { send },
+    shard: 0,
+    defer: (work: Promise<unknown>) => deferred.push(work),
+    commit,
+  };
+  await expect(admitWithRecovery(options)).resolves.toBe(7);
+  expect(create).not.toHaveBeenCalled();
+  expect(prearm).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledWith({ jobId: expect.any(String), phase: "continuation" });
+  expect(commit.mock.invocationCallOrder[0]).toBeLessThan(send.mock.invocationCallOrder[0]);
+  rejectWake(new Error("queue unavailable"));
+  await Promise.all(deferred);
+  commit.mockRejectedValueOnce(new Error("transaction rolled back"));
+  await expect(admitWithRecovery(options)).rejects.toThrow("transaction rolled back");
+  expect(send).toHaveBeenCalledTimes(1);
+});

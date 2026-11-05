@@ -1,7 +1,7 @@
 /** @file service.ts @description Compose the trusted private result verifier. @module runner */
 import { verificationHandler, verificationFetch } from "./http.ts";
 import { httpVerificationSource } from "./source-http.ts";
-import { nodeResultVerifier } from "./verifier.ts";
+import { nodeResultVerifier, type VerificationSource } from "./verifier.ts";
 /** The listener is provisioned privately; all credentials are separate from sandbox execution. */
 type VerificationConfig = {
   sourceOrigin: string;
@@ -10,6 +10,7 @@ type VerificationConfig = {
   signingKey: CryptoKey;
   timeoutMs: number;
   fetch?: typeof fetch;
+  bundle?: boolean;
 };
 
 function verificationOptions(options: VerificationConfig) {
@@ -33,15 +34,22 @@ function verificationOptions(options: VerificationConfig) {
   return {
     credential: options.serviceCredential,
     timeoutMs: options.timeoutMs,
-    async verify(challenge: string, signal: AbortSignal) {
+    async verify(challenge: string, signal: AbortSignal, inlineFields = false) {
       const source = httpVerificationSource({
         origin: options.sourceOrigin,
         credential: options.sourceCredential,
         challenge,
         timeoutMs: options.timeoutMs,
         fetch: options.fetch,
+        bundle: options.bundle,
       });
-      return nodeResultVerifier(source, options.signingKey)(challenge, signal);
+      let fields: Parameters<NonNullable<VerificationSource["putFields"]>>[1] | undefined;
+      if (options.bundle && inlineFields)
+        source.putFields = async (_challenge, values) => {
+          fields = values;
+        };
+      const signed = await nodeResultVerifier(source, options.signingKey)(challenge, signal);
+      return { ...signed, fields };
     },
   };
 }

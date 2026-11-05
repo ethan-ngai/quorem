@@ -93,6 +93,7 @@ export function postgresCompletionStaging(
       await postgresVerificationCommit(run, verification.verificationPublicKey)(
         signed.receipt,
         signed.signature,
+        signed.fields,
       );
     },
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
@@ -231,44 +232,57 @@ export function postgresCompletionStaging(
     },
     async eof(job: Job, proof: { attemptId: string; sandboxScope: string }): Promise<void> {
       assertAttemptFence(job, proof);
-      await transact(async (tx) => {
-        if (!(await locked(tx, job))) throw new Error("Stale completion");
-        const stage = (
-          await tx.execute<{ header: Uint8Array }>(
-            sql`SELECT header_data AS header FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid AND attempt_id=${job.attemptId}::uuid AND sandbox_scope=${job.sandboxScope} FOR UPDATE`,
-          )
-        ).rows[0];
-        if (!stage) throw new Error("Missing completion stream");
-        if (
-          (
-            await tx.execute(
-              sql`SELECT 1 FROM execution_completion_field_chunks c WHERE c.job_id=${job.jobId}::uuid AND CASE WHEN c.channel='header' THEN NOT EXISTS(SELECT 1 FROM execution_completion_header_fields h WHERE h.job_id=c.job_id AND h.field=c.field) ELSE NOT EXISTS(SELECT 1 FROM execution_completion_frames f WHERE f.job_id=c.job_id AND f.channel=c.channel AND f.ordinal=c.ordinal) END LIMIT 1`,
-            )
-          ).rows.length
-        )
-          throw new Error("Unsealed completion chunks");
-        const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
-        const hasDiagnostics =
-          (
-            await tx.execute(
-              sql`SELECT 1 FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field='diagnostics'`,
-            )
-          ).rows.length !== 0;
-        if (hasDiagnostics !== header.diagnosticsPresent) throw new Error("Incomplete diagnostics");
-        const rows = await tx.execute<{ channel: string; count: number }>(
-          sql`SELECT channel,count(*)::int AS count FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid GROUP BY channel`,
-        );
-        const byChannel = new Map(rows.rows.map((row) => [row.channel, row.count]));
-        if (
-          (byChannel.get("public") ?? 0) !== header.publicCount ||
-          (byChannel.get("sample") ?? 0) !== header.sampleCount ||
-          (byChannel.get("private") ?? 0) !== header.privateCount
-        )
-          throw new Error("Incomplete completion stream");
-        await tx.execute(
-          sql`UPDATE execution_completion_staging SET eof=true WHERE job_id=${job.jobId}::uuid`,
-        );
-      });
+      await transact((tx) => sealCompletionStream(tx, job));
     },
   };
+}
+
+export async function sealCompletionStream(tx: Transaction, job: Job): Promise<void> {
+  if (!(await locked(tx, job))) throw new Error("Stale completion");
+  const {
+    rows: [stage],
+  } = await tx.execute<{
+    header: Uint8Array;
+    unsealed: boolean;
+    diagnostics: boolean;
+    public_count: number;
+    sample_count: number;
+    private_count: number;
+  }>(sql`SELECT st.header_data AS header,
+    EXISTS (
+      SELECT 1 FROM execution_completion_field_chunks c WHERE c.job_id=st.job_id
+      AND CASE WHEN c.channel='header' THEN NOT EXISTS (
+        SELECT 1 FROM execution_completion_header_fields h WHERE h.job_id=c.job_id AND h.field=c.field
+      ) ELSE NOT EXISTS (
+        SELECT 1 FROM execution_completion_frames f
+        WHERE f.job_id=c.job_id AND f.channel=c.channel AND f.ordinal=c.ordinal
+      ) END
+    ) AS unsealed,
+    EXISTS (
+      SELECT 1 FROM execution_completion_header_fields h WHERE h.job_id=st.job_id AND h.field='diagnostics'
+    ) AS diagnostics,
+    frames.*
+    FROM execution_completion_staging st
+    CROSS JOIN LATERAL (
+      SELECT count(*) FILTER (WHERE channel='public')::int AS public_count,
+        count(*) FILTER (WHERE channel='sample')::int AS sample_count,
+        count(*) FILTER (WHERE channel='private')::int AS private_count
+      FROM execution_completion_frames WHERE job_id=st.job_id
+    ) frames
+    WHERE st.job_id=${job.jobId}::uuid AND st.attempt_id=${job.attemptId}::uuid
+      AND st.sandbox_scope=${job.sandboxScope}
+    FOR UPDATE OF st`);
+  if (!stage) throw new Error("Missing completion stream");
+  if (stage.unsealed) throw new Error("Unsealed completion chunks");
+  const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
+  if (stage.diagnostics !== header.diagnosticsPresent) throw new Error("Incomplete diagnostics");
+  if (
+    stage.public_count !== header.publicCount ||
+    stage.sample_count !== header.sampleCount ||
+    stage.private_count !== header.privateCount
+  )
+    throw new Error("Incomplete completion stream");
+  await tx.execute(
+    sql`UPDATE execution_completion_staging SET eof=true WHERE job_id=${job.jobId}::uuid`,
+  );
 }

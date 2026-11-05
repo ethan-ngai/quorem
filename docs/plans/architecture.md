@@ -21,7 +21,7 @@ PostgreSQL is authoritative on every deployment. Admission commits immutable inp
 
 Live matches and interviews use one authorized WebSocket protocol across Node and Durable Objects. Receipts, versions and reconnects repair transport loss or duplication. Pending submissions use an authenticated SSE stream that invalidates the authorized HTTP result snapshot. The initial event repairs missed updates on reconnect. Interview documents retain epoch/version checks and server-controlled stage advancement. Hidden tests, private interview data and opponent source stay behind their authorization owners.
 
-Node uses request/operation-bounded PostgreSQL connections. Workers uses Hyperdrive and native queue/scheduled entrypoints; Durable Objects own socket and alarm coordination. Trusted judging and verification remain outside the public API process behind explicit ports. Cloudflare case containers and local Docker are distinct adapters with independently validated isolation.
+Node uses request/operation-bounded PostgreSQL connections. Workers uses Hyperdrive and native queue/scheduled entrypoints; Durable Objects own socket and alarm coordination. The release-gated judging drain uses the API Worker’s PostgreSQL repositories. Independent verification and native execution run in separate environments. Cloudflare case containers and local Docker are distinct adapters with independently validated isolation.
 
 Product and auth keep separate schemas and checksummed ledgers under the shared migration owner. Retained data normalization uses audited operator commands; migrations never silently replace history. Runtime roles do not own schemas, migration ledgers or recovery records.
 

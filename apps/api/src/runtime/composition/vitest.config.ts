@@ -6,6 +6,7 @@ export default defineConfig({
       "src/runtime/composition/budget.test.ts",
       "src/runtime/composition/budget.http.test.ts",
       "src/runtime/composition/config.test.ts",
+      "src/runtime/composition/judging-drain.test.ts",
       "src/runtime/composition/inventory.test.ts",
       "src/runtime/composition/test-database.test.ts",
       "src/runtime/composition/recovery.test.ts",

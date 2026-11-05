@@ -70,12 +70,33 @@ export async function executeAndStage(
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
   if (!runtime || runtime.language !== job.language)
     throw new Error("Unsupported execution runtime");
-  const manifest = await repository.inputManifest(job, signal),
+  const bundle = await repository.inputBundle?.(job, 0, true, signal);
+  const manifest = bundle?.manifest ?? (await repository.inputManifest(job, signal)),
     total = manifest.caseCount + (manifest.submitCasesAreSamples ? 0 : manifest.sampleCount);
   if (!Number.isSafeInteger(total) || total < 0 || total > 2147483647)
     throw new Error("Invalid admitted suite");
+  const inputs = bundle
+    ? {
+        ...repository,
+        inputCaseRef(job: Job, ordinal: number, signal?: AbortSignal) {
+          return ordinal === 0 && bundle.ref
+            ? Promise.resolve(bundle.ref)
+            : repository.inputCaseRef(job, ordinal, signal);
+        },
+        inputPage(...args: Parameters<ExecutionInputReader["inputPage"]>) {
+          const [, kind, ordinal, offset] = args;
+          const cached =
+            offset === 0 && ordinal === 0
+              ? kind === "case"
+                ? bundle.testcase
+                : bundle[kind]
+              : undefined;
+          return cached ? Promise.resolve(cached) : repository.inputPage(...args);
+        },
+      }
+    : repository;
   const source = await spoolInput({
-    reader: repository,
+    reader: inputs,
     job,
     kind: "source",
     ordinal: 0,
@@ -84,7 +105,7 @@ export async function executeAndStage(
   });
   try {
     const metadata = await spoolInput({
-      reader: repository,
+      reader: inputs,
       job,
       kind: "metadata",
       ordinal: 0,
@@ -174,7 +195,7 @@ export async function executeAndStage(
             const envelope = decodeManifestCheckpointFrame(
               new TextDecoder("utf-8", { fatal: true }).decode(bytes),
             );
-            const ref = await repository.inputCaseRef(job, ordinal, signal);
+            const ref = await inputs.inputCaseRef(job, ordinal, signal);
             await assertManifestCheckpoint(
               job,
               manifest,
@@ -197,7 +218,7 @@ export async function executeAndStage(
       for (let ordinal = checkpoint.nextOrdinal; ordinal < total; ordinal++) {
         signal?.throwIfAborted();
         if (ordinal > checkpoint.nextOrdinal && shouldYield?.()) throw new ExecutionYield();
-        const ref = await repository.inputCaseRef(job, ordinal, signal);
+        const ref = await inputs.inputCaseRef(job, ordinal, signal);
         let frame: JudgeFrame;
         const compiled = !["python", "postgresql"].includes(job.language);
         if (fatal) frame = { ...fatal, artifact: undefined };
@@ -205,7 +226,7 @@ export async function executeAndStage(
           frame = failFrame("time_limit");
         else {
           const testcase = await spoolInput({
-            reader: repository,
+            reader: inputs,
             job,
             kind: "case",
             ordinal,
@@ -275,27 +296,30 @@ export async function executeAndStage(
             ? { stdout: "", stderr: "", line: 0 }
             : {}),
         };
-        const fatalRaw = fatal ? encodeJudgeFrame({ ...fatal, artifact: undefined }) : undefined;
-        const provenance = await manifestCheckpointProvenance(
-          job,
-          manifest,
-          ref,
-          ordinal,
-          job,
-          { artifact, fatal: fatalRaw, compilationNanos: compilation },
-          stored,
-        );
-        await repository.saveCheckpoint(
-          job,
-          {
+        // A one-case Run can retry its only case without resuming a partial suite.
+        if (!(repository.finalizeCompletion && manifest.kind === "run" && total === 1)) {
+          const fatalRaw = fatal ? encodeJudgeFrame({ ...fatal, artifact: undefined }) : undefined;
+          const provenance = await manifestCheckpointProvenance(
+            job,
+            manifest,
+            ref,
             ordinal,
-            frame: encodeManifestCheckpointFrame(stored, provenance),
-            artifact: frame.artifact,
-            compilationNanos: compilation,
-            fatal: fatalRaw,
-          },
-          signal,
-        );
+            job,
+            { artifact, fatal: fatalRaw, compilationNanos: compilation },
+            stored,
+          );
+          await repository.saveCheckpoint(
+            job,
+            {
+              ordinal,
+              frame: encodeManifestCheckpointFrame(stored, provenance),
+              artifact: frame.artifact,
+              compilationNanos: compilation,
+              fatal: fatalRaw,
+            },
+            signal,
+          );
+        }
         await stage(ordinal, stored);
       }
       return header;

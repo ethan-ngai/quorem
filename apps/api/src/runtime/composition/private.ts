@@ -2,7 +2,10 @@
 import { accessFetch, type AccessCredentials } from "@quorem/execution/transport/access";
 import type { ConnectionScope } from "@quorem/database/core";
 import { postgresExecutionCommands } from "../../adapters/postgres/judging/worker/repository.ts";
-import { createRunnerCommandHandler } from "../../adapters/postgres/judging/worker/http.ts";
+import {
+  createRunnerCommandHandler,
+  type RunnerPeer,
+} from "../../adapters/postgres/judging/worker/http.ts";
 import { createVerificationSourceHandler } from "../../adapters/postgres/judging/worker/verification-http.ts";
 import { httpResultVerifier } from "../../adapters/postgres/judging/worker/verification-client.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -19,7 +22,11 @@ function hex(value: string): Uint8Array {
   return Uint8Array.from(value.match(/../g)!, (byte) => parseInt(byte, 16));
 }
 /** Distinct credentials prevent runner access to verifier-only material. */
-export async function composePrivate(run: Run, config: PrivateConfig) {
+export async function composePrivate(
+  run: Run,
+  config: PrivateConfig,
+  localDrain?: (peer: PrivateConfig["runnerPeers"][number]) => RunnerPeer["drain"],
+) {
   const source = hex(config.verificationSourceCredential),
     service = hex(config.verificationServiceCredential);
   const all = [
@@ -52,6 +59,7 @@ export async function composePrivate(run: Run, config: PrivateConfig) {
     config.runnerPeers.map((peer) => ({
       ...peer,
       inputProtocol: "manifest-v1" as const,
+      drain: localDrain?.(peer),
       repository: (_signal: AbortSignal) =>
         postgresExecutionCommands(
           run,

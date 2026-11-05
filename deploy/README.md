@@ -9,10 +9,12 @@ Local release checks use `node scripts/hono-workload-validation.mjs` and `node s
 
 ## Private execution Workers
 
-The runner drains from a release-scoped Durable Object. Verification runs in a
-separate Worker with its own source credential and signing key. Case containers
-still execute native runtimes and must confirm teardown before publication.
-Portable Node deployments use the same engine and verifier.
+The release-scoped Durable Object gates drains and invokes the API Worker once
+per drain. The API Worker runs the shared judge against PostgreSQL directly.
+The verifier independently reads a frozen bundle and returns small verified
+fields with its signed receipt. Large fields use the paged protocol. Native case
+containers confirm teardown before publication. Portable Node deployments use
+the same engine and verifier.
 
 Build the Worker modules with `node scripts/build-hono-service-workers.mjs`
 before planning `hono-services`. The Terraform migration preserves runner,
@@ -24,3 +26,14 @@ inputs before live cutover. Worker temporary files consume isolate memory.
 
 Measure idle click-to-result p50 and p95 on staging using one-case Python Runs.
 Report queue delivery, sandbox boot and teardown, and verification separately.
+
+
+For the batched judging protocol, deploy the API Worker first. Then release the
+private Workers through the existing fenced rollout. The API exposes the bundle
+and drain endpoints before either private Worker starts calling them.
+
+Validate a failed post-commit wake through the scheduled outbox scan. Record
+normal and recovered admission-to-claim latency separately. Benchmark fresh
+one-case Python Runs by admission, claim, sandbox, verification, and publish.
+Measure p50 and p95 before assessing the 3–5 second target or scheduling multiple
+cases concurrently.

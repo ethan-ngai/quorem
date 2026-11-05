@@ -4,7 +4,6 @@ import type { Transaction } from "@quorem/database/core";
 import { runtimeForRevision } from "@quorem/execution";
 import { ApplicationError } from "../../../../application/error.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
-import { insertExecutionIntent } from "../../events/dispatch.ts";
 import {
   fixtureRows,
   storeCustomInput,
@@ -89,20 +88,27 @@ export async function insertAdmittedExecution(
     interview = s.context.kind === "interview" ? s.context : null;
   const inserted = (
     await tx.execute<{ admittedAt: string }>(
-      sql`INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL) RETURNING to_char(admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt"`,
+      sql`WITH admitted AS (
+        INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL)
+        RETURNING id,admitted_at
+      ), enqueued AS (
+        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision)
+        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision} FROM admitted
+        RETURNING id
+      ), intent AS (
+        INSERT INTO execution_dispatch_intents(id,job_id) SELECT ${crypto.randomUUID()}::uuid,id FROM enqueued
+      ), debit AS (
+        UPDATE users SET admission_tokens=${busy.tokens}::numeric-1,tokens_updated_at=clock_timestamp()
+        WHERE id=${s.ownerId}
+      )
+      SELECT to_char(admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt"
+      FROM admitted`,
     )
   ).rows[0];
-  await tx.execute(
-    sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${s.jobId}::uuid,${id}::uuid,${s.language},${s.runtimeRevision},${s.harnessRevision})`,
-  );
-  await insertExecutionIntent(tx, crypto.randomUUID(), s.jobId);
   if (s.sponsorId && workspace?.matchId)
     await tx.execute(
       sql`INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES(${id}::uuid,${workspace.matchId}::uuid,${s.sponsorId})`,
     );
-  await tx.execute(
-    sql`UPDATE users SET admission_tokens=${busy.tokens}::numeric-1,tokens_updated_at=clock_timestamp() WHERE id=${s.ownerId}`,
-  );
   return { id, admittedAt: inserted.admittedAt };
 }
 

@@ -27,135 +27,143 @@ const blob = (data) => {
   };
 };
 
-test("native verifier reads frozen pages, derives the verdict and signs it", async () => {
-  const keys = generateKeyPairSync("ed25519");
-  const origin = "https://verify.example.test";
-  const sourceKey = "a".repeat(64),
-    serviceKey = "b".repeat(64);
-  const meta = blob('{"signature":{"returnType":"int"}}');
-  const testcase = blob(JSON.stringify({ args: [], expected: 7, padding: "x".repeat(1 << 20) }));
-  const actual = blob("8");
-  const ref = ({ hash, size }) => ({ hash, size });
-  const fields = new Map();
-  const page = (value, offset, channel) => ({
-    ...ref(value),
-    channel,
-    bytes: Buffer.from(value.bytes, "base64")
-      .subarray(offset, offset + 65536)
-      .toString("base64"),
-  });
-  const mf = new Miniflare(
-    convertV4MiniflareOptions({
-      modules: modules("worker-verifier"),
-      compatibilityDate,
-      compatibilityFlags,
-      bindings: {
-        VERIFIER_ORIGIN: origin,
-        QUOREM_VERIFICATION_SOURCE_ORIGIN: "https://api.example.test",
-        QUOREM_VERIFICATION_SOURCE_KEY: sourceKey,
-        QUOREM_VERIFICATION_SERVICE_KEY: serviceKey,
-        QUOREM_VERIFICATION_SIGNING_KEY_PEM: keys.privateKey.export({
-          type: "pkcs8",
-          format: "pem",
-        }),
-      },
-      async outboundService(request) {
-        assert.equal(request.headers.get("authorization"), `Bearer ${sourceKey}`);
-        const input = await request.json();
-        assert.equal(input.challenge, "challenge");
-        switch (new URL(request.url).pathname.split("/").at(-1)) {
-          case "frozen":
-            return Response.json({
-              challenge: input.challenge,
-              job: {
-                jobId: "job",
-                submissionId: "submission",
-                problemVersionId: "problem",
-                sourceRef: "source",
-                suiteRef: "suite",
-                language: "python",
-                runtimeRevision: "python-3.12-v1",
-                harnessRevision: "quorem-harness-v2",
-                attemptId: "attempt",
-                sandboxScope: "scope",
-                limits: {
-                  wallTimeMs: 1000,
-                  memoryBytes: 100000000,
-                  maxProcesses: 1,
-                  outputBytes: 65536,
-                  maxCollectionElements: 1000,
-                  maxNestingDepth: 32,
+for (const padding of [0, 1 << 20])
+  test(`native verifier signs a case with ${padding} padding bytes`, async () => {
+    const keys = generateKeyPairSync("ed25519");
+    const origin = "https://verify.example.test";
+    const sourceKey = "a".repeat(64),
+      serviceKey = "b".repeat(64);
+    const meta = blob('{"signature":{"returnType":"int"}}');
+    const testcase = blob(JSON.stringify({ args: [], expected: 7, padding: "x".repeat(padding) }));
+    const actual = blob("8");
+    const ref = ({ hash, size }) => ({ hash, size });
+    const fields = new Map();
+    const commands = [];
+    const page = (value, offset, channel) => ({
+      ...ref(value),
+      channel,
+      bytes: Buffer.from(value.bytes, "base64")
+        .subarray(offset, offset + 65536)
+        .toString("base64"),
+    });
+    const mf = new Miniflare(
+      convertV4MiniflareOptions({
+        modules: modules("worker-verifier"),
+        compatibilityDate,
+        compatibilityFlags,
+        bindings: {
+          VERIFIER_ORIGIN: origin,
+          QUOREM_VERIFICATION_SOURCE_ORIGIN: "https://api.example.test",
+          QUOREM_VERIFICATION_SOURCE_KEY: sourceKey,
+          QUOREM_VERIFICATION_SERVICE_KEY: serviceKey,
+          QUOREM_VERIFICATION_SIGNING_KEY_PEM: keys.privateKey.export({
+            type: "pkcs8",
+            format: "pem",
+          }),
+        },
+        async outboundService(request) {
+          assert.equal(request.headers.get("authorization"), `Bearer ${sourceKey}`);
+          const input = await request.json();
+          assert.equal(input.challenge, "challenge");
+          const op = new URL(request.url).pathname.split("/").at(-1);
+          commands.push(op);
+          switch (op) {
+            case "bundle":
+              return Response.json({
+                frozen: {
+                  challenge: input.challenge,
+                  job: {
+                    jobId: "job",
+                    submissionId: "submission",
+                    problemVersionId: "problem",
+                    sourceRef: "source",
+                    suiteRef: "suite",
+                    language: "python",
+                    runtimeRevision: "python-3.12-v1",
+                    harnessRevision: "quorem-harness-v2",
+                    attemptId: "attempt",
+                    sandboxScope: "scope",
+                    limits: {
+                      wallTimeMs: 1000,
+                      memoryBytes: 100000000,
+                      maxProcesses: 1,
+                      outputBytes: 65536,
+                      maxCollectionElements: 1000,
+                      maxNestingDepth: 32,
+                    },
+                  },
+                  ordinal: 0,
+                  frameHash: "c".repeat(64),
+                  status: "accepted",
+                  actual: ref(actual),
+                  sqlTypes: null,
                 },
-              },
-              ordinal: 0,
-              frameHash: "c".repeat(64),
-              status: "accepted",
-              actual: ref(actual),
-              sqlTypes: null,
-            });
-          case "manifest":
-            return Response.json({
-              kind: "run",
-              level: null,
-              caseCount: 1,
-              sampleCount: 0,
-              privateDetails: false,
-              submitCasesAreSamples: false,
-              source: { hash: "a".repeat(64), size: 1 },
-              metadata: ref(meta),
-              suiteHash: "b".repeat(64),
-            });
-          case "ref":
-            return Response.json({ ...ref(testcase), channel: "public" });
-          case "page":
-            return Response.json(
-              input.kind === "metadata"
-                ? page(meta, input.offset, null)
-                : page(testcase, input.offset, "public"),
-            );
-          case "field":
-            return Response.json({ ...actual, channel: null });
-          case "output":
-            fields.set(input.field, Buffer.from(input.bytes, "base64").toString());
-            return Response.json(true);
-          default:
-            throw new Error("Unexpected verification command");
-        }
-      },
-    }),
-  );
-  try {
-    const call = (token) =>
-      mf.dispatchFetch(`${origin}/internal/results/verify`, {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}` },
-        body: '{"challenge":"challenge"}',
-      });
-    assert.equal((await call(sourceKey)).status, 401);
-    const result = await call(serviceKey);
-    assert.equal(result.status, 200, await result.clone().text());
-    const { receipt, signature } = await result.json();
-    assert.equal(receipt.status, "wrong_answer");
-    assert.equal(
-      verify(
-        null,
-        execution.verificationReceiptBytes(receipt),
-        keys.publicKey,
-        Buffer.from(signature, "base64"),
-      ),
-      true,
+                manifest: {
+                  kind: "run",
+                  level: null,
+                  caseCount: 1,
+                  sampleCount: 0,
+                  privateDetails: false,
+                  submitCasesAreSamples: false,
+                  source: { hash: "a".repeat(64), size: 1 },
+                  metadata: ref(meta),
+                  suiteHash: "b".repeat(64),
+                },
+                ref: { ...ref(testcase), channel: "public" },
+                pages: {
+                  metadata: page(meta, 0, null),
+                  actual: page(actual, 0, null),
+                  case: padding ? undefined : page(testcase, 0, "public"),
+                },
+              });
+            case "page":
+              return Response.json(
+                input.kind === "metadata"
+                  ? page(meta, input.offset, null)
+                  : page(testcase, input.offset, "public"),
+              );
+            default:
+              throw new Error("Unexpected verification command");
+          }
+        },
+      }),
     );
-    assert.deepEqual(
-      fields,
-      new Map([
-        ["actual", "8"],
-        ["expected", "7"],
-      ]),
-    );
-  } finally {
-    await mf.dispose();
-  }
-});
+    try {
+      const call = (token) =>
+        mf.dispatchFetch(`${origin}/internal/results/verify`, {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}`, "x-quorem-verification-fields": "inline" },
+          body: '{"challenge":"challenge"}',
+        });
+      assert.equal((await call(sourceKey)).status, 401);
+      const result = await call(serviceKey);
+      assert.equal(result.status, 200, await result.clone().text());
+      const { receipt, signature, fields: inline } = await result.json();
+      for (const { field, bytes } of inline)
+        fields.set(field, Buffer.from(bytes, "base64").toString());
+      assert.equal(receipt.status, "wrong_answer");
+      assert.equal(
+        verify(
+          null,
+          execution.verificationReceiptBytes(receipt),
+          keys.publicKey,
+          Buffer.from(signature, "base64"),
+        ),
+        true,
+      );
+      assert.deepEqual(
+        fields,
+        new Map([
+          ["actual", "8"],
+          ["expected", "7"],
+        ]),
+      );
+      if (!padding) assert.deepEqual(commands, ["bundle"]);
+      else assert.ok(commands.includes("page"));
+    } finally {
+      await mf.dispose();
+    }
+  });
 
 test(
   "native runner drains through the private command API with no container binding",
@@ -185,12 +193,10 @@ test(
           assert.equal(request.headers.get("authorization"), `Bearer ${commandSecret}`);
           const op = new URL(request.url).pathname.split("/").at(-1);
           calls.push(op);
-          if (op === "expired") return Response.json(null);
-          if (fail) return new Response(null, { status: 503 });
-          if (op === "claim" || op === "deadline") return Response.json(null);
-          if (op === "state") return Response.json({ queued: 0, running: 0 });
-          if (op === "empty") return Response.json(true);
-          throw new Error("Unexpected runner command");
+          assert.equal(op, "drain");
+          assert.equal((await request.json()).namespaceId, "a".repeat(64));
+          if (fail) return Response.json({ failure: { kind: "other" } }, { status: 503 });
+          return Response.json({ queued: 0, running: 0 });
         },
       }),
     );
@@ -205,16 +211,12 @@ test(
       assert.equal((await send("drain", commandSecret)).status, 401);
       const response = await send("drain", drainSecret);
       assert.equal(response.status, 503);
-      const { failure, command } = await response.json();
-      assert.equal(failure.kind, "command");
-      assert.equal(command.status, 503);
-      assert.ok(calls.includes("expired"));
+      assert.deepEqual(calls, ["drain"]);
       fail = false;
       const drained = await send("drain", drainSecret);
       assert.equal(drained.status, 200);
       assert.deepEqual(await drained.json(), { queued: 0, running: 0 });
-      assert.ok(calls.includes("claim"));
-      assert.ok(calls.includes("empty"));
+      assert.deepEqual(calls, ["drain", "drain"]);
       assert.equal((await send("pause", drainSecret)).status, 204);
       calls.length = 0;
       assert.equal((await send("drain", drainSecret)).status, 503);

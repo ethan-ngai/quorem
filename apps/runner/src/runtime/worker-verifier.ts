@@ -7,6 +7,7 @@ export default {
     if (new URL(request.url).origin !== origin(env, "VERIFIER_ORIGIN"))
       return new Response(null, { status: 404 });
     const verify = createVerificationFetch({
+      bundle: true,
       sourceOrigin: origin(env, "QUOREM_VERIFICATION_SOURCE_ORIGIN"),
       sourceCredential: key(env, "QUOREM_VERIFICATION_SOURCE_KEY"),
       serviceCredential: key(env, "QUOREM_VERIFICATION_SERVICE_KEY"),

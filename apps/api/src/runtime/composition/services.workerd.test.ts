@@ -466,8 +466,16 @@ it("persists runner pause in Durable Object storage", async () => {
     204,
   );
   expect((await runner.fetch("https://service/internal/drain", { method: "POST" })).status).toBe(
-    503,
+    401,
   );
+  expect(
+    (
+      await runner.fetch("https://service/internal/drain", {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret("b")}` },
+      })
+    ).status,
+  ).toBe(503);
 });
 
 it("uses native workerd Request options for private container readiness", async () => {

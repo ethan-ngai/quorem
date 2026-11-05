@@ -10,7 +10,7 @@ PostgreSQL remains authoritative. Hono domain/application modules depend on cons
 | Notice fanout | Bounded memory | Durable Object fanout | AppSync Events |
 | Profile storage | Garage S3 | R2 | S3 |
 | Email | Mailpit SMTP | Selected external email adapter | SMTP/SES SMTP; Cloudflare email REST |
-| Execution | Trusted TS runner/verifier and Docker case adapter | Private runner Durable Object, separate verifier Worker, remote case containers | Any sandbox implementation satisfying the execution port |
+| Execution | Trusted TS runner/verifier and Docker case adapter | Release-gated drain in the API Worker, separate verifier Worker, remote case containers | Any sandbox implementation satisfying the execution port |
 | Language gateway | TypeScript process/container | Independent configured service | Provider-neutral HTTP/WebSocket gateway |
 
 API/auth run together in native Hono. The portable API image is `deploy/hono/Dockerfile.api`; runner/verifier targets are in `deploy/hono/Dockerfile.runner`. Domain code is shared across Node and Workers. Workers do not hold permanent PostgreSQL listeners; Node composition owns selected listener/consumer lifetimes.

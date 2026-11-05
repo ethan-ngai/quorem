@@ -20,6 +20,7 @@ export interface AdmissionDependencies {
   coordinator: Coordinator;
   publisher: ExecutionWakePublisher;
   shard: number;
+  defer?: (work: Promise<unknown>) => void;
   commit(
     principal: Principal,
     key: string,
@@ -74,6 +75,7 @@ export function admissionRoutes(deps: AdmissionDependencies): Hono {
       coordinator: deps.coordinator,
       publisher: deps.publisher,
       shard: deps.shard,
+      defer: deps.defer,
       commit: (fence) => deps.commit(who, key, command, fence),
     });
     return c.json(result, 202);

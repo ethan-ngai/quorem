@@ -4,7 +4,7 @@ import { ApplicationError } from "../../../application/error.ts";
 import type { Coordinator, Receipts } from "../../events/scheduling/scheduling.ts";
 
 export interface AdmissionFence {
-  receiptId: string;
+  receiptId: string | null;
   shard: number;
   jobId: string;
 }
@@ -14,8 +14,20 @@ export async function admitWithRecovery<T>(options: {
   coordinator: Coordinator;
   publisher: ExecutionWakePublisher;
   shard: number;
+  defer?: (work: Promise<unknown>) => void;
   commit(fence: AdmissionFence): Promise<T>;
 }): Promise<T> {
+  if (options.defer) {
+    const jobId = crypto.randomUUID();
+    const result = await options.commit({ jobId, receiptId: null, shard: options.shard });
+    // The scheduled outbox scan covers a crash before the post-commit wake.
+    options.defer(
+      Promise.resolve()
+        .then(() => options.publisher.send({ jobId, phase: "continuation" }))
+        .catch(() => {}),
+    );
+    return result;
+  }
   const fence = {
     receiptId: crypto.randomUUID(),
     shard: options.shard,
