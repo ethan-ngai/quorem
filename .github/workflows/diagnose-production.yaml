@@ -10,10 +10,6 @@ on:
         description: UTC start time of a completed Python benchmark
         type: string
         default: ""
-      wake_trace_start:
-        description: UTC start of a two-minute judging wake trace
-        type: string
-        default: ""
       benchmark:
         description: Run five one-case Python samples against the active judge
         type: boolean
@@ -22,22 +18,16 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ inputs.wake_trace_start != '' || (!inputs.sql && !inputs.benchmark && inputs.benchmark_start == '') }}
+    if: ${{ !inputs.sql && !inputs.benchmark && inputs.benchmark_start == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - name: Read Cloudflare judge logs
+      - name: Read container startup logs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
-          WAKE_TRACE_START: ${{ inputs.wake_trace_start }}
-        run: |
-          if [[ -n "$WAKE_TRACE_START" ]]; then
-            python3 scripts/container-logs.py --wake-trace-start "$WAKE_TRACE_START" --limit 1000
-          else
-            python3 scripts/container-logs.py --minutes 30 --stdout
-          fi
+        run: python3 scripts/container-logs.py --minutes 30 --stdout
   sql:
     if: ${{ inputs.sql || inputs.benchmark_start != '' }}
     runs-on: ubuntu-latest

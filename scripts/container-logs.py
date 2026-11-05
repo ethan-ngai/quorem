@@ -1,4 +1,4 @@
-"""Read-only Cloudflare startup logs or bounded judge invocation timings."""
+"""Read-only Cloudflare startup logs query; credentials never enter output."""
 import argparse
 import datetime
 import json
@@ -7,13 +7,11 @@ import re
 import time
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--minutes", type=int, default=30)
 parser.add_argument("--limit", type=int, default=200)
 parser.add_argument("--stdout", action="store_true")
-parser.add_argument("--wake-trace-start", help="UTC start of a two-minute wake trace")
 args = parser.parse_args()
 account = os.environ["CLOUDFLARE_ACCOUNT_ID"]
 token = os.environ["CLOUDFLARE_API_TOKEN"]
@@ -39,25 +37,6 @@ body = {
     "view": "events", "limit": args.limit, "dry": True,
     "parameters": {"datasets": ["containers"]},
 }
-if args.wake_trace_start:
-    try:
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z", args.wake_trace_start):
-            raise ValueError()
-        start = int(datetime.datetime.fromisoformat(args.wake_trace_start).timestamp() * 1000)
-    except ValueError:
-        parser.error("Wake trace requires an ISO-8601 UTC timestamp")
-    body.update({
-        "queryId": "quorem-judge-wake-trace",
-        "timeframe": {"from": start, "to": min(start + 120000, now)},
-        "parameters": {
-            "datasets": ["cloudflare-workers"],
-            "filterCombination": "or",
-            "filters": [
-                {"key": "$metadata.service", "operation": "eq", "type": "string", "value": name}
-                for name in ("quorem-hono-production", "quorem-hono-services-production")
-            ],
-        },
-    })
 url = f"https://api.cloudflare.com/client/v4/accounts/{account}/workers/observability/telemetry/query"
 request = urllib.request.Request(url, data=json.dumps(body).encode(), headers={
     "Authorization": "Bearer " + token, "Content-Type": "application/json",
@@ -73,26 +52,6 @@ except urllib.error.HTTPError as error:
     raise SystemExit(1)
 result = payload.get("result", {})
 events = result.get("events", {}).get("events", [])
-if args.wake_trace_start:
-    routes = {"/v1/submissions": "admission", "/internal/drain": "runner-ingress",
-              "/internal/runner/drain": "api-drain"}
-    timings = []
-    for event in events:
-        worker = event.get("$workers", {})
-        invocation = worker.get("event") or {}
-        method = invocation.get("request", {}).get("method")
-        path = urlsplit(event.get("url") or invocation.get("request", {}).get("url") or "").path
-        phase = "queue" if worker.get("eventType") == "queue" else (
-            routes.get(path) if method == "POST" else None
-        )
-        if phase and isinstance(worker.get("wallTimeMs"), (int, float)):
-            timings.append({
-                "at": event["timestamp"], "phase": phase, "wallMs": worker["wallTimeMs"],
-                "cpuMs": worker.get("cpuTimeMs"),
-            })
-    print(json.dumps({"matched": len(events), "wakeTrace": sorted(timings, key=lambda row: row["at"])}))
-    raise SystemExit(0)
-
 selected = []
 for event in events:
     if not (event.get("$containers") is not None or "container" in event.get("dataset", "")):
