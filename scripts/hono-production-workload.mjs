@@ -52,7 +52,10 @@ export async function benchmarkProductionWorkload(env, send = fetch) {
       {
         origin: "https://quorem.app",
         actors,
-        cases: Array.from({ length: count }, () => ({ args: [[1, 1, 2]], expected: [2, 1] })),
+        cases: Array.from({ length: count }, (_, index) => ({
+          args: [[...Array.from({ length: (index % 4) + 1 }, () => index + 1), index + 2]],
+          expected: [(index % 4) + 1, 1],
+        })),
         source: acceptedSource,
         rounds: 2,
       },
