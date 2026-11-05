@@ -13,7 +13,7 @@ export interface CancellationSource {
 }
 export type AttemptOutcome = "complete" | "yield";
 export interface AttemptEngine {
-  execute(job: Job, signal: AbortSignal): Promise<AttemptOutcome>;
+  execute(job: Job, signal: AbortSignal, onFinalCase?: () => void): Promise<AttemptOutcome>;
 }
 export class LostLease extends Error {
   constructor() {
@@ -43,6 +43,20 @@ export async function runAttempt(options: {
   let lost = false;
   let failure: unknown;
   let outcome: AttemptOutcome | undefined;
+  let teardown: Promise<void> | undefined;
+  const startTeardown = () => {
+    if (!teardown) {
+      teardown = Promise.resolve().then(() =>
+        sandbox.teardownAttempt(
+          { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
+          AbortSignal.timeout(options.teardownMs ?? 30000),
+        ),
+      );
+      // Finalization awaits the original promise even if verification takes longer.
+      void teardown.catch(() => {});
+    }
+    return teardown;
+  };
   const stop = new AbortController();
   const check = async (heartbeat: boolean) => {
     if (!(await repository.lease(job, heartbeat, signal))) throw new LostLease();
@@ -76,7 +90,7 @@ export async function runAttempt(options: {
         if (!stop.signal.aborted) fail();
       }
     })();
-    outcome = await engine.execute(job, signal);
+    outcome = await engine.execute(job, signal, startTeardown);
     if (signal.aborted || lost) throw new LostLease();
   } catch (error) {
     failure = error;
@@ -91,7 +105,7 @@ export async function runAttempt(options: {
   }
   if (failure || lost || signal.aborted) {
     // Teardown must outlive cancellation; a failed confirmation keeps the lease fenced.
-    await sandbox.teardownAttempt(job, AbortSignal.timeout(options.teardownMs ?? 30000));
+    await startTeardown();
     if (
       lost &&
       (!failure ||
@@ -103,6 +117,6 @@ export async function runAttempt(options: {
   }
   const finalSignal = AbortSignal.timeout(options.teardownMs ?? 30000);
   if (outcome === "yield") await yieldAfterTeardown(repository, sandbox, job, finalSignal);
-  else await finishAfterTeardown(repository, sandbox, job, finalSignal);
+  else await finishAfterTeardown(repository, sandbox, job, finalSignal, teardown);
   return outcome!;
 }

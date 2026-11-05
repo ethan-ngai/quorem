@@ -138,38 +138,32 @@ export function postgresCompletionStaging(
                 ? header.privateCount
                 : 1;
         if (item.ordinal >= count) throw new Error("Unexpected completion ordinal");
-        const sealed =
+        const sealedQuery =
           item.channel === "header"
-            ? (
-                await tx.execute(
-                  sql`SELECT 1 FROM execution_completion_header_fields WHERE job_id=${job.jobId}::uuid AND field=${item.field}`,
-                )
-              ).rows.length > 0
-            : (
-                await tx.execute(
-                  sql`SELECT 1 FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal} UNION ALL SELECT 1 FROM execution_verification_challenges WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel} AND result_ordinal=${item.ordinal}`,
-                )
-              ).rows.length > 0;
-        if (sealed) {
-          const same = (
-            await tx.execute<{ same: boolean }>(
-              sql`SELECT chunk_hash=${hash} AND chunk_data=${item.bytes} AS same FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal} AND field=${item.field} AND chunk_ordinal=${item.chunkOrdinal}`,
-            )
-          ).rows[0]?.same;
-          if (!same) throw new Error("Completion frame sealed");
-          return;
-        }
-        const inserted = await tx.execute(
-          sql`INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash) VALUES(${job.jobId}::uuid,${item.channel},${item.ordinal},${item.field},${item.chunkOrdinal},${item.bytes},${hash}) ON CONFLICT DO NOTHING RETURNING chunk_ordinal`,
+            ? sql`SELECT 1 FROM execution_completion_header_fields
+              WHERE job_id=${job.jobId}::uuid AND field=${item.field}`
+            : sql`SELECT 1 FROM execution_completion_frames
+              WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}
+              UNION ALL SELECT 1 FROM execution_verification_challenges
+              WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel}
+                AND result_ordinal=${item.ordinal}`;
+        const {
+          rows: [result],
+        } = await tx.execute<{ accepted: boolean; sealed: boolean }>(
+          sql`WITH seal AS (SELECT EXISTS(${sealedQuery}) AS sealed), inserted AS (
+            INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash)
+            SELECT ${job.jobId}::uuid,${item.channel},${item.ordinal},${item.field},${item.chunkOrdinal},
+              ${item.bytes},${hash} FROM seal WHERE NOT sealed
+            ON CONFLICT DO NOTHING RETURNING 1
+          )
+          SELECT seal.sealed, EXISTS(SELECT 1 FROM inserted) OR EXISTS (
+            SELECT 1 FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid
+              AND channel=${item.channel} AND ordinal=${item.ordinal} AND field=${item.field}
+              AND chunk_ordinal=${item.chunkOrdinal} AND chunk_hash=${hash} AND chunk_data=${item.bytes}
+          ) AS accepted FROM seal`,
         );
-        if (!inserted.rows.length) {
-          const same = (
-            await tx.execute<{ same: boolean }>(
-              sql`SELECT chunk_hash=${hash} AND chunk_data=${item.bytes} AS same FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal} AND field=${item.field} AND chunk_ordinal=${item.chunkOrdinal}`,
-            )
-          ).rows[0]?.same;
-          if (!same) throw new Error("Completion chunk conflict");
-        }
+        if (!result.accepted)
+          throw new Error(result.sealed ? "Completion frame sealed" : "Completion chunk conflict");
       });
     },
     async begin(job: Job, header: CompletionHeader): Promise<void> {
@@ -238,6 +232,17 @@ export function postgresCompletionStaging(
 
 export async function sealCompletionStream(tx: Transaction, job: Job): Promise<void> {
   if (!(await locked(tx, job))) throw new Error("Stale completion");
+  await validateCompletionStream(tx, job);
+  await tx.execute(
+    sql`UPDATE execution_completion_staging SET eof=true WHERE job_id=${job.jobId}::uuid`,
+  );
+}
+
+/** The caller holds the job and submission locks and has checked the live attempt. */
+export async function validateCompletionStream(
+  tx: Transaction,
+  job: Job,
+): Promise<CompletionHeader> {
   const {
     rows: [stage],
   } = await tx.execute<{
@@ -281,7 +286,5 @@ export async function sealCompletionStream(tx: Transaction, job: Job): Promise<v
     stage.private_count !== header.privateCount
   )
     throw new Error("Incomplete completion stream");
-  await tx.execute(
-    sql`UPDATE execution_completion_staging SET eof=true WHERE job_id=${job.jobId}::uuid`,
-  );
+  return header;
 }
