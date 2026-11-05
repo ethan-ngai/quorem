@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from "react";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import * as Popover from "../../ui/Popover";
 import { typeTokenClass } from "../editor/components/TypeSyntax";
 
@@ -27,6 +28,7 @@ export function SearchableTypeSelect<T extends string>({
   const visible = choices.filter((choice) =>
     `${names?.[choice] ?? ""} ${choice}`.toLowerCase().includes(query?.trim().toLowerCase() ?? ""),
   );
+  const results = useChangeMotion<HTMLDivElement>(visible.join(","));
   const activeChoice = visible[active];
   const optionId = (choice: T) => `${id}-${encodeURIComponent(choice)}`;
   function close() {
@@ -114,7 +116,7 @@ export function SearchableTypeSelect<T extends string>({
             if (event.target === input.current) event.preventDefault();
           }}
         >
-          <div id={id} role="listbox" aria-label="Types">
+          <div id={id} ref={results} role="listbox" aria-label="Types">
             {visible.map((choice, index) => (
               <button
                 type="button"

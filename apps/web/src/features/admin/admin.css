@@ -636,7 +636,11 @@
   padding: 0;
 }
 
-.authoring-chips li {
+.authoring-chips:empty {
+  display: none;
+}
+
+.authoring-chips .topic-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);

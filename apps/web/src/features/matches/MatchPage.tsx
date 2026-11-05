@@ -1,4 +1,5 @@
 import { RoomAlerts } from "../rooms/RoomAlerts";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SessionBar } from "../../ui/SessionBar";
 /** @file MatchPage.tsx @description Private lobby, match ledger, and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
@@ -129,14 +130,14 @@ function MatchLedger({
               />
             </Tooltip>
             <strong>{index === 0 ? "You" : (player?.displayName ?? "Opponent")}</strong>
-            {player?.forfeited && <span className="score-judging">Forfeited</span>}
+            {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
             <Tooltip content="Best submission: cases passed">
               <span className="competitive-score" tabIndex={0}>
                 {player?.bestScore ? `${player.bestScore.passed}/${player.bestScore.total}` : "—"}
               </span>
             </Tooltip>
             {(player?.submissionState === "running" || player?.submissionState === "queued") && (
-              <span className="score-judging">Judging…</span>
+              <span className="score-judging motion-reveal">Judging…</span>
             )}
           </div>
         ),
@@ -163,6 +164,9 @@ export function MatchPage({ matchId }: { matchId: string }) {
     refetch,
   } = useMatchSync(identity, matchId, !finished);
   const snapshot = finished?.snapshot ?? liveSnapshot;
+  const seats = useChangeMotion<HTMLDivElement>(
+    snapshot?.participants.map((participant) => participant.userId).join(","),
+  );
   useEffect(() => {
     if (!liveSnapshot || finished || account.isPending || !account.data) return;
     if (
@@ -417,6 +421,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
           <>
             <div
               className={`competitive-seats ${snapshot.mode === "free-for-all" ? "ffa-seats" : ""}`}
+              ref={seats}
               aria-label="Players"
             >
               {snapshot.participants.map((participant) => (

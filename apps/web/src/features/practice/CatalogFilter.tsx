@@ -1,3 +1,4 @@
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import * as Popover from "../../ui/Popover";
 import { ChevronDown } from "lucide-react";
 import "../../ui/select-field.css";
@@ -13,17 +14,18 @@ export function CatalogFilter({
   options: { value: string; label: string }[];
   onChange: (values: string[]) => void;
 }) {
+  const summary = useChangeMotion<HTMLSpanElement>(selected.join(","));
   return (
     <Popover.Root>
       <Popover.Trigger className="select-field practice-filter-trigger" aria-label={label}>
         {label}
         {selected.length > 0 && (
-          <span className="practice-filter-summary">
+          <span className="practice-filter-summary motion-reveal" ref={summary}>
             {options.find((option) => option.value === selected[0])?.label}
             {selected.length > 1 && ` +${selected.length - 1}`}
           </span>
         )}
-        <ChevronDown size={14} aria-hidden="true" />
+        <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content

@@ -1,3 +1,4 @@
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import "../../ui/topic-chip.css";
 import { formatLabel } from "../../ui/formatLabel";
 import { X } from "lucide-react";
@@ -62,6 +63,7 @@ export function TopicField({
 }) {
   const [source, setSource] = useState("");
   const id = useId();
+  const field = useRef<HTMLInputElement>(null);
   const next = source.trim();
   const canAdd =
     tags.length < limit && !!next && !tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
@@ -73,25 +75,31 @@ export function TopicField({
   return (
     <div className="admin-field">
       <label htmlFor={id}>{label}</label>
-      {!!tags.length && (
-        <ul className="authoring-chips" aria-label={label}>
-          {tags.map((tag, index) => (
-            <li key={index} className="topic-chip">
-              {formatLabel(tag)}
-              <button
-                type="button"
-                aria-label={`Remove ${formatLabel(tag)}`}
-                onClick={() => onChange(tags.filter((_, position) => position !== index))}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AnimatedRows
+        as="ul"
+        inline
+        className="authoring-chips"
+        label={label}
+        items={tags}
+        focusFallback={field}
+        getKey={(tag) => tag}
+        renderRow={(tag, index) => (
+          <span className="topic-chip">
+            {formatLabel(tag)}
+            <button
+              type="button"
+              aria-label={`Remove ${formatLabel(tag)}`}
+              onClick={() => onChange(tags.filter((_, position) => position !== index))}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </span>
+        )}
+      />
       <div className="authoring-inline-input">
         <input
           id={id}
+          ref={field}
           value={source}
           onChange={(event) => setSource(event.target.value)}
           onKeyDown={(event) => {

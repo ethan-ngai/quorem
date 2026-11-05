@@ -46,6 +46,7 @@ export function SequenceTestsEditor({
     <div className="authoring-case-browser sequence-authoring">
       <CaseBrowserLayout
         railLabel={label}
+        selection={selected?.id}
         rail={
           <>
             {value.map((test, index) => (
