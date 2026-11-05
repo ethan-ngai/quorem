@@ -136,8 +136,8 @@
   height: 100%;
 }
 .admin-fields .authoring-case-browser {
-  height: 300px;
-  min-height: 240px;
+  --authoring-cases-height: auto;
+  min-height: 0;
 }
 
 /* Match the interview creator's bounded, tabbed authoring surface. */
@@ -184,9 +184,6 @@
 }
 .admin-fields .authoring-test-collections {
   margin-top: 0;
-}
-.admin-fields .authoring-case-browser {
-  height: 320px;
 }
 .admin-fields .authoring-section-tabs {
   margin-bottom: var(--space-4);
