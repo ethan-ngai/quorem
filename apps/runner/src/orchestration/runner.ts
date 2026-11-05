@@ -18,6 +18,7 @@ type RunnerOptions = {
   resumable: boolean;
   attemptMs?: number;
   graceMs?: number;
+  singleAttempt?: boolean;
   engine: (
     repository: ExecutionRepository & ExecutionInputReader & ExecutionQueueControl,
     sandbox: IsolatedSandbox,
@@ -67,6 +68,7 @@ export function createRepositoryRunner(
     resumable: options.resumable,
     attemptMs: options.attemptMs,
     graceMs: options.graceMs,
+    singleAttempt: options.singleAttempt,
   });
   let teardownFailure: UnconfirmedTeardown | undefined;
   const drain = {

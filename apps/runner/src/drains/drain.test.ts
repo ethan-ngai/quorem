@@ -81,6 +81,27 @@ void test("bounded drain returns incomplete when work cannot be claimed", async 
   assert.equal((await d.drain(AbortSignal.timeout(500))).complete, false);
 });
 
+void test("single-attempt invocations retain continuation instead of claiming the next user", async () => {
+  const f = fixture();
+  f.add();
+  f.add();
+  const d = drainer({
+    ...f,
+    slots: 1,
+    resumable: true,
+    singleAttempt: true,
+    graceMs: 1,
+    claimWindowMs: 1000,
+    engine: { execute: async () => "complete" },
+  });
+  const first = await d.drain(AbortSignal.timeout(1500));
+  assert.equal(f.count(), 1);
+  assert.equal(first.queued, 1);
+  assert.equal(first.complete, false);
+  assert.equal((await d.drain(AbortSignal.timeout(1500))).complete, true);
+  assert.equal(f.count(), 2);
+});
+
 void test(
   "idle slots do not retry claims on periodic control ticks",
   { timeout: 2000 },
