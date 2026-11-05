@@ -1,3 +1,10 @@
+import {
+  nodeType,
+  nodeKinds,
+  nodePayloadTypes,
+  type NodeKind,
+  type NodePayload,
+} from "@quorem/contracts/node-type";
 import { isLongValue } from "@quorem/contracts/long";
 import type { CustomCase } from "@quorem/contracts";
 import { MAX_INPUT_ELEMENTS } from "./inputLimits";
@@ -11,23 +18,17 @@ export function innerType(type: string, wrapper: "optional" | "list" | "array") 
     : undefined;
 }
 
-export const valueAtoms = [
-  "int",
-  "long",
-  "float",
-  "str",
-  "bool",
-  "datetime",
-  "ListNode",
-  "TreeNode",
-] as const;
+export const valueAtoms = [...nodePayloadTypes, ...nodeKinds] as const;
 export const valueWrappers = ["optional", "list", "array"] as const;
 export type ValueType =
   | { kind: (typeof valueAtoms)[number] }
+  | { kind: NodeKind; element: { kind: NodePayload } }
   | { kind: (typeof valueWrappers)[number]; element: ValueType };
 
 export function parseValueType(type: string, depth = 0): ValueType | undefined {
   if (depth > 100) return;
+  const node = nodeType(type);
+  if (node?.generic) return { kind: node.kind, element: { kind: node.payload } };
   const atom = valueAtoms.find((value) => value === type);
   if (atom) return { kind: atom };
   const wrapper = valueWrappers.find((value) => type.startsWith(`${value}<`) && type.endsWith(">"));
@@ -67,25 +68,26 @@ export function validateTypedValue(
     for (const item of value) validateTypedValue(list, item, depth + 1, count);
     return;
   }
-  if (type === "ListNode" || type === "TreeNode") {
+  const node = nodeType(type);
+  if (node) {
     if (value === null) return;
     if (!Array.isArray(value)) throw new Error("Enter a node array or null.");
     if (value.length > MAX_INPUT_ELEMENTS) throw new Error("At most 100,000 node entries.");
     let length = value.length;
-    if (type === "TreeNode") while (length > 0 && value[length - 1] === null) length--;
+    if (node.kind === "TreeNode") while (length > 0 && value[length - 1] === null) length--;
     let slots = 1;
     for (let index = 0; index < length; index++) {
       const item: unknown = value[index];
-      if (type === "TreeNode") {
+      if (node.kind === "TreeNode") {
         if (slots === 0) throw new Error("Tree contains an orphan node.");
         slots--;
         if (item === null) continue;
         if (index === 0 && item === null) throw new Error("A null root cannot have children.");
         slots += 2;
       }
-      validateTypedValue("int", item, depth + 1, count);
+      validateTypedValue(node.payload, item, depth + 1, count);
     }
-    if (type === "TreeNode" && length > 0 && value[0] === null)
+    if (node.kind === "TreeNode" && length > 0 && value[0] === null)
       throw new Error("A null root cannot have children.");
     return;
   }

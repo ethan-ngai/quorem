@@ -1,4 +1,5 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
+import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "./model.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
@@ -41,22 +42,32 @@ function documentation(sig: Signature, language: StarterLanguage, indent: string
   return `${indent}/**\n${indent} * ${lines.map((l) => l.replaceAll("*/", "* /")).join(`\n${indent} * `)}\n${indent} */\n`;
 }
 
+function boxJava(type: string) {
+  const boxed: Record<string, string> = {
+    int: "Integer",
+    long: "Long",
+    double: "Double",
+    boolean: "Boolean",
+  };
+  return boxed[type] ?? type;
+}
+
 function languageType(
   kind: string,
   language: Exclude<StarterLanguage, "python" | "postgresql">,
 ): string {
+  const node = nodeType(kind);
+  if (node?.generic) {
+    const inner = languageType(node.payload, language);
+    if (language === "java") return `Typed${node.kind}<${boxJava(inner)}>`;
+    if (language === "typescript") return `${node.kind}<${inner}> | null`;
+    return `${inner} ${node.kind === "ListNode" ? "typed_list_node" : "typed_tree_node"} option`;
+  }
   for (const wrapper of ["optional", "array", "list"] as const) {
     if (kind.startsWith(`${wrapper}<`) && kind.endsWith(">")) {
       let inner = languageType(kind.slice(wrapper.length + 1, -1), language);
       if (language === "java") {
-        if (wrapper !== "array")
-          inner =
-            (
-              { int: "Integer", long: "Long", double: "Double", boolean: "Boolean" } as Record<
-                string,
-                string
-              >
-            )[inner] ?? inner;
+        if (wrapper !== "array") inner = boxJava(inner);
         return wrapper === "optional"
           ? inner
           : wrapper === "array"

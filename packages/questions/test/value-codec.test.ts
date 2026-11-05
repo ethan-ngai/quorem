@@ -95,3 +95,21 @@ it("judges adjacent wide integers exactly and applies long comparisons", () => {
     "wrong_answer",
   );
 });
+
+it("preserves typed node values, sparse tree positions, and legacy integer rules", () => {
+  expect(normalizeQuestionJson("TreeNode<str>", '["root",null,"right",null,null]')).toBe(
+    '["root",null,"right"]',
+  );
+  expect(normalizeQuestionJson("ListNode<long>", '["9007199254740993"]')).toBe(
+    '["9007199254740993"]',
+  );
+  expect(normalizeQuestionJson("ListNode<bool>", "[]")).toBe("null");
+  expect(() => normalizeQuestionJson("TreeNode<str>", '["a",null,null,"orphan"]')).toThrow(
+    "orphan tree node",
+  );
+  expect(() => normalizeQuestionJson("ListNode<str>", "[null]")).toThrow();
+  expect(() => normalizeQuestionJson("TreeNode<optional<int>>", "[1]")).toThrow(
+    "unknown or excessively nested type",
+  );
+  expect(() => normalizeQuestionJson("TreeNode", '["legacy"]')).toThrow("expected integer");
+});

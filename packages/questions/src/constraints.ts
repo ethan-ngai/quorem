@@ -1,4 +1,5 @@
 /** @file constraints.ts @description Structured constraint metadata validation. @module questions */
+import { nodeType } from "@quorem/contracts/node-type";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
 import { validQuestionType, validateInputConfig } from "./signature.ts";
 
@@ -22,10 +23,10 @@ function targetType(sig: Signature, target: ConstraintTarget): "scalar" | "seque
       if (["list<int>", "list<long>", "list<float>"].includes(type)) return "sequence";
       break;
     case "nodeCount":
-      if (["ListNode", "TreeNode"].includes(type)) return "scalar";
+      if (nodeType(type)) return "scalar";
       break;
     case "nodeValues":
-      if (["ListNode", "TreeNode"].includes(type)) return "sequence";
+      if (["int", "long", "float"].includes(nodeType(type)?.payload ?? "")) return "sequence";
       break;
   }
   throw new Error(
@@ -60,7 +61,11 @@ export function validateConstraints(sig: Signature, constraints: readonly Constr
             .find((p) => p.name === c.target.parameter)
             ?.type.replaceAll("array<", "list<");
           if (
-            (type === "long" || (type === "list<long>" && c.target.projection !== "length")) &&
+            (type === "long" ||
+              (type === "list<long>" && c.target.projection !== "length") ||
+              (type &&
+                c.target.projection === "nodeValues" &&
+                nodeType(type)?.payload === "long")) &&
             [c.min, c.max].some((bound) => bound !== undefined && !Number.isSafeInteger(bound))
           )
             throw new Error("long range bounds must be safe integers");

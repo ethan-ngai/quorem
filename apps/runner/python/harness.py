@@ -31,6 +31,12 @@ class Capture(io.TextIOBase):
     def flush(self):
         pass
 
+def node_type(kind):
+    name, separator, payload = kind.partition('<')
+    if name in ('ListNode', 'TreeNode'):
+        return name, payload[:-1] if separator else 'int'
+    return None, None
+
 def decode(kind, value):
     kind = kind.replace("array<", "list<")
     if kind.startswith('optional<'):
@@ -41,17 +47,18 @@ def decode(kind, value):
         return int(value)
     if kind == 'datetime':
         return datetime.datetime.fromisoformat(value)
-    if kind == 'ListNode':
+    node_kind, payload = node_type(kind)
+    if node_kind == 'ListNode':
         dummy = ListNode()
         tail = dummy
         for item in value or []:
-            tail.next = ListNode(item)
+            tail.next = ListNode(decode(payload, item))
             tail = tail.next
         return dummy.next
-    if kind == 'TreeNode':
+    if node_kind == 'TreeNode':
         if not value:
             return None
-        root = TreeNode(value[0])
+        root = TreeNode(decode(payload, value[0]))
         parents = collections.deque([root])
         index = 1
         while parents and index < len(value):
@@ -59,7 +66,7 @@ def decode(kind, value):
             for side in ('left', 'right'):
                 if index < len(value):
                     if value[index] is not None:
-                        node = TreeNode(value[index])
+                        node = TreeNode(decode(payload, value[index]))
                         setattr(parent, side, node)
                         parents.append(node)
                     index += 1
@@ -85,7 +92,8 @@ def encode(kind, value, depth=0, count=None, seen=None):
             raise InvalidOutput()
         seen.add(id(value))
         return [encode(kind[5:-1], v, depth+1, count, seen) for v in value]
-    if kind in ('ListNode', 'TreeNode'):
+    node_kind, payload = node_type(kind)
+    if node_kind:
         if value is None:
             return None
         result = []
@@ -95,19 +103,19 @@ def encode(kind, value, depth=0, count=None, seen=None):
             if node is None:
                 result.append(None)
                 continue
-            expected = ListNode if kind == 'ListNode' else TreeNode
+            expected = ListNode if node_kind == 'ListNode' else TreeNode
             if not isinstance(node, expected) or id(node) in seen:
                 raise InvalidOutput()
             seen.add(id(node))
-            result.append(encode('int', node.val, depth+1, count, seen))
-            if kind == 'ListNode':
+            result.append(encode(payload, node.val, depth+1, count, seen))
+            if node_kind == 'ListNode':
                 if node.next is not None:
                     queue.append(node.next)
             else:
                 queue.extend((node.left, node.right))
             if len(result) > MAX_ELEMENTS or len(queue) > MAX_ELEMENTS:
                 raise InvalidOutput()
-        if kind == 'TreeNode':
+        if node_kind == 'TreeNode':
             while result and result[-1] is None:
                 result.pop()
         return result or None

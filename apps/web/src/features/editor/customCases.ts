@@ -1,3 +1,4 @@
+import { nodeType } from "@quorem/contracts/node-type";
 import { randomUUID } from "../../randomUUID";
 import type { Constraint, CustomCase, QuestionProblem, Signature } from "@quorem/contracts";
 
@@ -43,7 +44,7 @@ function defaultValue(type: string): WireValue {
   if (type === "long") return "0";
   if (type === "datetime") return "1970-01-01T00:00:00";
   if (type === "bool") return false;
-  if (type === "ListNode" || type === "TreeNode" || innerType(type, "optional")) return null;
+  if (nodeType(type) || innerType(type, "optional")) return null;
   if (innerType(type, "list")) return [];
   return 0;
 }

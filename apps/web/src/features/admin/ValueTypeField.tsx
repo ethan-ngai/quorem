@@ -1,3 +1,4 @@
+import { nodeKinds, nodePayloadTypes } from "@quorem/contracts/node-type";
 import { useEffect, useId, useRef } from "react";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import {
@@ -17,8 +18,8 @@ const names: Record<Choice, string> = {
   str: "Text",
   bool: "Boolean",
   datetime: "Date and time",
-  ListNode: "Linked list node (int)",
-  TreeNode: "Binary tree node (int)",
+  ListNode: "Linked list node",
+  TreeNode: "Binary tree node",
   list: "List of",
   array: "Array of",
   optional: "Optional",
@@ -31,6 +32,7 @@ function TypeBlock({
   allowVoid = false,
   disabled,
   depth = 0,
+  payloadOnly = false,
   onChange,
 }: {
   label: string;
@@ -38,22 +40,35 @@ function TypeBlock({
   allowVoid?: boolean;
   disabled: boolean;
   depth?: number;
+  payloadOnly?: boolean;
   onChange: (type: AuthoringType) => void;
 }) {
+  const nodeKind = nodeKinds.find((kind) => kind === type?.kind);
+  const element =
+    type && "element" in type ? type.element : nodeKind ? { kind: "int" as const } : undefined;
   return (
     <div className="authoring-type-block">
       <SearchableTypeSelect<Choice>
         label={label}
         value={type?.kind}
-        choices={[
-          ...valueAtoms,
-          ...(depth < 100 ? valueWrappers : []),
-          ...(allowVoid ? ["void" as const] : []),
-        ]}
+        choices={
+          payloadOnly
+            ? nodePayloadTypes
+            : [
+                ...(depth < 100 ? valueAtoms : nodePayloadTypes),
+                ...(depth < 100 ? valueWrappers : []),
+                ...(allowVoid ? ["void" as const] : []),
+              ]
+        }
         names={names}
         disabled={disabled}
         onChange={(kind) => {
-          if (kind === "list" || kind === "optional" || kind === "array") {
+          if (kind === "ListNode" || kind === "TreeNode") {
+            if (type?.kind === kind) return;
+            const payload =
+              nodePayloadTypes.find((atom) => atom === (element ?? type)?.kind) ?? "int";
+            onChange({ kind, element: { kind: payload } });
+          } else if (kind === "list" || kind === "optional" || kind === "array") {
             const element =
               type && type.kind !== "void"
                 ? "element" in type
@@ -66,18 +81,27 @@ function TypeBlock({
           }
         }}
       />
-      {type && "element" in type && (
+      {type && element && (
         <>
           <span className="code-operator" aria-hidden="true">
             &lt;
           </span>
           <TypeBlock
             label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
-            type={type.element}
+            type={element}
+            payloadOnly={!!nodeKind}
             disabled={disabled}
             depth={depth + 1}
             onChange={(element) => {
-              if (element.kind !== "void") onChange({ ...type, element });
+              if (nodeKind) {
+                const payload = nodePayloadTypes.find((atom) => atom === element.kind);
+                if (payload) onChange({ kind: nodeKind, element: { kind: payload } });
+              } else if (
+                (type.kind === "list" || type.kind === "array" || type.kind === "optional") &&
+                element.kind !== "void"
+              ) {
+                onChange({ kind: type.kind, element });
+              }
             }}
           />
           <span className="code-operator" aria-hidden="true">

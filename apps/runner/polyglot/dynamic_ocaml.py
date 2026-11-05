@@ -58,10 +58,10 @@ let dec_datetime v =
 let dec_list f v = List.map f (array v)
 let dec_array f v = Array.of_list (dec_list f v)
 let dec_optional f = function JNull -> None | v -> Some (f v)
-let dec_node = function JNull -> None | v -> List.fold_left (fun next x -> Some {value=dec_int x;next}) None (List.rev (array v))
-let dec_tree = function JNull -> None | v ->
+let dec_node f = function JNull -> None | v -> List.fold_left (fun next x -> Some {value=f x;next}) None (List.rev (array v))
+let dec_tree f = function JNull -> None | v ->
  let xs=Array.of_list (array v) in if Array.length xs=0 || xs.(0)=JNull then None else
- let node v : tree_node = {value=dec_int v;left=None;right=None} in
+ let node v : _ typed_tree_node = {value=f v;left=None;right=None} in
  let root=node xs.(0) and q=Queue.create () and i=ref 1 in
  Queue.add root q;
  while not (Queue.is_empty q) && !i<Array.length xs do
@@ -75,7 +75,11 @@ def decoder(t):
     if t.startswith('optional<'):return '(dec_optional '+decoder(t[9:-1])+')'
     if t.startswith('list<'):return '(dec_list '+decoder(t[5:-1])+')'
     if t.startswith('array<'):return '(dec_array '+decoder(t[6:-1])+')'
-    return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime','ListNode':'dec_node','TreeNode':'dec_tree'}[t]
+    if t == 'ListNode' or t.startswith('ListNode<'):
+        return '(dec_node ' + decoder(t[9:-1] if '<' in t else 'int') + ')'
+    if t == 'TreeNode' or t.startswith('TreeNode<'):
+        return '(dec_tree ' + decoder(t[9:-1] if '<' in t else 'int') + ')'
+    return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime'}[t]
 
 def source(r,h):
     signatures=dict(r.get('methods') or {})

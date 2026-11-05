@@ -1,4 +1,5 @@
 /** @file coding-case.ts @description Coding cases, constraints and sequence results. @module questions */
+import { nodeType } from "@quorem/contracts/node-type";
 import { compareNumericValues } from "@quorem/contracts/long";
 import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
 import { validateConstraints } from "./constraints.ts";
@@ -59,12 +60,12 @@ function applyConstraints(
       return typeof value === "string"
         ? Array.from(value).map((c) => c.codePointAt(0)!)
         : [Number((value as JsonNumber).lexeme)];
-    const values =
-      (value as JsonValue[] | null)
-        ?.filter((v) => v !== null)
-        .map((v) => Number((v as JsonNumber).lexeme)) ?? [];
+    const elements = (value as JsonValue[] | null)?.filter((v) => v !== null) ?? [];
+    if (target.projection === "nodeCount") return [elements.length];
+    if (target.projection === "nodeValues" && nodeType(type)?.payload === "long")
+      return (elements as string[]).map(BigInt);
+    const values = elements.map((v) => Number((v as JsonNumber).lexeme));
     if (target.projection === "sum") return [values.reduce((a, b) => a + b, 0)];
-    if (target.projection === "nodeCount") return [values.length];
     return values;
   };
   const finite = (value: number | bigint | undefined): value is number | bigint =>

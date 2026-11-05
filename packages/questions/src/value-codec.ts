@@ -1,4 +1,5 @@
 /** @file value-codec.ts @description Typed coding question JSON values. @module questions */
+import { nodeType } from "@quorem/contracts/node-type";
 import { isLongValue } from "@quorem/contracts/long";
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
 import { validQuestionType } from "./signature.ts";
@@ -35,24 +36,25 @@ export function normalizeQuestionValue(type: string, value: JsonValue, limit = 1
     if (depth > 0 && ++count > limit) throw new Error(`collection exceeds ${limit} elements`);
     if (kind.startsWith("optional<"))
       return current === null ? null : normalize(kind.slice(9, -1), current, depth + 1);
-    if (kind === "TreeNode" || kind === "ListNode") {
+    const node = nodeType(kind);
+    if (node) {
       if (current === null) return null;
       if (!Array.isArray(current)) throw new Error("node requires array or null");
       const arr = [...current];
       if (!arr.length) return null;
       if (arr.length > limit) throw new Error("too many nodes");
-      if (kind === "TreeNode") while (arr.length && arr.at(-1) === null) arr.pop();
+      if (node.kind === "TreeNode") while (arr.length && arr.at(-1) === null) arr.pop();
       if (!arr.length) return null;
-      if (kind === "TreeNode" && arr[0] === null) throw new Error("null root with children");
+      if (node.kind === "TreeNode" && arr[0] === null) throw new Error("null root with children");
       let slots = 1;
       for (let i = 0; i < arr.length; i++) {
-        if (kind === "TreeNode") {
+        if (node.kind === "TreeNode") {
           if (slots === 0) throw new Error("orphan tree node");
           slots--;
           if (arr[i] === null) continue;
           slots += 2;
         }
-        arr[i] = normalize("int", arr[i], depth + 1);
+        arr[i] = normalize(node.payload, arr[i], depth + 1);
       }
       return arr;
     }
