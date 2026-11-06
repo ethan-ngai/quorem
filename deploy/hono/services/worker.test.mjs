@@ -364,7 +364,7 @@ void test("control authority gates drains and registers authorized case attempts
   registered = true;
   const acceptedCase = await post();
   assert.equal(acceptedCase.status, 200);
-  assert.equal(await acceptedCase.text(), "ok");
+  assert.equal(await acceptedCase.text(), "\x01\0\0\0\0\0\0\0ok");
   assert.deepEqual(events.splice(0), ["control:/register", "case"]);
   const control = env.CASE_CONTROL;
   let releaseGate;
@@ -389,9 +389,15 @@ void test("control authority gates drains and registers authorized case attempts
       }),
     ]);
     assert.equal(early?.status, 200);
+    const reader = early.body.getReader();
+    assert.deepEqual(
+      (await reader.read()).value,
+      new Uint8Array(8).fill(0).map((n, i) => (i === 0 ? 1 : n)),
+    );
+    await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(events, ["control:pending"]);
     // Cancellation before durable admission must never launch a native case afterward.
-    await early.body.cancel();
+    await reader.cancel();
     releaseGate();
     await new Promise((resolve) => setImmediate(resolve));
     assert.deepEqual(events.splice(0), ["control:pending"]);

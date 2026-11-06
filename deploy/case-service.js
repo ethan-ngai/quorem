@@ -1,3 +1,4 @@
+import { encodeCaseFrame } from "../packages/execution/src/frames.ts";
 import { signedCaseProbe } from "./case-proof.js";
 export async function caseRequest(
   request,
@@ -111,12 +112,16 @@ export async function caseRequest(
     const work = (async () => {
       let reader;
       try {
+        // Flush transport admission before durable control and native startup.
+        const admission = writer.write(encodeCaseFrame(1, new Uint8Array()));
+        void admission.catch(() => controller.abort());
         const actual = await delegate();
         if (actual.status !== 200 || !actual.body) {
           await actual.body?.cancel();
           throw new Error("Case delegation unavailable");
         }
         reader = actual.body.getReader();
+        await admission;
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
