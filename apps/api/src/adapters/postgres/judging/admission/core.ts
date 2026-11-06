@@ -6,7 +6,7 @@ import { ApplicationError } from "../../../../application/error.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import {
   fixtureRows,
-  storeCustomInput,
+  storeCustomInputs,
   type FixtureOwner,
   type bindJobInputs,
 } from "../inputs/bind.ts";
@@ -141,8 +141,7 @@ export async function prepareExecutionInputs(
     hidden = Number(counts.hidden);
   const fallback = interview && kind === "submit" && !odyssey && hidden === 0;
   const primary = custom ? "custom" : kind === "run" || fallback ? "example" : "hidden";
-  const customHashes: Uint8Array[] = [];
-  if (custom) for (const raw of custom) customHashes.push(await storeCustomInput(tx, raw));
+  const customHashes = custom ? await storeCustomInputs(tx, custom) : [];
   const caseCount =
     primary === "custom" ? customHashes.length : primary === "example" ? examples : hidden;
   if (interview && caseCount === 0)
