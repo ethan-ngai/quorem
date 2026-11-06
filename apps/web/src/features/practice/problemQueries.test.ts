@@ -1,3 +1,4 @@
+import { publicQuestionFixture } from "../../test/questionFixture";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
@@ -17,9 +18,7 @@ vi.mock("../auth/session", () => ({
 }));
 
 const publicProblem = {
-  ...fixture.problem,
-  starterSource: fixture.implementations[0]!.starterSource,
-  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+  ...publicQuestionFixture(fixture),
   id: "public-version",
   slug: "public-question",
 } as ProblemVersion;

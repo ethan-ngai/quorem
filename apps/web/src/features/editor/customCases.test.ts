@@ -4,6 +4,7 @@ import {
   associatedResultIndex,
   createRunSnapshot,
   parseCustomCases,
+  parseRunSnapshotCases,
   createCustomDraft,
   parseCustomDrafts,
   parseProblemDrafts,
@@ -231,4 +232,17 @@ it("associates admitted case values with stable draft IDs", () => {
   expect(associatedResultIndex(snapshot, true, "first", input[0])).toBe(0);
   expect(associatedResultIndex(snapshot, true, "first", { args: [[2, 1]], expected: 3 })).toBe(-1);
   expect(createRunSnapshot("version", input).cases[0]?.id).toBe("0");
+});
+
+it("recovers SQL Run inputs without a coding signature and rejects invalid table data", () => {
+  const problem = {
+    sql: {
+      dialect: "postgresql",
+      outputOrder: "ordered",
+      tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
+    },
+  } as ProblemVersion;
+  const raw = '[{"args":[{"tables":[{"name":"items","rows":[[1]]}]}]}]';
+  expect(parseRunSnapshotCases(raw, problem)).toEqual(JSON.parse(raw));
+  expect(() => parseRunSnapshotCases(raw.replace("[[1]]", '[["bad"]]'), problem)).toThrow();
 });

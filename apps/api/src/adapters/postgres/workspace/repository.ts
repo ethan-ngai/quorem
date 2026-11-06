@@ -7,6 +7,7 @@ import {
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
+import { questionRuntime } from "../problems/runtime.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import type { Principal } from "../../../modules/identity/model.ts";
 import type {
@@ -119,23 +120,12 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
       return run((scope) =>
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
-          const problem = await tx.execute(
-            sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p,v`,
+          const problem = await tx.execute<{ isSql: boolean }>(
+            sql`SELECT v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p,v`,
           );
           if (!problem.rows.length)
             throw new ApplicationError("not_found", "Problem not found", 404);
-          if (
-            !(
-              await tx.execute(
-                sql`SELECT 1 FROM problem_languages WHERE version_id=${problemVersionId}::uuid AND language=${language}`,
-              )
-            ).rows.length
-          )
-            throw new ApplicationError(
-              "invalid_input",
-              "Language unavailable for this problem",
-              400,
-            );
+          questionRuntime(language, problem.rows[0].isSql);
           const row = (
             await tx.execute<Row>(
               sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${crypto.randomUUID()},${principal.userId},${problemVersionId}::uuid,${language}) ON CONFLICT(owner_id,problem_version_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id::text,kind,problem_version_id::text AS "problemVersionId",language,match_id::text AS "matchId"`,

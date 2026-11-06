@@ -15,6 +15,7 @@ describe("question JSON import", () => {
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {
     const content = blankQuestion();
+    delete content.problem.signature;
     content.problem.sql = {
       dialect: "postgresql",
       outputOrder: "unordered",
@@ -30,17 +31,16 @@ describe("question JSON import", () => {
       expected: { rows: [[{ $numeric: "1.25" }]] },
     };
     content.problem.odyssey = {
-      levels: [{ title: "Step 1", statementMarkdown: "Query", methods: [], examples: [test] }],
+      levels: [
+        {
+          title: "Step 1",
+          statementMarkdown: "Query",
+          methods: [],
+          examples: [test],
+          hiddenCases: [test],
+        },
+      ],
     };
-    content.odysseyHiddenCases = [[test]];
-    content.implementations = [
-      {
-        language: "postgresql",
-        starterSource: "SELECT amount FROM items",
-        runtimeRevision: "postgresql-17.6-v1",
-        harnessRevision: "quorem-postgresql-v2",
-      },
-    ];
     expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
   });
   it.each(["{", "null", "[]", "{}", '{"problem":null}'])(
@@ -63,11 +63,11 @@ describe("question JSON import", () => {
     expect(() => parseQuestionImport(JSON.stringify({ ...content, solutions: [] }))).toThrow(
       /additional properties/,
     );
-    content.implementations[0] = {
-      ...content.implementations[0]!,
-      referenceSource: "duplicated reference",
-    } as (typeof content.implementations)[number];
-    expect(() => parseQuestionImport(JSON.stringify(content))).toThrow(/additional properties/);
+    expect(() =>
+      parseQuestionImport(
+        JSON.stringify({ ...content, implementations: [{ language: "python" }] }),
+      ),
+    ).toThrow(/additional properties/);
   });
   it("bounds uploaded bytes", () => {
     expect(() => parseQuestionImport(" ".repeat(questionImportLimit + 1))).toThrow(/2 MiB/);

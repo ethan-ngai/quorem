@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import {
   JsonNumber,
   parseLosslessJson,
@@ -45,7 +46,7 @@ export function validateExecutionCases(
       if (metadata.sql) validateSqlCase(metadata.sql, normalized, false);
       else if (methods.length)
         validateCodingSequence(
-          metadata.signature,
+          primarySignature(metadata),
           metadata.constraints ?? [],
           methods,
           normalized,
@@ -54,7 +55,7 @@ export function validateExecutionCases(
         );
       else
         validateCodingCase(
-          metadata.signature,
+          primarySignature(metadata),
           metadata.constraints ?? [],
           normalized,
           false,

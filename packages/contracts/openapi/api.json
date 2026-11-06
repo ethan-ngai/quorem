@@ -299,7 +299,10 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -307,7 +310,9 @@
             "description": "Owner-scoped SSE invalidations. Read the submission snapshot after each changed event.",
             "content": {
               "text/event-stream": {
-                "schema": { "type": "string" }
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -315,7 +320,9 @@
             "description": "Safe application error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
@@ -1082,10 +1089,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "canonicalApproachId",
-                    "items"
-                  ],
+                  "required": ["canonicalApproachId", "items"],
                   "properties": {
                     "items": {
                       "type": "array",
@@ -1136,10 +1140,7 @@
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "canonicalApproachId",
-                    "items"
-                  ],
+                  "required": ["canonicalApproachId", "items"],
                   "properties": {
                     "items": {
                       "type": "array",
@@ -3781,9 +3782,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "items"
-                ],
+                "required": ["items"],
                 "properties": {
                   "items": {
                     "type": "array",
@@ -3792,11 +3791,7 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": [
-                        "id",
-                        "revision",
-                        "visibility"
-                      ],
+                      "required": ["id", "revision", "visibility"],
                       "properties": {
                         "id": {
                           "type": "string",
@@ -3808,10 +3803,7 @@
                         },
                         "visibility": {
                           "type": "string",
-                          "enum": [
-                            "private",
-                            "global"
-                          ]
+                          "enum": ["private", "global"]
                         }
                       }
                     }
@@ -3828,18 +3820,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "items"
-                  ],
+                  "required": ["items"],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": [
-                          "id",
-                          "status"
-                        ],
+                        "required": ["id", "status"],
                         "properties": {
                           "id": {
                             "type": "string",
@@ -3847,10 +3834,7 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "succeeded",
-                              "failed"
-                            ]
+                            "enum": ["succeeded", "failed"]
                           },
                           "code": {
                             "type": "string"
@@ -3889,9 +3873,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "items"
-                ],
+                "required": ["items"],
                 "properties": {
                   "items": {
                     "type": "array",
@@ -3900,10 +3882,7 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": [
-                        "id",
-                        "revision"
-                      ],
+                      "required": ["id", "revision"],
                       "properties": {
                         "id": {
                           "type": "string",
@@ -3928,18 +3907,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "items"
-                  ],
+                  "required": ["items"],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": [
-                          "id",
-                          "status"
-                        ],
+                        "required": ["id", "status"],
                         "properties": {
                           "id": {
                             "type": "string",
@@ -3947,10 +3921,7 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "succeeded",
-                              "failed"
-                            ]
+                            "enum": ["succeeded", "failed"]
                           },
                           "code": {
                             "type": "string"
@@ -3989,9 +3960,7 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "items"
-                ],
+                "required": ["items"],
                 "properties": {
                   "items": {
                     "type": "array",
@@ -4000,10 +3969,7 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": [
-                        "id",
-                        "current"
-                      ],
+                      "required": ["id", "current"],
                       "properties": {
                         "id": {
                           "type": "string",
@@ -4027,18 +3993,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "items"
-                  ],
+                  "required": ["items"],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
                         "type": "object",
-                        "required": [
-                          "id",
-                          "status"
-                        ],
+                        "required": ["id", "status"],
                         "properties": {
                           "id": {
                             "type": "string",
@@ -4046,10 +4007,7 @@
                           },
                           "status": {
                             "type": "string",
-                            "enum": [
-                              "succeeded",
-                              "failed"
-                            ]
+                            "enum": ["succeeded", "failed"]
                           },
                           "code": {
                             "type": "string"
@@ -4119,12 +4077,7 @@
           "users": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "accounts",
-              "administrators",
-              "disabled",
-              "active7d"
-            ],
+            "required": ["accounts", "administrators", "disabled", "active7d"],
             "properties": {
               "accounts": {
                 "type": "integer",
@@ -4147,11 +4100,7 @@
           "content": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "publications",
-              "drafts",
-              "workspaces"
-            ],
+            "required": ["publications", "drafts", "workspaces"],
             "properties": {
               "publications": {
                 "type": "integer",
@@ -4170,10 +4119,7 @@
           "submissions": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "retained7d",
-              "pending"
-            ],
+            "required": ["retained7d", "pending"],
             "properties": {
               "retained7d": {
                 "type": "integer",
@@ -4208,10 +4154,7 @@
                 },
                 "role": {
                   "type": "string",
-                  "enum": [
-                    "admin",
-                    "user"
-                  ]
+                  "enum": ["admin", "user"]
                 },
                 "disabled": {
                   "type": "boolean"
@@ -4233,12 +4176,7 @@
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "id",
-                "title",
-                "updatedAt",
-                "editingPublication"
-              ],
+              "required": ["id", "title", "updatedAt", "editingPublication"],
               "properties": {
                 "id": {
                   "type": "string"
@@ -4633,7 +4571,6 @@
           "statementMarkdown",
           "examples",
           "constraints",
-          "signature",
           "starterSource",
           "runtimeRevision",
           "limits"
@@ -5612,20 +5549,11 @@
       "SolutionCode": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "language",
-          "source"
-        ],
+        "required": ["language", "source"],
         "properties": {
           "language": {
             "type": "string",
-            "enum": [
-              "python",
-              "java",
-              "typescript",
-              "ocaml",
-              "postgresql"
-            ]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "source": {
             "type": "string",
@@ -5638,7 +5566,6 @@
         "additionalProperties": false,
         "required": [
           "id",
-          "defaultLanguage",
           "explanationMarkdown",
           "timeComplexity",
           "spaceComplexity",
@@ -5658,13 +5585,7 @@
           },
           "defaultLanguage": {
             "type": "string",
-            "enum": [
-              "python",
-              "java",
-              "typescript",
-              "ocaml",
-              "postgresql"
-            ]
+            "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
           },
           "explanationMarkdown": {
             "type": "string"
@@ -5690,13 +5611,7 @@
       "ApproachComplexity": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "id",
-          "title",
-          "timeComplexity",
-          "spaceComplexity",
-          "complexityNotes"
-        ],
+        "required": ["id", "title", "timeComplexity", "spaceComplexity", "complexityNotes"],
         "properties": {
           "id": {
             "type": "string",
@@ -5718,37 +5633,6 @@
             "type": "string"
           }
         }
-      },
-      "AuthoringImplementation": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "language": {
-            "type": "string",
-            "enum": [
-              "python",
-              "java",
-              "typescript",
-              "ocaml",
-              "postgresql"
-            ]
-          },
-          "starterSource": {
-            "type": "string"
-          },
-          "runtimeRevision": {
-            "type": "string"
-          },
-          "harnessRevision": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "language",
-          "starterSource",
-          "runtimeRevision",
-          "harnessRevision"
-        ]
       },
       "QuestionProblem": {
         "type": "object",
@@ -5825,7 +5709,6 @@
           "statementMarkdown",
           "examples",
           "constraints",
-          "signature",
           "limits"
         ]
       },
@@ -5905,7 +5788,7 @@
         "additionalProperties": false,
         "properties": {
           "problem": {
-            "$ref": "#/components/schemas/QuestionProblem"
+            "$ref": "#/components/schemas/AuthoredQuestionProblem"
           },
           "hiddenCases": {
             "type": "array",
@@ -5916,22 +5799,6 @@
           },
           "attribution": {
             "type": "string"
-          },
-          "implementations": {
-            "type": "array",
-            "maxItems": 4,
-            "items": {
-              "$ref": "#/components/schemas/AuthoringImplementation"
-            }
-          },
-          "odysseyHiddenCases": {
-            "type": "array",
-            "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/CustomCase"
-              }
-            }
           },
           "canonicalApproachId": {
             "type": "string",
@@ -5945,14 +5812,7 @@
             }
           }
         },
-        "required": [
-          "problem",
-          "hiddenCases",
-          "attribution",
-          "implementations",
-          "canonicalApproachId",
-          "approaches"
-        ]
+        "required": ["problem", "hiddenCases", "attribution", "canonicalApproachId", "approaches"]
       },
       "QuestionDraft": {
         "type": "object",
@@ -6002,18 +5862,41 @@
           "slug": {
             "type": "string"
           },
-          "editVersionId": { "type": "string", "format": "uuid" },
+          "editVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "publishedVersionId": {
             "type": "string",
             "format": "uuid"
           },
-          "difficulty": { "type": "string" },
-          "isOdyssey": { "type": "boolean" },
-          "tags": { "type": "array", "items": { "type": "string" } },
-          "companies": { "type": "array", "items": { "type": "string" } },
-          "isSql": { "type": "boolean" },
-          "fromLeetCode": { "type": "boolean" },
-          "ready": { "type": "boolean" },
+          "difficulty": {
+            "type": "string"
+          },
+          "isOdyssey": {
+            "type": "boolean"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isSql": {
+            "type": "boolean"
+          },
+          "fromLeetCode": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -6094,7 +5977,9 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "edit": { "type": "boolean" },
+              "edit": {
+                "type": "boolean"
+              },
               "problemVersionId": {
                 "type": "string",
                 "format": "uuid"
@@ -6416,23 +6301,10 @@
             }
           },
           "odyssey": {
-            "$ref": "#/components/schemas/Odyssey"
-          },
-          "odysseyHiddenCases": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 8,
-            "items": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 20,
-              "items": {
-                "$ref": "#/components/schemas/CustomCase"
-              }
-            }
+            "$ref": "#/components/schemas/AuthoredOdyssey"
           }
         },
-        "required": ["title", "statementMarkdown", "signature"],
+        "required": ["title", "statementMarkdown"],
         "allOf": [
           {
             "if": {
@@ -6455,23 +6327,26 @@
                       "privateCases": {}
                     },
                     "required": ["privateCases"]
+                  },
+                  {
+                    "required": ["signature"],
+                    "properties": {
+                      "signature": {}
+                    }
                   }
                 ]
               }
             },
             "else": {
               "properties": {
-                "publicCases": {}
+                "publicCases": {},
+                "signature": {}
               },
-              "required": ["publicCases"]
+              "required": ["publicCases", "signature"]
             }
           }
         ],
-        "additionalProperties": false,
-        "dependentRequired": {
-          "odyssey": ["odysseyHiddenCases"],
-          "odysseyHiddenCases": ["odyssey"]
-        }
+        "additionalProperties": false
       },
       "InterviewQuestionInput": {
         "type": "object",
@@ -6891,6 +6766,169 @@
             "minimum": 0
           }
         }
+      },
+      "AuthoredQuestionProblem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64
+          },
+          "leetcodeId": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "statementMarkdown": {
+            "type": "string"
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemExample"
+            }
+          },
+          "constraints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Constraint"
+            }
+          },
+          "signature": {
+            "$ref": "#/components/schemas/Signature"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ExecutionLimits"
+          },
+          "sql": {
+            "$ref": "#/components/schemas/SqlConfig"
+          },
+          "odyssey": {
+            "$ref": "#/components/schemas/AuthoredOdyssey"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "slug",
+          "version",
+          "title",
+          "difficulty",
+          "tags",
+          "statementMarkdown",
+          "examples",
+          "constraints",
+          "limits"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "anyOf": [
+                {
+                  "required": ["sql"],
+                  "properties": {
+                    "sql": {}
+                  }
+                },
+                {
+                  "required": ["odyssey"],
+                  "properties": {
+                    "odyssey": {}
+                  }
+                }
+              ]
+            },
+            "then": {
+              "not": {
+                "required": ["signature"],
+                "properties": {
+                  "signature": {}
+                }
+              }
+            },
+            "else": {
+              "required": ["signature"],
+              "properties": {
+                "signature": {}
+              }
+            }
+          }
+        ]
+      },
+      "AuthoredOdyssey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "levels": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/AuthoredOdysseyLevel"
+            }
+          }
+        },
+        "required": ["levels"]
+      },
+      "AuthoredOdysseyLevel": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "statementMarkdown": {
+            "type": "string"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signature"
+            },
+            "minItems": 0,
+            "maxItems": 16
+          },
+          "examples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProblemExample"
+            },
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "hiddenCases": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/components/schemas/CustomCase"
+            }
+          }
+        },
+        "required": ["title", "statementMarkdown", "methods", "examples", "hiddenCases"],
+        "additionalProperties": false
       }
     }
   }

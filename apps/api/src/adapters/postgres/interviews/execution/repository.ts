@@ -1,4 +1,5 @@
 /** @file repository.ts @description Atomic interview execution admission. @module interviews */
+import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import { bindJobInputs } from "../../judging/inputs/bind.ts";
@@ -78,10 +79,9 @@ export function postgresInterviewAdmission(
             language: string;
             problemId: string;
             stages: number;
-            revision: string;
-            harness: string;
+            isSql: boolean;
           }>(
-            sql`SELECT CASE WHEN octet_length(source)<=65536 THEN source ELSE NULL END AS source,document_version::text AS "documentVersion",document_epoch::text AS "documentEpoch",question_epoch::text AS "questionEpoch",language,question->'problem'->>'id' AS "problemId",CASE WHEN question->'problem'->'odyssey' IS NULL OR question->'problem'->'odyssey'='null'::jsonb THEN 0 WHEN jsonb_typeof(question->'problem'->'odyssey'->'levels')='array' THEN CASE WHEN jsonb_array_length(question->'problem'->'odyssey'->'levels')>0 THEN jsonb_array_length(question->'problem'->'odyssey'->'levels') ELSE -1 END ELSE -1 END AS stages,question->'problem'->>'runtimeRevision' AS revision,question->>'harnessRevision' AS harness FROM interviews WHERE id=${id}::uuid`,
+            sql`SELECT CASE WHEN octet_length(source)<=65536 THEN source ELSE NULL END AS source,document_version::text AS "documentVersion",document_epoch::text AS "documentEpoch",question_epoch::text AS "questionEpoch",language,question->'problem'->>'id' AS "problemId",CASE WHEN question->'problem'->'odyssey' IS NULL OR question->'problem'->'odyssey'='null'::jsonb THEN 0 WHEN jsonb_typeof(question->'problem'->'odyssey'->'levels')='array' THEN CASE WHEN jsonb_array_length(question->'problem'->'odyssey'->'levels')>0 THEN jsonb_array_length(question->'problem'->'odyssey'->'levels') ELSE -1 END ELSE -1 END AS stages,question->'problem'->'sql' IS NOT NULL AND question->'problem'->'sql' <> 'null'::jsonb AS "isSql" FROM interviews WHERE id=${id}::uuid`,
           )
         ).rows[0];
         if (
@@ -136,8 +136,7 @@ export function postgresInterviewAdmission(
           true,
           odyssey,
         );
-        if (typeof row.revision !== "string" || typeof row.harness !== "string")
-          throw new Error("Missing runtime revision");
+        const runtime = questionRuntime(row.language, row.isSql);
         const result = await insertAdmittedExecution(tx, {
           ownerId: actor.userId,
           jobId: fence.jobId,
@@ -146,8 +145,8 @@ export function postgresInterviewAdmission(
           sourceHash: command.sourceHash,
           customRun: command.customCases !== null,
           language: row.language,
-          runtimeRevision: row.revision,
-          harnessRevision: row.harness,
+          runtimeRevision: runtime.revision,
+          harnessRevision: runtime.harness,
           sponsorId: actor.kind === "guest" ? room.host : null,
           context: { kind: "interview", interviewId: id },
         });

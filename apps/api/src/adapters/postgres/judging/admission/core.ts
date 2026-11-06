@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { sql, type SQL } from "drizzle-orm";
 import type { QuestionProblem } from "@quorem/questions";
 import type { Transaction } from "@quorem/database/core";
@@ -199,7 +200,7 @@ export async function customValidationMetadata(
   const metadata = JSON.parse(row.data) as QuestionProblem;
   const levels = metadata.odyssey?.levels ?? [];
   if (
-    metadata.signature.parameters.length > 16 ||
+    (!metadata.sql && primarySignature(metadata).parameters.length > 16) ||
     metadata.constraints.length > 64 ||
     levels.length > 8 ||
     levels.some(

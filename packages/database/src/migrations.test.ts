@@ -443,7 +443,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     );
     await pool.query(`UPDATE quorem_auth.passkey SET counter=4294967295 WHERE id='fixture-key'`);
     await pool.query(
-      `INSERT INTO users(id,display_name) VALUES('fixture-user','Fixture'); INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('fixture-issuer','fixture-subject','fixture-user'); INSERT INTO problems(id,slug,owner_id) VALUES('10000000-0000-4000-8000-000000000001','fixture-problem','fixture-user'); INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES('20000000-0000-4000-8000-000000000002',1,'10000000-0000-4000-8000-000000000001','Fixture','easy','fixture','{}','[]','{}','fixture'); INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES('20000000-0000-4000-8000-000000000002','python','fixture','fixture','fixture'); INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('30000000-0000-4000-8000-000000000003','fixture-user','20000000-0000-4000-8000-000000000002','python')`,
+      `INSERT INTO users(id,display_name) VALUES('fixture-user','Fixture'); INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('fixture-issuer','fixture-subject','fixture-user'); INSERT INTO problems(id,slug,owner_id) VALUES('10000000-0000-4000-8000-000000000001','fixture-problem','fixture-user'); INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES('20000000-0000-4000-8000-000000000002',1,'10000000-0000-4000-8000-000000000001','Fixture','easy','fixture','{}','[]','{}','fixture'); INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('30000000-0000-4000-8000-000000000003','fixture-user','20000000-0000-4000-8000-000000000002','python')`,
     );
     await pool.query(`UPDATE identity_bindings SET subject=$1 WHERE user_id='fixture-user'`, [
       userId,
@@ -455,14 +455,9 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       "--data-only",
       "--file",
       archive,
-      ...[
-        "users",
-        "identity_bindings",
-        "problems",
-        "problem_versions",
-        "problem_languages",
-        "workspaces",
-      ].flatMap((name) => ["--table", `public.${name}`]),
+      ...["users", "identity_bindings", "problems", "problem_versions", "workspaces"].flatMap(
+        (name) => ["--table", `public.${name}`],
+      ),
       ...["user", "account", "session", "passkey"].flatMap((name) => [
         "--table",
         `quorem_auth."${name}"`,
@@ -475,17 +470,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);
     for (const [schema, names] of [
-      [
-        "public",
-        [
-          "users",
-          "identity_bindings",
-          "problems",
-          "problem_versions",
-          "problem_languages",
-          "workspaces",
-        ],
-      ],
+      ["public", ["users", "identity_bindings", "problems", "problem_versions", "workspaces"]],
       ["quorem_auth", ["user", "account", "session", "passkey"]],
     ] as const)
       for (const name of names)

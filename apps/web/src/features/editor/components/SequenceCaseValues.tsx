@@ -1,5 +1,6 @@
+import { primarySignature } from "@quorem/questions";
 /** @file SequenceCaseValues.tsx @description Stateful calls use the shared test-value presentation. @module editor */
-import type { ProblemVersion, MethodCall } from "@quorem/contracts";
+import type { QuestionProblem, MethodCall } from "@quorem/contracts";
 import { CaseArguments, CaseValue } from "./CaseOutput";
 
 export function SequenceCaseValues({
@@ -7,11 +8,13 @@ export function SequenceCaseValues({
   calls,
   outputLabel = "Expected output",
 }: {
-  problem: Pick<ProblemVersion, "odyssey" | "signature">;
+  problem: Pick<QuestionProblem, "odyssey" | "signature">;
   calls: MethodCall[];
   outputLabel?: "Expected output" | "Output";
 }) {
-  const methods = problem.odyssey?.levels.flatMap((level) => level.methods) ?? [problem.signature];
+  const methods = problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+    primarySignature(problem),
+  ];
   return (
     <>
       {calls.map((call, index) => {

@@ -94,10 +94,6 @@ describe.skipIf(!url)("guest execution metering", () => {
       ],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version],
-    );
-    await pool.query(
       "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',$3)",
       [match, host, version],
     );
@@ -133,7 +129,6 @@ describe.skipIf(!url)("guest execution metering", () => {
     await pool.query("DELETE FROM match_participants WHERE match_id=$1", [match]);
     await pool.query("DELETE FROM matches WHERE id=$1", [match]);
     await pool.query("DELETE FROM users WHERE id=ANY($1)", [[host, guest]]);
-    await pool.query("DELETE FROM problem_languages WHERE version_id=$1", [version]);
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await verifier.close();

@@ -1,6 +1,8 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
+import { primarySignature } from "./signature.ts";
 import { sourceQuestionType as languageType } from "@quorem/contracts/question-type";
-import type { QuestionContent, QuestionProblem, Signature } from "./model.ts";
+import type { QuestionProblem, Signature } from "./model.ts";
+import type { components } from "@quorem/contracts/schema";
 import type { RuntimeResolver } from "./publication.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
@@ -43,7 +45,8 @@ function documentation(sig: Signature, language: StarterLanguage, indent: string
   return `${indent}/**\n${indent} * ${lines.map((l) => l.replaceAll("*/", "* /")).join(`\n${indent} * `)}\n${indent} */\n`;
 }
 
-function method(
+/** Generate one method stub; shared by initial source and incremental stage unlocking. */
+export function generateMethodStarter(
   sig: Signature,
   language: Exclude<StarterLanguage, "postgresql">,
   staged: boolean,
@@ -83,7 +86,7 @@ export function generateStarter(
   if (!methods.length) throw new Error("method required");
   if (!staged) {
     const sig = methods[0];
-    const body = method(sig, language, false);
+    const body = generateMethodStarter(sig, language, false);
     if (language === "ocaml") return body;
     const node =
       language !== "python" &&
@@ -91,7 +94,7 @@ export function generateStarter(
     const note = node ? "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n" : "";
     return `${pythonPrelude(methods, language)}${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
   }
-  const bodies = methods.map((sig) => method(sig, language, true));
+  const bodies = methods.map((sig) => generateMethodStarter(sig, language, true));
   if (language === "ocaml") return bodies.join("\n");
   if (language === "python")
     return `${pythonPrelude(methods, language)}class Solution:\n    def __init__(self) -> None:\n        pass\n\n${bodies.join("\n")}`;
@@ -113,11 +116,13 @@ function pythonPrelude(methods: readonly Signature[], language: StarterLanguage)
 export function generateQuestionImplementations(
   problem: Pick<QuestionProblem, "signature" | "sql" | "odyssey">,
   resolveRuntime: RuntimeResolver,
-): QuestionContent["implementations"] {
-  const languages: StarterLanguage[] = problem.sql
-    ? ["postgresql"]
-    : ["python", "java", "typescript", "ocaml"];
-  const methods = problem.odyssey ? problem.odyssey.levels[0].methods : [problem.signature];
+): components["schemas"]["LanguageImplementation"][] {
+  const languages = questionLanguages(!!problem.sql);
+  const methods = problem.sql
+    ? []
+    : problem.odyssey
+      ? problem.odyssey.levels[0].methods
+      : [primarySignature(problem)];
   return languages.map((language) => {
     const runtime = resolveRuntime(language);
     if (!runtime) throw new Error(`Missing supported runtime: ${language}`);
@@ -128,4 +133,17 @@ export function generateQuestionImplementations(
       harnessRevision: runtime.harness,
     };
   });
+}
+
+/** Supported languages depend only on whether a question uses SQL. */
+export function questionLanguages(sql: boolean): readonly StarterLanguage[] {
+  return sql ? ["postgresql"] : ["python", "java", "typescript", "ocaml"];
+}
+
+/** Check platform support without consulting per-question registrations. */
+export function supportsQuestionLanguage(
+  language: string,
+  sql: boolean,
+): language is StarterLanguage {
+  return questionLanguages(sql).some((candidate) => candidate === language);
 }

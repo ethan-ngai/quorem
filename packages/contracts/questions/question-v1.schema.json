@@ -8,7 +8,7 @@
       "additionalProperties": false,
       "properties": {
         "problem": {
-          "$ref": "#/$defs/QuestionProblem"
+          "$ref": "#/$defs/AuthoredQuestionProblem"
         },
         "hiddenCases": {
           "type": "array",
@@ -19,22 +19,6 @@
         },
         "attribution": {
           "type": "string"
-        },
-        "implementations": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "$ref": "#/$defs/AuthoringImplementation"
-          }
-        },
-        "odysseyHiddenCases": {
-          "type": "array",
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/$defs/CustomCase"
-            }
-          }
         },
         "canonicalApproachId": {
           "type": "string",
@@ -48,16 +32,9 @@
           }
         }
       },
-      "required": [
-        "problem",
-        "hiddenCases",
-        "attribution",
-        "implementations",
-        "canonicalApproachId",
-        "approaches"
-      ]
+      "required": ["problem", "hiddenCases", "attribution", "canonicalApproachId", "approaches"]
     },
-    "QuestionProblem": {
+    "AuthoredQuestionProblem": {
       "type": "object",
       "properties": {
         "id": {
@@ -118,7 +95,7 @@
           "$ref": "#/$defs/SqlConfig"
         },
         "odyssey": {
-          "$ref": "#/$defs/Odyssey"
+          "$ref": "#/$defs/AuthoredOdyssey"
         }
       },
       "additionalProperties": false,
@@ -132,17 +109,46 @@
         "statementMarkdown",
         "examples",
         "constraints",
-        "signature",
         "limits"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": ["sql"],
+                "properties": {
+                  "sql": {}
+                }
+              },
+              {
+                "required": ["odyssey"],
+                "properties": {
+                  "odyssey": {}
+                }
+              }
+            ]
+          },
+          "then": {
+            "not": {
+              "required": ["signature"],
+              "properties": {
+                "signature": {}
+              }
+            }
+          },
+          "else": {
+            "required": ["signature"],
+            "properties": {
+              "signature": {}
+            }
+          }
+        }
       ]
     },
     "Difficulty": {
       "type": "string",
-      "enum": [
-        "easy",
-        "medium",
-        "hard"
-      ]
+      "enum": ["easy", "medium", "hard"]
     },
     "ProblemExample": {
       "type": "object",
@@ -166,9 +172,7 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
     },
     "WireValue": {
@@ -215,10 +219,7 @@
           "$ref": "#/$defs/WireValue"
         }
       },
-      "required": [
-        "methodName",
-        "args"
-      ],
+      "required": ["methodName", "args"],
       "additionalProperties": false
     },
     "Constraint": {
@@ -251,26 +252,15 @@
                 },
                 "quantifier": {
                   "type": "string",
-                  "enum": [
-                    "all",
-                    "any"
-                  ],
+                  "enum": ["all", "any"],
                   "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
                 }
               },
               "dependentRequired": {
-                "minInclusive": [
-                  "min"
-                ],
-                "maxInclusive": [
-                  "max"
-                ]
+                "minInclusive": ["min"],
+                "maxInclusive": ["max"]
               },
-              "required": [
-                "kind",
-                "target",
-                "min"
-              ],
+              "required": ["kind", "target", "min"],
               "additionalProperties": false
             },
             {
@@ -299,26 +289,15 @@
                 },
                 "quantifier": {
                   "type": "string",
-                  "enum": [
-                    "all",
-                    "any"
-                  ],
+                  "enum": ["all", "any"],
                   "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
                 }
               },
               "dependentRequired": {
-                "minInclusive": [
-                  "min"
-                ],
-                "maxInclusive": [
-                  "max"
-                ]
+                "minInclusive": ["min"],
+                "maxInclusive": ["max"]
               },
-              "required": [
-                "kind",
-                "target",
-                "max"
-              ],
+              "required": ["kind", "target", "max"],
               "additionalProperties": false
             }
           ]
@@ -338,29 +317,15 @@
             },
             "operator": {
               "type": "string",
-              "enum": [
-                "eq",
-                "le",
-                "lt",
-                "ge",
-                "gt"
-              ]
+              "enum": ["eq", "le", "lt", "ge", "gt"]
             },
             "quantifier": {
               "type": "string",
-              "enum": [
-                "all",
-                "any"
-              ],
+              "enum": ["all", "any"],
               "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
             }
           },
-          "required": [
-            "kind",
-            "left",
-            "right",
-            "operator"
-          ],
+          "required": ["kind", "left", "right", "operator"],
           "additionalProperties": false
         },
         {
@@ -375,26 +340,15 @@
             },
             "property": {
               "type": "string",
-              "enum": [
-                "sorted",
-                "nondecreasing",
-                "unique"
-              ]
+              "enum": ["sorted", "nondecreasing", "unique"]
             },
             "direction": {
               "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ],
+              "enum": ["asc", "desc"],
               "description": "Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties."
             }
           },
-          "required": [
-            "kind",
-            "target",
-            "property"
-          ],
+          "required": ["kind", "target", "property"],
           "additionalProperties": false
         },
         {
@@ -409,10 +363,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "kind",
-            "text"
-          ],
+          "required": ["kind", "text"],
           "additionalProperties": false
         }
       ]
@@ -426,20 +377,10 @@
         },
         "projection": {
           "type": "string",
-          "enum": [
-            "value",
-            "length",
-            "elements",
-            "sum",
-            "nodeCount",
-            "nodeValues"
-          ]
+          "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
         }
       },
-      "required": [
-        "parameter",
-        "projection"
-      ],
+      "required": ["parameter", "projection"],
       "additionalProperties": false
     },
     "Signature": {
@@ -447,9 +388,7 @@
       "properties": {
         "className": {
           "type": "string",
-          "enum": [
-            "Solution"
-          ]
+          "enum": ["Solution"]
         },
         "methodName": {
           "type": "string"
@@ -465,18 +404,12 @@
         },
         "nodeReferences": {
           "type": "string",
-          "enum": [
-            "arguments",
-            "return"
-          ],
+          "enum": ["arguments", "return"],
           "description": "Enable call-local node references. Return mode also compares the returned node by identity."
         },
         "outputOrder": {
           "type": "string",
-          "enum": [
-            "ordered",
-            "unordered"
-          ],
+          "enum": ["ordered", "unordered"],
           "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
         },
         "description": {
@@ -497,20 +430,12 @@
                 "type": "string"
               }
             },
-            "required": [
-              "type",
-              "description"
-            ],
+            "required": ["type", "description"],
             "additionalProperties": false
           }
         }
       },
-      "required": [
-        "className",
-        "methodName",
-        "parameters",
-        "returnType"
-      ],
+      "required": ["className", "methodName", "parameters", "returnType"],
       "additionalProperties": false
     },
     "Parameter": {
@@ -529,18 +454,13 @@
           "type": "string"
         }
       },
-      "required": [
-        "name",
-        "type"
-      ],
+      "required": ["name", "type"],
       "additionalProperties": false
     },
     "InputPresetConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "preset"
-      ],
+      "required": ["preset"],
       "properties": {
         "preset": {
           "type": "string",
@@ -601,16 +521,11 @@
       "properties": {
         "dialect": {
           "type": "string",
-          "enum": [
-            "postgresql"
-          ]
+          "enum": ["postgresql"]
         },
         "outputOrder": {
           "type": "string",
-          "enum": [
-            "ordered",
-            "unordered"
-          ]
+          "enum": ["ordered", "unordered"]
         },
         "tables": {
           "type": "array",
@@ -627,10 +542,7 @@
           }
         }
       },
-      "required": [
-        "dialect",
-        "outputOrder"
-      ],
+      "required": ["dialect", "outputOrder"],
       "additionalProperties": false
     },
     "SqlTableSchema": {
@@ -648,10 +560,7 @@
           }
         }
       },
-      "required": [
-        "name",
-        "columns"
-      ]
+      "required": ["name", "columns"]
     },
     "SqlColumn": {
       "type": "object",
@@ -676,29 +585,24 @@
           ]
         }
       },
-      "required": [
-        "name",
-        "type"
-      ]
+      "required": ["name", "type"]
     },
-    "Odyssey": {
+    "AuthoredOdyssey": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "levels": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/OdysseyLevel"
-          },
           "minItems": 1,
-          "maxItems": 8
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/AuthoredOdysseyLevel"
+          }
         }
       },
-      "required": [
-        "levels"
-      ],
-      "additionalProperties": false
+      "required": ["levels"]
     },
-    "OdysseyLevel": {
+    "AuthoredOdysseyLevel": {
       "type": "object",
       "properties": {
         "title": {
@@ -722,14 +626,16 @@
           },
           "minItems": 1,
           "maxItems": 20
+        },
+        "hiddenCases": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/CustomCase"
+          }
         }
       },
-      "required": [
-        "title",
-        "statementMarkdown",
-        "methods",
-        "examples"
-      ],
+      "required": ["title", "statementMarkdown", "methods", "examples", "hiddenCases"],
       "additionalProperties": false
     },
     "CustomCase": {
@@ -751,48 +657,14 @@
           }
         }
       },
-      "required": [
-        "args"
-      ],
+      "required": ["args"],
       "additionalProperties": false
-    },
-    "AuthoringImplementation": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "language": {
-          "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml",
-            "postgresql"
-          ]
-        },
-        "starterSource": {
-          "type": "string"
-        },
-        "runtimeRevision": {
-          "type": "string"
-        },
-        "harnessRevision": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "language",
-        "starterSource",
-        "runtimeRevision",
-        "harnessRevision"
-      ]
     },
     "SolutionApproach": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "id",
-        "defaultLanguage",
         "explanationMarkdown",
         "timeComplexity",
         "spaceComplexity",
@@ -812,13 +684,7 @@
         },
         "defaultLanguage": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml",
-            "postgresql"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "explanationMarkdown": {
           "type": "string"
@@ -844,20 +710,11 @@
     "SolutionCode": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "language",
-        "source"
-      ],
+      "required": ["language", "source"],
       "properties": {
         "language": {
           "type": "string",
-          "enum": [
-            "python",
-            "java",
-            "typescript",
-            "ocaml",
-            "postgresql"
-          ]
+          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
         },
         "source": {
           "type": "string",

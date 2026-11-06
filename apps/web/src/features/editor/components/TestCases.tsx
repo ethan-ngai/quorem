@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
 import { CasePreviewLayout, NodeReferenceScope } from "./NodePreview";
@@ -125,9 +126,11 @@ export function TestCases({
   const errorFields =
     currentError instanceof ConstraintViolation
       ? [...currentError.parameters]
-      : problem.signature.parameters
-          .filter(({ name }) => currentError?.message.startsWith(`${name}:`))
-          .map(({ name }) => name);
+      : problem.sql
+        ? []
+        : primarySignature(problem)
+            .parameters.filter(({ name }) => currentError?.message.startsWith(`${name}:`))
+            .map(({ name }) => name);
   if (currentError?.message.startsWith("Expected output:")) errorFields.push("Expected output");
   const inputErrors = currentError
     ? Object.fromEntries(errorFields.map((name) => [name, currentError.message]))
@@ -136,9 +139,11 @@ export function TestCases({
     <CaseValue
       name="Expected output"
       purpose="target"
-      nodeContext={{ signature: problem.signature, args: example.args }}
+      nodeContext={
+        problem.sql ? undefined : { signature: primarySignature(problem), args: example.args }
+      }
       value={example.expected}
-      type={problem.signature.returnType}
+      type={problem.sql ? undefined : primarySignature(problem).returnType}
       tone="verdict-success"
       sql={problem.sql}
     />
@@ -168,10 +173,12 @@ export function TestCases({
       ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
       : undefined;
   const combinedPreview = !showingHidden && !problem.sql && !problem.odyssey;
-  const previewContext = {
-    signature: problem.signature,
-    ...(customMode ? { sources: draft?.args } : { args: currentValue?.args }),
-  };
+  const previewContext = problem.sql
+    ? undefined
+    : {
+        signature: primarySignature(problem),
+        ...(customMode ? { sources: draft?.args } : { args: currentValue?.args }),
+      };
   const editedAfterRun =
     customMode &&
     matchingSnapshot?.custom &&
@@ -412,7 +419,7 @@ export function TestCases({
               ) : (
                 <CaseFields
                   id={`custom-${draft.id}`}
-                  signature={problem.signature}
+                  signature={primarySignature(problem)}
                   inputErrors={inputErrors}
                   args={draft.args}
                   expected={draft.expectedEnabled ? draft.expected : undefined}
@@ -481,7 +488,7 @@ export function TestCases({
                 </>
               ) : (
                 <CaseArguments
-                  signature={problem.signature}
+                  signature={primarySignature(problem)}
                   args={example.args}
                   expected={example.expected}
                   preview={!combinedPreview && !result}
@@ -517,15 +524,19 @@ export function TestCases({
               result={result}
               showVerdict={false}
               preview={!combinedPreview}
-              returnType={problem.signature.returnType}
-              nodeContext={{ signature: problem.signature, args: currentValue?.args }}
+              returnType={problem.sql ? undefined : primarySignature(problem).returnType}
+              nodeContext={
+                problem.sql
+                  ? undefined
+                  : { signature: primarySignature(problem), args: currentValue?.args }
+              }
               sql={problem.sql}
               sequence={
                 example?.calls?.length
                   ? {
                       calls: example.calls,
                       methods: problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
-                        problem.signature,
+                        primarySignature(problem),
                       ],
                     }
                   : undefined

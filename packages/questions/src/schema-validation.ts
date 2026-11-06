@@ -55,8 +55,9 @@ export function validateQuestionSchema(rawJson: string): void {
   apply(root?.hiddenCases);
   const odyssey = object(problem?.odyssey);
   if (Array.isArray(odyssey?.levels))
-    for (const level of odyssey.levels) apply(object(level)?.examples);
-  if (Array.isArray(root?.odysseyHiddenCases))
-    for (const suite of root.odysseyHiddenCases) apply(suite);
+    for (const level of odyssey.levels) {
+      apply(object(level)?.examples);
+      apply(object(level)?.hiddenCases);
+    }
   if (!validate(value)) throw new Error("invalid question schema");
 }

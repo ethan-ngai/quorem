@@ -95,12 +95,8 @@ before(async () => {
     [privateProblem, privateVersion],
   ]) {
     await pool.query(
-      "insert into problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_stages,lossless_fixture) values($1,$2,1,'Title','easy','statement','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'fixture',$3::jsonb,$4,$5)",
+      "insert into problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_stages,lossless_fixture) values($1,$2,1,'Title','easy','statement',CASE WHEN $3::jsonb IS NULL OR $3::jsonb='null'::jsonb THEN '{}'::jsonb ELSE NULL END,'[]'::jsonb,'{}'::jsonb,'fixture',$3::jsonb,$4,$5)",
       [v, p, JSON.stringify(levels), Buffer.from(sidecar), Buffer.from("SECRET HIDDEN")],
-    );
-    await pool.query(
-      "insert into problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) values($1,'python','starter','runtime','harness')",
-      [v],
     );
     await pool.query("update problems set current_version_id=$1 where id=$2", [v, p]);
   }

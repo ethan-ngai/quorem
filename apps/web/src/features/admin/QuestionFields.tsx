@@ -1,10 +1,10 @@
+import { primarySignature, findPrimarySignature, blankSignature } from "@quorem/questions";
 import { blankApproach } from "@quorem/questions";
 import type { ReportAuthoringValidity, AuthoringIssue } from "./authoringValidation";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { QuestionLanguage } from "../editor/QuestionLanguage";
-import { initialOdysseySource } from "../odyssey/methodStubs";
 import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
@@ -21,7 +21,7 @@ import { AuthoringStages } from "./AuthoringStages";
 import { CodeEditorialFields } from "./CodeEditorialFields";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { ConstraintFields } from "./ConstraintFields";
-import type { QuestionContent, ProblemVersion, Signature } from "@quorem/contracts";
+import type { QuestionContent, Signature } from "@quorem/contracts";
 import { SolutionDisplay } from "../editor/components/SolutionDisplay";
 import type { EditorTheme } from "../editor/PythonEditor";
 import { defaultEditorSchemes, type EditorScheme } from "../editor/editorSchemes";
@@ -39,7 +39,8 @@ import {
 } from "lucide-react";
 import "../editor/components/editorial.css";
 import "../odyssey/authoring.css";
-import { revisions, questionImplementations, type Language } from "./content";
+import type { Language } from "./content";
+import { questionLanguages } from "@quorem/questions";
 import { languageLabels } from "../editor/editorLanguages";
 
 type QuestionType = "single" | "staged" | "sql-single" | "sql-staged";
@@ -89,9 +90,7 @@ function QuestionTypeControl({
 type PreviewLanguage = Exclude<Language, "postgresql">;
 
 type AuthoringSection = "question" | "interface" | "tests" | "solutions";
-const languages = Object.keys(revisions).filter((key): key is Language =>
-  Object.hasOwn(revisions, key),
-);
+const languages = [...questionLanguages(false), ...questionLanguages(true)];
 
 function testShape(signature: Signature) {
   return JSON.stringify([signature.parameters.map(({ type }) => type), signature.returnType]);
@@ -168,20 +167,22 @@ export function QuestionFields({
       }}
     />
   );
-  function setProblem(patch: Partial<ProblemVersion>) {
+  function setProblem(patch: Partial<QuestionContent["problem"]>) {
     onChange({ ...content, problem: { ...problem, ...patch } });
   }
   function changeType(value: QuestionType) {
     const isSQL = value.startsWith("sql-");
     const staged = value === "staged" || value === "sql-staged";
+    const signature = findPrimarySignature(problem) ?? blankSignature();
     const odyssey = staged
       ? {
           levels: [
             {
               title: "Step 1",
               statementMarkdown: problem.statementMarkdown,
-              methods: isSQL ? [] : [problem.signature],
+              methods: isSQL ? [] : [signature],
               examples: isSQL && problem.sql ? problem.examples : [],
+              hiddenCases: isSQL ? content.hiddenCases : [],
             },
           ],
         }
@@ -202,30 +203,23 @@ export function QuestionFields({
               }
             : undefined,
           odyssey,
+          signature: staged || isSQL ? undefined : signature,
           examples: [],
         },
         hiddenCases: [],
-        odysseyHiddenCases: staged ? [[]] : [],
-        implementations: questionImplementations(isSQL),
         canonicalApproachId: "default",
         approaches: [blankApproach(nextLanguage)],
       });
     } else {
-      const methods = odyssey?.levels[0]?.methods;
       onChange({
         ...content,
         problem: {
           ...problem,
           odyssey,
+          signature: staged || isSQL ? undefined : signature,
           examples: staged ? [] : isSQL ? (problem.odyssey?.levels[0]?.examples ?? []) : [],
         },
-        hiddenCases: staged ? [] : isSQL ? (content.odysseyHiddenCases?.[0] ?? []) : [],
-        implementations: content.implementations.map((item) =>
-          !isSQL && methods && !item.starterSource
-            ? { ...item, starterSource: initialOdysseySource(methods, item.language) }
-            : item,
-        ),
-        odysseyHiddenCases: staged ? [isSQL ? content.hiddenCases : []] : [],
+        hiddenCases: staged ? [] : isSQL ? (problem.odyssey?.levels[0]?.hiddenCases ?? []) : [],
       });
     }
     setPendingType(undefined);
@@ -340,12 +334,11 @@ export function QuestionFields({
                     problem.odyssey?.levels.some(
                       (level) => level.examples.length || level.methods.length > 1,
                     ) ||
-                    content.odysseyHiddenCases?.some((cases) => cases.length);
+                    content.problem.odyssey?.levels.some((level) => level.hiddenCases.length);
                   const changesDialect = next.startsWith("sql-") !== !!problem.sql;
-                  const hasCode =
-                    content.approaches.some((approach) =>
-                      approach.implementations.some((item) => item.source),
-                    ) || content.implementations.some((item) => item.starterSource);
+                  const hasCode = content.approaches.some((approach) =>
+                    approach.implementations.some((item) => item.source),
+                  );
                   if (
                     invalidCases ||
                     hasCases ||
@@ -385,7 +378,7 @@ export function QuestionFields({
               }
               validationIssues={validationIssues}
               value={problem.constraints}
-              signature={problem.sql ? undefined : problem.signature}
+              signature={findPrimarySignature(problem)}
               disabled={disabled}
               onChange={(constraints) => setProblem({ constraints })}
             />
@@ -415,9 +408,12 @@ export function QuestionFields({
                 <SignatureFields
                   previewControl={previewLanguagePicker}
                   disabled={disabled}
-                  value={problem.signature}
+                  value={primarySignature(problem)}
                   onChange={(signature) => {
-                    if (invalidCases && testShape(signature) !== testShape(problem.signature))
+                    if (
+                      invalidCases &&
+                      testShape(signature) !== testShape(primarySignature(problem))
+                    )
                       setPendingSignature(signature);
                     else onChange(adaptSignature(content, signature));
                   }}
@@ -447,7 +443,7 @@ export function QuestionFields({
             </QuestionLanguage.Provider>
           ) : (
             <AuthoringCases
-              key={problem.sql ? "sql" : testShape(problem.signature)}
+              key={problem.sql ? "sql" : testShape(primarySignature(problem))}
               content={content}
               onChange={onChange}
               onValidityChange={onValidityChange}
@@ -495,7 +491,7 @@ export function PublicPreview({
               <h2>{content.problem.odyssey ? "Methods" : "Method signature"}</h2>
               {(
                 content.problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
-                  content.problem.signature,
+                  primarySignature(content.problem),
                 ]
               ).map((signature, index) => (
                 <div key={index} className="authoring-signature-line">
