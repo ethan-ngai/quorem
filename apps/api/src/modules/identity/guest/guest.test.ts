@@ -42,6 +42,12 @@ describe('guest credential and policy', () => {
     expect(matchGuestRouteAllowed(principal, 'GET', '/v1/matches/m2', false)).toBe(false);
     expect(matchGuestRouteAllowed(principal, 'POST', '/v1/admin/questions', false)).toBe(false);
   });
+  it('authenticates party credentials without ending the session after a round', async () => {
+    const party = { ...principal, scope: { kind: 'party' as const, partyId: 'p1' } };
+    const sessions = { lookup: async () => party, endMatch: async () => false };
+    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'match', managed, sessions, { method: 'GET', allowedOrigins: [origin] })).toEqual(party);
+    expect(await readMatchGuestSession(party, sessions)).toEqual({ kind: 'active', principal: party });
+  });
   it('fails closed for missing peer and budget outage', async () => {
     await expect(allowPublicGuestRequest(undefined, { allow: async () => true })).rejects.toMatchObject({ kind: 'unavailable' });
     await expect(allowPublicGuestRequest('peer', { allow: async () => { throw Error('down'); } })).rejects.toMatchObject({ kind: 'unavailable' });

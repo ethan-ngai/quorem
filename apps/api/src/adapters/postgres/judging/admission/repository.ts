@@ -8,7 +8,7 @@ import type { AdmissionFence } from "../../../../modules/judging/admission/admit
 import { bindJobInputs } from "../inputs/bind.ts";
 import { validateExecutionCases } from "../../../../modules/judging/admission/select-cases.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { guestMayReadMatch } from "../../identity/guest.ts";
 import { visibleProblem } from "../../problems/queries/public-projection.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import {
@@ -114,15 +114,7 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
                 "Guest execution is temporarily paused",
                 503,
               );
-            if (principal.scope.kind !== "match" || principal.scope.matchId !== row.matchId)
-              throw failure("forbidden", "Guest membership unavailable", 403);
-            const current = await lookupGuestInTransaction(tx, "match", principal.sessionId);
-            if (
-              !current ||
-              current.userId !== principal.userId ||
-              current.scope.kind !== "match" ||
-              current.scope.matchId !== row.matchId
-            )
+            if (!(await guestMayReadMatch(tx, principal, row.matchId)))
               throw failure("forbidden", "Guest membership unavailable", 403);
             sponsor = match.host;
           }

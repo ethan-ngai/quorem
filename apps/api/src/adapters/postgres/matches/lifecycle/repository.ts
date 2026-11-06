@@ -15,7 +15,7 @@ import {
 } from "../../../../modules/events/scheduling/scheduling.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { guestMayReadMatch } from "../../identity/guest.ts";
 import { selectMatchCandidate, validateSelectedMatchProblem } from "../selection/repository.ts";
 import { finishMatch, matchEvent, reconcileMatch } from "../reconcile/repository.ts";
 import { digest, fingerprint, inviteCipher, settingsBody, token } from "./crypto.ts";
@@ -74,17 +74,7 @@ export async function lockMatch(tx: Transaction, id: string): Promise<MatchRecor
 }
 /** Revalidates scoped guest credentials and current membership under the match lock. */
 export async function requireMatchMember(tx: Transaction, who: Principal, id: string) {
-  if (who.kind === "guest") {
-    if (who.scope.kind !== "match" || who.scope.matchId !== id) throw missing();
-    const actual = await lookupGuestInTransaction(tx, "match", who.sessionId);
-    if (
-      !actual ||
-      actual.userId !== who.userId ||
-      actual.scope.kind !== "match" ||
-      actual.scope.matchId !== id
-    )
-      throw missing();
-  }
+  if (who.kind === "guest" && !(await guestMayReadMatch(tx, who, id))) throw missing();
   if (
     !(
       await tx.execute(

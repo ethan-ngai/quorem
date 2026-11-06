@@ -78,7 +78,7 @@ export function guestRoutes(deps: Dependencies): Hono {
         { method: c.req.method, allowedOrigins: deps.allowedOrigins },
       ),
     );
-    if (!principal || principal.kind !== "guest" || principal.scope.kind !== "match")
+    if (!principal || principal.kind !== "guest" || principal.scope.kind === "interview")
       throw new ApplicationError("forbidden", "Guest session required", 403);
     if (!(await deps.guests.endMatch(principal.sessionId))) {
       const current = await identity(() => deps.guests.lookup("match", principal.sessionId));

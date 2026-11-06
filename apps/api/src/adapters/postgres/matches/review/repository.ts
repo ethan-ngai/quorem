@@ -4,7 +4,7 @@ import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { MatchReview } from "../../../../modules/matches/review/model.ts";
 import type { WorkspaceLanguage } from "../../../../modules/workspace/model.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { guestMayReadMatch } from "../../identity/guest.ts";
 import { projectAuthorizedVersion } from "../../problems/queries/repository.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -32,10 +32,8 @@ export function matchReviewRepository(run: Run): MatchReview {
         scope.transaction(
           { isolation: "repeatable read", statementTimeoutMs: 5000, lockTimeoutMs: 1000 },
           async (tx) => {
-            if (principal.kind === "guest") {
-              const guest = await lookupGuestInTransaction(tx, "match", principal.sessionId);
-              if (!guest || guest.userId !== principal.userId) throw missing();
-            }
+            if (principal.kind === "guest" && !(await guestMayReadMatch(tx, principal, matchId)))
+              throw missing();
             const match = (
               await tx.execute<{
                 completedAt: string;
@@ -43,7 +41,7 @@ export function matchReviewRepository(run: Run): MatchReview {
                 problemId: string;
                 outcome: unknown;
               }>(sql`
-          SELECT m.completed_at::text AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.problem_version_id::text AS "problemId",m.outcome
+          SELECT to_char(m.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.problem_version_id::text AS "problemId",m.outcome
           FROM matches m JOIN match_participants viewer ON viewer.match_id=m.id AND viewer.owner_id=${principal.userId}
           JOIN users u ON u.id=viewer.owner_id AND NOT u.disabled
           WHERE m.id=${matchId}::uuid AND m.started_at IS NOT NULL AND m.state IN ('completed','cancelled')

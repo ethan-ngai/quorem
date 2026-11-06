@@ -166,3 +166,98 @@ void test("retention holds latest source during delayed settlement and releases 
     "",
   );
 });
+
+void test("party guest is restricted to participated rounds and live credentials", async () => {
+  const { guestRepository, guestMayReadMatch } = await import("../../identity/guest.ts");
+  const { workspaceRepository } = await import("../../workspace/repository.ts");
+  const { problemQueries } = await import("../../problems/queries/repository.ts");
+  const party = crypto.randomUUID(),
+    otherParty = crypto.randomUUID(),
+    first = crypto.randomUUID(),
+    second = crypto.randomUUID(),
+    outsider = crypto.randomUUID(),
+    own = crypto.randomUUID(),
+    otherWorkspace = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO users(id,display_name,kind) VALUES ('review-guest','Guest','guest'),('review-new','New','guest')",
+  );
+  await pool.query(
+    "INSERT INTO parties(id,host_owner_id,invite_hash,settings) VALUES($1,'review-a','party-review','{}'),($2,'review-a','party-review-other','{}')",
+    [party, otherParty],
+  );
+  await pool.query(
+    "INSERT INTO guest_sessions(token_hash,owner_id,party_id,expires_at,last_seen_at) VALUES ('review-guest-token','review-guest',$1,now()+interval '1 day',now()-interval '3 hours'),('review-new-token','review-new',$1,now()+interval '1 day',now())",
+    [party],
+  );
+  await pool.query(
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,problem_version_id,started_at,deadline,party_id,share_code_after_match,completed_at,outcome) VALUES($1,'review-a','guest-round-one',now()+interval '1 hour',30,'completed',ARRAY['easy'],$4,now()-interval '1 hour',now(),$5,true,now(),'{}'),($2,'review-a','guest-round-two',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$5,true,NULL,NULL),($3,'review-a','guest-other-party',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$6,true,NULL,NULL)",
+    [first, second, outsider, ids.version, party, otherParty],
+  );
+  await pool.query(
+    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,'review-guest',$3,'python','match',$4),($2,'review-new',$3,'java','match',$4)",
+    [own, otherWorkspace, ids.version, second],
+  );
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat,workspace_id) VALUES($1,'review-guest',1,NULL),($2,'review-guest',1,$4),($2,'review-new',2,$5),($3,'review-guest',1,NULL)",
+    [first, second, outsider, own, otherWorkspace],
+  );
+  const guest = await run((scope) => guestRepository(scope).lookup("match", "review-guest-token"));
+  const newcomer = await run((scope) => guestRepository(scope).lookup("match", "review-new-token"));
+  assert.ok(guest && newcomer);
+  assert.deepEqual(guest.scope, { kind: "party", partyId: party });
+  const allowed = (who: typeof guest, match: string) =>
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, (tx) =>
+        guestMayReadMatch(tx, who, match),
+      ),
+    );
+  assert.equal(await allowed(guest, first), true);
+  assert.equal(await allowed(guest, second), true);
+  assert.equal(await allowed(guest, outsider), false);
+  assert.equal(await allowed(newcomer, first), false);
+  assert.equal(await run((scope) => guestRepository(scope).endMatch("review-guest-token")), false);
+  assert.equal((await workspaceRepository(run).read(guest, own)).id, own);
+  await assert.rejects(workspaceRepository(run).read(guest, otherWorkspace), { status: 404 });
+  await assert.rejects(repo.read(newcomer, first), { status: 404 });
+  const submission = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,match_id,match_sequence,kind,source,source_hash,state,cases,result) VALUES($1,'review-new',$2,$3,1,'submit','shared-source','hash','completed','[]','{\"verdict\":\"accepted\"}')",
+    [submission, otherWorkspace, second],
+  );
+  await assert.rejects(repo.read(guest, second), { status: 404 });
+  await pool.query(
+    "UPDATE matches SET state='completed',completed_at=now(),outcome='{}' WHERE id=$1",
+    [second],
+  );
+  assert.equal(
+    JSON.parse(await repo.read(guest, second)).participants[1].submission.source,
+    "shared-source",
+  );
+  await pool.query("UPDATE matches SET share_code_after_match=false WHERE id=$1", [second]);
+  assert.equal(JSON.parse(await repo.read(guest, second)).participants.length, 1);
+  await pool.query("UPDATE matches SET state='active',completed_at=NULL,outcome=NULL WHERE id=$1", [
+    second,
+  ]);
+  await pool.query("UPDATE problems SET owner_id='review-a' WHERE id=$1", [ids.problem]);
+  assert.ok(
+    await problemQueries(run).byVersion(
+      { userId: guest.userId, guestScope: guest.scope },
+      ids.version,
+    ),
+  );
+  assert.equal(
+    await problemQueries(run).byVersion(
+      { userId: newcomer.userId, guestScope: { kind: "party", partyId: otherParty } },
+      ids.version,
+    ),
+    null,
+  );
+  await pool.query(
+    "UPDATE guest_sessions SET revoked_at=now() WHERE token_hash='review-guest-token'",
+  );
+  assert.equal(await allowed(guest, second), false);
+  await pool.query(
+    "UPDATE guest_sessions SET revoked_at=NULL,expires_at=now()-interval '1 second' WHERE token_hash='review-guest-token'",
+  );
+  assert.equal(await allowed(guest, second), false);
+});
