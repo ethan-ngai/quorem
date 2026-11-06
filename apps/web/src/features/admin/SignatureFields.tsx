@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, validateInput } from "../../ui/input-constraints";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 /** @file SignatureFields.tsx @description Shared typed method contract controls for question authors. @module admin */
 import {
@@ -51,10 +53,9 @@ export function SignatureFields({
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
   const addException = useRef<HTMLButtonElement>(null);
-  const identifier = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-  const invalidMethod = !identifier.test(value.methodName);
+  const invalidMethod = !validateInput(value.methodName, inputConstraints.identifier).success;
   const invalidParameter = (name: string) =>
-    !identifier.test(name) ||
+    !validateInput(name, inputConstraints.identifier).success ||
     value.parameters.filter((parameter) => parameter.name === name).length > 1;
   const invalidNames = invalidMethod || value.parameters.some(({ name }) => invalidParameter(name));
   const validity = useRef(onValidityChange);
@@ -94,7 +95,10 @@ export function SignatureFields({
       <div className="authoring-signature-fields">
         <label className="admin-field">
           <span>Method name</span>
-          <input
+          <TextInput
+            unstyled
+            constraint={inputConstraints.identifier}
+            maxLength={80}
             className="admin-code"
             value={value.methodName}
             aria-invalid={invalidMethod}
@@ -214,7 +218,10 @@ export function SignatureFields({
         renderRow={(parameter, index) => (
           <div className="authoring-parameter-row">
             <div className="admin-field">
-              <input
+              <TextInput
+                unstyled
+                constraint={inputConstraints.identifier}
+                maxLength={80}
                 aria-label={`Parameter ${index + 1} name`}
                 className="admin-code"
                 value={parameter.name}

@@ -1,3 +1,9 @@
+import {
+  inputConstraints,
+  validateInput,
+  withMaxBytes,
+  type InputConstraint,
+} from "../../ui/input-constraints";
 import type { QuestionSearch } from "./questionSearch";
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
 import { requireSudo } from "../auth/sudo";
@@ -26,11 +32,66 @@ export async function createDraft(
   return requireData(data, error);
 }
 
+/** Trim constrained labels when saving, including keyboard-triggered saves. */
+function normalizeContent(content: QuestionContent): QuestionContent {
+  const field = (value: string, constraint: InputConstraint) => {
+    const trimmed = value.trimEnd();
+    if (trimmed && !validateInput(trimmed, constraint).success)
+      throw new Error("Check question names and identifiers before saving.");
+    return trimmed;
+  };
+  const name = (value: string) => field(value, withMaxBytes(inputConstraints.name, 160));
+  const identifier = (value: string) => field(value, inputConstraints.identifier);
+  const signature = (value: QuestionContent["problem"]["signature"]) => ({
+    ...value,
+    methodName: identifier(value.methodName),
+    parameters: value.parameters.map((parameter) => ({
+      ...parameter,
+      name: identifier(parameter.name),
+    })),
+  });
+  const problem = content.problem;
+  return {
+    ...content,
+    problem: {
+      ...problem,
+      title: name(problem.title),
+      slug: problem.slug.trimEnd(),
+      tags: problem.tags.map((tag) => field(tag, withMaxBytes(inputConstraints.tag, 64))),
+      companies: problem.companies?.map((company) =>
+        field(company, withMaxBytes(inputConstraints.tag, 80)),
+      ),
+      signature: signature(problem.signature),
+      sql: problem.sql && {
+        ...problem.sql,
+        tables: problem.sql.tables?.map((table) => ({
+          ...table,
+          name: identifier(table.name),
+          columns: table.columns.map((column) => ({ ...column, name: identifier(column.name) })),
+        })),
+        output: problem.sql.output,
+      },
+      odyssey: problem.odyssey && {
+        ...problem.odyssey,
+        levels: problem.odyssey.levels.map((level) => ({
+          ...level,
+          title: name(level.title),
+          methods: level.methods.map(signature),
+        })),
+      },
+    },
+    approaches: content.approaches.map((approach) => ({
+      ...approach,
+      title: approach.title === undefined ? undefined : name(approach.title),
+    })),
+  };
+}
+
 /** @returns Updated content; a stale revision fails rather than overwriting another admin. */
 export async function saveDraft(draft: QuestionDraft, content: QuestionContent) {
   const { data, error } = await api().PUT("/v1/admin/question-drafts/{id}", {
     params: { path: { id: draft.id } },
-    body: { revision: draft.revision, content },
+    body: { revision: draft.revision, content: normalizeContent(content) },
   });
   return requireData(data, error);
 }

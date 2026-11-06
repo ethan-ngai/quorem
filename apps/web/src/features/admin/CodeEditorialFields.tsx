@@ -1,3 +1,4 @@
+import { inputConstraints, withMaxBytes } from "../../ui/input-constraints";
 /** @file CodeEditorialFields.tsx @description Approach management and code-only language variants. @module admin */
 import { useRef, useState } from "react";
 import type { QuestionContent, SolutionApproach } from "@quorem/contracts";
@@ -217,6 +218,7 @@ export function CodeEditorialFields({
         <div key={approach.id}>
           <Field label={canonical ? "Approach name (optional)" : "Approach name"}>
             <TextInput
+              constraint={withMaxBytes(inputConstraints.name, 160)}
               value={approach.title ?? ""}
               placeholder={canonical ? "Solution" : "e.g. Hash map"}
               onChange={(event) => updateApproach({ title: event.target.value })}

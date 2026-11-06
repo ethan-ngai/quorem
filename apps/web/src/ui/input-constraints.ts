@@ -43,12 +43,25 @@ export const inputConstraints = {
     schema: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
     trim: true,
   },
+  slug: {
+    edit: (value: string) => /^[a-z0-9-]*$/.test(value),
+    schema: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
+    trim: true,
+  },
   email: {
     edit: (value: string) => !/\s/.test(value),
     schema: z.email(),
     trim: true,
   },
   integer: (bounds?: { min?: number; max?: number }) => numeric(true, bounds),
+  scientific: {
+    edit: (value: string) => /^-?(?:(?:\d+(?:\.\d*)?|\.\d*)?(?:[eE][+-]?\d*)?)?$/.test(value),
+    schema: z
+      .string()
+      .regex(/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/)
+      .refine((value) => Number.isFinite(Number(value))),
+    trim: true,
+  },
   decimal: (bounds?: { min?: number; max?: number }) => numeric(false, bounds),
 } satisfies Record<
   string,
@@ -61,4 +74,14 @@ export function isAllowedInput(value: string, constraint: InputConstraint): bool
 
 export function validateInput(value: string, constraint: InputConstraint) {
   return constraint.schema.safeParse(constraint.trim ? value.trimEnd() : value);
+}
+
+/** Apply limits measured in UTF-8 bytes, matching persisted question contracts. */
+export function withMaxBytes(constraint: InputConstraint, max: number): InputConstraint {
+  const withinLimit = (value: string) => new TextEncoder().encode(value).length <= max;
+  return {
+    ...constraint,
+    edit: (value) => constraint.edit(value) && withinLimit(value),
+    schema: constraint.schema.refine(withinLimit),
+  };
 }

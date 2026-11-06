@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, withMaxBytes } from "../../ui/input-constraints";
 /** @file StageAuthoring.tsx @description Ordered step/method editing with typed stateful test suites. @module odyssey */
 import { randomUUID } from "../../randomUUID";
 import { useId, useState } from "react";
@@ -118,9 +120,10 @@ export function StageAuthoring({
             </div>
             <label className="admin-field">
               <span>Step name</span>
-              <input
+              <TextInput
+                unstyled
+                constraint={withMaxBytes(inputConstraints.name, 160)}
                 required
-                maxLength={160}
                 value={stage.title}
                 onChange={(event) => patch(stage, { title: event.target.value })}
               />
