@@ -148,6 +148,7 @@ void test("direct case forwards current input and confirms teardown before its t
   await Promise.all(pending);
   assert.deepEqual([...input()], [...new TextEncoder().encode("case-input")]);
   assert.equal(context.options.image, "image");
+  assert.equal(context.options.instance, "basic");
   assert.equal(context.options.enableInternet, false);
   assert.equal(context.execOptions.user, "0:0");
   assert.equal(bytes[0], 1);
@@ -598,4 +599,55 @@ void test("a stale shutdown response cannot certify a subsequent launch", async 
   finish();
   await consuming;
   assert.equal(f.values.get("completed-lanes") ?? 0, 0);
+});
+
+void test(
+  "VM destruction overlaps backpressured exit delivery without early teardown proof",
+  { timeout: 2000 },
+  async () => {
+    const f = fixture();
+    let notify;
+    const destroyed = new Promise((resolve) => {
+      notify = resolve;
+    });
+    const destroy = f.context.container.destroy.bind(f.context.container);
+    f.context.container.destroy = async () => {
+      await destroy();
+      notify();
+    };
+    const response = await newSandbox(f.context).fetch(request());
+    const reader = response.body.getReader();
+    await reader.read(); // Admission frame.
+    await reader.read(); // Native output; leave exit delivery backpressured.
+    let timer;
+    try {
+      await Promise.race([
+        destroyed,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("destruction waited for exit delivery")), 1000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    assert.equal(f.context.container.running, false);
+    assert.equal((await reader.read()).value[0], 3);
+    assert.equal((await reader.read()).value[0], 4);
+    assert.equal((await reader.read()).done, true);
+    await Promise.all(f.pending);
+  },
+);
+
+void test("compiled and database runtimes retain their full-core VM allocation", async () => {
+  for (const language of ["java", "typescript", "ocaml", "postgresql"]) {
+    const f = fixture();
+    f.context.container.images[language] = `${language}-image`;
+    const response = await newSandbox(f.context).fetch(
+      request("POST", { "x-case-language": language }),
+    );
+    await response.arrayBuffer();
+    await Promise.all(f.pending);
+    assert.equal(f.context.options.image, `${language}-image`);
+    assert.deepEqual(f.context.options.instance, { vcpu: 1, memoryMib: 3072, diskMb: 4000 });
+  }
 });
