@@ -173,20 +173,33 @@ void test("queue fallback schedules slots without an aggregate drain and confirm
     calls.push(operation);
     assert.equal(init.headers.authorization, `Bearer ${f.env.QUOREM_RUNNER_COMMAND_SECRET}`);
     assert.equal(init.body, "{}");
-    assert.ok(f.contexts.get(f.name).alarm !== null);
     assert.ok(["state", "empty"].includes(operation));
     return Response.json(operation === "state" ? state : empty);
   });
   const request = () => root.command("drain");
   assert.equal((await root.fetch(request())).status, 202);
+  assert.ok(f.contexts.get(f.name).alarm !== null);
   assert.deepEqual(calls, ["state"]);
   state = { queued: 0, running: 0 };
   assert.equal((await root.fetch(request())).status, 202);
   empty = true;
+  f.contexts.get(f.name).alarm = null;
   assert.equal((await root.fetch(request())).status, 200);
+  assert.equal(f.contexts.get(f.name).alarm, null);
   assert.deepEqual(calls, ["state", "state", "empty", "state", "empty"]);
   state = { queued: -1, running: 0 };
   assert.equal((await root.fetch(request())).status, 503);
+});
+
+void test("a finished slot does not poll other live attempts", async (t) => {
+  const f = runnerNamespace();
+  await f.alarm(f.name);
+  const slot = [...f.contexts.keys()].find((name) => name !== f.name);
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ queued: 0, running: 7 }, { status: 202 }),
+  );
+  await f.alarm(slot);
+  assert.equal(f.contexts.get(slot).alarm, null);
 });
 
 void test("control authority gates drains and registers authorized case attempts first", async () => {

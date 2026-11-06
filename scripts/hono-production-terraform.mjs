@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { plannedResourceChanges } from "./hono-terraform-plan.mjs";
+import { isDeepStrictEqual } from "node:util";
+export const PRODUCTION_DATABASE_CONNECTIONS = 60;
 
 export function inspectProductionPlan(plan, mode) {
   const changes = plannedResourceChanges(plan);
@@ -19,6 +21,28 @@ export function inspectProductionPlan(plan, mode) {
         item.change.after?.script !== "quorem-hono-production"
       )
         throw new Error("Route plan includes unrelated mutation");
+    } else if (mode === "hyperdrive-capacity") {
+      const { before, after } = item.change;
+      const configuration = (value) =>
+        Object.fromEntries(
+          Object.entries(value ?? {}).filter(
+            ([key]) =>
+              !["origin_connection_limit", "created_on", "modified_on", "restarted_on"].includes(
+                key,
+              ),
+          ),
+        );
+      if (
+        item.address !== "cloudflare_hyperdrive_config.database" ||
+        actions.join() !== "update" ||
+        after?.name !== "quorem-hono-production-database" ||
+        !Number.isSafeInteger(after.origin_connection_limit) ||
+        after.origin_connection_limit < PRODUCTION_DATABASE_CONNECTIONS ||
+        after.origin_connection_limit > 100 ||
+        after.origin_connection_limit < before?.origin_connection_limit ||
+        !isDeepStrictEqual(configuration(before), configuration(after))
+      )
+        throw new Error("Hyperdrive capacity plan includes unrelated mutation");
     } else if (mode === "private-workers") {
       const action = actions.join();
       const retired = /^restapi_object\.trusted(?:_rollout)?\["(?:runner|verifier)"\]$/.test(
