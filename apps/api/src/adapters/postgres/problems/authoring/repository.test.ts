@@ -64,6 +64,9 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           },
         ],
       });
+      parsedContent.implementations = parsedContent.implementations.filter(
+        (item: { language: string }) => item.language === "python",
+      );
       parsedContent.problem.slug = `fixture-${crypto.randomUUID().slice(0, 8)}`;
       const raw = JSON.stringify(parsedContent).replace('"expected":[999]', '"expected":[999]');
       const http = createApp({ allowedOrigins: [], requestId: () => "http-test" }).route(
@@ -152,6 +155,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const published = JSON.parse(await repository.publish(actor, draft.id, "2", "private"));
       expect(published.revision).toBe("3");
       expect(published.publishedVersionId).toBeTruthy();
+      const available = JSON.parse(
+        (await catalog.byVersion({ userId: owner }, published.publishedVersionId))!,
+      );
+      expect(available.languages.map((item: { language: string }) => item.language).sort()).toEqual(
+        ["java", "ocaml", "python", "typescript"],
+      );
+      expect(available.starterSource).toContain(
+        "def runWidths(self, values: list[int]) -> list[int]:",
+      );
       expect(JSON.parse(await repository.publications(actor)).items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -432,7 +444,14 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.importDraft(global, JSON.stringify(refreshed), false),
       );
       expect(imported.status).toBe("created");
-      const applied = JSON.parse(await repository.publish({ ...global, globalAllowed: false }, imported.draftId, "1", "global"));
+      const applied = JSON.parse(
+        await repository.publish(
+          { ...global, globalAllowed: false },
+          imported.draftId,
+          "1",
+          "global",
+        ),
+      );
       expect(applied.publishedVersionId).toBe(first.publishedVersionId);
       expect(applied.content.problem.title).toBe("Refreshed question");
       const stepUpBatch = JSON.parse(

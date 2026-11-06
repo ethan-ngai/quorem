@@ -3,14 +3,13 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { defaultLimits, languageRuntime } from "@quorem/execution";
 import {
-  generateStarter,
+  generateQuestionImplementations,
   parseLosslessJson,
   stringifyLosslessJson,
   validateQuestionDefinition,
   validateQuestionSchema,
   type JsonValue,
-  type Signature,
-  type StarterLanguage,
+  type QuestionProblem,
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
@@ -58,23 +57,6 @@ export async function prepareCustomInterviewQuestion(
     throw bad("Put staged examples and tests in their stages");
   if (!odyssey && (publicCases.length < 1 || publicCases.length > 20 || privateCases.length > 100))
     throw bad("Provide 1-20 public tests and at most 100 private tests");
-  const levels = odyssey ? values(odyssey.levels) : [];
-  const firstMethods = odyssey ? values(object(levels[0]).methods) : [sig];
-  const implementations: JsonValue[] = [];
-  for (const lang of ["python", "java", "typescript", "ocaml"] as const) {
-    const selected = languageRuntime(lang);
-    if (!selected) throw new Error("Missing supported runtime");
-    const methods = JSON.parse(stringifyLosslessJson(firstMethods)) as Signature[];
-    const starter = generateStarter(methods, lang as StarterLanguage, !!odyssey);
-    implementations.push({
-      language: lang,
-      starterSource: starter,
-      runtimeRevision: selected.revision,
-      harnessRevision: selected.harness,
-    });
-  }
-  const selected = implementations.map(object).find((item) => item.language === language);
-  if (!selected) throw bad("Unsupported language");
   const problem: Obj = {
     id,
     slug: `private-${id}`,
@@ -90,6 +72,12 @@ export async function prepareCustomInterviewQuestion(
     examples: odyssey ? [] : publicCases,
     ...(odyssey ? { odyssey } : {}),
   };
+  const implementations = generateQuestionImplementations(
+    JSON.parse(stringifyLosslessJson(problem)) as QuestionProblem,
+    languageRuntime,
+  );
+  const selected = implementations.find((item) => item.language === language);
+  if (!selected) throw bad("Unsupported language");
   const content: Obj = {
     problem,
     hiddenCases: odyssey ? [] : privateCases,

@@ -16,7 +16,7 @@ export {
   comparisonMatches,
   propertyMatches,
 } from "./constraintPredicates.ts";
-export { generateStarter } from "./starter.ts";
+export { generateStarter, generateQuestionImplementations } from "./starter.ts";
 export type { StarterLanguage } from "./starter.ts";
 export { validateQuestionDraft } from "./draft.ts";
 export { JsonNumber, parseLosslessJson, stringifyLosslessJson } from "./json.ts";

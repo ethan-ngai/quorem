@@ -9,13 +9,12 @@ import {
   normalizeQuestionDraft,
   parseLosslessJson,
   stringifyLosslessJson,
-  generateStarter,
+  generateQuestionImplementations,
   validateQuestionPublication,
   validateQuestionSchema,
   type JsonValue,
   type RuntimeResolver,
-  type Signature,
-  type StarterLanguage,
+  type QuestionProblem,
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
@@ -188,13 +187,7 @@ function comparablePublication(raw: string): Obj {
   delete problem.id;
   delete problem.version;
   problem.companies = list(problem.companies).map(str).sort();
-  for (const key of ["implementations"] as const) {
-    value[key] = list(value[key])
-      .map(object)
-      .sort((a, b) => str(a.language).localeCompare(str(b.language)));
-  }
-  for (const implementation of list(value.implementations))
-    delete object(implementation).starterSource;
+  delete value.implementations;
   const stages = list(problem.odyssey ? object(problem.odyssey).levels : undefined);
   const groups = [
     problem.examples,
@@ -280,7 +273,6 @@ async function importItem(
       ["question", before.problem, after.problem],
       ["hidden tests", before.hiddenCases, after.hiddenCases],
       ["stage tests", before.odysseyHiddenCases, after.odysseyHiddenCases],
-      ["language implementations", before.implementations, after.implementations],
       ["canonical approach", before.canonicalApproachId, after.canonicalApproachId],
       ["approaches", before.approaches, after.approaches],
       ["attribution", before.attribution, after.attribution],
@@ -325,21 +317,14 @@ async function importItem(
 
 function preparePublication(raw: string, runtime: RuntimeResolver) {
   const c = content(raw),
-    p = object(c.problem),
-    odyssey = p.odyssey ? object(p.odyssey) : undefined,
-    levels = odyssey ? list(odyssey.levels) : [];
-  const methods = levels.length ? list(object(levels[0]).methods) : [p.signature];
-  for (const item of list(c.implementations)) {
-    const impl = object(item);
-    try {
-      impl.starterSource = generateStarter(
-        JSON.parse(stringifyLosslessJson(methods)) as Signature[],
-        str(impl.language) as StarterLanguage,
-        !!odyssey,
-      );
-    } catch (error) {
-      throw bad(error instanceof Error ? error.message : "Invalid starter");
-    }
+    p = object(c.problem);
+  try {
+    c.implementations = generateQuestionImplementations(
+      JSON.parse(stringifyLosslessJson(p)) as QuestionProblem,
+      runtime,
+    );
+  } catch (error) {
+    throw bad(error instanceof Error ? error.message : "Invalid starter");
   }
   try {
     validateQuestionPublication(stringifyLosslessJson(c), validateQuestionSchema, runtime);

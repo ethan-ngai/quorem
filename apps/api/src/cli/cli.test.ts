@@ -6,7 +6,12 @@ import {
   questionAuthoring,
 } from "../adapters/postgres/problems/authoring/repository.ts";
 import { readPublishedFixture } from "../adapters/postgres/problems/private-content.ts";
-import { resumeQuestionVersion } from "../adapters/postgres/problems/publication.ts";
+import { refreshQuestionLanguages } from "./refresh-question-languages.ts";
+import { sql } from "drizzle-orm";
+import {
+  persistQuestionVersion,
+  resumeQuestionVersion,
+} from "../adapters/postgres/problems/publication.ts";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { applyAccess, grantFingerprint } from "./access.ts";
 import { seedCatalog } from "./seed.ts";
@@ -67,6 +72,107 @@ afterAll(() => {
 });
 
 describe("operator CLI contracts", () => {
+  it.skipIf(!url)("refreshes Python-only publications atomically and idempotently", async () => {
+    const previousDatabase = process.env.QUOREM_OPERATOR_DATABASE_URL;
+    process.env.QUOREM_OPERATOR_DATABASE_URL = url;
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 1,
+      connectionTimeoutMs: 3000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    try {
+      const raw = JSON.parse(
+        await readFile(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
+      );
+      const id = crypto.randomUUID();
+      raw.problem.id = id;
+      raw.problem.slug = `refresh-${id}`;
+      delete raw.problem.leetcodeId;
+      raw.implementations = raw.implementations.filter(
+        (item: { language: string }) => item.language === "python",
+      );
+      for (const approach of raw.approaches)
+        approach.implementations = approach.implementations.filter(
+          (item: { language: string }) => item.language === "python",
+        );
+      await withNodeConnection(pool, { lifetimeMs: 15000 }, (scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+          await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
+          const parent = (
+            await tx.execute<{ id: string }>(
+              sql`INSERT INTO problems(slug) VALUES(${raw.problem.slug}) RETURNING id::text`,
+            )
+          ).rows[0];
+          await persistQuestionVersion(
+            tx,
+            JSON.stringify(raw),
+            parent.id,
+            id,
+            Number(raw.problem.version),
+            null,
+            languageRuntime,
+          );
+        }),
+      );
+      const args = [
+        "--id",
+        id,
+        "--apply",
+        "--op-id",
+        `refresh-test-${id}`,
+        "--reason",
+        "Regression fixture",
+      ];
+      expect((await refreshQuestionLanguages(["--id", id])).applied).toBe(false);
+      expect(
+        (await pool.query("SELECT language FROM problem_languages WHERE version_id=$1", [id])).rows,
+      ).toHaveLength(1);
+      expect((await refreshQuestionLanguages(args)).applied).toBe(true);
+      const languages = (
+        await pool.query(
+          "SELECT language,starter_source FROM problem_languages WHERE version_id=$1 ORDER BY language",
+          [id],
+        )
+      ).rows;
+      expect(languages.map((item) => item.language)).toEqual([
+        "java",
+        "ocaml",
+        "python",
+        "typescript",
+      ]);
+      expect(languages.find((item) => item.language === "python").starter_source).toContain(
+        "values: list[int]",
+      );
+      const revision = (
+        await pool.query("SELECT revision FROM question_drafts WHERE published_version_id=$1", [id])
+      ).rows[0].revision;
+      await refreshQuestionLanguages(args);
+      expect(
+        (
+          await pool.query("SELECT revision FROM question_drafts WHERE published_version_id=$1", [
+            id,
+          ])
+        ).rows[0].revision,
+      ).toBe(revision);
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::int AS n FROM problem_test_cases WHERE version_id=$1",
+            [id],
+          )
+        ).rows[0].n,
+      ).toBe(raw.hiddenCases.length);
+      await expect(
+        refreshQuestionLanguages([...args.slice(0, -1), "Different reason"]),
+      ).rejects.toThrow("Operation ID already used");
+    } finally {
+      await pool.end();
+      if (previousDatabase === undefined) delete process.env.QUOREM_OPERATOR_DATABASE_URL;
+      else process.env.QUOREM_OPERATOR_DATABASE_URL = previousDatabase;
+    }
+  });
   it("keeps the historical Go access fingerprint", () => {
     expect(
       grantFingerprint({

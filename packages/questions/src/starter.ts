@@ -1,6 +1,7 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
 import { sourceQuestionType as languageType } from "@quorem/contracts/question-type";
-import type { Signature } from "./model.ts";
+import type { QuestionContent, QuestionProblem, Signature } from "./model.ts";
+import type { RuntimeResolver } from "./publication.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
 
@@ -48,7 +49,7 @@ function method(
   staged: boolean,
 ): string {
   if (language === "python")
-    return `    def ${sig.methodName}(${["self", ...sig.parameters.map((p) => p.name)].join(", ")}):\n${documentation(sig, language, "        ")}        raise NotImplementedError\n`;
+    return `    def ${sig.methodName}(${["self", ...sig.parameters.map((p) => `${p.name}: ${languageType(p.type, language)}`)].join(", ")}) -> ${languageType(sig.returnType, language)}:\n${documentation(sig, language, "        ")}        raise NotImplementedError\n`;
   const result = languageType(sig.returnType, language);
   const params = sig.parameters.map((p) => {
     const t = languageType(p.type, language);
@@ -88,11 +89,43 @@ export function generateStarter(
       language !== "python" &&
       [...sig.parameters.map((p) => p.type), sig.returnType].some((t) => t.includes("Node"));
     const note = node ? "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n" : "";
-    return `${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
+    return `${pythonPrelude(methods, language)}${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
   }
   const bodies = methods.map((sig) => method(sig, language, true));
   if (language === "ocaml") return bodies.join("\n");
   if (language === "python")
-    return `class Solution:\n    def __init__(self):\n        pass\n\n${bodies.join("\n")}`;
+    return `${pythonPrelude(methods, language)}class Solution:\n    def __init__(self) -> None:\n        pass\n\n${bodies.join("\n")}`;
   return `class Solution {\n${language === "java" ? "    public Solution() {" : "    constructor() {"}\n    }\n\n${bodies.join("\n")}}\n`;
+}
+
+function pythonPrelude(methods: readonly Signature[], language: StarterLanguage): string {
+  if (language !== "python") return "";
+  const datetime = methods.some((sig) =>
+    [...sig.parameters.map((p) => p.type), sig.returnType].some((type) =>
+      type.includes("datetime"),
+    ),
+  );
+  // Node generics are annotations only; judge-supplied classes need not be subscriptable.
+  return `from __future__ import annotations\n${datetime ? "import datetime\n" : ""}\n`;
+}
+
+/** Derive executable languages from the signature, independently of editorial code variants. */
+export function generateQuestionImplementations(
+  problem: Pick<QuestionProblem, "signature" | "sql" | "odyssey">,
+  resolveRuntime: RuntimeResolver,
+): QuestionContent["implementations"] {
+  const languages: StarterLanguage[] = problem.sql
+    ? ["postgresql"]
+    : ["python", "java", "typescript", "ocaml"];
+  const methods = problem.odyssey ? problem.odyssey.levels[0].methods : [problem.signature];
+  return languages.map((language) => {
+    const runtime = resolveRuntime(language);
+    if (!runtime) throw new Error(`Missing supported runtime: ${language}`);
+    return {
+      language,
+      starterSource: generateStarter(methods, language, !!problem.odyssey),
+      runtimeRevision: runtime.revision,
+      harnessRevision: runtime.harness,
+    };
+  });
 }
