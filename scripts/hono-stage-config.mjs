@@ -195,7 +195,10 @@ export function workerConfig(input, outputs, output, scope) {
               binding,
               service: runnerWakeService,
             })),
-            { binding: "RESULT_VERIFIER", service: `${runnerWakeService}-verifier` },
+            ...(outputs.services?.origins?.value?.VERIFICATION_SERVICE_TRANSPORT ===
+            "cloudflare-binding"
+              ? [{ binding: "RESULT_VERIFIER", service: `${runnerWakeService}-verifier` }]
+              : []),
           ],
         }
       : {}),

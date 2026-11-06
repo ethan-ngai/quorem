@@ -118,7 +118,13 @@ async function release(env) {
       })),
       ...(config.r2_buckets ?? []).map(({ binding: name }) => ({ name, type: "r2_bucket" })),
     ];
-    const judgingServices = config.services;
+    const judgingServices = [...config.services];
+    // Permit the controlled removal of a premature binding during a staged rollout.
+    if (!judgingServices.some(({ binding }) => binding === "RESULT_VERIFIER"))
+      judgingServices.push({
+        binding: "RESULT_VERIFIER",
+        service: "quorem-hono-services-production-verifier",
+      });
     const judgingNames = new Set(judgingServices.map(({ binding }) => binding));
     for (const { binding, service } of judgingServices) {
       const existing = before.find(({ name }) => name === binding);

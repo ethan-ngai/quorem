@@ -177,6 +177,7 @@ locals {
     IMAGE_ORIGIN                      = var.profile_media_enabled ? "https://${var.image_hostname}" : ""
     CASE_DIAGNOSTICS                  = tostring(var.case_diagnostics)
     DRAIN_ORIGIN                      = "https://${var.hostnames.drain}"
+    VERIFICATION_SERVICE_TRANSPORT    = "cloudflare-binding"
     VERIFIER_ORIGIN                   = "https://${var.hostnames.verifier}"
     CASE_ORIGIN                       = "https://${var.hostnames.case}"
     QUOREM_CASE_ORIGIN                = "https://${var.hostnames.case}"
