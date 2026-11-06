@@ -1,8 +1,11 @@
+/** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
+import type { paths } from "@quorem/contracts";
+import { useServerTable, type ListState } from "../../ui/useServerTable";
+import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { Link, useNavigate } from "@tanstack/react-router";
-/** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
@@ -20,12 +23,20 @@ import { InterviewInvitationLinks } from "./InterviewInvitations";
 import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
 import "../../styles/workspace.css";
-import { CatalogLayout, CatalogTable } from "../practice/CatalogLayout";
+import { CatalogLayout } from "../practice/CatalogLayout";
+import { Table, TableRow } from "../../ui/Table";
 import { Trash2, Power, Users, CircleDot, Archive } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { InterviewLifecycleDialog } from "./InterviewLifecycleDialog";
 import { SessionDialog } from "../../ui/SessionDialog";
 /** Presents existing memberships even when host rollout access has been revoked. */
+type InterviewPage =
+  paths["/v1/interviews"]["get"]["responses"][200]["content"]["application/json"];
+const interviewColumns = [
+  { accessorKey: "title" },
+  { accessorKey: "role" },
+  { accessorKey: "updatedAt", sortDescFirst: true },
+];
 export function InterviewHub() {
   const account = useSession();
   const theme = useTheme();
@@ -39,10 +50,22 @@ export function InterviewHub() {
   }>();
   const [error, setError] = useState<string>();
   useErrorNotification(error);
+  const [list, setList] = useState<ListState<"title" | "role" | "updatedAt">>({
+    page: 1,
+    limit: 50,
+    sort: "updatedAt",
+    order: "desc",
+  });
   const sessions = useQuery({
-    queryKey: ["interviews", account.data?.user.id],
+    queryKey: ["interviews", account.data?.user.id, list],
     queryFn: ({ signal }) =>
-      interviewRequest<InterviewSummary[]>("/v1/interviews", "GET", undefined, undefined, signal),
+      interviewRequest<InterviewPage>(
+        `/v1/interviews?${new URLSearchParams({ ...list, page: String(list.page), limit: String(list.limit) })}`,
+        "GET",
+        undefined,
+        undefined,
+        signal,
+      ),
     enabled: !!account.data,
     refetchOnWindowFocus: true,
   });
@@ -69,10 +92,15 @@ export function InterviewHub() {
       setBusy(false);
     }
   }
-  const hosting =
-    sessions.data?.filter(
-      (session) => session.hostId === account.data?.user.id && session.state === "active",
-    ).length ?? 0;
+  const table = useServerTable({
+    data: sessions.data?.items ?? [],
+    columns: interviewColumns,
+    total: sessions.data?.total,
+    loading: sessions.isFetching,
+    state: list,
+    onChange: setList,
+  });
+  const hosting = sessions.data?.hosting ?? 0;
   const atLimit = hosting >= (account.data?.capabilities?.interviewConcurrency ?? 1);
   async function applyLifecycle() {
     if (!lifecycle) return;
@@ -142,27 +170,31 @@ export function InterviewHub() {
               </div>
             ) : (
               <>
-                <CatalogTable
+                <Table
                   label="Interviews"
                   heading={
                     <tr>
-                      <th scope="col">Interview</th>
-                      <th scope="col" className="interview-role-column">
+                      <TableSortHeader column={table.getColumn("title")!}>
+                        Interview
+                      </TableSortHeader>
+                      <TableSortHeader
+                        column={table.getColumn("role")!}
+                        className="interview-role-column"
+                      >
                         Your role
-                      </th>
+                      </TableSortHeader>
                       <th scope="col">
                         <span className="sr-only">Actions</span>
                       </th>
                     </tr>
                   }
                 >
-                  {sessions.data?.map((session) => (
-                    <tr
+                  {sessions.data?.items.map((session) => (
+                    <TableRow
                       key={session.id}
-                      onClick={(event) => {
-                        if (!(event.target as Element).closest("a, button"))
-                          void navigate({ to: "/interview/$id", params: { id: session.id } });
-                      }}
+                      onOpen={() =>
+                        void navigate({ to: "/interview/$id", params: { id: session.id } })
+                      }
                     >
                       <td>
                         <div className="interview-title-line">
@@ -206,7 +238,7 @@ export function InterviewHub() {
                           {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
                         </span>
                       </td>
-                      <td className="catalog-actions">
+                      <td className="table-actions">
                         {session.hostId === account.data?.user.id && (
                           <Tooltip
                             content={
@@ -233,10 +265,11 @@ export function InterviewHub() {
                           </Tooltip>
                         )}
                       </td>
-                    </tr>
+                    </TableRow>
                   ))}
-                </CatalogTable>
-                {!sessions.data?.length && (
+                </Table>
+                <TablePagination table={table} disabled={busy} />
+                {!sessions.data?.items.length && (
                   <div className="practice-state">
                     <h2>No interviews yet</h2>
                     <p>

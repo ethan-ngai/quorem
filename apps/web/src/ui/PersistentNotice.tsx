@@ -12,6 +12,8 @@ type NoticeProps = {
   actions?: readonly { label: string; onClick: () => void }[];
   /** Accessible description ID for an associated control. */
   id?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 /** Keep mounted when healthy: the empty slot reserves identical geometry. */
@@ -21,6 +23,8 @@ export function PersistentNotice({
   severity = "error",
   actions,
   id,
+  open,
+  onOpenChange,
 }: NoticeProps) {
   const generatedId = useId();
   const descriptionId = id ?? generatedId;
@@ -38,7 +42,7 @@ export function PersistentNotice({
         {messages.join(" ")}
       </span>
       {messages.length > 0 && (
-        <Popover.Root>
+        <Popover.Root open={open} onOpenChange={onOpenChange}>
           <Tooltip content={accessibleLabel}>
             <Popover.Trigger asChild>
               <button

@@ -1135,14 +1135,100 @@
       "get": {
         "operationId": "listQuestionPublications",
         "parameters": [
-          { "name": "q", "in": "query", "schema": { "type": "string" } },
-          { "name": "sql", "in": "query", "schema": { "type": "string" } },
-          { "name": "type", "in": "query", "schema": { "type": "string" } },
-          { "name": "difficulty", "in": "query", "schema": { "type": "string" } },
-          { "name": "topic", "in": "query", "schema": { "type": "string" } },
-          { "name": "company", "in": "query", "schema": { "type": "string" } },
-          { "name": "source", "in": "query", "schema": { "type": "string" } },
-          { "name": "readiness", "in": "query", "schema": { "type": "string" } }
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sql",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readiness",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["title", "difficulty"],
+              "default": "title"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "asc"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -1151,14 +1237,24 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["items"],
+                  "required": ["items", "total", "page", "limit"],
                   "properties": {
                     "facets": {
                       "type": "object",
                       "required": ["topics", "companies"],
                       "properties": {
-                        "topics": { "type": "array", "items": { "type": "string" } },
-                        "companies": { "type": "array", "items": { "type": "string" } }
+                        "topics": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "companies": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "items": {
@@ -1193,18 +1289,51 @@
                           "version": {
                             "type": "string"
                           },
-                          "isPrivate": { "type": "boolean" },
-                          "difficulty": { "type": "string" },
-                          "isOdyssey": { "type": "boolean" },
-                          "tags": { "type": "array", "items": { "type": "string" } },
-                          "companies": { "type": "array", "items": { "type": "string" } },
-                          "isSql": { "type": "boolean" },
-                          "fromLeetCode": { "type": "boolean" },
+                          "isPrivate": {
+                            "type": "boolean"
+                          },
+                          "difficulty": {
+                            "type": "string"
+                          },
+                          "isOdyssey": {
+                            "type": "boolean"
+                          },
+                          "tags": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "companies": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "isSql": {
+                            "type": "boolean"
+                          },
+                          "fromLeetCode": {
+                            "type": "boolean"
+                          },
                           "current": {
                             "type": "boolean"
                           }
                         }
                       }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
                     }
                   }
                 }
@@ -1228,21 +1357,98 @@
       "get": {
         "operationId": "listQuestionDrafts",
         "parameters": [
-          { "name": "q", "in": "query", "schema": { "type": "string" } },
-          { "name": "sql", "in": "query", "schema": { "type": "string" } },
-          { "name": "type", "in": "query", "schema": { "type": "string" } },
-          { "name": "difficulty", "in": "query", "schema": { "type": "string" } },
-          { "name": "topic", "in": "query", "schema": { "type": "string" } },
-          { "name": "company", "in": "query", "schema": { "type": "string" } },
-          { "name": "source", "in": "query", "schema": { "type": "string" } },
-          { "name": "readiness", "in": "query", "schema": { "type": "string" } },
           {
-            "name": "cursor",
+            "name": "q",
             "in": "query",
-            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sql",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "difficulty",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readiness",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
             "schema": {
               "type": "string",
-              "format": "uuid"
+              "enum": ["title", "difficulty", "updatedAt"],
+              "default": "updatedAt"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
             }
           }
         ],
@@ -2182,16 +2388,78 @@
     "/v1/interviews": {
       "get": {
         "operationId": "listInterviews",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["title", "role", "updatedAt"],
+              "default": "updatedAt"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["asc", "desc"],
+              "default": "desc"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InterviewSummary"
+                  "type": "object",
+                  "required": ["items", "total", "hosting", "page", "limit"],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InterviewSummary"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "page": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "hosting": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
                   }
                 }
               }
@@ -3465,6 +3733,313 @@
                 },
                 "required": ["questionEpoch", "level"],
                 "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-drafts/publish-batch": {
+      "post": {
+        "operationId": "publishQuestionDraftBatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "revision",
+                        "visibility"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,18}$"
+                        },
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "private",
+                            "global"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-question outcomes, in request order. Expected failures roll back only that item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "status"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "succeeded",
+                              "failed"
+                            ]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-drafts/delete-batch": {
+      "post": {
+        "operationId": "deleteQuestionDraftBatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "revision"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "revision": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{0,18}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-question outcomes, in request order. Expected failures roll back only that item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "status"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "succeeded",
+                              "failed"
+                            ]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-publications/delete-batch": {
+      "post": {
+        "operationId": "deleteQuestionPublicationBatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 16,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "id",
+                        "current"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "current": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Per-question outcomes, in request order. Expected failures roll back only that item.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "id",
+                          "status"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "succeeded",
+                              "failed"
+                            ]
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
               }
             }
           }
@@ -5272,8 +5847,18 @@
             "type": "object",
             "required": ["topics", "companies"],
             "properties": {
-              "topics": { "type": "array", "items": { "type": "string" } },
-              "companies": { "type": "array", "items": { "type": "string" } }
+              "topics": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "companies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           },
           "items": {
@@ -5283,12 +5868,21 @@
               "$ref": "#/components/schemas/QuestionDraftSummary"
             }
           },
-          "nextCursor": {
-            "type": "string",
-            "format": "uuid"
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         },
-        "required": ["items"]
+        "required": ["items", "total", "page", "limit"]
       },
       "CreateQuestionDraftRequest": {
         "oneOf": [

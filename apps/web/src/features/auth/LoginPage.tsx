@@ -2,7 +2,7 @@ import { NoticeRegion } from "../../ui/PersistentNotice";
 import { SocialEmailSetup } from "./SocialEmailSetup";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
-import { useErrorNotification } from "../../ui/Notifications";
+import { useErrorNotification, useSuccessNotification } from "../../ui/Notifications";
 import { authErrorMessage, AuthError } from "./errors";
 import {
   accountSetupSchema,
@@ -112,6 +112,13 @@ function LoginForm() {
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(error);
+  useSuccessNotification(
+    new URLSearchParams(location.search).has("emailChanged")
+      ? "Email updated. Your new address is verified."
+      : verified && !creating && !submittedEmail
+        ? "Email verified. You can sign in now."
+        : undefined,
+  );
   const [busy, setBusy] = useState(false);
   const passkeySupported = typeof PublicKeyCredential !== "undefined";
   async function authenticate(action: () => Promise<unknown>) {
@@ -213,21 +220,11 @@ function LoginForm() {
                     ? "Verify your email first. Then choose your username and password."
                     : "Pick up where you left off."}
           </p>
-          {new URLSearchParams(location.search).has("emailChanged") && (
-            <p className="auth-success" role="status">
-              Email updated. Your new address is verified.
-            </p>
-          )}
           {new URLSearchParams(location.search).has("emailChangePending") && (
             <p role="status">
               Current address confirmed. Check your new inbox to finish the change.
             </p>
           )}
-          {verified && !creating && !submittedEmail ? (
-            <p className="auth-success" role="status">
-              Email verified. You can sign in now.
-            </p>
-          ) : null}
           {setupRequested && setup.isPending ? (
             <p role="status">Verifying your email…</p>
           ) : setupRequested && (setup.isError || setup.data?.registered) ? (

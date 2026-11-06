@@ -3,14 +3,13 @@ import type { QuestionSearch } from "./questionSearch";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 
-/** @returns All administrative drafts; backend checks the live server-owned role. */
+/** @returns One authorized draft page; backend checks the live server-owned role. */
 export async function listDrafts(
   query: Omit<QuestionSearch, "section" | "draft" | "publication">,
-  cursor?: string,
   signal?: AbortSignal,
 ) {
   const { data, error } = await api().GET("/v1/admin/question-drafts", {
-    params: { query: { ...query, cursor } },
+    params: { query },
     signal,
   });
   return requireData(data, error);
@@ -88,17 +87,33 @@ export async function listPublications(
   signal?: AbortSignal,
 ) {
   const { data, error } = await api().GET("/v1/admin/question-publications", {
-    params: { query },
+    params: { query: { ...query, sort: query.sort === "updatedAt" ? undefined : query.sort } },
     signal,
   });
   return requireData(data, error);
 }
 
-/** Deletes an unpublished draft at the revision selected by the author. */
-export async function deleteDraft(draft: Pick<QuestionDraft, "id" | "revision">) {
-  const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}", {
-    params: { path: { id: draft.id } },
-    body: { revision: draft.revision },
-  });
-  return requireData(data, error);
+/** @returns Per-question outcomes for one bounded batch, preserving selection order. */
+export async function mutateQuestionBatch(
+  batch:
+    | {
+        action: "publish";
+        items: { id: string; revision: string; visibility: "private" | "global" }[];
+      }
+    | { action: "delete-drafts"; items: { id: string; revision: string }[] }
+    | { action: "delete-publications"; items: { id: string; current: boolean }[] },
+) {
+  const result =
+    batch.action === "publish"
+      ? await api().POST("/v1/admin/question-drafts/publish-batch", {
+          body: { items: batch.items },
+        })
+      : batch.action === "delete-drafts"
+        ? await api().POST("/v1/admin/question-drafts/delete-batch", {
+            body: { items: batch.items },
+          })
+        : await api().POST("/v1/admin/question-publications/delete-batch", {
+            body: { items: batch.items },
+          });
+  return requireData(result.data, result.error);
 }

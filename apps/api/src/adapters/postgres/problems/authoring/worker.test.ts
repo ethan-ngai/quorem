@@ -93,5 +93,49 @@ describe.skipIf(!url)("native worker authoring", () => {
       body: '{"revision":"2","visibility":"private"}',
     });
     expect(stale.status).toBe(409);
+    const second = await SELF.fetch("http://localhost/v1/admin/question-drafts", {
+      method: "POST",
+      body: JSON.stringify({ content: question }),
+    });
+    const next = (await second.json()) as { id: string; revision: string };
+    const batch = await SELF.fetch("http://localhost/v1/admin/question-drafts/publish-batch", {
+      method: "POST",
+      body: JSON.stringify({
+        items: [
+          { id: d.id, revision: "2", visibility: "private" },
+          { id: next.id, revision: next.revision, visibility: "private" },
+        ],
+      }),
+    });
+    expect(batch.status).toBe(200);
+    expect(await batch.json()).toMatchObject({
+      items: [
+        { id: d.id, status: "failed", code: "revision_conflict" },
+        { id: next.id, status: "succeeded" },
+      ],
+    });
+    const saved = await SELF.fetch(`http://localhost/v1/admin/question-drafts/${next.id}`);
+    const publication = (await saved.json()) as { publishedVersionId: string };
+    const deleted = await SELF.fetch(
+      "http://localhost/v1/admin/question-publications/delete-batch",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            { id: result.publishedVersionId, current: true },
+            { id: publication.publishedVersionId, current: true },
+            { id: crypto.randomUUID(), current: false },
+          ],
+        }),
+      },
+    );
+    expect(deleted.status).toBe(200);
+    expect(await deleted.json()).toMatchObject({
+      items: [
+        { status: "failed", code: "revision_conflict" },
+        { status: "succeeded" },
+        { status: "failed", code: "not_found" },
+      ],
+    });
   });
 });

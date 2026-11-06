@@ -35,7 +35,7 @@ import {
   removePublicationRow,
 } from "./mutation.ts";
 
-/** Match catalog metadata before cursoring through drafts. */
+/** Match catalog metadata before sorting and pagination. */
 function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
   const {
     query = "",
@@ -55,6 +55,35 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     AND (${company}='' OR companies && string_to_array(${company},','))
     AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
   `;
+}
+
+type DraftListRow = {
+  id: string;
+  revision: string;
+  title: string;
+  slug: string;
+  editVersionId: string | null;
+  updated_at: Date;
+  updatedAt: string;
+  raw: string;
+  fromLeetCode: boolean;
+  isSql: boolean;
+  isOdyssey: boolean;
+  difficulty: string;
+  tags: string[];
+  companies: string[];
+};
+
+function authoringOrder(filters?: AuthoringFilters, drafts = false): SQL {
+  const sort = filters?.sort ?? (drafts ? "updatedAt" : "title");
+  const direction = (filters?.order ?? (drafts ? "desc" : "asc")) === "desc" ? sql`DESC` : sql`ASC`;
+  const key =
+    sort === "difficulty"
+      ? sql`CASE difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`
+      : sort === "updatedAt"
+        ? sql`updated_at`
+        : sql`lower(title)`;
+  return sql`${key} ${direction},id ${direction}`;
 }
 
 async function authoringFacets(tx: Transaction, catalog: SQL) {
@@ -544,6 +573,80 @@ async function cloneVersion(
     throw new ApplicationError("forbidden", "Only your own private questions can be cloned", 403);
   throw new ApplicationError("not_found", "Problem not found", 404);
 }
+async function deleteDraft(
+  tx: Transaction,
+  actor: AuthorActor,
+  admin: boolean,
+  id: string,
+  rev: string,
+): Promise<void> {
+  revision(rev);
+  const draft = await readDraft(tx, actor, admin, id, true);
+  if (draft.revision !== rev || draft.publishedVersionId) throw conflict();
+  await tx.execute(sql`DELETE FROM question_drafts WHERE id=${id}::uuid`);
+}
+
+function authorizePublicationDeletion(
+  actor: AuthorActor,
+  admin: boolean,
+  owner: string | null,
+): void {
+  if (owner !== actor.userId && (owner !== null || !admin)) throw missing();
+  if (owner === null && !actor.globalAllowed)
+    throw new ApplicationError(
+      "step_up_required",
+      "Verify your passkey again to delete a global question",
+      403,
+    );
+}
+
+/** Caller holds the publication lock and has checked ownership and step-up. */
+async function deletePublicationVersion(
+  tx: Transaction,
+  actor: AuthorActor,
+  admin: boolean,
+  versionId: string,
+  version: Awaited<ReturnType<typeof lockPublication>>,
+  replacement: string | null | undefined,
+): Promise<void> {
+  await assertPublicationIdle(tx, versionId);
+  if (version.current === versionId) {
+    if (replacement === undefined) throw bad("Choose a replacement or unpublish the question");
+    if (replacement) {
+      const valid = (
+        await tx.execute(sql`SELECT 1 FROM problem_versions
+              WHERE id=${replacement}::uuid AND id<>${versionId}::uuid AND problem_id=${version.id}::uuid AND sealed`)
+      ).rows.length;
+      if (!valid) throw bad("Choose another published version of this question");
+      const [saved] = (
+        await tx.execute<DraftRow>(sql`
+              SELECT ${draftColumns} FROM question_drafts WHERE published_version_id=${replacement}::uuid
+              ORDER BY updated_at DESC,id LIMIT 1
+            `)
+      ).rows;
+      const raw =
+        saved?.content ??
+        (await readAuthoringQuestion(tx, actor.userId, replacement, admin, false));
+      if (raw)
+        await updateQuestionCatalogMetadata(
+          tx,
+          version.id,
+          object(content(raw).problem),
+          version.owner,
+        );
+    }
+    await tx.execute(
+      sql`UPDATE problems SET current_version_id=${replacement}::uuid WHERE id=${version.id}::uuid`,
+    );
+  } else if (replacement !== undefined) {
+    throw conflict();
+  }
+  await detachPublication(tx, versionId);
+  await removePublicationRow(tx, versionId);
+  await tx.execute(sql`DELETE FROM problems p WHERE p.id=${version.id}::uuid
+          AND NOT EXISTS (SELECT 1 FROM problem_versions v WHERE v.problem_id=p.id)`);
+}
+
 /** Open one bounded transaction per authoring operation; publication never leaves a partial version. */
 function createQuestionAuthoring(
   run: AuthoringScope,
@@ -551,8 +654,67 @@ function createQuestionAuthoring(
   operatorSeedSource?: string,
 ): QuestionAuthoring {
   const transact = <T>(action: (tx: Transaction) => Promise<T>, readOnly = false) =>
-    run((scope) => scope.transaction({ ...opts, readOnly }, action));
+    run((scope) =>
+      scope.transaction(
+        { ...opts, readOnly, isolation: readOnly ? "repeatable read" : "read committed" },
+        action,
+      ),
+    );
   return {
+    async mutateBatch(actor, batch) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, true);
+        await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
+        const items = [];
+        // Preserve selection order for shared slugs; isolate expected row failures.
+        for (let index = 0; index < batch.items.length; index++) {
+          const id = batch.items[index].id;
+          await tx.execute(sql`SAVEPOINT question_item`);
+          try {
+            if (batch.action === "publish") {
+              const item = batch.items[index];
+              revision(item.revision);
+              await publish(
+                tx,
+                actor,
+                admin,
+                id,
+                item.revision,
+                item.visibility,
+                runtime,
+                operatorSeedSource,
+              );
+            } else if (batch.action === "delete-drafts") {
+              await deleteDraft(tx, actor, admin, id, batch.items[index].revision);
+            } else {
+              const item = batch.items[index];
+              const version = await lockPublication(tx, id);
+              authorizePublicationDeletion(actor, admin, version.owner);
+              if ((version.current === id) !== item.current) throw conflict();
+              await deletePublicationVersion(
+                tx,
+                actor,
+                admin,
+                id,
+                version,
+                item.current ? null : undefined,
+              );
+            }
+            items.push({ id, status: "succeeded" });
+          } catch (error) {
+            await tx.execute(sql`ROLLBACK TO SAVEPOINT question_item`);
+            const failure =
+              classifyDatabaseError(error) === "unique"
+                ? bad("LeetCode ID is already in use")
+                : error;
+            if (!(failure instanceof ApplicationError)) throw failure;
+            items.push({ id, status: "failed", code: failure.code, message: failure.message });
+          }
+          await tx.execute(sql`RELEASE SAVEPOINT question_item`);
+        }
+        return JSON.stringify({ items });
+      });
+    },
     async publications(actor, filters) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, false);
@@ -573,21 +735,29 @@ function createQuestionAuthoring(
           ) chosen
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
         `;
-        const result = await tx.execute(sql`SELECT * FROM (${catalog}) catalog
-          WHERE ${matchesAuthoringFilters(filters)} ORDER BY lower(title),slug`);
+        const { page = 1, limit = 50 } = filters ?? {};
+        const where = matchesAuthoringFilters(filters);
+        const order = authoringOrder(filters);
+        const result = await tx.execute(
+          sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
+        );
+        const count = await tx.execute<{ total: number }>(
+          sql`SELECT count(*)::int AS total FROM (${catalog}) catalog WHERE ${where}`,
+        );
         const facets = await authoringFacets(tx, catalog);
-
-        return JSON.stringify({ items: result.rows, facets });
+        return JSON.stringify({
+          items: result.rows,
+          total: count.rows[0].total,
+          page,
+          limit,
+          facets,
+        });
       }, true);
     },
-    async list(actor, cursor, filters) {
-      const items = [];
-      let facets;
-      let scanCursor = cursor;
-      do {
-        const rows = await transact(async (tx) => {
-          const { admin } = await author(tx, actor, false);
-          const catalog = sql`SELECT id::text AS id,revision::text AS revision,updated_at,
+    async list(actor, filters) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, false);
+        const catalog = sql`SELECT id::text AS id,revision::text AS revision,updated_at,
                 COALESCE(content->'problem'->>'difficulty','easy') AS difficulty,
                 COALESCE(jsonb_typeof(content->'problem'->'odyssey')='object',false) AS "isOdyssey",
                 ARRAY(SELECT jsonb_array_elements_text(COALESCE(content->'problem'->'tags','[]'::jsonb))) AS tags,
@@ -596,32 +766,13 @@ function createQuestionAuthoring(
                 COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
                 COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
                 FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))`;
-          if (!scanCursor) facets = await authoringFacets(tx, catalog);
-          return (
-            await tx.execute<{
-              id: string;
-              revision: string;
-              title: string;
-              slug: string;
-              editVersionId: string | null;
-              updatedAt: string;
-              raw: string;
-              fromLeetCode: boolean;
-              isSql: boolean;
-              isOdyssey: boolean;
-              difficulty: string;
-              tags: string[];
-              companies: string[];
-            }>(
-              sql`SELECT id,revision,title,slug,"editVersionId","updatedAt",raw,"fromLeetCode","isSql","isOdyssey",difficulty,tags,companies
-              FROM (${catalog}) catalog WHERE ${matchesAuthoringFilters(filters)}
-              AND (${scanCursor}='' OR (updated_at,id::uuid)<(SELECT updated_at,id FROM question_drafts
-                WHERE id::text=${scanCursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))))
-              ORDER BY updated_at DESC,id DESC LIMIT 50`,
-            )
-          ).rows;
-        }, true);
-        for (const { raw, editVersionId, ...row } of rows) {
+        const { page = 1, limit = 50 } = filters ?? {};
+        const where = matchesAuthoringFilters(filters);
+        const order = authoringOrder(filters, true);
+        const facets = await authoringFacets(tx, catalog);
+        const offset = (page - 1) * limit;
+        const summarize = (row: DraftListRow) => {
+          const { raw, editVersionId, updated_at: _updatedAt, ...summary } = row;
           let ready = true;
           try {
             preparePublication(raw, runtime);
@@ -629,14 +780,40 @@ function createQuestionAuthoring(
             if (!(error instanceof ApplicationError)) throw error;
             ready = false;
           }
-          if (!filters?.readiness || ready === (filters.readiness === "ready"))
-            items.push({ ...row, ready, ...(editVersionId ? { editVersionId } : {}) });
-          if (items.length > 50)
-            return JSON.stringify({ items: items.slice(0, 50), nextCursor: items[49].id, facets });
+          return { ...summary, ready, ...(editVersionId ? { editVersionId } : {}) };
+        };
+        if (!filters?.readiness) {
+          const rows = await tx.execute<DraftListRow>(
+            sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${offset}`,
+          );
+          const count = await tx.execute<{ total: number }>(
+            sql`SELECT count(*)::int AS total FROM (${catalog}) catalog WHERE ${where}`,
+          );
+          return JSON.stringify({
+            items: rows.rows.map(summarize),
+            total: count.rows[0].total,
+            page,
+            limit,
+            facets,
+          });
         }
-        scanCursor = rows.length === 50 ? rows[49].id : "";
-      } while (scanCursor);
-      return JSON.stringify({ items, facets });
+        // Readiness uses the publication validator; scan bounded batches before pagination.
+        const items = [];
+        let total = 0;
+        for (let scanned = 0; ; scanned += 50) {
+          const rows = await tx.execute<DraftListRow>(
+            sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT 50 OFFSET ${scanned}`,
+          );
+          for (const row of rows.rows) {
+            const summary = summarize(row);
+            if (summary.ready !== (filters.readiness === "ready")) continue;
+            if (total >= offset && items.length < limit) items.push(summary);
+            total++;
+          }
+          if (rows.rows.length < 50) break;
+        }
+        return JSON.stringify({ items, total, page, limit, facets });
+      }, true);
     },
     async get(actor, id) {
       return transact(async (tx) => {
@@ -750,10 +927,7 @@ function createQuestionAuthoring(
     async deleteDraft(actor, id, rev) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, true);
-        revision(rev);
-        const draft = await readDraft(tx, actor, admin, id, true);
-        if (draft.revision !== rev || draft.publishedVersionId) throw conflict();
-        await tx.execute(sql`DELETE FROM question_drafts WHERE id=${id}::uuid`);
+        await deleteDraft(tx, actor, admin, id, rev);
         return '{"deleted":true}';
       });
     },
@@ -775,51 +949,10 @@ function createQuestionAuthoring(
         const d = await readDraft(tx, actor, admin, id, true);
         revision(rev);
         if (!d.publishedVersionId || d.revision !== rev) throw conflict();
-        if (d.ownerId === null && !actor.globalAllowed)
-          throw new ApplicationError(
-            "step_up_required",
-            "Verify your passkey again to delete a global question",
-            403,
-          );
+        authorizePublicationDeletion(actor, admin, d.ownerId);
         const versionId = d.publishedVersionId;
         const version = await lockPublication(tx, versionId);
-        await assertPublicationIdle(tx, versionId);
-        if (version.current === versionId) {
-          if (replacement === undefined)
-            throw bad("Choose a replacement or unpublish the question");
-          if (replacement) {
-            const valid = (
-              await tx.execute(sql`SELECT 1 FROM problem_versions
-              WHERE id=${replacement}::uuid AND id<>${versionId}::uuid AND problem_id=${version.id}::uuid AND sealed`)
-            ).rows.length;
-            if (!valid) throw bad("Choose another published version of this question");
-            const [saved] = (
-              await tx.execute<DraftRow>(sql`
-              SELECT ${draftColumns} FROM question_drafts WHERE published_version_id=${replacement}::uuid
-              ORDER BY updated_at DESC,id LIMIT 1
-            `)
-            ).rows;
-            const raw =
-              saved?.content ??
-              (await readAuthoringQuestion(tx, actor.userId, replacement, admin, false));
-            if (raw)
-              await updateQuestionCatalogMetadata(
-                tx,
-                version.id,
-                object(content(raw).problem),
-                version.owner,
-              );
-          }
-          await tx.execute(
-            sql`UPDATE problems SET current_version_id=${replacement}::uuid WHERE id=${version.id}::uuid`,
-          );
-        } else if (replacement !== undefined) {
-          throw conflict();
-        }
-        await detachPublication(tx, versionId);
-        await removePublicationRow(tx, versionId);
-        await tx.execute(sql`DELETE FROM problems p WHERE p.id=${version.id}::uuid
-          AND NOT EXISTS (SELECT 1 FROM problem_versions v WHERE v.problem_id=p.id)`);
+        await deletePublicationVersion(tx, actor, admin, versionId, version, replacement);
         return '{"deleted":true}';
       });
     },
