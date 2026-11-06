@@ -190,10 +190,13 @@ export function workerConfig(input, outputs, output, scope) {
     hyperdrive: [{ binding: "DB", id: hyperdriveId }],
     ...(runnerWakeService
       ? {
-          services: ["RUNNER_WAKE", "CASE_EXECUTION"].map((binding) => ({
-            binding,
-            service: runnerWakeService,
-          })),
+          services: [
+            ...["RUNNER_WAKE", "CASE_EXECUTION"].map((binding) => ({
+              binding,
+              service: runnerWakeService,
+            })),
+            { binding: "RESULT_VERIFIER", service: `${runnerWakeService}-verifier` },
+          ],
         }
       : {}),
     queues: { producers: [{ binding: "EXECUTION_QUEUE", queue: queueName }] },

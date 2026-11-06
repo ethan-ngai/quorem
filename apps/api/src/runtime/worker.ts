@@ -79,6 +79,7 @@ export interface Env extends AuthWorkerEnv {
   EXECUTION_QUEUE: QueueBinding;
   RUNNER_WAKE?: { fetch(request: Request): Promise<Response> };
   CASE_EXECUTION?: { fetch(request: Request): Promise<Response> };
+  RESULT_VERIFIER?: { fetch(request: Request): Promise<Response> };
 }
 const origins = (env: Env) =>
   required(env.ALLOWED_ORIGINS)
@@ -410,6 +411,9 @@ export default {
                   },
                 ),
               profile,
+              env.RESULT_VERIFIER
+                ? (input, init) => env.RESULT_VERIFIER!.fetch(new Request(input, init))
+                : undefined,
             );
             const response = path.startsWith("/internal/runner/")
               ? await handlers.runner(request)
