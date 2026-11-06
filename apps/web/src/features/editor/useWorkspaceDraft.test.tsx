@@ -30,10 +30,17 @@ let root: Root;
 let container: HTMLDivElement;
 const editor = createRef<PythonEditorHandle>();
 const onError = vi.fn();
-function Subject({ active = workspace }: { active?: Workspace }) {
+function Subject({
+  active = workspace,
+  editable = true,
+}: {
+  active?: Workspace;
+  editable?: boolean;
+}) {
   state = useWorkspaceDraft({
     identity: "alice",
     accountPresent: true,
+    canEdit: editable,
     queriedProblem: problem,
     loadedWorkspace: active,
     editorRef: editor,
@@ -181,4 +188,15 @@ it("initializes the draft after Strict Mode effect replay", async () => {
   await act(async () => state.updateSource("strict edit"));
   await act(async () => state.saveCurrentDraft());
   expect(state.saveState).toBe("saved");
+});
+
+it("freezes draft, history restore and custom case changes", async () => {
+  await act(async () => state.updateSource("finished code"));
+  await act(async () => root.render(<Subject editable={false} />));
+  await act(async () => {
+    state.updateSource("late edit");
+    state.changeCustomDrafts([]);
+    await state.restoreHistory("older code");
+  });
+  expect(state.sourceRef.current).toBe("finished code");
 });

@@ -43,7 +43,13 @@ const snapshot: MatchSnapshot = {
 function render() {
   return renderToStaticMarkup(
     <QueryClientProvider client={new QueryClient()}>
-      <MatchEndView snapshot={snapshot} identity="alice" />
+      <MatchEndView
+        snapshot={snapshot}
+        identity="alice"
+        open
+        onOpenChange={() => {}}
+        onReview={() => {}}
+      />
     </QueryClientProvider>,
   );
 }

@@ -173,8 +173,8 @@ kbd {
 .coding-pane {
   position: relative;
   grid-area: code;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   background: var(--color-field);
@@ -763,6 +763,9 @@ kbd {
   .workspace-grid[data-active-panel="code"] .coding-pane,
   .workspace-grid[data-active-panel="results"] .results-pane {
     display: grid;
+  }
+  .workspace-grid[data-active-panel="code"] .coding-pane {
+    display: flex;
   }
   .workspace-grid[data-active-panel="problem"] .problem-pane {
     display: block;

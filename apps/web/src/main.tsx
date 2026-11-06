@@ -157,16 +157,11 @@ const reviewRoute = createRoute({
     const { id } = reviewRoute.useParams();
     return (
       <Suspense fallback={<LoadingScreen label="Opening review…" />}>
-        <MatchReviewPage matchId={id} />
+        <MatchPage matchId={id} reviewEntry />
       </Suspense>
     );
   },
 });
-const MatchReviewPage = lazy(() =>
-  import("./features/matches/MatchReviewPage").then((module) => ({
-    default: module.MatchReviewPage,
-  })),
-);
 const partyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/party",

@@ -10,6 +10,7 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { bracketMatching, foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
 import { searchKeymap } from "@codemirror/search";
+import { unifiedMergeView } from "@codemirror/merge";
 import { Compartment, EditorState, Facet, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
@@ -63,6 +64,7 @@ type PythonEditorProps = {
   tabSize: 2 | 4;
   wrap: boolean;
   readOnly?: boolean;
+  mergeOriginal?: string;
   intelligenceExtensions?: Extension[];
   collaborationExtension?: Extension;
   completionEnabled?: boolean;
@@ -136,6 +138,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
     tabSize,
     wrap,
     readOnly = false,
+    mergeOriginal,
     intelligenceExtensions = emptyExtensions,
     collaborationExtension = emptyExtensions,
     completionEnabled = true,
@@ -151,6 +154,7 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
   const intelligenceSlot = useRef(new Compartment());
   const completionSlot = useRef(new Compartment());
   const languageSlot = useRef(new Compartment());
+  const mergeSlot = useRef(new Compartment());
 
   callbackRef.current = onSourceChange;
 
@@ -182,6 +186,11 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       parent: mountRef.current,
       state: editorStateCache.restore(documentKey, initialSource, [
         ...baseExtensions,
+        mergeSlot.current.of(
+          mergeOriginal === undefined
+            ? []
+            : unifiedMergeView({ original: mergeOriginal, mergeControls: false }),
+        ),
         collaborationExtension,
         completionSlot.current.of(completionEnabled ? completionExtension : []),
         languageSlot.current.of(language === "python" ? pythonExtensions : []),
@@ -251,6 +260,16 @@ export const PythonEditor = forwardRef<PythonEditorHandle, PythonEditorProps>(fu
       effects: intelligenceSlot.current.reconfigure(intelligenceExtensions),
     });
   }, [intelligenceExtensions]);
+
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: mergeSlot.current.reconfigure(
+        mergeOriginal === undefined
+          ? []
+          : unifiedMergeView({ original: mergeOriginal, mergeControls: false }),
+      ),
+    });
+  }, [mergeOriginal]);
 
   return <div className="python-editor" ref={mountRef} />;
 });

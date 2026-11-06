@@ -17,11 +17,13 @@ export function HistoryDialog({
   workspace,
   onClose,
   onRestore,
+  readOnly = false,
 }: {
   identity: DevelopmentIdentity;
   workspace: Workspace;
   onClose: () => void;
   onRestore: (source: string, revision: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const historyQuery = useQuery({
     queryKey: ["draft-history", identity, workspace.id],
@@ -59,7 +61,7 @@ export function HistoryDialog({
             <button
               type="button"
               className="button button-secondary"
-              disabled={!!restoringRevision}
+              disabled={readOnly || !!restoringRevision}
               onClick={async () => {
                 setRestoringRevision(String(item.id));
                 setRestoreError(undefined);

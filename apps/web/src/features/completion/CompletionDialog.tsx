@@ -16,6 +16,7 @@ export function CompletionDialog({
   context,
   outcome,
   competitive = false,
+  celebrate = true,
   stats,
   children,
   actions,
@@ -28,6 +29,7 @@ export function CompletionDialog({
   context: ReactNode;
   outcome: CompletionOutcome;
   competitive?: boolean;
+  celebrate?: boolean;
   stats?: { label: string; value: ReactNode; hideLabel?: boolean; numeric?: boolean }[];
   children?: ReactNode;
   actions: ReactNode;
@@ -50,7 +52,7 @@ export function CompletionDialog({
       className="completion-dialog"
       closeLabel="Close summary"
     >
-      {open && <Celebration outcome={outcome} />}
+      {open && celebrate && <Celebration outcome={outcome} />}
       <div className="completion-context">{context}</div>
       {stats && (
         <dl className="completion-stats">
