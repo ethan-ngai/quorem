@@ -210,6 +210,26 @@ void test("completed review is participant-only, latest-round and frozen-sharing
   );
   assert.equal(own.kind, "review");
   assert.equal(own.reviewMatchId, ids.match);
+  const accepted = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'review-a',$2,'submit','scratch','hash','queued','[]')",
+    [accepted, own.id],
+  );
+  await pool.query(
+    "UPDATE submissions SET state='completed',result='{\"verdict\":\"accepted\"}' WHERE id=$1",
+    [accepted],
+  );
+  assert.equal(
+    (
+      await pool.query("SELECT count(*)::int AS count FROM practice_solves WHERE workspace_id=$1", [
+        own.id,
+      ])
+    ).rows[0].count,
+    0,
+  );
+  await pool.query("UPDATE users SET disabled=true WHERE id='review-a'");
+  assert.ok(await repo.read(actor("review-b"), ids.match));
+  await pool.query("UPDATE users SET disabled=false WHERE id='review-a'");
   assert.equal((await workspaces.read(actor("review-a"), rival.id)).id, rival.id);
   await assert.rejects(workspaces.read(actor("review-b"), rival.id), { status: 404 });
   await assert.rejects(repo.createWorkspace(actor("review-a"), ids.match, "review-b", "python"), {
