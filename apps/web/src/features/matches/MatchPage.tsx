@@ -54,16 +54,19 @@ function MatchLedger({
   identity,
   status,
   onForfeit,
+  onResults,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
   status: string;
   onForfeit: () => void;
+  onResults?: () => void;
 }) {
   const own = ownParticipant(snapshot, identity);
   return (
     <SessionBar
       label="Match progress"
+      onResults={onResults}
       actions={
         <>
           <RoomAlerts
@@ -235,12 +238,8 @@ export function MatchPage({
         identity={identity}
         status={status}
         onForfeit={() => setConceding(true)}
+        onResults={finished ? () => setResultsOpen(true) : undefined}
       />
-      {finished && (
-        <button className="button button-secondary" onClick={() => setResultsOpen(true)}>
-          Results
-        </button>
-      )}
       {snapshot.state === "finalizing" && (
         <div
           className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === participantUserId(identity) ? "is-winner" : ""}`}

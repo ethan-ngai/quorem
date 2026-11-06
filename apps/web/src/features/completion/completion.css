@@ -105,6 +105,10 @@
 .completion-demo-controls > button {
   flex-shrink: 0;
 }
+.completion-demo-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
 
 .completion-problem {
   display: flex;

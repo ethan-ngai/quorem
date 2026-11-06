@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
+import { SessionBar } from "../../ui/SessionBar";
 import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "../editor/components/EditorialCode";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
@@ -123,12 +124,9 @@ export function CompletionDemo() {
         </div>
       }
       header={
-        <>
-          <strong>Local demo · illustrative results</strong>
-          <button className="button button-secondary" onClick={() => setOpen(true)}>
-            Results
-          </button>
-        </>
+        <SessionBar label="Demo session" actions={null} onResults={() => setOpen(true)}>
+          <span className="completion-demo-label">Local demo · illustrative results</span>
+        </SessionBar>
       }
       problem={
         <div className="problem-scroll">
