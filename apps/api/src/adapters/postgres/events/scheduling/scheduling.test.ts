@@ -5,7 +5,7 @@ import { postgresDeadlines } from "./deadlines.ts";
 import { prearmReceipts, consumePrearm } from "./prearm.ts";
 import { collectInputBlobs, retainBatch } from "./retention.ts";
 import { seedCatalog } from "../../../../cli/seed.ts";
-import { bindJobInputs, storeCustomInput } from "../../judging/inputs/bind.ts";
+import { bindJobInputs, storeCustomInputs } from "../../judging/inputs/bind.ts";
 import { submissionSnapshots } from "../../judging/results/repository.ts";
 import {
   drainDeadlines,
@@ -319,8 +319,10 @@ describe("deadline scheduling with PostgreSQL", () => {
       ]);
       const custom = await run((scope) =>
         scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
-          const hash = await storeCustomInput(tx, `${prefix}-custom-${item.name}`);
-          const shared = await storeCustomInput(tx, `${prefix}-shared`);
+          const [hash, shared] = await storeCustomInputs(tx, [
+            `${prefix}-custom-${item.name}`,
+            `${prefix}-shared`,
+          ]);
           await bindJobInputs(tx, {
             jobId: job,
             owner: { version },
@@ -531,7 +533,7 @@ describe("deadline scheduling with PostgreSQL", () => {
       );
       const writer = run((scope) =>
         scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) =>
-          storeCustomInput(tx, later),
+          storeCustomInputs(tx, [later]),
         ),
       );
       await collector.query("COMMIT");
