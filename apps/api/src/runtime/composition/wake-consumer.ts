@@ -91,13 +91,26 @@ export async function consumeWakeBatch(
       throw new Error("Invalid drain response");
     return { pending: response.status === 202 };
   };
+  const valid: { message: WakeMessage; wake: ReturnType<typeof decodeWake> }[] = [];
+  const retry = (message: WakeMessage) =>
+    message.retry({ delaySeconds: Math.min(30, 2 ** Math.min(message.attempts ?? 1, 5)) });
   for (const message of messages) {
     try {
       if (typeof message.body !== "string") throw new Error("Invalid wake");
-      await consumeWake(decodeWake(message.body), options.publisher, drain);
-      message.ack();
+      valid.push({ message, wake: decodeWake(message.body) });
     } catch {
-      message.retry({ delaySeconds: Math.min(30, 2 ** Math.min(message.attempts ?? 1, 5)) });
+      retry(message);
     }
+  }
+  if (!valid.length) return;
+  // All wakes target the same authoritative queue; preserve the latest precommit deadline.
+  const latest = valid.reduce((a, b) =>
+    (b.wake.admissionUntil ?? 0) > (a.wake.admissionUntil ?? 0) ? b : a,
+  );
+  try {
+    await consumeWake(latest.wake, options.publisher, drain);
+    for (const { message } of valid) message.ack();
+  } catch {
+    for (const { message } of valid) retry(message);
   }
 }

@@ -241,12 +241,14 @@ export class RunnerService extends DurableObject {
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     if (this.teardownFailure) return new Response(null, { status: 503 });
     if (path === "/internal/slot-gate") return new Response(null, { status: 204 });
-    // Queue fallback schedules the same slots; it must never add a second execution pool.
-    const pending = await this.ctx.storage.getAlarm();
-    if (pending === null || pending > Date.now()) await this.ctx.storage.setAlarm(Date.now());
-    if (path === "/internal/wake") return new Response(null, { status: 204 });
     try {
-      return await this.queueState(request.signal);
+      const response = path === "/internal/wake" ? null : await this.queueState(request.signal);
+      // An empty authoritative queue needs no slot fanout; future admissions retain their own wake.
+      if (!response || response.status === 202) {
+        const pending = await this.ctx.storage.getAlarm();
+        if (pending === null || pending > Date.now()) await this.ctx.storage.setAlarm(Date.now());
+      }
+      return response ?? new Response(null, { status: 204 });
     } catch {
       return new Response(null, { status: 503 });
     }
@@ -278,7 +280,8 @@ export class RunnerService extends DurableObject {
       await this.haltParent(parent);
     }
     if (!response.ok) throw new Error("Runner wake drain failed");
-    if (pending) await this.ctx.storage.setAlarm(Date.now() + (pending.queued > 0 ? 1 : 1000));
+    // The durable queue retains global running-work recovery; an idle slot need not poll its peers.
+    if (pending?.queued > 0) await this.ctx.storage.setAlarm(Date.now() + 1);
   }
 
   async drain(signal, singleAttempt = false) {

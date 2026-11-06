@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { productionState } from "./hono-production-state.mjs";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
-import { productionTerraform } from "./hono-production-terraform.mjs";
+import {
+  productionTerraform,
+  PRODUCTION_DATABASE_CONNECTIONS,
+} from "./hono-production-terraform.mjs";
 import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import { createStageSecrets } from "./hono-stage-bootstrap-config.mjs";
 import { productionImages } from "./hono-production-images.mjs";
@@ -211,7 +214,7 @@ export async function deployProduction(env) {
       database_name: "neondb",
       database_user: keys.RUNTIME_ROLE,
       database_password: keys.RUNTIME_PASSWORD,
-      database_connection_limit: "10",
+      database_connection_limit: String(PRODUCTION_DATABASE_CONNECTIONS),
       profile_media_enabled: "true",
       enable_queue_consumer: env.HONO_RESUME_PREPARED === "true" ? "true" : "false",
     }))
