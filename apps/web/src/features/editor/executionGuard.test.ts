@@ -1,6 +1,7 @@
 /** @file executionGuard.test.ts @description Route transition and keyboard admission boundaries. @module editor */
 import { describe, expect, it } from "vitest";
 import { canExecuteDocument } from "./executionGuard";
+import type { Workspace } from "@quorem/contracts";
 
 const solo = {
   identity: "alice" as const,
@@ -48,5 +49,23 @@ describe("exact document execution guard", () => {
     expect(canExecuteDocument({ ...match, match: { ...match.match, state: "finalizing" } })).toBe(
       false,
     );
+  });
+  it("admits only the loaded review workspace for this match", () => {
+    const draft = {
+      ...solo,
+      slug: "",
+      contextKey: "alice:review:version",
+      workspace: {
+        id: "review",
+        kind: "review",
+        problemVersionId: "version",
+        reviewMatchId: "first-match",
+      } as unknown as Workspace,
+      review: { matchId: "first-match" },
+    };
+    expect(canExecuteDocument(draft)).toBe(true);
+    expect(canExecuteDocument({ ...draft, review: { matchId: "other" } })).toBe(false);
+    expect(canExecuteDocument({ ...draft, contextKey: "alice:other:version" })).toBe(false);
+    expect(canExecuteDocument({ ...draft, loaded: false })).toBe(false);
   });
 });

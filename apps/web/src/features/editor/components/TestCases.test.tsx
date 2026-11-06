@@ -1,13 +1,13 @@
+import { publicQuestionFixture } from "../../../test/questionFixture";
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ProblemVersion, Submission } from "@quorem/contracts";
+import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import fixture from "../../../../../../fixtures/problems/run-widths.json";
+import { createCustomDraft, createRunSnapshot, parseProblemDraft } from "../customCases";
 import { TestCases } from "./TestCases";
 const problem = {
-  ...fixture.problem,
-  starterSource: fixture.implementations[0]!.starterSource,
-  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+  ...publicQuestionFixture(fixture),
 } as ProblemVersion;
 describe("sample case selection", () => {
   it("renders a controlled sample in the shared case detail pane", () => {
@@ -156,4 +156,137 @@ describe("Submit sample results and previous steps", () => {
     expect(html).toContain('<details class="case-group disclosure" open="">');
     expect(html).toContain(": failing");
   });
+});
+
+describe("compiler diagnostic ownership", () => {
+  const first = { ...createCustomDraft(problem), id: "first" };
+  const second = { ...first, id: "second" };
+  const snapshot = createRunSnapshot(problem.id, [parseProblemDraft(first, problem)], [first]);
+  const failed: Submission = {
+    ...submission,
+    state: "completed",
+    customRun: true,
+    verdict: "syntax_error",
+    diagnostics: [{ line: 6, message: "expected colon" }],
+  };
+  function render(
+    selectedCustomId: string,
+    overrides: Partial<Parameters<typeof TestCases>[0]> = {},
+  ) {
+    return renderToStaticMarkup(
+      <TestCases
+        problem={problem}
+        customMode
+        drafts={[first, second]}
+        onDraftsChange={() => {}}
+        selectedCustomId={selectedCustomId}
+        submission={failed}
+        snapshot={snapshot}
+        {...overrides}
+      />,
+    );
+  }
+  it("shows diagnostics only for the admitted custom case, even when another case has identical inputs", () => {
+    expect(render("first")).toContain("expected colon");
+    expect(render("second")).not.toContain("expected colon");
+  });
+  it("clears compiler feedback after the admitted inputs change", () => {
+    expect(render("first", { drafts: [{ ...first, args: ["[9,9,9]"] }] })).not.toContain(
+      "expected colon",
+    );
+  });
+  it("does not attach sample or Submit compilation errors to custom cases", () => {
+    expect(render("first", { snapshot: { ...snapshot, custom: false } })).not.toContain(
+      "expected colon",
+    );
+    expect(
+      render("first", {
+        submission: { ...failed, kind: "submit", customRun: false },
+        snapshot: undefined,
+      }),
+    ).not.toContain("expected colon");
+  });
+  it("does not infer ownership from custom case positions without a matching snapshot", () => {
+    expect(render("first", { snapshot: undefined })).not.toContain("expected colon");
+    expect(render("first", { snapshot: { ...snapshot, problemVersionId: "other" } })).not.toContain(
+      "expected colon",
+    );
+  });
+  it("does not attach a custom run compiler error to examples", () => {
+    expect(render("first", { customMode: false })).not.toContain("expected colon");
+  });
+});
+
+describe("execution result ownership", () => {
+  const statuses = [
+    "syntax_error",
+    "runtime_error",
+    "wrong_answer",
+    "time_limit",
+    "memory_limit",
+    "output_limit",
+    "invalid_output",
+  ] as const satisfies readonly PublicCaseResult["status"][];
+  const first = { ...createCustomDraft(problem), id: "ran" };
+  const second = { ...first, id: "unrun" };
+  const snapshot = createRunSnapshot(problem.id, [parseProblemDraft(first, problem)], [first]);
+  it.each(statuses)(
+    "keeps %s, its output and diagnostics attached to the admitted case",
+    (status) => {
+      const failed: Submission = {
+        ...submission,
+        state: "completed",
+        customRun: true,
+        verdict: status,
+        diagnostics: [{ message: "submission-detail" }],
+        publicCases: [
+          {
+            index: 0,
+            status,
+            actual: "old-value",
+            stdout: "old-stdout",
+            stderr: "old-stderr",
+            diagnostics: [{ message: "case-owned-diagnostic" }],
+          },
+        ],
+      };
+      function render(
+        selectedCustomId: string,
+        overrides: Partial<Parameters<typeof TestCases>[0]> = {},
+      ) {
+        return renderToStaticMarkup(
+          <TestCases
+            problem={problem}
+            customMode
+            drafts={[first, second]}
+            onDraftsChange={() => {}}
+            snapshot={snapshot}
+            submission={failed}
+            selectedCustomId={selectedCustomId}
+            {...overrides}
+          />,
+        );
+      }
+      expect(render("ran")).toContain("case-owned-diagnostic");
+      for (const html of [
+        render("unrun"),
+        render("ran", { drafts: [{ ...first, args: ["[9,9,9]"] }] }),
+        render("ran", { drafts: [{ ...first, args: ["["] }] }),
+        render("ran", { snapshot: undefined }),
+        render("ran", { snapshot: { ...snapshot, problemVersionId: "other" } }),
+        render("ran", { customMode: false }),
+      ]) {
+        for (const text of [
+          "case-owned-diagnostic",
+          "submission-detail",
+          "old-value",
+          "old-stdout",
+          "old-stderr",
+          "case-verdict-group",
+          "case-run-output",
+        ])
+          expect(html).not.toContain(text);
+      }
+    },
+  );
 });

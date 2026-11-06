@@ -86,7 +86,8 @@ export function normalizeQuestionDraft(rawJson: string): string {
       }
     return rule;
   });
-  p.signature = signature(p.signature, true);
+  if (!p.sql && !p.odyssey) p.signature = signature(p.signature, true);
+  else delete p.signature;
   const limits = object(p.limits);
   for (const key of [
     "wallTimeMs",
@@ -118,6 +119,7 @@ export function normalizeQuestionDraft(rawJson: string): string {
       fields(level, ["title", "statementMarkdown"]);
       level.methods = array(level.methods).map((method) => signature(method, false));
       level.examples = cases(level.examples);
+      level.hiddenCases = cases(level.hiddenCases);
       return level;
     });
     p.odyssey = odyssey;
@@ -148,11 +150,6 @@ export function normalizeQuestionDraft(rawJson: string): string {
   if (p.leetcodeId === null) delete p.leetcodeId;
   content.hiddenCases = cases(content.hiddenCases);
   field(content, "attribution", "");
-  content.implementations = array(content.implementations).map((value) => {
-    const item = object(value);
-    fields(item, ["language", "starterSource", "runtimeRevision", "harnessRevision"]);
-    return item;
-  });
   field(content, "canonicalApproachId", "");
   content.approaches = array(content.approaches).map((value) => {
     const item = object(value);
@@ -161,6 +158,7 @@ export function normalizeQuestionDraft(rawJson: string): string {
       id: "",
     }))
       if (key !== "implementations") field(item, key, value);
+    if (item.id === content.canonicalApproachId) delete item.defaultLanguage;
     item.implementations = array(item.implementations).map((value) => {
       const implementation = object(value);
       fields(implementation, ["language", "source"]);
@@ -173,9 +171,6 @@ export function normalizeQuestionDraft(rawJson: string): string {
     );
     return item;
   });
-  if (content.odysseyHiddenCases !== undefined && content.odysseyHiddenCases !== null)
-    content.odysseyHiddenCases = array(content.odysseyHiddenCases).map(cases);
-  else delete content.odysseyHiddenCases;
   const result = stringifyLosslessJson(content);
   const ordinary = JSON.parse(result) as QuestionContent;
   if (!validateDraft(ordinary)) throw new Error("invalid question draft shape");

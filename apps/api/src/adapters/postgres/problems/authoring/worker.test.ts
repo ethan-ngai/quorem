@@ -50,14 +50,6 @@ describe.skipIf(!url)("native worker authoring", () => {
       },
       hiddenCases: [{ args: [2], expected: 2 }],
       attribution: "fixture",
-      implementations: [
-        {
-          language: "python",
-          starterSource: "old",
-          runtimeRevision: "python-3.12-v1",
-          harnessRevision: "quorem-harness-v2",
-        },
-      ],
       canonicalApproachId: "default",
       approaches: [
         {

@@ -1,3 +1,7 @@
+import { partyRoutes } from "../../modules/parties/routes.ts";
+import { partyRepository } from "../../adapters/postgres/parties/repository.ts";
+import { adminRoutes } from "../../modules/admin/routes.ts";
+import { adminOverview } from "../../adapters/postgres/admin/repository.ts";
 import { identityRoutes } from "../../modules/identity/routes.ts";
 import { capabilityRepository } from "../../adapters/postgres/access/repository.ts";
 /** @file http.ts @description Compose canonical HTTP domains with selected runtime ports. @module runtime */
@@ -16,7 +20,8 @@ import { admissionRoutes } from "../../modules/judging/admission/routes.ts";
 import type { FanoutSubscriber } from "../../adapters/events/fanout/publisher.ts";
 import { submissionRoutes } from "../../modules/judging/results/routes.ts";
 import { matchLifecycleRoutes } from "../../modules/matches/lifecycle/routes.ts";
-import { matchInvitationRoutes } from "../../modules/matches/invitations/routes.ts";
+import { matchLanguageRoutes } from "../../modules/matches/selection/routes.ts";
+import { matchReviewRoutes } from "../../modules/matches/review/routes.ts";
 import { interviewLifecycleRoutes } from "../../modules/interviews/lifecycle/routes.ts";
 import { interviewQuestionRoutes } from "../../modules/interviews/question/routes.ts";
 import { interviewDocumentRoutes } from "../../modules/interviews/document/routes.ts";
@@ -29,7 +34,7 @@ import { workspaceRepository } from "../../adapters/postgres/workspace/repositor
 import { postgresWorkspaceAdmission } from "../../adapters/postgres/judging/admission/repository.ts";
 import { submissionSnapshots } from "../../adapters/postgres/judging/results/repository.ts";
 import { matchLifecycle } from "../../adapters/postgres/matches/lifecycle/repository.ts";
-import { matchInvitations } from "../../adapters/postgres/matches/invitations/repository.ts";
+import { matchReviewRepository } from "../../adapters/postgres/matches/review/repository.ts";
 import { matchLanguageSelection } from "../../adapters/postgres/matches/selection/language.ts";
 import { interviewLifecycle } from "../../adapters/postgres/interviews/lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../../adapters/postgres/interviews/question/prepare.ts";
@@ -49,7 +54,10 @@ export interface HttpPorts {
   identify: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
   managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>;
-  guests: GuestIdentityReader & { endMatch(hash: string): Promise<boolean> };
+  guests: GuestIdentityReader & {
+    endMatch(hash: string): Promise<boolean>;
+    canBootstrap(hash: string): Promise<boolean>;
+  };
   trustedPeer: () => string | undefined;
   deadline: Coordinator;
   execution: Coordinator;
@@ -105,6 +113,7 @@ export function composeHttp(ports: HttpPorts) {
       },
     }),
   );
+  app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));
   app.route(
     "/",
@@ -128,18 +137,29 @@ export function composeHttp(ports: HttpPorts) {
       notices: ports.submissionNotices,
     }),
   );
-  app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));
   app.route(
     "/",
-    matchInvitationRoutes({
+    partyRoutes({
       identify,
-      invitations: matchInvitations(run, ports.inviteKey),
-      language: matchLanguageSelection(run, ports.inviteKey),
+      parties: partyRepository(
+        run,
+        ports.inviteKey,
+        ports.deadline,
+        ports.shards,
+        prearmReceipts(run),
+        ports.guestCreation,
+      ),
       allowedOrigins: ports.origins,
       admissionEnabled: ports.guestAdmission,
       trustedPeer: ports.trustedPeer,
       budget,
     }),
+  );
+  app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));
+  app.route("/", matchReviewRoutes({ identify, review: matchReviewRepository(run) }));
+  app.route(
+    "/",
+    matchLanguageRoutes({ identify, language: matchLanguageSelection(run, ports.inviteKey) }),
   );
   app.route(
     "/",

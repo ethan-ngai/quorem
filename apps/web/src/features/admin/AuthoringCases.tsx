@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
 import { caseFieldConfig } from "../editor/inputPresets";
@@ -32,10 +33,7 @@ export function AuthoringCases({
   const p = content.problem;
   const stage = stageIndex === undefined ? undefined : p.odyssey?.levels[stageIndex];
   const examples = stage?.examples ?? p.examples;
-  const hiddenCases =
-    stageIndex === undefined
-      ? content.hiddenCases
-      : (content.odysseyHiddenCases?.[stageIndex] ?? []);
+  const hiddenCases = stageIndex === undefined ? content.hiddenCases : (stage?.hiddenCases ?? []);
   const caseKey = `cases:${id}`;
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
@@ -64,12 +62,12 @@ export function AuthoringCases({
     id: randomUUID(),
     args: p.sql
       ? [JSON.stringify(test.args[0] ?? { tables: [] })]
-      : p.signature.parameters.map((parameter, index) =>
+      : primarySignature(p).parameters.map((parameter, index) =>
           format(
             parameter.type,
             test.args[index]!,
             defaults.args[index]!,
-            caseFieldConfig(p.signature, parameter.type, parameter.input, false, {
+            caseFieldConfig(primarySignature(p), parameter.type, parameter.input, false, {
               args: test.args,
             }),
           ),
@@ -78,10 +76,10 @@ export function AuthoringCases({
     expected: p.sql
       ? JSON.stringify(test.expected ?? { rows: [] })
       : format(
-          p.signature.returnType,
+          primarySignature(p).returnType,
           test.expected ?? null,
           defaults.expected,
-          caseFieldConfig(p.signature, p.signature.returnType, undefined, true, {
+          caseFieldConfig(primarySignature(p), primarySignature(p).returnType, undefined, true, {
             args: test.args,
           }),
         ),
@@ -96,7 +94,7 @@ export function AuthoringCases({
       const issues = caseValidationIssues(values[tab], p, label);
       validity.current(`${caseKey}:${tab}`, issues.length > 0, issues);
     }
-  }, [values, p.sql, p.signature, p.constraints, caseKey]);
+  }, [values, p.sql, p.signature, p.odyssey, p.constraints, caseKey]);
   const [explanations, setExplanations] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       values.public.map((test, index) => [test.id, examples[index]?.explanation ?? ""]),
@@ -106,7 +104,7 @@ export function AuthoringCases({
     setValues((current) => ({ ...current, [collection]: next }));
     try {
       const tests = next.map((test) =>
-        p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, p.signature),
+        p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p)),
       );
       if (collection === "public") {
         const examples = tests.map((test, index) => ({
@@ -134,9 +132,14 @@ export function AuthoringCases({
         else
           onChange({
             ...content,
-            odysseyHiddenCases: p.odyssey?.levels.map((_, index) =>
-              index === stageIndex ? tests : (content.odysseyHiddenCases?.[index] ?? []),
-            ),
+            problem: {
+              ...p,
+              odyssey: p.odyssey && {
+                levels: p.odyssey.levels.map((level, index) =>
+                  index === stageIndex ? { ...level, hiddenCases: tests } : level,
+                ),
+              },
+            },
           });
       }
     } catch {

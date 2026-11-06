@@ -55,7 +55,7 @@ export function AccountMenu({
   }
   const returnTo =
     typeof location !== "undefined" &&
-    /^\/(practice|match|invite|admin|interview|interviews|interview-invite)(\/|$)/.test(
+    /^\/(practice|match|invite|admin|questions|interview|interviews|interview-invite)(\/|$)/.test(
       location.pathname,
     )
       ? `${location.pathname}${location.search}`

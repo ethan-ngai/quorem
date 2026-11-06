@@ -4,7 +4,7 @@ import { ApplicationError } from "../../../application/error.ts";
 import { identifyRequest } from "../../identity/routes.ts";
 import { guestSetCookie } from "../../identity/guest/cookie.ts";
 import type { Principal } from "../../identity/model.ts";
-import { normalizeSettings, type Lifecycle } from "./model.ts";
+import type { Lifecycle } from "./model.ts";
 async function body(request: Request, limit: number): Promise<Record<string, unknown>> {
   if (Number(request.headers.get("content-length") ?? 0) > limit)
     throw new ApplicationError("payload_too_large", "Invalid request body", 413);
@@ -48,43 +48,12 @@ export function matchLifecycleRoutes(deps: {
       throw new ApplicationError("invalid_input", "Idempotency-Key required", 400);
     return value;
   };
-  app.post("/v1/matches", async (c) =>
-    c.json(
-      await deps.lifecycle.create(
-        await actor(c.req.raw),
-        key(c.req.raw),
-        normalizeSettings(await body(c.req.raw, 4096)),
-      ),
-      201,
-    ),
-  );
   app.get("/v1/matches/current", async (c) =>
     c.json(await deps.lifecycle.current(await actor(c.req.raw))),
   );
   app.get("/v1/matches/:id", async (c) =>
     c.json(await deps.lifecycle.read(await actor(c.req.raw), c.req.param("id"))),
   );
-  app.put("/v1/matches/:id/settings", async (c) =>
-    c.json(
-      await deps.lifecycle.mutate(
-        await actor(c.req.raw),
-        c.req.param("id"),
-        key(c.req.raw),
-        "settings",
-        normalizeSettings(await body(c.req.raw, 4096)),
-      ),
-    ),
-  );
-  app.post("/v1/matches/:id/ready", async (c) => {
-    const who = await actor(c.req.raw),
-      operation = key(c.req.raw),
-      input = await body(c.req.raw, 1024);
-    if (Object.keys(input).some((k) => k !== "ready") || typeof input.ready !== "boolean")
-      throw new ApplicationError("invalid_input", "Ready is required", 400);
-    return c.json(
-      await deps.lifecycle.mutate(who, c.req.param("id"), operation, "ready", input.ready),
-    );
-  });
   app.post("/v1/matches/:id/rule-events", async (c) => {
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
@@ -98,7 +67,7 @@ export function matchLifecycleRoutes(deps: {
       await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", input.kind),
     );
   });
-  for (const action of ["start", "leave", "forfeit"] as const)
+  for (const action of ["leave", "forfeit"] as const)
     app.post(`/v1/matches/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         operation = key(c.req.raw),

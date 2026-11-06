@@ -44,7 +44,7 @@ export async function authenticateGuestRequest(headers: Headers, kind: GuestKind
   const hash = await guestTokenHash(token);
   try {
     const principal = await guests.lookup(kind, hash);
-    if (!principal || principal.kind !== 'guest' || principal.scope.kind !== kind) throw new IdentityError('unauthorized');
+    if (!principal || principal.kind !== 'guest' || (principal.scope.kind !== kind && !(kind === 'match' && principal.scope.kind === 'party'))) throw new IdentityError('unauthorized');
     return principal;
   } catch (error) {
     if (error instanceof IdentityError) throw error;

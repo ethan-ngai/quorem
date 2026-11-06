@@ -155,17 +155,13 @@ def draft(staged, corpus):
         raise ValueError("no literal cases")
     statement = corpus.get("problem_description", "")
     reference_body = corpus.get("completion", "")
-    starter_body = starter.rstrip() + "\n        pass\n"
     reference = prelude_for_source(prelude, reference_body) + reference_body
-    starter_source = prelude_for_source(prelude, starter_body) + starter_body
     if not statement or not reference or len(statement) > 65536 or len(reference) > 65536:
         raise ValueError("missing or oversized content")
-    runtime, harness = "python-3.12-v1", "quorem-harness-v2"
     return {
         "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "version": "1", "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": source.get("topics", []), "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 100000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
-        "implementations": [{"language": "python", "starterSource": starter_source, "runtimeRevision": runtime, "harnessRevision": harness}],
-        "canonicalApproachId": "default", "approaches": [{"id": "default", "title": "", "defaultLanguage": "python", "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": "", "implementations": [{"language": "python", "source": reference}]}]}
+        "canonicalApproachId": "default", "approaches": [{"id": "default", "title": "", "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": "", "implementations": [{"language": "python", "source": reference}]}]}
 
 
 def matches_type(typ, value):

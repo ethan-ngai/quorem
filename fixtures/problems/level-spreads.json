@@ -158,60 +158,34 @@
     }
   ],
   "attribution": "Original Quorem statement and fixture corpus, authored for this project.",
-  "implementations": [
-    {
-      "language": "python",
-      "starterSource": "from typing import Optional\nfrom quorem_types import ListNode, TreeNode\n\nclass Solution:\n    def levelSpreads(self, root: Optional[TreeNode]) -> list[int]:\n        pass\n",
-      "runtimeRevision": "python-3.12-v1",
-      "harnessRevision": "quorem-harness-v2"
-    },
-    {
-      "language": "java",
-      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    public int[] levelSpreads(TreeNode root) {\n        throw new UnsupportedOperationException(\"Implement solution\");\n    }\n}\n",
-      "runtimeRevision": "java-21.0.9-v1",
-      "harnessRevision": "quorem-java-v1"
-    },
-    {
-      "language": "typescript",
-      "starterSource": "// Judge supplies ListNode(val, next) and TreeNode(val, left, right).\nclass Solution {\n    levelSpreads(root: TreeNode | null): (number)[] {\n        throw new Error(\"Implement solution\");\n    }\n}\n",
-      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
-      "harnessRevision": "quorem-typescript-v1"
-    },
-    {
-      "language": "ocaml",
-      "starterSource": "(* Judge supplies mutable list_node {value:int; next:list_node option} and tree_node {value:int; left:tree_node option; right:tree_node option}. *)\nlet levelSpreads (root:tree_node option) : (int) list =\n    failwith \"Implement solution\"\n",
-      "runtimeRevision": "ocaml-4.13.1-v1",
-      "harnessRevision": "quorem-ocaml-v1"
-    }
-  ],
+
   "canonicalApproachId": "default",
   "approaches": [
-  {
-    "id": "default",
-    "title": "",
-    "defaultLanguage": "python",
-    "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
-    "timeComplexity": "O(n)",
-    "spaceComplexity": "O(w)",
-    "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result.",
-    "implementations": [
-      {
-        "language": "java",
-        "source": "class Solution  {\n    public int[] levelSpreads(TreeNode root) {\n        if(root==null)return new int[0];\n        ArrayDeque<TreeNode> q=new ArrayDeque<>();\n        q.add(root);\n        ArrayList<Integer>a=new ArrayList<>();\n        while(!q.isEmpty()) {\n            int size=q.size(),lo=Integer.MAX_VALUE,hi=Integer.MIN_VALUE;\n            for(int i=0;i<size;i++) {\n                TreeNode n=q.remove();\n                lo=Math.min(lo,n.val);\n                hi=Math.max(hi,n.val);\n                if(n.left!=null)q.add(n.left);\n                if(n.right!=null)q.add(n.right);\n            }\n            a.add(hi-lo);\n        }\n        return a.stream().mapToInt(Integer::intValue).toArray();\n    }\n}\n"
-      },
-      {
-        "language": "ocaml",
-        "source": "let levelSpreads (root:tree_node option) = let rec loop acc level = match level with [] -> List.rev acc | _ -> let lo=List.fold_left (fun v (n:tree_node) -> min v n.value) max_int level and hi=List.fold_left (fun v (n:tree_node) -> max v n.value) min_int level in let next=List.concat_map (fun (n:tree_node) -> List.filter_map Fun.id [n.left;n.right]) level in loop ((hi-lo)::acc) next in match root with None -> [] | Some n -> loop [] [n]\n"
-      },
-      {
-        "language": "python",
-        "source": "class Solution:\n    def levelSpreads(self, root):\n        level = [] if root is None else [root]\n        answer = []\n        while level:\n            low = high = level[0].val\n            next_level = []\n            for node in level:\n                low = min(low, node.val)\n                high = max(high, node.val)\n                if node.left is not None:\n                    next_level.append(node.left)\n                if node.right is not None:\n                    next_level.append(node.right)\n            answer.append(high - low)\n            level = next_level\n        return answer\n"
-      },
-      {
-        "language": "typescript",
-        "source": "class Solution  {\n    levelSpreads(root:TreeNode|null):number[] {\n        if(!root)return [];\n        let level=[root];\n        const a:number[]=[];\n        while(level.length) {\n            a.push(Math.max(...level.map(n=>n.val))-Math.min(...level.map(n=>n.val)));\n            const next:TreeNode[]=[];\n            for(const n of level) {\n                if(n.left)next.push(n.left);\n                if(n.right)next.push(n.right);\n            }\n            level=next;\n        }\n        return a;\n    }\n}\n"
-      }
-    ]
-  }
-]
+    {
+      "id": "default",
+      "title": "",
+      "explanationMarkdown": "Breadth-first traversal processes one level at a time. Compute the minimum and maximum while collecting that level's children, then append their difference. Empty trees produce no levels.",
+      "timeComplexity": "O(n)",
+      "spaceComplexity": "O(w)",
+      "complexityNotes": "n is the number of nodes; w is the maximum occupied level width. Auxiliary space excludes the result.",
+      "implementations": [
+        {
+          "language": "java",
+          "source": "class Solution  {\n    public int[] levelSpreads(TreeNode root) {\n        if(root==null)return new int[0];\n        ArrayDeque<TreeNode> q=new ArrayDeque<>();\n        q.add(root);\n        ArrayList<Integer>a=new ArrayList<>();\n        while(!q.isEmpty()) {\n            int size=q.size(),lo=Integer.MAX_VALUE,hi=Integer.MIN_VALUE;\n            for(int i=0;i<size;i++) {\n                TreeNode n=q.remove();\n                lo=Math.min(lo,n.val);\n                hi=Math.max(hi,n.val);\n                if(n.left!=null)q.add(n.left);\n                if(n.right!=null)q.add(n.right);\n            }\n            a.add(hi-lo);\n        }\n        return a.stream().mapToInt(Integer::intValue).toArray();\n    }\n}\n"
+        },
+        {
+          "language": "ocaml",
+          "source": "let levelSpreads (root:tree_node option) = let rec loop acc level = match level with [] -> List.rev acc | _ -> let lo=List.fold_left (fun v (n:tree_node) -> min v n.value) max_int level and hi=List.fold_left (fun v (n:tree_node) -> max v n.value) min_int level in let next=List.concat_map (fun (n:tree_node) -> List.filter_map Fun.id [n.left;n.right]) level in loop ((hi-lo)::acc) next in match root with None -> [] | Some n -> loop [] [n]\n"
+        },
+        {
+          "language": "python",
+          "source": "class Solution:\n    def levelSpreads(self, root):\n        level = [] if root is None else [root]\n        answer = []\n        while level:\n            low = high = level[0].val\n            next_level = []\n            for node in level:\n                low = min(low, node.val)\n                high = max(high, node.val)\n                if node.left is not None:\n                    next_level.append(node.left)\n                if node.right is not None:\n                    next_level.append(node.right)\n            answer.append(high - low)\n            level = next_level\n        return answer\n"
+        },
+        {
+          "language": "typescript",
+          "source": "class Solution  {\n    levelSpreads(root:TreeNode|null):number[] {\n        if(!root)return [];\n        let level=[root];\n        const a:number[]=[];\n        while(level.length) {\n            a.push(Math.max(...level.map(n=>n.val))-Math.min(...level.map(n=>n.val)));\n            const next:TreeNode[]=[];\n            for(const n of level) {\n                if(n.left)next.push(n.left);\n                if(n.right)next.push(n.right);\n            }\n            level=next;\n        }\n        return a;\n    }\n}\n"
+        }
+      ]
+    }
+  ]
 }

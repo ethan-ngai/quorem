@@ -19,6 +19,8 @@ export function useWorkspaceDraft({
   queriedProblem,
   loadedWorkspace,
   editorRef,
+  initialSource: providedInitialSource,
+  canEdit = true,
   onError,
 }: {
   identity: DevelopmentIdentity;
@@ -26,8 +28,12 @@ export function useWorkspaceDraft({
   queriedProblem?: ProblemVersion;
   loadedWorkspace?: Workspace;
   editorRef: RefObject<PythonEditorHandle | null>;
+  initialSource?: string;
+  canEdit?: boolean;
   onError: (error: unknown) => void;
 }) {
+  const editable = useRef(canEdit);
+  editable.current = canEdit;
   const errorHandler = useRef(onError);
   errorHandler.current = onError;
   const [problem, setProblem] = useState<ProblemVersion>();
@@ -111,6 +117,7 @@ export function useWorkspaceDraft({
             queriedProblem.id,
           )
         : undefined) ??
+      providedInitialSource ??
       queriedProblem.languages?.find((item) => item.language === loadedWorkspace.language)
         ?.starterSource ??
       queriedProblem.starterSource;
@@ -118,7 +125,7 @@ export function useWorkspaceDraft({
     sourceRef.current = initialSource;
     dirtyRef.current = false;
     setSaveState("saved");
-  }, [queriedProblem, loadedWorkspace, identity, accountPresent]);
+  }, [queriedProblem, loadedWorkspace, identity, accountPresent, providedInitialSource]);
 
   useEffect(() => {
     if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
@@ -149,6 +156,7 @@ export function useWorkspaceDraft({
   }, [workspace, problem, identity]);
 
   const updateSource = useCallback((next: string) => {
+    if (!editable.current) return;
     editGeneration.current++;
     sourceRef.current = next;
     const wasDirty = dirtyRef.current;
@@ -235,12 +243,12 @@ export function useWorkspaceDraft({
 
   const restoreHistory = useCallback(
     async (historicalSource: string) => {
-      if (!workspace) return;
+      if (!workspace || !editable.current) return;
       const context = draftContextRef.current;
       const generation = editGeneration.current;
       await saveCurrentDraft();
       await saveQueue.current;
-      if (draftContextRef.current !== context) return;
+      if (draftContextRef.current !== context || !editable.current) return;
       if (editGeneration.current !== generation) {
         dirtyRef.current = true;
         lastQueuedSourceRef.current = undefined;
@@ -277,6 +285,7 @@ export function useWorkspaceDraft({
   );
 
   const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
+    if (!editable.current) return;
     setCustomDrafts(drafts);
     const context = draftContextRef.current;
     if (context) writeCustomDrafts(context.key, drafts);

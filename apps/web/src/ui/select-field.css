@@ -133,13 +133,6 @@
   height: 24px;
   color: var(--color-text-secondary);
 }
-.language-logo {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-}
 @media (max-width: 700px), (pointer: coarse) {
   .select-field,
   .select-field-item {
@@ -161,4 +154,11 @@
 .select-field-menu[data-mono] {
   font-family: var(--font-code);
   font-variant-ligatures: none;
+}
+
+.select-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
 }

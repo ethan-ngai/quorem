@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CaseOutput } from "./CaseOutput";
+import { CaseOutput, CaseVerdict } from "./CaseOutput";
 
 describe("case output", () => {
   it("keeps array punctuation separate from verdict and value colors", () => {
@@ -65,4 +65,8 @@ it("shows the SQL error and line next to the result", () => {
   expect(markup).toContain('class="case-verdict verdict-error"');
   expect(markup).toContain("Line 2:");
   expect(markup).toContain("column &quot;missing&quot; does not exist");
+});
+
+it("renders no status container for a case without a result", () => {
+  expect(renderToStaticMarkup(<CaseVerdict />)).toBe("");
 });

@@ -4,12 +4,12 @@ import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
-import type { CreateMatchRequest, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
 import { Tooltip } from "../../ui/Tooltip";
-import { FreeForAllIcon } from "./FreeForAllIcon";
+import { ModeIcon } from "./ModeIcon";
 import { Icon } from "../../ui/Icon";
 
 export function useAccountIdentity() {
@@ -17,21 +17,14 @@ export function useAccountIdentity() {
   return { identity: (account.data?.user.id ?? "anonymous") as DevelopmentIdentity, account };
 }
 
-export const defaultMatchSettings: CreateMatchRequest = {
+export const defaultMatchSettings: PartySettings = {
   mode: "showdown",
   accessMode: "accounts_only",
   difficulties: ["easy"],
   durationMinutes: 30,
+  shareCodeAfterMatch: true,
   rules: { clipboard: "off", focus: "off" },
 };
-
-export function ModeIcon({ mode }: { mode: CreateMatchRequest["mode"] }) {
-  return mode === "free-for-all" ? (
-    <FreeForAllIcon />
-  ) : (
-    <Swords size={18} strokeWidth={1.5} aria-hidden="true" />
-  );
-}
 
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
 export function MatchSettings({
@@ -43,8 +36,8 @@ export function MatchSettings({
   showHostRules = false,
   catalog,
 }: {
-  value: CreateMatchRequest;
-  onChange: (value: CreateMatchRequest) => void;
+  value: PartySettings;
+  onChange: (value: PartySettings) => void;
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
@@ -176,7 +169,7 @@ export function MatchSettings({
           onChange={(duration) =>
             onChange({
               ...value,
-              durationMinutes: Number(duration) as CreateMatchRequest["durationMinutes"],
+              durationMinutes: Number(duration) as PartySettings["durationMinutes"],
             })
           }
           options={[15, 30, 45, 60].map((minutes) => ({

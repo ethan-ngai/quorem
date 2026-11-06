@@ -22,7 +22,6 @@ const publish = (content: QuestionContent) =>
   validateQuestionPublication(JSON.stringify(content), validateQuestionSchema, runtime);
 it("publishes code-only language variants with one metadata owner", () => {
   const content = example();
-  content.implementations.push({ ...content.implementations[0]!, language: "java" });
   content.approaches[0]!.implementations.push({ language: "java", source: "class Solution {}" });
   expect(() => publish(content)).not.toThrow();
   expect(canonicalCode(content)?.language).toBe("python");
@@ -34,7 +33,12 @@ it("allows an unnamed canonical approach; alternatives need names and unique IDs
   delete content.approaches[0]!.title;
   expect(() => publish(content)).not.toThrow();
   expect(approachTitle(content.approaches[0]!, content.canonicalApproachId)).toBe("Solution");
-  const alt = { ...content.approaches[0]!, id: "brute-force", title: "" };
+  const alt = {
+    ...content.approaches[0]!,
+    id: "brute-force",
+    title: "",
+    defaultLanguage: "python" as const,
+  };
   content.approaches.push(alt);
   expect(() => publish(content)).toThrow("name required");
   alt.title = "Brute force";
@@ -50,8 +54,8 @@ it("requires canonical Python, valid defaults, supported code and no metadata ov
   content.approaches[0].implementations[0]!.source = "pass";
   content.approaches[0].defaultLanguage = "java";
   expect(() => publish(content)).toThrow("default language");
-  content.approaches[0].defaultLanguage = "python";
-  content.approaches[0].implementations.push({ language: "java", source: "code" });
+  delete content.approaches[0].defaultLanguage;
+  content.approaches[0].implementations.push({ language: "postgresql", source: "code" });
   expect(() => publish(content)).toThrow("supported approach language");
   content.approaches[0].implementations.pop();
   Object.assign(content.approaches[0].implementations[0]!, { timeComplexity: "O(n)" });

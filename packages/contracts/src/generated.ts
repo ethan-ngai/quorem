@@ -7,6 +7,23 @@ export type WireValue = null | number | boolean | string | WireValue[] | {
     [key: string]: WireValue;
 };
 export interface paths {
+    "/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrator-only platform aggregates. Submission activity reflects retained history, not lifetime analytics. */
+        get: operations["getAdminOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/problems/{slug}": {
         parameters: {
             query?: never;
@@ -135,38 +152,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/matches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["createMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/join": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["joinMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/matches/{id}": {
         parameters: {
             query?: never;
@@ -199,22 +184,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/matches/{id}/ready": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["readyMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/matches/{id}/forfeit": {
         parameters: {
             query?: never;
@@ -241,38 +210,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["leaveMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["updateMatchSettings"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startMatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -487,22 +424,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/match-invites/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["previewMatchInvite"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/capabilities": {
         parameters: {
             query?: never;
@@ -529,54 +450,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["bootstrapGuest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/match-invites/{token}/guest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["joinAsGuest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/rotate-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["rotateInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/guests/{guest}/remove": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["removeGuest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -999,10 +872,288 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/parties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["currentParty"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getParty"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updatePartySettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["readyParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["leaveParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/{id}/disband": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["disbandParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/invitations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["previewPartyInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/presence/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["heartbeatPresence"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMatchReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspaces/{id}/problem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getWorkspaceProblem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/review/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createMatchReviewWorkspace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/invitations/{token}/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinPartyGuest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminOverview: {
+            /** Format: date-time */
+            generatedAt: string;
+            /** Format: date-time */
+            windowStart: string;
+            users: {
+                accounts: number;
+                administrators: number;
+                disabled: number;
+                active7d: number;
+            };
+            content: {
+                publications: number;
+                drafts: number;
+                workspaces: number;
+            };
+            submissions: {
+                retained7d: number;
+                pending: number;
+            };
+            activeUsers: {
+                id: string;
+                displayName: string;
+                /** @enum {string} */
+                role: "admin" | "user";
+                disabled: boolean;
+                submissions: number;
+                /** Format: date-time */
+                lastSubmittedAt: string;
+            }[];
+            recentDrafts: {
+                id: string;
+                title: string;
+                /** Format: date-time */
+                updatedAt: string;
+                editingPublication: boolean;
+            }[];
+        };
         /** @enum {string} */
         Language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
         /** @enum {string} */
@@ -1093,7 +1244,7 @@ export interface components {
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             starterSource: string;
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
@@ -1107,12 +1258,19 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            kind: "solo" | "match";
+            kind: "solo" | "match" | "review";
             /** Format: uuid */
             problemVersionId: string;
             language: components["schemas"]["Language"];
             /** Format: uuid */
             matchId?: string;
+            /** Format: uuid */
+            reviewMatchId?: string;
+        };
+        CreateReviewWorkspaceRequest: {
+            /** Format: uuid */
+            participantUserId: string;
+            language: components["schemas"]["Language"];
         };
         CreateWorkspaceRequest: {
             /** Format: uuid */
@@ -1196,6 +1354,8 @@ export interface components {
             /** Format: uuid */
             userId: string;
             displayName: string;
+            image?: string;
+            color?: number;
             ready: boolean;
             /** @enum {string} */
             presence: "online" | "offline";
@@ -1240,6 +1400,9 @@ export interface components {
             /** @enum {string} */
             accessMode?: "accounts_only" | "guests_allowed";
             admissionLocked?: boolean;
+            /** Format: uuid */
+            partyId?: string;
+            reviewPending?: boolean;
         };
         MatchQuestionFilters: {
             /** @enum {string} */
@@ -1248,41 +1411,6 @@ export interface components {
             sql?: "true";
             topic?: string;
             company?: string;
-        };
-        CreateMatchRequest: {
-            difficulty?: components["schemas"]["Difficulty"];
-            /** @enum {integer} */
-            durationMinutes: 15 | 30 | 45 | 60;
-            mode?: components["schemas"]["MatchMode"];
-            difficulties?: components["schemas"]["Difficulty"][];
-            questionFilters?: components["schemas"]["MatchQuestionFilters"];
-            /** Format: uuid */
-            selectedProblemVersionId?: string;
-            rules?: {
-                clipboard?: components["schemas"]["MatchRuleAction"];
-                focus?: components["schemas"]["MatchRuleAction"];
-                hints?: components["schemas"]["QuestionHints"];
-            };
-            /** @enum {string} */
-            accessMode?: "accounts_only" | "guests_allowed";
-            admissionLocked?: boolean;
-        } & ({
-            difficulty: components["schemas"]["Difficulty"];
-        } | {
-            difficulties: components["schemas"]["Difficulty"][];
-        } | {
-            /** Format: uuid */
-            selectedProblemVersionId: string;
-        });
-        MatchInvite: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uri */
-            inviteUrl: string;
-            state: components["schemas"]["MatchState"];
-        };
-        JoinMatchRequest: {
-            inviteToken: string;
         };
         ReadyMatchRequest: {
             ready: boolean;
@@ -1432,7 +1560,7 @@ export interface components {
             /** @description Optional for the canonical approach; other approaches require a name. */
             title?: string;
             /** @enum {string} */
-            defaultLanguage: "python" | "java" | "typescript" | "ocaml" | "postgresql";
+            defaultLanguage?: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             explanationMarkdown: string;
             timeComplexity: string;
             spaceComplexity: string;
@@ -1447,13 +1575,6 @@ export interface components {
             spaceComplexity: string;
             complexityNotes: string;
         };
-        AuthoringImplementation: {
-            /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
-            starterSource: string;
-            runtimeRevision: string;
-            harnessRevision: string;
-        };
         QuestionProblem: {
             id: string;
             slug: string;
@@ -1466,7 +1587,7 @@ export interface components {
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             limits: components["schemas"]["ExecutionLimits"];
             sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
@@ -1489,11 +1610,9 @@ export interface components {
             columns: components["schemas"]["SqlColumn"][];
         };
         QuestionContent: {
-            problem: components["schemas"]["QuestionProblem"];
+            problem: components["schemas"]["AuthoredQuestionProblem"];
             hiddenCases: components["schemas"]["CustomCase"][];
             attribution: string;
-            implementations: components["schemas"]["AuthoringImplementation"][];
-            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
             canonicalApproachId: string;
             approaches: components["schemas"]["SolutionApproach"][];
         };
@@ -1558,21 +1677,6 @@ export interface components {
              */
             visibility?: "private" | "global";
         };
-        InvitePreview: {
-            mode: components["schemas"]["MatchMode"];
-            difficulties: components["schemas"]["Difficulty"][];
-            /** @enum {integer} */
-            durationMinutes: 15 | 30 | 45 | 60;
-            rules: components["schemas"]["MatchRules"];
-            participantCount: number;
-            /** @enum {integer} */
-            capacity: 2 | 8;
-            /** @enum {string} */
-            accessMode?: "accounts_only" | "guests_allowed";
-            admissionLocked?: boolean;
-            /** Format: uuid */
-            id?: string;
-        };
         Capabilities: {
             hostGuests: boolean;
             hostedIntelligence: boolean;
@@ -1628,11 +1732,10 @@ export interface components {
         InterviewCustomQuestion: {
             title: string;
             statementMarkdown: string;
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             publicCases?: components["schemas"]["CustomCase"][];
             privateCases?: components["schemas"]["CustomCase"][];
-            odyssey?: components["schemas"]["Odyssey"];
-            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
         } & unknown;
         InterviewQuestionInput: {
             problemVersionId?: string;
@@ -1761,6 +1864,145 @@ export interface components {
             problemTitle: string;
             memberCount: number;
         };
+        AuthoredQuestionProblem: {
+            id: string;
+            slug: string;
+            version: string;
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
+            tags: string[];
+            statementMarkdown: string;
+            examples: components["schemas"]["ProblemExample"][];
+            constraints: components["schemas"]["Constraint"][];
+            signature?: components["schemas"]["Signature"];
+            limits: components["schemas"]["ExecutionLimits"];
+            sql?: components["schemas"]["SqlConfig"];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
+        } & unknown;
+        AuthoredOdyssey: {
+            levels: components["schemas"]["AuthoredOdysseyLevel"][];
+        };
+        AuthoredOdysseyLevel: {
+            title: string;
+            statementMarkdown: string;
+            methods: components["schemas"]["Signature"][];
+            examples: components["schemas"]["ProblemExample"][];
+            hiddenCases: components["schemas"]["CustomCase"][];
+        };
+        PartySettings: {
+            difficulty?: components["schemas"]["Difficulty"];
+            /** @enum {integer} */
+            durationMinutes: 15 | 30 | 45 | 60;
+            mode?: components["schemas"]["MatchMode"];
+            difficulties?: components["schemas"]["Difficulty"][];
+            questionFilters?: components["schemas"]["MatchQuestionFilters"];
+            /** Format: uuid */
+            selectedProblemVersionId?: string;
+            rules?: {
+                clipboard?: components["schemas"]["MatchRuleAction"];
+                focus?: components["schemas"]["MatchRuleAction"];
+                hints?: components["schemas"]["QuestionHints"];
+            };
+            /** @enum {string} */
+            accessMode?: "accounts_only" | "guests_allowed";
+            admissionLocked?: boolean;
+            /** @default true */
+            shareCodeAfterMatch: boolean;
+        } & ({
+            difficulty: components["schemas"]["Difficulty"];
+        } | {
+            difficulties: components["schemas"]["Difficulty"][];
+        } | {
+            /** Format: uuid */
+            selectedProblemVersionId: string;
+        });
+        PartyMember: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            image?: string;
+            color?: number;
+            ready: boolean;
+            online: boolean;
+            /** Format: date-time */
+            joinedAt: string;
+        };
+        PartySnapshot: {
+            /** Format: uuid */
+            id: string;
+            version: string;
+            /** Format: uuid */
+            hostUserId: string;
+            settings: components["schemas"]["PartySettings"];
+            members: components["schemas"]["PartyMember"][];
+            /** Format: uuid */
+            currentMatchId: string | null;
+            /** Format: uuid */
+            latestMatchId: string | null;
+            /** Format: date-time */
+            countdownEndsAt: string | null;
+            queueError: string | null;
+        };
+        PartyCurrent: {
+            party: components["schemas"]["PartySnapshot"] | null;
+        };
+        PartyCreated: {
+            party: components["schemas"]["PartySnapshot"];
+            inviteUrl: string;
+        };
+        PartyJoinRequest: {
+            token: string;
+        };
+        PartyReadyRequest: {
+            ready: boolean;
+        };
+        PresenceHeartbeatRequest: {
+            /** Format: uuid */
+            windowId: string;
+        };
+        PartyInvitation: {
+            /** Format: uuid */
+            id: string;
+            participantCount: number;
+            capacity: number;
+            guestAllowed: boolean;
+        };
+        MatchReviewWorkspace: {
+            /** Format: uuid */
+            id: string;
+            language: string;
+        };
+        MatchReviewSubmission: {
+            language: string;
+            source: string;
+            verdict: string | null;
+            state: components["schemas"]["SubmissionState"];
+        };
+        MatchReviewParticipant: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            image?: string;
+            color?: number;
+            own: boolean;
+            workspace: components["schemas"]["MatchReviewWorkspace"] | null;
+            submission: components["schemas"]["MatchReviewSubmission"] | null;
+        };
+        MatchReview: {
+            /** Format: uuid */
+            matchId: string;
+            /** Format: date-time */
+            completedAt: string;
+            shareCodeAfterMatch: boolean;
+            outcome: components["schemas"]["MatchOutcome"] | null;
+            problem: components["schemas"]["ProblemVersion"];
+            participants: components["schemas"]["MatchReviewParticipant"][];
+        };
+        PartyGuestJoinRequest: {
+            name: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -1770,6 +2012,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAdminOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Administrator required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getProblem: {
         parameters: {
             query?: never;
@@ -2026,76 +2306,6 @@ export interface operations {
             };
         };
     };
-    createMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchInvite"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    joinMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JoinMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getMatch: {
         parameters: {
             query?: never;
@@ -2166,43 +2376,6 @@ export interface operations {
             };
         };
     };
-    readyMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReadyMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     forfeitMatch: {
         parameters: {
             query?: never;
@@ -2237,76 +2410,6 @@ export interface operations {
         };
     };
     leaveMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    updateMatchSettings: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    startMatch: {
         parameters: {
             query?: never;
             header: {
@@ -2978,37 +3081,6 @@ export interface operations {
             };
         };
     };
-    previewMatchInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Read-only lobby settings; grants no membership or execution access */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitePreview"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getCapabilities: {
         parameters: {
             query?: never;
@@ -3053,110 +3125,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    joinAsGuest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    rotateInvite: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchInvite"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    removeGuest: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-                guest: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
             };
             /** @description Safe application error */
             default: {
@@ -4270,6 +4238,505 @@ export interface operations {
                             message?: string;
                         }[];
                     };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartySettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyCreated"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    currentParty: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyCurrent"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getParty: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updatePartySettings: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartySettings"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    readyParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyReadyRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    startParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    leaveParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    disbandParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    joinParty: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyJoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    previewPartyInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyInvitation"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    heartbeatPresence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresenceHeartbeatRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartyCurrent"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getMatchReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchReview"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getWorkspaceProblem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemVersion"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createMatchReviewWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReviewWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Workspace"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    joinPartyGuest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyGuestJoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
                 };
             };
             /** @description Safe application error */

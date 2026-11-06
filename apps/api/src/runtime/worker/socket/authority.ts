@@ -3,6 +3,7 @@ import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../application/error.ts";
 import {
   authenticate,
+  guestScopeId,
   IdentityError,
   type IdentityBindings,
   type Principal,
@@ -91,12 +92,11 @@ export function postgresSocketAuthority(deps: {
         const hash = await guestTokenHash(credential);
         const guest = await readers.guest(mode, hash);
         if (!guest) throw new IdentityError("unauthorized");
-        const resourceId =
-          guest.scope.kind === "match" ? guest.scope.matchId : guest.scope.interviewId;
+        const resourceId = guestScopeId(guest.scope);
         actor = guest;
         grant = {
           kind: "guest",
-          scope: mode,
+          scope: guest.scope.kind,
           resourceId,
           hash,
           expiresAt: guest.credentialExpiresAt,

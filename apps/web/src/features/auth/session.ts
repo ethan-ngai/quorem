@@ -160,7 +160,7 @@ export function useSession() {
 }
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
-  return /^\/(practice|match|invite|admin|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
+  return /^\/(practice|match|party|invite|admin|questions|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
     requested,
   ) &&
     !requested.includes("\\") &&

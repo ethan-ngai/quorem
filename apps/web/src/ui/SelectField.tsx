@@ -8,6 +8,7 @@ export type SelectOption = {
   value: string;
   label: string;
   leading?: ReactNode;
+  trailing?: ReactNode;
   display?: ReactNode;
 };
 
@@ -82,7 +83,10 @@ export function SelectField({
       {selected?.leading}
       {!iconOnly && (
         <>
-          <Select.Value placeholder={selected?.label}>{optionContent(selected)}</Select.Value>
+          <span className="select-field-label">
+            <Select.Value placeholder={selected?.label}>{optionContent(selected)}</Select.Value>
+            {selected?.trailing}
+          </span>
           <Select.Icon className="select-field-chevron">
             <ChevronDown size={14} aria-hidden="true" />
           </Select.Icon>
@@ -119,7 +123,10 @@ export function SelectField({
                 textValue={option.label}
               >
                 {option.leading}
-                <Select.ItemText>{optionContent(option)}</Select.ItemText>
+                <span className="select-field-label">
+                  <Select.ItemText>{optionContent(option)}</Select.ItemText>
+                  {option.trailing}
+                </span>
                 <span className="select-field-check">
                   <Select.ItemIndicator>
                     <Check size={14} aria-hidden="true" />

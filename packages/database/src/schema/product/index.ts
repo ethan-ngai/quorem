@@ -190,7 +190,8 @@ export const guest_sessions = pgTable(
   {
     token_hash: text().primaryKey().notNull(),
     owner_id: text().notNull(),
-    match_id: uuid().notNull(),
+    match_id: uuid(),
+    party_id: uuid(),
     created_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
@@ -215,6 +216,12 @@ export const guest_sessions = pgTable(
       foreignColumns: [users.id],
       name: "guest_sessions_owner_id_fkey",
     }),
+    foreignKey({
+      columns: [table.party_id],
+      foreignColumns: [parties.id],
+      name: "guest_sessions_party_id_fkey",
+    }),
+    check("guest_sessions_scope_check", sql`(match_id IS NOT NULL) <> (party_id IS NOT NULL)`),
     unique("guest_sessions_owner_id_key").on(table.owner_id),
   ],
 );
@@ -566,8 +573,27 @@ export const workspaces = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     match_id: uuid(),
+    review_match_id: uuid(),
+    review_source_owner_id: text(),
   },
   (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("review_workspace_owner_source_language")
+      .on(table.review_match_id, table.owner_id, table.review_source_owner_id, table.language)
+      .where(sql`kind = 'review'`),
+    foreignKey({
+      columns: [table.review_match_id],
+      foreignColumns: [matches.id],
+      name: "workspaces_review_match_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.review_source_owner_id],
+      foreignColumns: [users.id],
+      name: "workspaces_review_source_owner_id_fkey",
+    }),
+    check(
+      "workspace_review_kind",
+      sql`((kind = 'review' AND review_match_id IS NOT NULL AND review_source_owner_id IS NOT NULL) OR (kind <> 'review' AND review_match_id IS NULL AND review_source_owner_id IS NULL))`,
+    ),
     uniqueIndex("match_workspace_owner_language")
       .using(
         "btree",
@@ -595,13 +621,16 @@ export const workspaces = pgTable(
       name: "workspaces_owner_id_fkey",
     }),
     foreignKey({
-      columns: [table.problem_version_id, table.language],
-      foreignColumns: [problem_languages.version_id, problem_languages.language],
-      name: "workspace_problem_language_fkey",
+      columns: [table.problem_version_id],
+      foreignColumns: [problem_versions.id],
+      name: "workspace_problem_version_fkey",
     }),
     unique("workspace_owner_identity").on(table.id, table.owner_id),
     check("workspace_match_kind", sql`(kind = 'match'::text) = (match_id IS NOT NULL)`),
-    check("workspaces_kind_check", sql`kind = ANY (ARRAY['solo'::text, 'match'::text])`),
+    check(
+      "workspaces_kind_check",
+      sql`kind = ANY (ARRAY['solo'::text, 'match'::text, 'review'::text])`,
+    ),
     check(
       "workspaces_language_check",
       sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,
@@ -669,6 +698,8 @@ export const matches = pgTable(
   {
     id: uuid().primaryKey().notNull(),
     host_owner_id: text().notNull(),
+    party_id: uuid(),
+    share_code_after_match: boolean().default(false).notNull(),
     invite_hash: text().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
     duration_minutes: integer().notNull(),
@@ -679,6 +710,7 @@ export const matches = pgTable(
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
+    completed_at: timestamp({ withTimezone: true, mode: "string" }),
     outcome: jsonb(),
     reconciled_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`'-infinity'`)
@@ -722,6 +754,11 @@ export const matches = pgTable(
       columns: [table.selected_problem_version_id],
       foreignColumns: [problem_versions.id],
       name: "matches_selected_problem_version_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.party_id],
+      foreignColumns: [parties.id],
+      name: "matches_party_id_fkey",
     }),
     unique("matches_invite_hash_key").on(table.invite_hash),
     check(
@@ -969,18 +1006,28 @@ export const problem_versions = pgTable(
     title: text().notNull(),
     difficulty: text().notNull(),
     statement_markdown: text().notNull(),
-    signature: jsonb().notNull(),
+    signature: jsonb(),
     constraints: jsonb().notNull(),
     limits: jsonb().notNull(),
     attribution: text().notNull(),
     sealed: boolean().default(false).notNull(),
     sql_config: jsonb(),
     odyssey: jsonb(),
+    fixture_identity_hash: bytea("fixture_identity_hash"),
     lossless_fixture: bytea("lossless_fixture"),
     lossless_public: bytea("lossless_public"),
     lossless_stages: bytea("lossless_stages"),
   },
   (table): PgTableExtraConfigValue[] => [
+    check(
+      "problem_fixture_identity_hash",
+      sql`fixture_identity_hash IS NULL OR octet_length(fixture_identity_hash)=32`,
+    ),
+    check(
+      "problem_signature_owner",
+      sql`((sql_config IS NULL OR sql_config='null'::jsonb) AND odyssey IS NULL AND signature IS NOT NULL) OR ((odyssey IS NOT NULL OR (sql_config IS NOT NULL AND sql_config<>'null'::jsonb)) AND signature IS NULL)`,
+    ),
+
     foreignKey({
       columns: [table.problem_id],
       foreignColumns: [problems.id],
@@ -1544,34 +1591,6 @@ export const match_idempotency = pgTable(
   ],
 );
 
-export const problem_languages = pgTable(
-  "problem_languages",
-  {
-    version_id: uuid().notNull(),
-    language: text().notNull(),
-    starter_source: text().notNull(),
-    runtime_revision: text().notNull(),
-    harness_revision: text().notNull(),
-    // Frozen reference leaf preserves admitted fixture identities after source consolidation.
-    reference_source_hash: bytea("reference_source_hash")
-      .default(sql`sha256(decode('01','hex'))`)
-      .notNull(),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_languages_version_id_fkey",
-    }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.language], name: "problem_languages_pkey" }),
-    check("problem_language_reference_hash", sql`octet_length(reference_source_hash)=32`),
-    check(
-      "problem_languages_language_check",
-      sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,
-    ),
-  ],
-);
-
 export const problem_examples = pgTable(
   "problem_examples",
   {
@@ -1626,7 +1645,7 @@ export const problem_solution_approaches = pgTable(
     ordinal: integer().notNull(),
     title: text().default("").notNull(),
     is_canonical: boolean().default(false).notNull(),
-    default_language: text().notNull(),
+    default_language: text(),
     explanation_markdown: text().notNull(),
     time_complexity: text().notNull(),
     space_complexity: text().notNull(),
@@ -1650,7 +1669,7 @@ export const problem_solution_approaches = pgTable(
     check("problem_solution_approaches_ordinal_check", sql`ordinal>=0`),
     check(
       "problem_solution_approaches_default_language_check",
-      sql`default_language IN ('python','java','typescript','ocaml','postgresql')`,
+      sql`(is_canonical AND default_language IS NULL) OR (NOT is_canonical AND default_language IS NOT NULL AND default_language IN ('python','java','typescript','ocaml','postgresql'))`,
     ),
   ],
 );
@@ -1663,11 +1682,10 @@ export const problem_solutions = pgTable(
     approach_id: text().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.version_id, table.language],
-      foreignColumns: [problem_languages.version_id, problem_languages.language],
-      name: "problem_solutions_version_id_language_fkey",
-    }).onDelete("cascade"),
+    check(
+      "problem_solutions_language_check",
+      sql`language IN ('python','java','typescript','ocaml','postgresql')`,
+    ),
     foreignKey({
       columns: [table.version_id, table.approach_id],
       foreignColumns: [problem_solution_approaches.version_id, problem_solution_approaches.id],
@@ -2239,3 +2257,94 @@ export const submission_result_header_fields = pgTable(
 export * from "./runner-inputs.ts";
 
 export * from "./verification.ts";
+
+export const parties = pgTable(
+  "parties",
+  {
+    id: uuid().primaryKey().notNull(),
+    host_owner_id: text().notNull(),
+    invite_hash: text().notNull(),
+    settings: jsonb().notNull(),
+    guest_joins: integer().default(0).notNull(),
+    version: bigint({ mode: "bigint" }).default(0n).notNull(),
+    current_match_id: uuid(),
+    latest_match_id: uuid(),
+    queue_error: text(),
+    countdown_ends_at: timestamp({ withTimezone: true, mode: "string" }),
+    created_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.host_owner_id],
+      foreignColumns: [users.id],
+      name: "parties_host_owner_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.current_match_id],
+      foreignColumns: [matches.id],
+      name: "parties_current_match_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.latest_match_id],
+      foreignColumns: [matches.id],
+      name: "parties_latest_match_id_fkey",
+    }),
+    unique("parties_invite_hash_key").on(t.invite_hash),
+    check("parties_guest_joins_check", sql`guest_joins >= 0`),
+    index("parties_countdown")
+      .on(t.countdown_ends_at)
+      .where(sql`countdown_ends_at IS NOT NULL`),
+  ],
+);
+export const party_members = pgTable(
+  "party_members",
+  {
+    party_id: uuid().notNull(),
+    owner_id: text().notNull(),
+    seat: integer().notNull(),
+    ready: boolean().default(false).notNull(),
+    joined_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    last_seen_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.party_id],
+      foreignColumns: [parties.id],
+      name: "party_members_party_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+      name: "party_members_owner_id_fkey",
+    }),
+    primaryKey({ columns: [t.party_id, t.owner_id] }),
+    unique("party_members_owner_id_key").on(t.owner_id),
+    unique("party_members_party_id_seat_key").on(t.party_id, t.seat),
+    check("party_members_seat_check", sql`seat BETWEEN 1 AND 8`),
+    index("party_members_last_seen").on(t.last_seen_at),
+  ],
+);
+export const platform_presence_leases = pgTable(
+  "platform_presence_leases",
+  {
+    owner_id: text().notNull(),
+    window_id: uuid().notNull(),
+    expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+      name: "platform_presence_leases_owner_id_fkey",
+    }),
+    primaryKey({ columns: [t.owner_id, t.window_id] }),
+    index("platform_presence_expiry").on(t.expires_at),
+  ],
+);

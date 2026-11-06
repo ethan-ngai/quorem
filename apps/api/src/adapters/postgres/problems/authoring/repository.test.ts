@@ -5,6 +5,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { createApp } from "../../../../app.ts";
 import { authoringRoutes } from "../../../../modules/problems/authoring/routes.ts";
 import { questionAuthoring } from "./repository.ts";
+import { parseCatalogFilter } from "../../../../modules/problems/queries.ts";
 import { problemQueries } from "../queries/repository.ts";
 const url = process.env.QUOREM_AUTHORING_TEST_DATABASE_URL;
 const runtime = (language: string) =>
@@ -85,7 +86,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       );
       const createResponse = await http.request("/v1/admin/question-drafts", {
         method: "POST",
-        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"approaches":[],"canonicalApproachId":""}}',
+        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}}',
       });
       expect(createResponse.status).toBe(201);
       const empty = (await createResponse.json()) as { id: string; revision: string };
@@ -152,6 +153,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const published = JSON.parse(await repository.publish(actor, draft.id, "2", "private"));
       expect(published.revision).toBe("3");
       expect(published.publishedVersionId).toBeTruthy();
+      const available = JSON.parse(
+        (await catalog.byVersion({ userId: owner }, published.publishedVersionId))!,
+      );
+      expect(available.languages.map((item: { language: string }) => item.language).sort()).toEqual(
+        ["java", "ocaml", "python", "typescript"],
+      );
+      expect(available.starterSource).toContain(
+        "def runWidths(self, values: list[int]) -> list[int]:",
+      );
       expect(JSON.parse(await repository.publications(actor)).items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -180,9 +190,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
       expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
       expect(fork.content.approaches).toEqual(parsedContent.approaches);
-      expect(
-        fork.content.implementations.every((item: object) => !("referenceSource" in item)),
-      ).toBe(true);
+      expect(fork.content).not.toHaveProperty("implementations");
       expect(
         JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
           .items,
@@ -210,13 +218,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       nul.problem.constraints = [];
       nul.problem.examples = [{ args: ["visible\u0000text"], expected: "visible\u0000text" }];
       nul.hiddenCases = [{ args: ["SECRET\u0000HIDDEN"], expected: "SECRET\u0000HIDDEN" }];
-      nul.implementations = nul.implementations.filter(
-        (x: { language: string }) => x.language === "python",
-      );
-      for (const approach of nul.approaches)
-        approach.implementations = approach.implementations.filter(
-          (item: { language: string }) => item.language === "python",
-        );
       const nd = JSON.parse(await repository.create(actor, JSON.stringify(nul), undefined));
       const np = JSON.parse(await repository.publish(actor, nd.id, "1", "private"));
       const side = await pool.query(
@@ -249,14 +250,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         },
       ];
       sq.hiddenCases = structuredClone(sq.problem.examples);
-      sq.implementations = [
-        {
-          language: "postgresql",
-          starterSource: "select 1",
-          runtimeRevision: "postgresql-17.6-v1",
-          harnessRevision: "quorem-postgresql-v2",
-        },
-      ];
       sq.approaches = [
         {
           ...sq.approaches[0],
@@ -297,7 +290,11 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.create(actor, undefined, op.publishedVersionId),
       );
       expect(stageFork.content.problem.odyssey.levels).toHaveLength(2);
-      expect(stageFork.content.odysseyHiddenCases).toHaveLength(2);
+      expect(
+        stageFork.content.problem.odyssey.levels.every(
+          (level: { hiddenCases: unknown[] }) => level.hiddenCases.length,
+        ),
+      ).toBe(true);
       const stagedSql = structuredClone(sq);
       stagedSql.problem.slug = `sqlstage-${crypto.randomUUID().slice(0, 8)}`;
       stagedSql.problem.odyssey = {
@@ -307,16 +304,16 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
             statementMarkdown: "Query items",
             methods: [],
             examples: stagedSql.problem.examples,
+            hiddenCases: stagedSql.hiddenCases,
           },
         ],
       };
-      stagedSql.odysseyHiddenCases = [stagedSql.hiddenCases];
       stagedSql.problem.examples = [];
       stagedSql.hiddenCases = [];
       const osd = JSON.parse(await repository.create(actor, JSON.stringify(stagedSql), undefined));
       const osp = JSON.parse(await repository.publish(actor, osd.id, "1", "private"));
       const sqlFork = JSON.parse(await repository.create(actor, undefined, osp.publishedVersionId));
-      expect(sqlFork.content.odysseyHiddenCases).toHaveLength(1);
+      expect(sqlFork.content.problem.odyssey.levels[0].hiddenCases).toHaveLength(1);
       const batchDrafts = await Promise.all(
         Array.from({ length: 3 }, () => repository.create(actor, raw, undefined).then(JSON.parse)),
       );
@@ -398,6 +395,35 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         }),
       );
       expect(draftDeleted.items[0].status).toBe("succeeded");
+      const longSlugContent = structuredClone(parsedContent);
+      longSlugContent.problem.slug = `long-${crypto.randomUUID().replaceAll("-", "")}-${"a".repeat(42)}`;
+      expect(longSlugContent.problem.slug).toHaveLength(80);
+      const longSlugDraft = JSON.parse(
+        await repository.create(actor, JSON.stringify(longSlugContent), undefined),
+      );
+      const readyLongSlug = JSON.parse(
+        await repository.list(actor, {
+          ...parseCatalogFilter(new URLSearchParams()),
+          query: longSlugContent.problem.slug,
+          sort: "title",
+        }),
+      );
+      expect(
+        readyLongSlug.items.find((item: { id: string }) => item.id === longSlugDraft.id)?.ready,
+      ).toBe(true);
+      const longSlugPublished = JSON.parse(
+        await repository.publish(actor, longSlugDraft.id, "1", "private"),
+      );
+      expect(longSlugPublished.content.problem.slug).toHaveLength(105);
+      const editedLongSlug = JSON.parse(
+        await repository.update(
+          actor,
+          longSlugDraft.id,
+          longSlugPublished.revision,
+          JSON.stringify(longSlugPublished.content),
+        ),
+      );
+      expect(editedLongSlug.content.problem.slug).toBe(longSlugPublished.content.problem.slug);
       const global = { userId: admin, admin: true, globalAllowed: true };
       const draftA = JSON.parse(await repository.create(global, raw, undefined));
       const draftB = JSON.parse(await repository.create(global, raw, undefined));
@@ -432,7 +458,14 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.importDraft(global, JSON.stringify(refreshed), false),
       );
       expect(imported.status).toBe("created");
-      const applied = JSON.parse(await repository.publish({ ...global, globalAllowed: false }, imported.draftId, "1", "global"));
+      const applied = JSON.parse(
+        await repository.publish(
+          { ...global, globalAllowed: false },
+          imported.draftId,
+          "1",
+          "global",
+        ),
+      );
       expect(applied.publishedVersionId).toBe(first.publishedVersionId);
       expect(applied.content.problem.title).toBe("Refreshed question");
       const stepUpBatch = JSON.parse(

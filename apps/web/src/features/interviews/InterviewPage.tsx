@@ -1,3 +1,4 @@
+import { SubmissionCelebration } from "../completion/SubmissionCelebration";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
@@ -690,6 +691,12 @@ function InterviewPad({
         />
       }
     >
+      <SubmissionCelebration
+        scope={`interview:${id}:${initial.questionEpoch}`}
+        submission={result.data}
+        outcome={interviewer ? "observer" : "success"}
+        enabled={!changed && !closed}
+      />
       <SessionDialog
         open={setup}
         onOpenChange={setSetup}

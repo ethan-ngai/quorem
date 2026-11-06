@@ -2,7 +2,8 @@
 import assert from "node:assert/strict";
 import { serve } from "@hono/node-server";
 import { createApp } from "../../../../app.ts";
-import { matchInvitationRoutes } from "../../../../modules/matches/invitations/routes.ts";
+import { partyRoutes } from "../../../../modules/parties/routes.ts";
+import type { Parties } from "../../../../modules/parties/model.ts";
 import { IdentityError } from "../../../../modules/identity/model.ts";
 import { publicGuestBudget } from "../../identity/guest.ts";
 import { before, after, test } from "node:test";
@@ -21,14 +22,10 @@ import { matchLifecycle } from "../lifecycle/repository.ts";
 import { matchInvitations } from "./repository.ts";
 import { matchLanguageSelection } from "../selection/language.ts";
 import { selectMatchCandidate } from "../selection/repository.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 const url = process.env.QUOREM_MATCH_INVITES_TEST_DATABASE_URL;
-if (
-  !url ||
-  new URL(url).port !== "55471" ||
-  new URL(url).pathname !== "/quorem_hono_invites_test" ||
-  !["127.0.0.1", "localhost"].includes(new URL(url).hostname)
-)
-  throw new Error("Disposable invitation database required");
+if (!url) throw new Error("Disposable invitation database required");
+assertRunnerFixture(url, ["/quorem_hono_invites_test"]);
 const pool = createNodePool({
   connectionString: url,
   max: 8,
@@ -127,11 +124,6 @@ before(async () => {
     "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Private','easy','','{}','[]','{}','test')",
     [version, problem],
   );
-  for (const l of ["python", "java"])
-    await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,$2,'','runtime','harness')",
-      [version, l],
-    );
   await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [problem, version]);
   await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [version]);
 });
@@ -309,9 +301,12 @@ void test("Node HTTP applies credential precedence, origin and trusted-peer budg
     requestId: () => "node-invite",
   }).route(
     "/",
-    matchInvitationRoutes({
-      invitations: invites,
-      language,
+    partyRoutes({
+      parties: {
+        preview: (token: string) => invites.preview(token),
+        joinGuest: (token: string, credential: string, name: string) =>
+          invites.joinGuest(token, credential, name),
+      } as Parties,
       allowedOrigins: ["https://example.test"],
       admissionEnabled: true,
       trustedPeer: () => "127.0.0.1",
@@ -326,7 +321,7 @@ void test("Node HTTP applies credential precedence, origin and trusted-peer budg
   if (!server.listening) await new Promise<void>((resolve) => server.once("listening", resolve));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("listener unavailable");
-  const url = `http://127.0.0.1:${address.port}/v1/match-invites/${token}/guest`;
+  const url = `http://127.0.0.1:${address.port}/v1/parties/invitations/${token}/guest`;
   try {
     const send = (extra: Record<string, string>) =>
       fetch(url, {

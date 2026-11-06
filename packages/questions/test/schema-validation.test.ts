@@ -14,7 +14,7 @@ it("validates generated publication schema and bounded draft defaults", () => {
   expect(() => validateQuestionSchema(fixture)).not.toThrow();
   const draft = JSON.parse(
     normalizeQuestionDraft(
-      '{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"approaches":[],"canonicalApproachId":""}',
+      '{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}',
     ),
   );
   expect(draft.problem.signature.className).toBe("Solution");
@@ -26,6 +26,7 @@ it("validates generated publication schema and bounded draft defaults", () => {
 });
 it("keeps case numbers lossless and validates metadata separately", () => {
   const content = JSON.parse(fixture);
+  delete content.problem.signature;
   content.problem.sql = {
     dialect: "postgresql",
     outputOrder: "ordered",
@@ -37,18 +38,9 @@ it("keeps case numbers lossless and validates metadata separately", () => {
     { args: [{ tables: [{ name: "t", rows: [[1]] }] }], expected: { rows: [[{ $numeric: "1" }]] } },
   ];
   content.hiddenCases = content.problem.examples;
-  content.implementations = [
-    {
-      language: "postgresql",
-      starterSource: "select 1",
-      runtimeRevision: "pg",
-      harnessRevision: "h",
-    },
-  ];
   content.approaches = [
     {
       ...content.approaches[0],
-      defaultLanguage: "postgresql",
       implementations: [{ language: "postgresql", source: "select 1" }],
     },
   ];

@@ -28,6 +28,18 @@ before(async () => {
   await pool.query("insert into interview_guest_sessions(token_hash,owner_id,session_id,expires_at) values($1,'interview-guest',$2,now()+interval '1 hour')", [interviewHash, interview]);
 });
 after(async () => { await pool.end(); });
+void test('bootstrap distinguishes unclaimed, live, revoked and expired credentials', async () => {
+  const guest = guestRepository;
+  const canBootstrap = (hash: string) => run((scope) => guest(scope).canBootstrap(hash));
+  const unclaimed = `bootstrap-${crypto.randomUUID()}`;
+  assert.equal(await canBootstrap(unclaimed), true);
+  assert.equal(await canBootstrap(matchHash), true);
+  await pool.query("UPDATE guest_sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1", [matchHash]);
+  assert.equal(await canBootstrap(matchHash), false);
+  await pool.query("UPDATE guest_sessions SET revoked_at=NULL,expires_at=clock_timestamp()-interval '1 second' WHERE token_hash=$1", [matchHash]);
+  assert.equal(await canBootstrap(matchHash), false);
+  await pool.query("UPDATE guest_sessions SET expires_at=clock_timestamp()+interval '1 hour' WHERE token_hash=$1", [matchHash]);
+});
 void test('scope-specific live identity follows membership and host revocation', async () => {
   await pool.query("update guest_sessions set last_seen_at=clock_timestamp()-interval '10 minutes' where token_hash=$1", [matchHash]);
   const matchGuest = await run((scope) => guestRepository(scope).lookup('match', matchHash));

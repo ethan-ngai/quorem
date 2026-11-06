@@ -1,3 +1,4 @@
+import { verdictIcon } from "./verdictPresentation";
 import { CasePreviewLayout } from "./NodePreview";
 import type { NodeContext } from "../nodeLiterals";
 import "./machine-values.css";
@@ -18,6 +19,36 @@ export function verdictTone(status?: string) {
     : status && status !== "executed"
       ? "verdict-error"
       : "verdict-neutral";
+}
+
+/** Render feedback only for the selected case's admitted result. */
+export function CaseVerdict({ result }: { result?: PublicCaseResult }) {
+  if (!result) return null;
+  const tone = verdictTone(result.status);
+  const status = result.status.replaceAll("_", " ");
+  const label = `${status[0].toUpperCase()}${status.slice(1)}`;
+  const messages =
+    tone === "verdict-error"
+      ? result.diagnostics?.map(
+          (item) =>
+            `${item.line != null ? `Line ${item.line}${item.column != null ? `:${item.column}` : ""}: ` : ""}${item.message}`,
+        )
+      : undefined;
+  return (
+    <div className="case-verdict-group" aria-live="polite" aria-atomic="true">
+      <div className="case-verdict-text">
+        <span className={`case-verdict ${tone}`}>
+          <Icon name={verdictIcon(result.status)} />
+          {label}
+        </span>
+        {!!messages?.length && (
+          <code className="case-error-message" tabIndex={0}>
+            {messages.join("\n")}
+          </code>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function CaseValue({
@@ -126,9 +157,13 @@ export function CaseOutput({
   sql,
   returnType,
   nodeContext,
+  showVerdict = true,
+  preview = true,
 }: {
   result: PublicCaseResult;
   showExpected?: boolean;
+  showVerdict?: boolean;
+  preview?: boolean;
   returnType?: string;
   nodeContext?: NodeContext;
   sql?: ProblemVersion["sql"];
@@ -137,16 +172,7 @@ export function CaseOutput({
   const tone = verdictTone(result.status);
   return (
     <div className="case-run-output">
-      <div className="case-verdict-group">
-        <span className={`case-verdict ${tone}`}>{result.status.replaceAll("_", " ")}</span>
-        {tone === "verdict-error" &&
-          result.diagnostics?.map((item, index) => (
-            <code className="case-error-message" key={index}>
-              {item.line ? `Line ${item.line}: ` : ""}
-              {item.message}
-            </code>
-          ))}
-      </div>
+      {showVerdict && <CaseVerdict result={result} />}
       {sequence ? (
         sequence.calls.map((call, index) => {
           const signature = sequence.methods.find(
@@ -201,7 +227,12 @@ export function CaseOutput({
           );
         })
       ) : (
-        <CasePreviewLayout context={nodeContext} expected={result.expected} actual={result.actual}>
+        <CasePreviewLayout
+          enabled={preview}
+          context={nodeContext}
+          expected={result.expected}
+          actual={result.actual}
+        >
           <div className="case-output-comparison">
             {result.actual !== undefined && (
               <CaseValue

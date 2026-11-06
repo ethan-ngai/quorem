@@ -94,7 +94,26 @@ describe("match sync guards and ordering", () => {
 
   it("rejects malformed optional fields, duplicate seats, and invalid seat counts", () => {
     const valid = snapshot("4");
+    expect(
+      isMatchSnapshot({
+        ...valid,
+        participants: valid.participants.map((person) => ({ ...person, color: 25 })),
+      }),
+    ).toBe(false);
+    expect(
+      isMatchSnapshot({
+        ...valid,
+        participants: valid.participants.map((person) => ({
+          ...person,
+          color: 7,
+          image: "/profile.png",
+        })),
+      }),
+    ).toBe(true);
     expect(isMatchSnapshot({ ...valid, startedAt: "yesterday" }, matchId)).toBe(false);
+    expect(isMatchSnapshot({ ...valid, reviewPending: "yes" }, matchId)).toBe(false);
+    expect(isMatchSnapshot({ ...valid, partyId: "invalid" }, matchId)).toBe(false);
+    expect(isMatchSnapshot({ ...valid, partyId: userId, reviewPending: true }, matchId)).toBe(true);
     expect(isMatchSnapshot({ ...valid, problemVersionId: "not-a-uuid" }, matchId)).toBe(false);
     expect(
       isMatchSnapshot(

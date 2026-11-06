@@ -1,7 +1,6 @@
 import { authoringIssue } from "./authoringValidation";
 import type { ReportAuthoringValidity } from "./authoringValidation";
 import { NoticeRegion } from "../../ui/PersistentNotice";
-import { initialOdysseySource } from "../odyssey/methodStubs";
 import { useEffect, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { StageAuthoring } from "../odyssey/StageAuthoring";
@@ -45,14 +44,8 @@ export function AuthoringStages({
         ...content,
         problem: {
           ...content.problem,
-          signature: parsed.odyssey.levels[0]!.methods[0]!,
           odyssey: parsed.odyssey,
         },
-        odysseyHiddenCases: parsed.odysseyHiddenCases,
-        implementations: content.implementations.map((item) => ({
-          ...item,
-          starterSource: initialOdysseySource(parsed.odyssey.levels[0]!.methods, item.language),
-        })),
       });
       parseStages(next, { allowIncomplete: true, constraints: content.problem.constraints });
       onValidityChange("stages", false);

@@ -1,0 +1,15 @@
+.difficulty-easy {
+  color: var(--color-success);
+}
+.difficulty-medium {
+  color: var(--color-warning);
+}
+.difficulty-hard {
+  color: var(--color-error);
+}
+
+.difficulty-label {
+  font-size: var(--text-small);
+  font-weight: 400;
+  white-space: nowrap;
+}

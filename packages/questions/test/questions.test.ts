@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   generateStarter,
+  generateQuestionImplementations,
   validQuestionType,
   validateConstraints,
   validateInputConfig,
@@ -29,7 +30,7 @@ const signature: Signature = {
 };
 
 describe("starters", () => {
-  for (const vector of vectors.filter((v) => v.name === "starter"))
+  for (const vector of vectors.filter((v) => v.name === "starter" && v.input.language !== "python"))
     it(`matches Go ${vector.input.language}`, () => {
       expect(generateStarter([vector.input.signature], vector.input.language, false)).toBe(
         // The retired Go generator qualified List even though the judge imports it.
@@ -38,6 +39,40 @@ describe("starters", () => {
           : vector.output,
       );
     });
+  it("annotates Python parameters, nested nodes, dates and returns", () => {
+    const sig: Signature = {
+      ...signature,
+      parameters: [
+        { name: "values", type: "list<optional<TreeNode<str>>>" },
+        { name: "when", type: "datetime" },
+      ],
+      returnType: "optional<long>",
+    };
+    const source = generateStarter([sig], "python", false);
+    expect(source).toContain("from __future__ import annotations\nimport datetime");
+    expect(source).toContain(
+      "def sum(self, values: list[TreeNode[str] | None], when: datetime.datetime) -> int | None:",
+    );
+    expect(generateStarter([signature], "python", false)).toContain(
+      "def sum(self, values: list[int]) -> int:",
+    );
+    expect(generateStarter([sig], "python", true)).toContain("def __init__(self) -> None:");
+  });
+  it("derives all coding languages independently of editorial variants", () => {
+    const runtime = (language: string) => ({ revision: `${language}-runtime`, harness: "harness" });
+    const coding = generateQuestionImplementations({ signature }, runtime);
+    expect(coding.map((item) => item.language)).toEqual(["python", "java", "typescript", "ocaml"]);
+    expect(coding.every((item) => item.starterSource.includes("sum"))).toBe(true);
+    expect(
+      generateQuestionImplementations(
+        { signature, sql: { dialect: "postgresql", outputOrder: "ordered" } },
+        runtime,
+      ).map((item) => item.language),
+    ).toEqual(["postgresql"]);
+    expect(() => generateQuestionImplementations({ signature }, () => undefined)).toThrow(
+      "Missing supported runtime",
+    );
+  });
   it("escapes authored documentation and supports staged no-arg methods", () => {
     const sig: Signature = {
       ...signature,
@@ -121,7 +156,6 @@ describe("drafts", () => {
     },
     hiddenCases: [],
     attribution: "",
-    implementations: [],
     canonicalApproachId: "default",
     approaches: [
       {
@@ -141,13 +175,8 @@ describe("drafts", () => {
     expect(() =>
       validateQuestionDraft({
         ...content,
-        implementations: [
-          {
-            language: "python",
-            runtimeRevision: "r",
-            harnessRevision: "h",
-            starterSource: "a\0b",
-          },
+        approaches: [
+          { ...content.approaches[0], implementations: [{ language: "python", source: "a\0b" }] },
         ],
       }),
     ).toThrow("NUL");
@@ -168,7 +197,7 @@ it("composes staged methods without parsing generated classes", () => {
     returnType: "void",
   } satisfies import("../src/model.ts").Signature;
   expect(generateStarter([signature], "ocaml", true)).toContain("let clear () : unit");
-  expect(generateStarter([signature], "python", true)).toContain("    def clear(self):");
+  expect(generateStarter([signature], "python", true)).toContain("    def clear(self) -> None:");
   expect(generateStarter([signature], "typescript", true)).toContain("    clear(): void {");
   expect(generateStarter([signature], "java", true)).toContain("    public void clear() {");
 });

@@ -6,9 +6,10 @@ import {
   blankApproach,
   selectApproach,
   approachTitle,
+  approachDefaultLanguage,
   withCanonicalApproach,
 } from "@quorem/questions";
-import { Plus, Trash2, BookmarkCheck, ArrowUpRight, Code2 } from "lucide-react";
+import { Plus, Trash2, BookmarkCheck, ArrowUpRight } from "lucide-react";
 import { Field } from "./AuthoringFields";
 import { TextInput } from "../../ui/TextControl";
 import { SelectField } from "../../ui/SelectField";
@@ -18,10 +19,11 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import { AuthoringCodeField } from "./AuthoringInputs";
 import { ApproachMetadataFields } from "./ApproachMetadataFields";
 import { ApproachPicker } from "../editor/components/ApproachPicker";
-import { revisions, languageImplementation, type Language } from "./content";
+import type { Language } from "./content";
+import { questionLanguages } from "@quorem/questions";
 import { languageLabels, solutionLanguageLabel } from "../editor/editorLanguages";
 
-const languages = Object.keys(revisions) as Language[];
+const languages = [...questionLanguages(false), ...questionLanguages(true)];
 export function CodeEditorialFields({
   content,
   language,
@@ -70,9 +72,6 @@ export function CodeEditorialFields({
     if (!approach) return;
     onChange({
       ...content,
-      implementations: content.implementations.some((item) => item.language === language)
-        ? content.implementations
-        : [...content.implementations, languageImplementation(language)],
       approaches: content.approaches.map((item) =>
         item.id === approach.id
           ? {
@@ -128,7 +127,11 @@ export function CodeEditorialFields({
                   ...content,
                   approaches: content.approaches.filter((item) => item.id !== approach?.id),
                 });
-              else if (removal === "code" && approach?.defaultLanguage !== language)
+              else if (
+                removal === "code" &&
+                approach &&
+                approachDefaultLanguage(approach) !== language
+              )
                 updateApproach({
                   implementations: approach!.implementations.filter(
                     (item) => item.language !== language,
@@ -244,25 +247,7 @@ export function CodeEditorialFields({
                     leading: <LanguageLogo language={value} />,
                   }))}
               />
-              {!content.implementations.some((item) => item.language === language) && (
-                <button
-                  type="button"
-                  className="button button-ghost"
-                  disabled={disabled}
-                  onClick={() =>
-                    onChange({
-                      ...content,
-                      implementations: [
-                        ...content.implementations,
-                        languageImplementation(language),
-                      ],
-                    })
-                  }
-                >
-                  <Code2 size={14} aria-hidden="true" /> Allow submissions
-                </button>
-              )}
-              {variant && language !== approach.defaultLanguage && (
+              {variant && language !== approachDefaultLanguage(approach) && (
                 <>
                   {!canonical && (
                     <button
@@ -315,10 +300,10 @@ export function CodeEditorialFields({
               <button
                 type="button"
                 className="button button-ghost"
-                onClick={() => onLanguageChange(approach.defaultLanguage)}
+                onClick={() => onLanguageChange(approachDefaultLanguage(approach))}
               >
-                <LanguageLogo language={approach.defaultLanguage} />
-                {languageLabels[approach.defaultLanguage]} default
+                <LanguageLogo language={approachDefaultLanguage(approach)} />
+                {languageLabels[approachDefaultLanguage(approach)]} default
                 <ArrowUpRight size={14} aria-hidden="true" />
               </button>
             </div>

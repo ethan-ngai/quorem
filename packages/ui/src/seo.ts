@@ -13,6 +13,7 @@ export const appPaths = [
   "/login",
   "/interviews",
   "/admin",
+  "/questions",
   "/match",
   "/invite",
   "/interview",
@@ -55,6 +56,10 @@ const pages: Record<string, { title: string; description: string }> = {
     description: "Create sessions, invite participants and manage collaborative coding workspaces.",
   },
   "/admin": {
+    title: "Admin Dashboard - Quorem",
+    description: "Review platform activity, accounts and question content.",
+  },
+  "/questions": {
     title: "Question Editor - Quorem",
     description:
       "Create and edit coding questions, define test cases and build multi-stage Odyssey challenges.",
