@@ -11,6 +11,7 @@ import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { retainBatch } from "../../events/scheduling/retention.ts";
+import { matchSnapshot } from "../lifecycle/repository.ts";
 import { matchReviewRepository } from "./repository.ts";
 
 const url = process.env.QUOREM_REVIEW_TEST_DATABASE_URL;
@@ -110,6 +111,26 @@ void test("completed review is participant-only, latest-round and frozen-sharing
     "UPDATE matches SET state='completed',completed_at=now(),outcome='{}' WHERE id=$1",
     [ids.match],
   );
+  const pending = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,match_id,match_sequence,kind,source,source_hash,state,cases,admitted_at) VALUES($1,'review-a',$2,$3,3,'submit','pending','hash','queued','[]',now())",
+    [pending, ids.a, ids.match],
+  );
+  await assert.rejects(repo.read(actor("review-a"), ids.match), { status: 404 });
+  const snapshot = (await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      matchSnapshot(tx, ids.match, "review-a"),
+    ),
+  )) as { reviewPending: boolean };
+  assert.equal(snapshot.reviewPending, true);
+  await pool.query("UPDATE submissions SET state='failed' WHERE id=$1", [pending]);
+  const ready = (await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      matchSnapshot(tx, ids.match, "review-a"),
+    ),
+  )) as { reviewPending: boolean };
+  assert.equal(ready.reviewPending, false);
+  await pool.query("DELETE FROM submissions WHERE id=$1", [pending]);
   await assert.rejects(repo.read(actor("review-c"), ids.match), { status: 404 });
   let data = JSON.parse(await repo.read(actor("review-a"), ids.match));
   assert.equal(data.participants[0].workspace.id, ids.a);
@@ -182,6 +203,10 @@ void test("party guest is restricted to participated rounds and live credentials
     "INSERT INTO users(id,display_name,kind) VALUES ('review-guest','Guest','guest'),('review-new','New','guest')",
   );
   await pool.query(
+    "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'review-a','matches.host_guests','manual','party-review','fixture','test')",
+    [crypto.randomUUID()],
+  );
+  await pool.query(
     "INSERT INTO parties(id,host_owner_id,invite_hash,settings) VALUES($1,'review-a','party-review','{}'),($2,'review-a','party-review-other','{}')",
     [party, otherParty],
   );
@@ -190,7 +215,7 @@ void test("party guest is restricted to participated rounds and live credentials
     [party],
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,problem_version_id,started_at,deadline,party_id,share_code_after_match,completed_at,outcome) VALUES($1,'review-a','guest-round-one',now()+interval '1 hour',30,'completed',ARRAY['easy'],$4,now()-interval '1 hour',now(),$5,true,now(),'{}'),($2,'review-a','guest-round-two',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$5,true,NULL,NULL),($3,'review-a','guest-other-party',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$6,true,NULL,NULL)",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,problem_version_id,started_at,deadline,party_id,share_code_after_match,completed_at,outcome) VALUES($1,'review-a','guest-round-one',now()+interval '1 hour',30,'completed',ARRAY['easy'],$4,now()-interval '1 hour',now(),$5,true,now(),'{}'),($2,'review-a','guest-round-two',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$5,true,NULL,NULL),($3,'review-a','guest-other-party',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now()-interval '1 minute',now()+interval '30 minutes',$6,true,NULL,NULL)",
     [first, second, outsider, ids.version, party, otherParty],
   );
   await pool.query(

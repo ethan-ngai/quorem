@@ -1,4 +1,5 @@
 /** @file deadlines.ts @description Database-clock match and party deadline discovery. @module events */
+import { reviewPending } from "../../matches/review/pending.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import type { DeadlineStore } from "../../../../modules/events/scheduling/scheduling.ts";
@@ -21,8 +22,8 @@ const candidates = (shard: number, shards: number) => {
     WHERE mod((('x'||substr(m.id::text,1,8))::bit(32)::bigint),${shards})=${shard} AND (p.match_id IS NOT NULL OR m.state NOT IN ('completed','cancelled'))
     UNION ALL
     SELECT 'party:'||p.id::text,NULL::text,LEAST(p.countdown_ends_at,
-      CASE WHEN EXISTS(SELECT 1 FROM matches m WHERE m.id=p.current_match_id AND m.state IN ('completed','cancelled')) THEN clock_timestamp() END,
-      (SELECT min(pm.last_seen_at+interval '5 minutes') FROM party_members pm WHERE pm.party_id=p.id),
+      CASE WHEN EXISTS(SELECT 1 FROM matches m WHERE m.id=p.current_match_id AND m.state IN ('completed','cancelled')) THEN clock_timestamp()+CASE WHEN ${reviewPending(sql`p.current_match_id`)} THEN interval '2 seconds' ELSE interval '0 seconds' END END,
+      (SELECT min(GREATEST(pm.last_seen_at+interval '5 minutes',COALESCE((SELECT max(l.expires_at) FROM realtime_presence_leases l WHERE l.subject=pm.owner_id),'-infinity'::timestamptz))) FROM party_members pm WHERE pm.party_id=p.id),
       (SELECT min(COALESCE(GREATEST((SELECT max(l.expires_at) FROM platform_presence_leases l WHERE l.owner_id=pm.owner_id),(SELECT max(l.expires_at) FROM realtime_presence_leases l WHERE l.subject=pm.owner_id)),clock_timestamp())) FROM party_members pm WHERE pm.party_id=p.id AND pm.ready))
     FROM parties p WHERE p.disbanded_at IS NULL AND mod((('x'||substr(p.id::text,1,8))::bit(32)::bigint),${shards})=${shard}
   )`;

@@ -16,173 +16,24 @@ import {
   type Parties,
   type PartySettings,
 } from "../../../modules/parties/model.ts";
-import {
-  lockMatchOwner,
-  hosting,
-  start,
-  type MatchRecord,
-} from "../matches/lifecycle/repository.ts";
+import { lockMatchOwner, hosting } from "../matches/lifecycle/repository.ts";
 import { digest, fingerprint, inviteCipher, token } from "../matches/lifecycle/crypto.ts";
 import { validateSelectedMatchProblem } from "../matches/selection/repository.ts";
 import { matchEvent, finishMatch, reconcileMatch } from "../matches/reconcile/repository.ts";
 
+import { uuid, missing, conflict, validateGuest, lockParty, snapshot, reset } from "./store.ts";
+import { startRound, transferHost, reconcileParty, scheduleIfReady } from "./reconcile.ts";
+export { reconcileParty } from "./reconcile.ts";
+
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const missing = () => new ApplicationError("not_found", "Party not found", 404);
-const conflict = (message: string) => new ApplicationError("invalid_transition", message, 409);
-const online = sql`EXISTS (SELECT 1 FROM platform_presence_leases l WHERE l.owner_id=pm.owner_id AND l.expires_at>clock_timestamp()) OR EXISTS (SELECT 1 FROM realtime_presence_leases l WHERE l.subject=pm.owner_id AND l.expires_at>clock_timestamp())`;
-async function lockParty(tx: Transaction, id: string, owner: string) {
-  if (!uuid.test(id)) throw missing();
-  const row = (
-    await tx.execute<{
-      host: string;
-      settings: PartySettings;
-      current: string | null;
-      latest: string | null;
-    }>(
-      sql`SELECT p.host_owner_id AS host,p.settings,p.current_match_id::text AS current,p.latest_match_id::text AS latest FROM parties p JOIN party_members pm ON pm.party_id=p.id AND pm.owner_id=${owner} WHERE p.id=${id}::uuid AND p.disbanded_at IS NULL FOR UPDATE OF p`,
-    )
-  ).rows[0];
-  if (!row) throw missing();
-  return row;
-}
-async function snapshot(tx: Transaction, id: string) {
-  const row = (
-    await tx.execute<{ data: unknown }>(
-      sql`SELECT jsonb_build_object('id',p.id,'version',p.version::text,'hostUserId',h.participant_id,'settings',p.settings,'currentMatchId',p.current_match_id,'latestMatchId',p.latest_match_id,'countdownEndsAt',p.countdown_ends_at,'members',COALESCE((SELECT jsonb_agg(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'ready',pm.ready,'online',(${online}),'joinedAt',pm.joined_at) ORDER BY pm.seat) FROM party_members pm JOIN users u ON u.id=pm.owner_id WHERE pm.party_id=p.id),'[]'::jsonb)) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id WHERE p.id=${id}::uuid`,
-    )
-  ).rows[0];
-  if (!row) throw missing();
-  return row.data;
-}
-async function reset(tx: Transaction, id: string) {
-  await tx.execute(sql`UPDATE party_members SET ready=false WHERE party_id=${id}::uuid`);
-  await tx.execute(
-    sql`UPDATE parties SET countdown_ends_at=NULL,version=version+1 WHERE id=${id}::uuid`,
-  );
-}
-export async function startRound(
-  tx: Transaction,
-  id: string,
-  p: { host: string; settings: PartySettings },
-) {
-  const members = (
-    await tx.execute<{ owner: string; seat: number; ready: boolean; online: boolean }>(
-      sql`SELECT pm.owner_id AS owner,pm.seat,pm.ready,(${online}) AS online FROM party_members pm WHERE pm.party_id=${id}::uuid ORDER BY pm.seat`,
-    )
-  ).rows;
-  const required =
-    p.settings.mode === "showdown"
-      ? members.length === 2
-      : members.length >= 2 && members.length <= 8;
-  if (!required || members.some((m) => !m.ready || !m.online))
-    throw conflict("All players must be online and ready");
-  await hosting(tx, p.host, p.settings.accessMode);
-  // Co-locate party and round deadlines on the same durable scheduler shard.
-  const match = id.slice(0, 8) + crypto.randomUUID().slice(8),
-    s = p.settings;
-  await tx.execute(
-    sql`INSERT INTO matches(id,party_id,share_code_after_match,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES(${match}::uuid,${id}::uuid,${s.shareCodeAfterMatch},${p.host},${await digest(token())},clock_timestamp()+interval '24 hours',${s.durationMinutes},'waiting',${s.mode},ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(s.difficulties)}::jsonb)),NULLIF(${s.selectedProblemVersionId ?? ""},'')::uuid,${JSON.stringify(s.rules)}::jsonb,${s.accessMode},${s.admissionLocked},${JSON.stringify(s.questionFilters)}::jsonb)`,
-  );
-  for (const member of members) {
-    await tx.execute(
-      sql`INSERT INTO match_participants(match_id,owner_id,seat,ready) VALUES(${match}::uuid,${member.owner},${member.seat},true)`,
-    );
-    await tx.execute(
-      sql`INSERT INTO match_reservations(owner_id,match_id) VALUES(${member.owner},${match}::uuid)`,
-    );
-  }
-  const record: MatchRecord = {
-    host: p.host,
-    state: "waiting",
-    mode: s.mode,
-    started: false,
-    outcome: null,
-    access: s.accessMode,
-    settings: s,
-  };
-  await start(tx, match, record);
-  await matchEvent(tx, match, "match.updated");
-  await tx.execute(
-    sql`UPDATE parties SET current_match_id=${match}::uuid,countdown_ends_at=NULL,version=version+1 WHERE id=${id}::uuid`,
-  );
-}
-/** Reconciles presence, completed rounds and countdown under the party lock. */
-export async function reconcileParty(tx: Transaction, id: string): Promise<void> {
-  if (!uuid.test(id)) return;
-  const p = (
-    await tx.execute<{
-      host: string;
-      settings: PartySettings;
-      current: string | null;
-      latest: string | null;
-      due: boolean;
-    }>(
-      sql`SELECT host_owner_id AS host,settings,current_match_id::text AS current,latest_match_id::text AS latest,countdown_ends_at<=clock_timestamp() AS due FROM parties WHERE id=${id}::uuid AND disbanded_at IS NULL FOR UPDATE`,
-    )
-  ).rows[0];
-  if (!p) return;
-  await tx.execute(
-    sql`UPDATE party_members pm SET last_seen_at=clock_timestamp() WHERE pm.party_id=${id}::uuid AND (${online}) AND EXISTS(SELECT 1 FROM realtime_presence_leases l WHERE l.subject=pm.owner_id AND l.expires_at>clock_timestamp())`,
-  );
-  const offline = await tx.execute(
-    sql`UPDATE party_members pm SET ready=false WHERE pm.party_id=${id}::uuid AND pm.ready AND NOT (${online}) RETURNING owner_id`,
-  );
-  const removed = await tx.execute(
-    sql`DELETE FROM party_members pm WHERE pm.party_id=${id}::uuid AND pm.last_seen_at<=clock_timestamp()-interval '5 minutes' AND NOT (${online}) RETURNING owner_id`,
-  );
-  if (offline.rows.length || removed.rows.length) await reset(tx, id);
-  await tx.execute(
-    sql`UPDATE parties p SET host_owner_id=COALESCE((SELECT pm.owner_id FROM party_members pm WHERE pm.party_id=p.id AND (${online}) ORDER BY pm.joined_at,pm.owner_id LIMIT 1),p.host_owner_id) WHERE p.id=${id}::uuid AND NOT EXISTS(SELECT 1 FROM party_members WHERE party_id=p.id AND owner_id=p.host_owner_id)`,
-  );
-  const empty = await tx.execute(
-    sql`UPDATE parties p SET disbanded_at=clock_timestamp(),countdown_ends_at=NULL,version=version+1 WHERE p.id=${id}::uuid AND NOT EXISTS(SELECT 1 FROM party_members WHERE party_id=p.id) RETURNING id`,
-  );
-  if (empty.rows.length) return;
-  if (p.current) {
-    const done = (
-      await tx.execute(
-        sql`SELECT 1 FROM matches WHERE id=${p.current}::uuid AND state IN ('completed','cancelled')`,
-      )
-    ).rows.length;
-    if (done) {
-      await tx.execute(
-        sql`UPDATE parties SET latest_match_id=current_match_id,current_match_id=NULL,countdown_ends_at=NULL,version=version+1 WHERE id=${id}::uuid`,
-      );
-      await tx.execute(sql`UPDATE party_members SET ready=false WHERE party_id=${id}::uuid`);
-      return;
-    }
-  }
-  if (p.due && !p.current && !offline.rows.length && !removed.rows.length) {
-    await tx.execute(sql`SAVEPOINT party_round_start`);
-    try {
-      const latest = (
-        await tx.execute<{ host: string; settings: PartySettings }>(
-          sql`SELECT host_owner_id AS host,settings FROM parties WHERE id=${id}::uuid`,
-        )
-      ).rows[0];
-      await startRound(tx, id, latest);
-      await tx.execute(sql`RELEASE SAVEPOINT party_round_start`);
-    } catch (error) {
-      await tx.execute(sql`ROLLBACK TO SAVEPOINT party_round_start`);
-      await tx.execute(sql`RELEASE SAVEPOINT party_round_start`);
-      if (!(error instanceof ApplicationError)) throw error;
-      await reset(tx, id);
-    }
-  }
-}
-async function scheduleIfReady(tx: Transaction, id: string) {
-  await tx.execute(
-    sql`UPDATE parties p SET countdown_ends_at=clock_timestamp()+interval '5 seconds' WHERE p.id=${id}::uuid AND p.current_match_id IS NULL AND p.latest_match_id IS NOT NULL AND (SELECT count(*) FROM party_members WHERE party_id=p.id)>=2 AND (p.settings->>'mode'<>'showdown' OR (SELECT count(*) FROM party_members WHERE party_id=p.id)=2) AND NOT EXISTS(SELECT 1 FROM party_members pm WHERE pm.party_id=p.id AND (NOT pm.ready OR NOT (${online})))`,
-  );
-}
 export function partyRepository(
   run: Run,
   inviteKey: Uint8Array,
   coordinator: Coordinator,
   shards: number,
   receipts: Receipts,
+  guestCreation = false,
 ): Parties {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, fn));
@@ -202,6 +53,7 @@ export function partyRepository(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${who.userId + ":party:" + route + ":" + key},740040))`,
         );
         await lockMatchOwner(tx, who);
+        await validateGuest(tx, who);
         const prior = (
           await tx.execute<{ hash: string; response: unknown }>(
             sql`SELECT body_hash AS hash,response FROM match_idempotency WHERE owner_id=${who.userId} AND route=${"party:" + route} AND key=${key} AND expires_at>clock_timestamp()`,
@@ -214,8 +66,28 @@ export function partyRepository(
               "Key was used for a different command",
               409,
             );
+          const replay = route === "create" ? await cipher.open(prior.response) : prior.response;
+          if (route === "create") {
+            const value = replay as { party?: { id?: string }; inviteUrl?: string };
+            if (!value.party?.id || !value.inviteUrl?.startsWith("/invite/")) throw missing();
+            await lockParty(tx, value.party.id, who.userId);
+            if (
+              !(
+                await tx.execute(
+                  sql`SELECT 1 FROM parties WHERE id=${value.party.id}::uuid AND host_owner_id=${who.userId} AND invite_hash=${await digest(value.inviteUrl.slice(8))}`,
+                )
+              ).rows.length
+            )
+              throw missing();
+          } else if (route === "join") {
+            const id = (replay as { id?: string }).id;
+            if (!id) throw missing();
+            await lockParty(tx, id, who.userId);
+          } else if (!route.startsWith("leave:") && !route.startsWith("disband:")) {
+            await lockParty(tx, route.slice(route.indexOf(":") + 1), who.userId);
+          }
           if (receipt) await consumePrearm(tx, receipt.id, receipt.shard);
-          return route === "create" ? cipher.open(prior.response) : prior.response;
+          return replay;
         }
         const value = await fn(tx),
           saved = route === "create" ? await cipher.seal(value) : value;
@@ -232,6 +104,8 @@ export function partyRepository(
   const repo: Parties = {
     async current(who) {
       return transact(async (tx) => {
+        await lockMatchOwner(tx, who);
+        await validateGuest(tx, who);
         const row = (
           await tx.execute<{ id: string }>(
             sql`SELECT party_id::text AS id FROM party_members WHERE owner_id=${who.userId}`,
@@ -253,6 +127,8 @@ export function partyRepository(
     },
     async read(who, id) {
       return transact(async (tx) => {
+        await lockMatchOwner(tx, who);
+        await validateGuest(tx, who);
         await lockParty(tx, id, who.userId);
         await reconcileParty(tx, id);
         await lockParty(tx, id, who.userId);
@@ -262,6 +138,12 @@ export function partyRepository(
     async create(who, key, input) {
       const s = normalizePartySettings(input),
         id = crypto.randomUUID();
+      if (s.accessMode === "guests_allowed" && !guestCreation)
+        throw new ApplicationError(
+          "guest_hosting_paused",
+          "Guest hosting is temporarily paused",
+          409,
+        );
       return command(
         who,
         "create",
@@ -288,11 +170,12 @@ export function partyRepository(
       );
     },
     async preview(raw) {
+      if (!validGuestToken(raw)) throw missing();
       const hash = await digest(raw);
       return transact(async (tx) => {
         const row = (
           await tx.execute<{ data: unknown }>(
-            sql`SELECT jsonb_build_object('id',p.id,'settings',p.settings,'participantCount',(SELECT count(*) FROM party_members WHERE party_id=p.id),'capacity',CASE WHEN p.settings->>'mode'='showdown' THEN 2 ELSE 8 END) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id AND NOT h.disabled WHERE p.invite_hash=${hash} AND p.disbanded_at IS NULL`,
+            sql`SELECT jsonb_build_object('id',p.id,'guestAllowed',(p.settings->>'accessMode'='guests_allowed' AND NOT (p.settings->>'admissionLocked')::boolean AND p.guest_joins<32),'participantCount',(SELECT count(*) FROM party_members WHERE party_id=p.id),'capacity',CASE WHEN p.settings->>'mode'='showdown' THEN 2 ELSE 8 END) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id AND NOT h.disabled WHERE p.invite_hash=${hash} AND p.disbanded_at IS NULL`,
           )
         ).rows[0];
         if (!row) throw missing();
@@ -302,6 +185,7 @@ export function partyRepository(
     async join(who, key, raw) {
       if (who.kind === "guest")
         throw new ApplicationError("forbidden", "Use guest invitation", 403);
+      if (!validGuestToken(raw)) throw missing();
       const hash = await digest(raw);
       return command(who, "join", key, raw, async (tx) => {
         const row = (
@@ -343,31 +227,37 @@ export function partyRepository(
         hash = await guestTokenHash(credential);
       return transact(async (tx) => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${hash},740060))`);
+        const existing = (
+          await tx.execute<{ owner: string; party: string | null; valid: boolean }>(
+            sql`SELECT g.owner_id AS owner,g.party_id::text AS party,g.revoked_at IS NULL AND g.expires_at>clock_timestamp() AS valid FROM guest_sessions g JOIN users u ON u.id=g.owner_id AND u.kind='guest' AND NOT u.disabled WHERE g.token_hash=${hash} FOR UPDATE OF g`,
+          )
+        ).rows[0];
         const party = (
           await tx.execute<{ id: string; host: string; settings: PartySettings; joins: number }>(
-            sql`SELECT id::text,host_owner_id AS host,settings,guest_joins AS joins FROM parties WHERE invite_hash=${inviteHash} AND disbanded_at IS NULL FOR UPDATE`,
+            sql`SELECT p.id::text,p.host_owner_id AS host,p.settings,p.guest_joins AS joins FROM parties p JOIN users h ON h.id=p.host_owner_id AND NOT h.disabled WHERE p.invite_hash=${inviteHash} AND p.disbanded_at IS NULL FOR UPDATE OF p`,
           )
         ).rows[0];
         if (!party) throw missing();
-        const existing = (
-          await tx.execute<{ owner: string; party: string | null; valid: boolean }>(
-            sql`SELECT owner_id AS owner,party_id::text AS party,revoked_at IS NULL AND expires_at>clock_timestamp() AND last_seen_at>clock_timestamp()-interval '2 hours' AS valid FROM guest_sessions WHERE token_hash=${hash} FOR UPDATE`,
-          )
-        ).rows[0];
+        if (!(await capabilitiesInTransaction(tx, party.host)).hostGuests)
+          throw new ApplicationError("entitlement_required", "Guest hosting is unavailable", 403);
         if (existing) {
           if (existing.party !== party.id || !existing.valid)
             throw new ApplicationError("unauthenticated", "Guest session expired or revoked", 401);
-          await lockParty(tx, party.id, existing.owner);
-          return snapshot(tx, party.id);
+          if (
+            (
+              await tx.execute(
+                sql`SELECT 1 FROM party_members WHERE party_id=${party.id}::uuid AND owner_id=${existing.owner}`,
+              )
+            ).rows.length
+          )
+            return snapshot(tx, party.id);
         }
         if (
           party.settings.accessMode !== "guests_allowed" ||
           party.settings.admissionLocked ||
-          party.joins >= 32
+          (!existing && party.joins >= 32)
         )
           throw new ApplicationError("forbidden", "Party is not accepting guests", 403);
-        if (!(await capabilitiesInTransaction(tx, party.host)).hostGuests)
-          throw new ApplicationError("entitlement_required", "Guest hosting is unavailable", 403);
         const cap = party.settings.mode === "showdown" ? 2 : 8;
         const seat = (
           await tx.execute<{ n: number }>(
@@ -375,19 +265,22 @@ export function partyRepository(
           )
         ).rows[0].n;
         if (!seat) throw conflict("Party is full");
-        const owner = crypto.randomUUID();
-        await tx.execute(
-          sql`INSERT INTO users(id,participant_id,display_name,kind) VALUES(${owner},${owner}::uuid,${name},'guest')`,
-        );
+        const owner = existing?.owner ?? crypto.randomUUID();
+        if (!existing)
+          await tx.execute(
+            sql`INSERT INTO users(id,participant_id,display_name,kind) VALUES(${owner},${owner}::uuid,${name},'guest')`,
+          );
         await tx.execute(
           sql`INSERT INTO party_members(party_id,owner_id,seat) VALUES(${party.id}::uuid,${owner},${seat})`,
         );
-        await tx.execute(
-          sql`INSERT INTO guest_sessions(token_hash,owner_id,party_id,expires_at) VALUES(${hash},${owner},${party.id}::uuid,clock_timestamp()+interval '24 hours')`,
-        );
-        await tx.execute(
-          sql`UPDATE parties SET guest_joins=guest_joins+1 WHERE id=${party.id}::uuid`,
-        );
+        if (!existing) {
+          await tx.execute(
+            sql`INSERT INTO guest_sessions(token_hash,owner_id,party_id,expires_at) VALUES(${hash},${owner},${party.id}::uuid,clock_timestamp()+interval '24 hours')`,
+          );
+          await tx.execute(
+            sql`UPDATE parties SET guest_joins=guest_joins+1 WHERE id=${party.id}::uuid`,
+          );
+        }
         await reset(tx, party.id);
         return snapshot(tx, party.id);
       });
@@ -399,12 +292,19 @@ export function partyRepository(
         key,
         body,
         async (tx) => {
+          await lockParty(tx, id, who.userId);
           await reconcileParty(tx, id);
           const p = await lockParty(tx, id, who.userId);
           if (action === "settings") {
             if (p.host !== who.userId)
               throw new ApplicationError("forbidden", "Only the host can change settings", 403);
             const s = normalizePartySettings(body);
+            if (s.accessMode === "guests_allowed" && !guestCreation)
+              throw new ApplicationError(
+                "guest_hosting_paused",
+                "Guest hosting is temporarily paused",
+                409,
+              );
             await hosting(tx, who.userId, s.accessMode);
             await validateSelectedMatchProblem(tx, who.userId, s);
             const count = (
@@ -438,17 +338,20 @@ export function partyRepository(
           } else if (action === "ready") {
             if (typeof body !== "boolean") throw conflict("Ready is required");
             if (p.current) throw conflict("A round is active");
-            await tx.execute(
-              sql`UPDATE party_members SET ready=${body} WHERE party_id=${id}::uuid AND owner_id=${who.userId}`,
+            const changed = await tx.execute(
+              sql`UPDATE party_members SET ready=${body} WHERE party_id=${id}::uuid AND owner_id=${who.userId} AND ready IS DISTINCT FROM ${body} RETURNING owner_id`,
             );
-            await tx.execute(
-              sql`UPDATE parties SET countdown_ends_at=NULL,version=version+1 WHERE id=${id}::uuid`,
-            );
-            if (body) await scheduleIfReady(tx, id);
+            if (changed.rows.length) {
+              await tx.execute(
+                sql`UPDATE parties SET countdown_ends_at=NULL,queue_error=NULL,version=version+1 WHERE id=${id}::uuid`,
+              );
+              if (body) await scheduleIfReady(tx, id);
+            }
           } else if (action === "start") {
             if (p.host !== who.userId)
               throw new ApplicationError("forbidden", "Only the host can start", 403);
             if (p.current) throw conflict("A round is already active");
+            if (p.latest) throw conflict("Ready players to start the next round");
             await startRound(tx, id, p);
           } else if (action === "disband") {
             if (p.host !== who.userId)
@@ -496,11 +399,7 @@ export function partyRepository(
               sql`DELETE FROM party_members WHERE party_id=${id}::uuid AND owner_id=${who.userId}`,
             );
             await reset(tx, id);
-            if (p.host === who.userId) {
-              await tx.execute(
-                sql`UPDATE parties SET host_owner_id=COALESCE((SELECT pm.owner_id FROM party_members pm WHERE pm.party_id=${id}::uuid AND (${online}) ORDER BY pm.joined_at,pm.owner_id LIMIT 1),host_owner_id) WHERE id=${id}::uuid`,
-              );
-            }
+            if (p.host === who.userId) await transferHost(tx, id, p.settings);
             await tx.execute(
               sql`UPDATE parties SET disbanded_at=clock_timestamp() WHERE id=${id}::uuid AND NOT EXISTS(SELECT 1 FROM party_members WHERE party_id=${id}::uuid)`,
             );
@@ -514,12 +413,19 @@ export function partyRepository(
       if (!uuid.test(windowId)) throw new ApplicationError("invalid_input", "Invalid window", 400);
       return transact(async (tx) => {
         await lockMatchOwner(tx, who);
+        await validateGuest(tx, who);
+        const prior = (
+          await tx.execute<{ id: string }>(
+            sql`SELECT party_id::text AS id FROM party_members WHERE owner_id=${who.userId}`,
+          )
+        ).rows[0];
+        if (prior) await reconcileParty(tx, prior.id);
         await tx.execute(
-          sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<=clock_timestamp() LIMIT 128)`,
+          sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<=clock_timestamp()-interval '5 minutes' LIMIT 128)`,
         );
         const count = (
           await tx.execute<{ n: number; known: boolean }>(
-            sql`SELECT count(*)::int AS n,COALESCE(bool_or(window_id=${windowId}::uuid),false) AS known FROM platform_presence_leases WHERE owner_id=${who.userId}`,
+            sql`SELECT count(*)::int AS n,COALESCE(bool_or(window_id=${windowId}::uuid),false) AS known FROM platform_presence_leases WHERE owner_id=${who.userId} AND expires_at>clock_timestamp()`,
           )
         ).rows[0];
         if (count.n >= 16 && !count.known)

@@ -22,6 +22,9 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     return sql`DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE published_at IS NOT NULL AND occurred_at < statement_timestamp()-interval '7 days' ORDER BY occurred_at,sequence FOR UPDATE SKIP LOCKED LIMIT ${limit})`;
   });
   statements.push(
+    sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+  );
+  statements.push(
     // Preserve compact practice feedback before clearing large result payloads.
     sql`UPDATE submissions SET source='',result=NULL,result_payload=NULL,cases='[]'::jsonb,lossless_cases=NULL
       WHERE id IN (

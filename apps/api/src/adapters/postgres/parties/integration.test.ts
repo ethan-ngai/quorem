@@ -8,13 +8,15 @@ import { assertRunnerFixture } from "../judging/worker/test-db.ts";
 import { resolve } from "node:path";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
+import { newGuestToken, guestTokenHash } from "../../../modules/identity/guest/credentials.ts";
+import { guestRepository } from "../identity/guest.ts";
 import { partyRepository, reconcileParty } from "./repository.ts";
 import { prearmReceipts } from "../events/scheduling/prearm.ts";
 import { postgresDeadlines } from "../events/scheduling/deadlines.ts";
 const url = process.env.QUOREM_PARTY_TEST_DATABASE_URL;
-if (!url || new URL(url).pathname !== "/quorem_hono_lifecycle_test")
+if (!url || new URL(url).pathname !== "/quorem_hono_party_test")
   throw new Error("Disposable party database required");
-assertRunnerFixture(url, ["/quorem_hono_lifecycle_test"]);
+assertRunnerFixture(url, ["/quorem_hono_party_test"]);
 const pool = createNodePool({
   connectionString: url,
   max: 8,
@@ -32,6 +34,7 @@ const repo = partyRepository(
   { prearm: async () => {}, wake: async () => {} },
   1,
   prearmReceipts(run),
+  true,
 );
 const user = (id: string) => ({
   kind: "local" as const,
@@ -46,7 +49,7 @@ beforeAll(async () => {
   await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
   await migrate(pool, "product", resolve("migrations"));
   await pool.query(
-    "INSERT INTO users(id,participant_id,display_name,kind) VALUES ('party-a',gen_random_uuid(),'A','account'),('party-b',gen_random_uuid(),'B','account'),('party-c',gen_random_uuid(),'C','account'),('party-d',gen_random_uuid(),'D','account')",
+    "INSERT INTO users(id,participant_id,display_name,kind) VALUES ('party-a',gen_random_uuid(),'A','account'),('party-b',gen_random_uuid(),'B','account'),('party-c',gen_random_uuid(),'C','account'),('party-d',gen_random_uuid(),'D','account'),('party-e',gen_random_uuid(),'E','account'),('party-f',gen_random_uuid(),'F','account')",
   );
   const fixture = JSON.parse(
     readFileSync(
@@ -99,22 +102,33 @@ test("members share presence, readiness, and offline cleanup", async () => {
   const id = created.party.id;
   await repo.heartbeat(a, crypto.randomUUID());
   await repo.join(b, "join", created.inviteUrl.slice("/invite/".length));
-  await repo.heartbeat(b, crypto.randomUUID());
+  const firstWindow = crypto.randomUUID(),
+    secondWindow = crypto.randomUUID();
+  await repo.heartbeat(b, firstWindow);
+  await repo.heartbeat(b, secondWindow);
   await repo.mutate(a, id, "ready", "ready", true);
   const party = (await repo.mutate(b, id, "ready", "ready", true)) as {
     members: { ready: boolean; online: boolean }[];
   };
   expect(party.members.every((x) => x.ready && x.online)).toBe(true);
   await pool.query(
+    "UPDATE platform_presence_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE window_id=$1",
+    [firstWindow],
+  );
+  const stillOnline = (await repo.read(a, id)) as {
+    members: { ready: boolean; online: boolean }[];
+  };
+  expect(stillOnline.members.every((x) => x.ready && x.online)).toBe(true);
+
+  await pool.query(
     "UPDATE platform_presence_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE owner_id='party-b'",
   );
-  await run((scope) =>
-    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      reconcileParty(tx, id),
-    ),
-  );
+  await repo.heartbeat(b, secondWindow);
   const snapshot = (await repo.read(a, id)) as { members: { ready: boolean; online: boolean }[] };
-  expect(snapshot.members.filter((x) => !x.online)[0].ready).toBe(false);
+  expect(snapshot.members.find((x) => !x.ready)?.online).toBe(true);
+  await pool.query(
+    "UPDATE platform_presence_leases SET expires_at=clock_timestamp()-interval '7 minutes' WHERE owner_id='party-b'",
+  );
   await pool.query(
     "UPDATE party_members SET last_seen_at=clock_timestamp()-interval '6 minutes' WHERE owner_id='party-b'",
   );
@@ -199,4 +213,131 @@ test("completion resets readiness and requeue freezes settings exactly once", as
   );
   expect(result.rows).toHaveLength(2);
   expect(result.rows.map((x) => x.share_code_after_match)).toEqual([true, false]);
+});
+
+test("host transfer, guest re-entry and requeue errors preserve authorization", async () => {
+  for (const owner of ["party-e", "party-f"])
+    await pool.query(
+      "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,'matches.host_guests','manual',$3,'fixture','test')",
+      [crypto.randomUUID(), owner, owner],
+    );
+  const settings = {
+    questionFilters: {},
+    admissionLocked: false,
+    accessMode: "guests_allowed",
+    mode: "free-for-all",
+    difficulties: ["hard"],
+    rules: { clipboard: "off", focus: "off" },
+    difficulty: "hard",
+    durationMinutes: 30,
+    shareCodeAfterMatch: true,
+  };
+  const paused = partyRepository(
+    run,
+    new Uint8Array(32),
+    { prearm: async () => {}, wake: async () => {} },
+    1,
+    prearmReceipts(run),
+    false,
+  );
+  await expect(paused.create(user("party-e"), "paused", settings)).rejects.toMatchObject({
+    code: "guest_hosting_paused",
+  });
+  const e = user("party-e"),
+    f = user("party-f"),
+    created = (await repo.create(e, "create", settings)) as {
+      party: { id: string };
+      inviteUrl: string;
+    };
+  const id = created.party.id,
+    token = created.inviteUrl.slice(8),
+    credential = newGuestToken();
+  await repo.heartbeat(e, crypto.randomUUID());
+  await repo.join(f, "join", token);
+  await repo.heartbeat(f, crypto.randomUUID());
+  const preview = (await repo.preview(token)) as { guestAllowed: boolean; settings?: unknown };
+  expect(preview.guestAllowed).toBe(true);
+  expect(preview.settings).toBeUndefined();
+  await repo.joinGuest(token, credential, "Guest");
+  const hash = await guestTokenHash(credential);
+  const guest = await run((scope) => guestRepository(scope).lookup("match", hash));
+  if (!guest) throw new Error("guest missing");
+  await repo.heartbeat(guest, crypto.randomUUID());
+  await repo.mutate(e, id, "leave", "leave", null);
+  const publicF = (
+    await pool.query("SELECT participant_id::text AS id FROM users WHERE id='party-f'")
+  ).rows[0].id;
+  expect(((await repo.read(f, id)) as { hostUserId: string }).hostUserId).toBe(publicF);
+  await repo.mutate(guest, id, "leave", "leave", null);
+  expect(((await repo.current(guest)) as { party: unknown }).party).toBeNull();
+  await repo.joinGuest(token, credential, "Guest");
+  await repo.heartbeat(guest, crypto.randomUUID());
+  const previous = (await pool.query("SELECT id FROM matches LIMIT 1")).rows[0].id;
+  await pool.query("UPDATE parties SET latest_match_id=$1 WHERE id=$2", [previous, id]);
+  await repo.mutate(f, id, "ready-f", "ready", true);
+  await repo.mutate(guest, id, "ready-g", "ready", true);
+  const deadline = ((await repo.read(f, id)) as { countdownEndsAt: string }).countdownEndsAt;
+  await repo.mutate(guest, id, "ready-again", "ready", true);
+  expect(((await repo.read(f, id)) as { countdownEndsAt: string }).countdownEndsAt).toBe(deadline);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    [id],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      reconcileParty(tx, id),
+    ),
+  );
+  const failed = (await repo.read(f, id)) as {
+    queueError: string | null;
+    members: { ready: boolean }[];
+  };
+  expect(failed.queueError).toBeTruthy();
+  expect(failed.members.every((x) => !x.ready)).toBe(true);
+  await repo.mutate(f, id, "easy-settings", "settings", {
+    ...settings,
+    difficulty: "easy",
+    difficulties: ["easy"],
+  });
+  await pool.query("INSERT INTO match_reservations(owner_id,match_id) VALUES('party-f',$1)", [
+    previous,
+  ]);
+  await repo.mutate(f, id, "busy-f", "ready", true);
+  await repo.mutate(guest, id, "busy-guest", "ready", true);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    [id],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      reconcileParty(tx, id),
+    ),
+  );
+  expect(((await repo.read(f, id)) as { queueError: string | null }).queueError).toContain(
+    "another match",
+  );
+  await pool.query("DELETE FROM match_reservations WHERE owner_id='party-f'");
+
+  await repo.mutate(f, id, "ready-after-error", "ready", true);
+  await repo.mutate(guest, id, "ready-before-revoke", "ready", true);
+  await pool.query("UPDATE guest_sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1", [
+    hash,
+  ]);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    [id],
+  );
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      reconcileParty(tx, id),
+    ),
+  );
+  expect(((await repo.read(f, id)) as { queueError: string | null }).queueError).toContain(
+    "expired",
+  );
+
+  await pool.query("UPDATE guest_sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1", [
+    await guestTokenHash(credential),
+  ]);
+  await expect(repo.joinGuest(token, credential, "Guest")).rejects.toMatchObject({ status: 401 });
 });

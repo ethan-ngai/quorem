@@ -1,4 +1,5 @@
 /** @file repository.ts @description Authorized latest-round review projection. @module matches */
+import { reviewPending } from "./pending.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -46,6 +47,7 @@ export function matchReviewRepository(run: Run): MatchReview {
           JOIN users u ON u.id=viewer.owner_id AND NOT u.disabled
           WHERE m.id=${matchId}::uuid AND m.started_at IS NOT NULL AND m.state IN ('completed','cancelled')
             AND m.completed_at>clock_timestamp()-interval '24 hours' AND m.problem_version_id IS NOT NULL
+            AND NOT (${reviewPending(sql`m.id`)})
             AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
               WHERE later.owner_id=viewer.owner_id AND next.started_at IS NOT NULL
                 AND (next.started_at,next.id)>(m.started_at,m.id))
