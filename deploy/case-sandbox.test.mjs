@@ -66,12 +66,9 @@ function fixture({ failure = false, streamFailure = false } = {}) {
       async exec(command, options) {
         context.command = command;
         context.execOptions = options;
+        assert.ok(options.stdin instanceof ReadableStream);
+        sent = new Uint8Array(await new Response(options.stdin).arrayBuffer());
         return {
-          stdin: new WritableStream({
-            write(bytes) {
-              sent = bytes;
-            },
-          }),
           stdout: new ReadableStream({
             start(controller) {
               if (streamFailure) {
