@@ -7,6 +7,23 @@ export type WireValue = null | number | boolean | string | WireValue[] | {
     [key: string]: WireValue;
 };
 export interface paths {
+    "/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrator-only platform aggregates. Submission activity reflects retained history, not lifetime analytics. */
+        get: operations["getAdminOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/problems/{slug}": {
         parameters: {
             query?: never;
@@ -1003,6 +1020,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminOverview: {
+            /** Format: date-time */
+            generatedAt: string;
+            /** Format: date-time */
+            windowStart: string;
+            users: {
+                accounts: number;
+                administrators: number;
+                disabled: number;
+                active7d: number;
+            };
+            content: {
+                publications: number;
+                drafts: number;
+                workspaces: number;
+            };
+            submissions: {
+                retained7d: number;
+                pending: number;
+            };
+            activeUsers: {
+                id: string;
+                displayName: string;
+                /** @enum {string} */
+                role: "admin" | "user";
+                disabled: boolean;
+                submissions: number;
+                /** Format: date-time */
+                lastSubmittedAt: string;
+            }[];
+            recentDrafts: {
+                id: string;
+                title: string;
+                /** Format: date-time */
+                updatedAt: string;
+                editingPublication: boolean;
+            }[];
+        };
         /** @enum {string} */
         Language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
         /** @enum {string} */
@@ -1770,6 +1825,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAdminOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Administrator required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getProblem: {
         parameters: {
             query?: never;

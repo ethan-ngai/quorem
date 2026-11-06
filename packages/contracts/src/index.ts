@@ -3,6 +3,7 @@ import createClient from "openapi-fetch";
 import type { components, paths } from "./generated";
 
 export type { components, paths, operations } from "./generated";
+export type AdminOverview = components["schemas"]["AdminOverview"];
 export type MethodCall = components["schemas"]["MethodCall"];
 export type OdysseyLevel = components["schemas"]["OdysseyLevel"];
 export type OdysseyProgress = components["schemas"]["OdysseyProgress"];

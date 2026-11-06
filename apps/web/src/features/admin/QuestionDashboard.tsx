@@ -433,7 +433,7 @@ export function QuestionDashboard({
                       <span className="table-title">{row.title || "Untitled question"}</span>
                     ) : (
                       <Link
-                        to="/admin/questions"
+                        to="/questions"
                         search={{
                           ...search,
                           draft: "revision" in row ? row.id : undefined,

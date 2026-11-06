@@ -193,3 +193,9 @@ export async function mutateQuestionBatch(
     );
   return requireData(result.data, result.error);
 }
+
+/** @returns Current administrator aggregates; details are bounded by the server. */
+export async function getAdminOverview(signal?: AbortSignal) {
+  const { data, error } = await api().GET("/v1/admin/overview", { signal });
+  return requireData(data, error);
+}
