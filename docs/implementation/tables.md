@@ -2,7 +2,7 @@
 
 `apps/web/src/ui/Table.tsx` owns list-table semantics, row click isolation and replacement motion. `table.css` owns shared appearance. Features own columns, content, widths and domain actions. Practice, authoring and interviews consume these directly; no Practice table wrapper remains.
 
-`useServerTable` controls TanStack Table in manual sorting/pagination mode. It never reorders or slices server rows. `TableControls` owns sortable headers, accessible previous/next actions, counts and the 10/20/50/100 presets plus a custom positive-integer page size, validated with the shared Zod schema. Changing size or sort resets to page 1; totals clamp stale pages after deletion/filter changes. React Query owns requests and cache isolation.
+`useServerTable` controls TanStack Table in manual sorting/pagination mode. It never reorders or slices server rows. `TableControls` owns sortable headers, accessible previous/next actions and counts. `PageSizeControl` provides one editable dropdown with 10/20/50/100 presets and arbitrary positive-integer values, validated with the shared Zod schema. Enter or blur applies typed values; Escape restores the current size. Changing size or sort resets to page 1; totals clamp stale pages after deletion/filter changes. React Query owns requests and cache isolation.
 
 Practice and authoring retain page, size and sort in URL state; interview and picker state is local. Defaults: Practice 20, authoring/interviews 50, picker 100. Authoring defaults to newest-edited drafts and alphabetical publications; interviews default to most recently updated. Equal sort keys use stable identifiers. Draft Load more becomes numbered pages; bulk selection applies to the visible page and clears when URL scope changes.
 

@@ -1,11 +1,8 @@
-import { TextInput } from "./TextControl";
-import { inputConstraints } from "./input-constraints";
 /** @file TableControls.tsx @description Shared server sorting and page controls. @module ui */
-import { pageSizeSchema } from "@quorem/contracts/pagination";
 import type { Column, Table } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
-import { SelectField } from "./SelectField";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
+import type { ReactNode } from "react";
+import { PageSizeControl } from "./PageSizeControl";
 import { Tooltip } from "./Tooltip";
 import "./table.css";
 export function TableSortHeader<T>({
@@ -34,95 +31,6 @@ export function TableSortHeader<T>({
     </th>
   );
 }
-const pageSizes = [10, 20, 50, 100].map((value) => ({
-  value: String(value),
-  label: `${value} per page`,
-}));
-function PageSizeControl({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: number;
-  onChange: (size: number) => void;
-  disabled: boolean;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
-  const input = useRef<HTMLInputElement>(null);
-  function apply() {
-    const result = pageSizeSchema.safeParse(Number(draft));
-    input.current?.setCustomValidity(result.success ? "" : "Enter a positive whole number.");
-    if (!result.success) {
-      input.current?.reportValidity();
-      return;
-    }
-    onChange(result.data);
-    setEditing(false);
-  }
-  const preset = pageSizes.some((option) => option.value === String(value));
-  return (
-    <div className="table-page-size">
-      <SelectField
-        label="Rows per page"
-        value={editing || !preset ? "custom" : String(value)}
-        options={[...pageSizes, { value: "custom", label: "Custom…" }]}
-        onChange={(next) => {
-          if (next === "custom") setEditing(true);
-          else {
-            setEditing(false);
-            setDraft(next);
-            onChange(Number(next));
-          }
-        }}
-        disabled={disabled}
-      />
-      {(editing || !preset) && (
-        <div className="table-page-size-custom">
-          <TextInput
-            unstyled
-            constraint={inputConstraints.integer({ min: 1, max: Number.MAX_SAFE_INTEGER })}
-            ref={input}
-            type="text"
-            inputMode="numeric"
-            min={1}
-            step={1}
-            required
-            aria-label="Custom rows per page"
-            value={draft}
-            disabled={disabled}
-            onChange={(event) => {
-              event.currentTarget.setCustomValidity("");
-              setDraft(event.target.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                apply();
-              }
-              if (event.key === "Escape") {
-                setDraft(String(value));
-                setEditing(false);
-              }
-            }}
-          />
-          <Tooltip content="Apply page size">
-            <button
-              className="table-page-button"
-              type="button"
-              onClick={apply}
-              aria-label="Apply page size"
-              disabled={disabled}
-            >
-              <Check size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TablePagination<T>({
   table,
   disabled = false,
@@ -142,7 +50,6 @@ export function TablePagination<T>({
       </span>
       <div>
         <PageSizeControl
-          key={pageSize}
           value={pageSize}
           onChange={(size) => table.setPageSize(size)}
           disabled={disabled}

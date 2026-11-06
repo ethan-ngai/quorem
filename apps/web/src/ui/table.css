@@ -132,36 +132,3 @@
 .data-table .table-title:not(:disabled):hover {
   color: var(--color-brand-accent);
 }
-
-.table-page-size,
-.table-page-size-custom {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.table-page-size input {
-  box-sizing: border-box;
-  width: 10ch;
-  min-height: var(--control-height);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
-  color: var(--color-text);
-  font: inherit;
-}
-.table-page-size input:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-.table-page-size input:disabled {
-  opacity: 0.4;
-}
-@media (max-width: 650px) {
-  .table-page-size {
-    flex-wrap: wrap;
-  }
-  .table-page-size input {
-    min-height: var(--narrow-touch-target);
-  }
-}
