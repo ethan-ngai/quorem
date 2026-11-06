@@ -417,12 +417,6 @@ async function editPublication(
   runtime: RuntimeResolver,
 ): Promise<string> {
   const versionId = (draft.publishedVersionId ?? draft.editVersionId)!;
-  if (draft.ownerId === null && !actor.globalAllowed)
-    throw new ApplicationError(
-      "step_up_required",
-      "Verify your passkey again to edit a global question",
-      403,
-    );
   const { c, p } = preparePublication(raw, runtime);
   await lockIdentity(tx, str(p.slug), sourceId(p));
   const parent = await lockPublication(tx, versionId);
@@ -498,12 +492,7 @@ async function publish(
       throw new ApplicationError("forbidden", "Only administrators can publish globally", 403);
     privateOwner = null;
   } else if (visibility === "private") privateOwner = actor.userId;
-  if (privateOwner === null && !actor.globalAllowed)
-    throw new ApplicationError(
-      "step_up_required",
-      "Sign in with a verified passkey again before publishing globally",
-      403,
-    );
+
   let slug = str(p.slug);
   const actorPrefix = `private-${(await contentDigest(privateOwner ?? actor.userId)).slice(0, 16)}-`;
   if (slug.startsWith(actorPrefix)) slug = slug.slice(actorPrefix.length);
@@ -595,7 +584,7 @@ function authorizePublicationDeletion(
   if (owner === null && !actor.globalAllowed)
     throw new ApplicationError(
       "step_up_required",
-      "Verify your passkey again to delete a global question",
+      "Confirm your identity before deleting a global question",
       403,
     );
 }

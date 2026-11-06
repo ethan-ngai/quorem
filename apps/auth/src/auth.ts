@@ -1,7 +1,8 @@
+import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import type { configuration } from "./config.ts";
-import { createAuthMiddleware, APIError } from "better-auth/api";
+import { createAuthMiddleware, getSessionFromCtx, APIError } from "better-auth/api";
 import { google, apple, github, cognito } from "better-auth/social-providers";
 import type { socialEmail } from "./social-email.ts";
 import { accountEmails } from "./emails/content.ts";
@@ -27,6 +28,10 @@ export function createAuth(options: {
     { profile_color: number; profile_color_revision: number | string | bigint } | undefined
   >;
   recordAssurance(sessionId: string): Promise<void>;
+  checkAssurance(
+    sessionId: string,
+    subject: string,
+  ): Promise<{ valid: boolean; strongAt?: number }>;
   adapter: BetterAuthOptions["database"];
   allowSeed?: boolean;
 }) {
@@ -147,6 +152,27 @@ export function createAuth(options: {
         }
       }),
       before: createAuthMiddleware(async (ctx) => {
+        if (
+          !allowSeed &&
+          [
+            "/change-email",
+            "/link-social",
+            "/unlink-account",
+            "/passkey/generate-register-options",
+            "/passkey/verify-registration",
+            "/passkey/delete-passkey",
+          ].includes(ctx.path)
+        ) {
+          const current = await getSessionFromCtx(ctx);
+          if (!current) throw new APIError("UNAUTHORIZED", { message: "Sign in required" });
+          const assurance = await options.checkAssurance(current.session.id, current.user.id);
+          if (!assurance.valid || !sudoExpiresAt(assurance.strongAt, Math.floor(Date.now() / 1000)))
+            throw new APIError("FORBIDDEN", {
+              code: "STEP_UP_REQUIRED",
+              message: "Confirm your identity to continue",
+            });
+        }
+
         let emailChangeToken = false;
         if (ctx.path === "/verify-email") {
           try {

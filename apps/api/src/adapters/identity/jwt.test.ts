@@ -127,7 +127,7 @@ describe("managed identity", () => {
     expect(principal).toMatchObject({
       kind: "managed",
       credentialExpiresAt: now + 300,
-      strongUntil: now - 1 + 600,
+      strongUntil: now - 1 + 900,
     });
     vi.useFakeTimers();
     try {

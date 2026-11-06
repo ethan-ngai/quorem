@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { runQuestionBatches } from "./runQuestionBatches";
-import { verifyWithPasskey } from "../auth/capabilities";
+import { requireSudo } from "../auth/sudo";
 import { BulkQuestionConfirmation } from "./BulkQuestionConfirmation";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { userFacingErrorMessage } from "../../ui/errors";
@@ -144,13 +144,13 @@ export function QuestionDashboard({
       await runQuestionBatches({
         rows: confirmed,
         cancelled: () => cancellation.current,
-        verify: verifyWithPasskey,
+        verify: requireSudo,
         onProgress: (completed, verifying) =>
           toast.loading(
             cancellation.current
               ? "Stopping after the current request…"
               : verifying
-                ? "Verify with your passkey to continue…"
+                ? "Confirm your identity to continue…"
                 : `${action === "publish" ? "Publishing" : "Deleting"} ${completed} of ${confirmed.length}…`,
             { id: notification },
           ),

@@ -1,3 +1,4 @@
+import { requireSudo } from "./sudo";
 import { AuthError, passkeyError, registrationError } from "./errors";
 import { fetchSession, resetToken, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
@@ -91,9 +92,11 @@ export async function signInWithPasskey(search?: string) {
 }
 export async function addPasskey(name = "My passkey") {
   if (!supportsPasskeys()) throw new AuthError("Passkeys are unavailable in this browser.");
-  const result = await passkeyRequest(async () =>
-    (await authClient()).passkey.addPasskey({ name }),
-  );
+  let result = await passkeyRequest(async () => (await authClient()).passkey.addPasskey({ name }));
+  if (result.error && "code" in result.error && result.error.code === "STEP_UP_REQUIRED") {
+    await requireSudo();
+    result = await passkeyRequest(async () => (await authClient()).passkey.addPasskey({ name }));
+  }
   if (result.error) throw passkeyError(result.error);
 }
 export async function listPasskeys(): Promise<Passkey[]> {
@@ -102,7 +105,11 @@ export async function listPasskeys(): Promise<Passkey[]> {
   return result.data ?? [];
 }
 export async function deletePasskey(id: string) {
-  const result = await (await authClient()).passkey.deletePasskey({ id });
+  let result = await (await authClient()).passkey.deletePasskey({ id });
+  if (result.error && "code" in result.error && result.error.code === "STEP_UP_REQUIRED") {
+    await requireSudo();
+    result = await (await authClient()).passkey.deletePasskey({ id });
+  }
   if (result.error) throw passkeyError(result.error);
 }
 export async function signInWithProvider(provider: SocialProvider, search?: string) {

@@ -75,7 +75,7 @@ export function drizzleAuthRepository(run: RunScope): AuthRepository {
       return run((connection) =>
         connection.transaction({ ...options, readOnly: true }, async (tx) => {
           const result = await tx.execute(
-            sql`SELECT EXTRACT(EPOCH FROM a.strong_at)::bigint AS strong_at FROM ${session} s JOIN ${user} u ON u.id=s."userId" LEFT JOIN ${assurance} a ON a.session_id=s.id WHERE s.id=${sessionId} AND s."expiresAt">clock_timestamp() AND u.id=${subject} AND u."emailVerified"=true`,
+            sql`SELECT FLOOR(EXTRACT(EPOCH FROM a.strong_at))::bigint AS strong_at FROM ${session} s JOIN ${user} u ON u.id=s."userId" LEFT JOIN ${assurance} a ON a.session_id=s.id WHERE s.id=${sessionId} AND s."expiresAt">clock_timestamp() AND u.id=${subject} AND u."emailVerified"=true`,
           );
           if (!result.rows.length) return { valid: false };
           const strong = result.rows[0].strong_at;

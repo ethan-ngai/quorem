@@ -18,7 +18,9 @@ describe.skipIf(!url || !inbox)(
         SMTP_HOST: "127.0.0.1",
         SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
       });
-      const { auth, createAuth, database } = await (await import("./node-auth")).createNodeRuntime(process.env);
+      const { auth, createAuth, database, repository } = await (
+        await import("./node-auth")
+      ).createNodeRuntime(process.env);
       await migrateAuth(database);
       const username = `edit${randomUUID().replaceAll("-", "").slice(0, 14)}`,
         email = `${username}@example.test`,
@@ -96,6 +98,8 @@ describe.skipIf(!url || !inbox)(
         expect(
           (await database.query('SELECT name,username FROM "user" WHERE id=$1', [id])).rows[0],
         ).toEqual({ name: "", username: `${username}2` });
+        const session = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
+        await repository.recordAssurance(session!.session.id);
         await clearLimits(newEmail);
         await clearLimits(email);
         expect(

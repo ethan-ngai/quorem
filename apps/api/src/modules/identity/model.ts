@@ -1,3 +1,4 @@
+import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 export class IdentityError extends Error {
   readonly kind: "unauthorized" | "unavailable";
   constructor(kind: "unauthorized" | "unavailable", cause?: unknown) {
@@ -65,12 +66,6 @@ export async function authenticate(
     ...principal,
     kind: "managed",
     credentialExpiresAt: claims.expiresAt,
-    strongUntil:
-      strongAt !== undefined &&
-      Number.isSafeInteger(strongAt) &&
-      strongAt <= now &&
-      strongAt > now - 600
-        ? strongAt + 600
-        : 0,
+    strongUntil: sudoExpiresAt(strongAt, now),
   };
 }

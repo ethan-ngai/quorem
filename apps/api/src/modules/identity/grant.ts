@@ -1,3 +1,4 @@
+import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 /** @file grant.ts @description Reauthorize verified socket grants without retaining credentials. @module identity */
 import {
   IdentityError,
@@ -58,13 +59,7 @@ export async function reauthorizeGrant(
       return {
         ...principal,
         credentialExpiresAt: grant.expiresAt,
-        strongUntil:
-          strongAt !== undefined &&
-          Number.isSafeInteger(strongAt) &&
-          strongAt <= seconds &&
-          strongAt > seconds - 600
-            ? Math.min(strongAt + 600, grant.strongUntil)
-            : 0,
+        strongUntil: Math.min(sudoExpiresAt(strongAt, seconds), grant.strongUntil),
       };
     }
     if (grant.kind === "guest") {
