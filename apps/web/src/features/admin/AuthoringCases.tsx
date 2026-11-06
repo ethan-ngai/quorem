@@ -1,3 +1,4 @@
+import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
 import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
@@ -144,37 +145,19 @@ export function AuthoringCases({
   }
   return (
     <div className="authoring-test-collections">
-      <div className="result-tabs" role="tablist" aria-label="Question tests">
-        {(["public", "hidden"] as const).map((tab) => (
-          <button
-            type="button"
-            role="tab"
-            key={tab}
-            id={`${id}-${tab}`}
-            aria-selected={collection === tab}
-            aria-controls={`${id}-cases`}
-            tabIndex={collection === tab ? 0 : -1}
-            onClick={() => setCollection(tab)}
-            onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-              event.preventDefault();
-              const next =
-                event.key === "Home"
-                  ? "public"
-                  : event.key === "End"
-                    ? "hidden"
-                    : tab === "public"
-                      ? "hidden"
-                      : "public";
-              setCollection(next);
-              document.getElementById(`${id}-${next}`)?.focus();
-            }}
-          >
-            <Icon name={tab === "public" ? "samples" : "lock"} />
-            {tab === "public" ? "Examples" : "Private tests"} ({values[tab].length})
-          </button>
-        ))}
-      </div>
+      <AuthoringTabs
+        id={id}
+        label="Question tests"
+        appearance="default"
+        value={collection}
+        onChange={setCollection}
+        panelId={() => `${id}-cases`}
+        tabs={(["public", "hidden"] as const).map((tab) => ({
+          value: tab,
+          icon: <Icon name={tab === "public" ? "samples" : "lock"} />,
+          label: `${tab === "public" ? "Examples" : "Private tests"} (${values[tab].length})`,
+        }))}
+      />
       <div
         className="authoring-case-browser"
         role="tabpanel"
