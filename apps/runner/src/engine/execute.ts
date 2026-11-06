@@ -310,9 +310,15 @@ export async function executeAndStage(
             throw new ExecutionYield();
           }
           // Compile before fanout; each lane then receives the same immutable artifact.
+          const remaining = total - start;
+          const finalWindow =
+            caseConcurrency > 1 &&
+            !!repository.finalizeCompletion &&
+            remaining <= CASE_LANES &&
+            remaining <= caseConcurrency * 2;
           const requested = Math.min(
-            compiled && !artifact && !fatal ? 1 : caseConcurrency,
-            total - start,
+            compiled && !artifact && !fatal ? 1 : finalWindow ? remaining : caseConcurrency,
+            remaining,
           );
           caseCache.clear();
           const window = await inputs.inputWindow?.(job, start, requested, signal);
@@ -332,8 +338,15 @@ export async function executeAndStage(
             (artifact ? Buffer.byteLength(artifact) : 0);
           const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
           const atomicFinal = !!repository.finalizeCompletion && start + width === total;
-          const runs = Array.from({ length: width }, (_, index) =>
-            executeCase(start + index, { artifact, compilation, fatal }, refs[index])
+          // Prefetch at most two waves while bounding live VMs independently of the window.
+          const lanes = Array.from({ length: caseConcurrency }, () => Promise.resolve());
+          const runs = Array.from({ length: width }, (_, index) => {
+            const lane = index % caseConcurrency;
+            const run = lanes[lane]
+              .then(() => {
+                signal.throwIfAborted();
+                return executeCase(start + index, { artifact, compilation, fatal }, refs[index]);
+              })
               .then((result) => {
                 // Final windows need no ordered checkpoint; verify each stopped case immediately.
                 if (atomicFinal)
@@ -343,8 +356,13 @@ export async function executeAndStage(
               .catch((error) => {
                 controller.abort(error);
                 throw error;
-              }),
-          );
+              });
+            lanes[lane] = run.then(
+              () => {},
+              () => {},
+            );
+            return run;
+          });
           const outcomes = await Promise.allSettled(runs);
           const failed = outcomes.find((value) => value.status === "rejected");
           if (failed?.status === "rejected") throw failed.reason;

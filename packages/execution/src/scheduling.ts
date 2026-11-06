@@ -2,7 +2,7 @@
 export const CASE_LANES = 20;
 export const CASE_WINDOW_BYTES = 8 * 1024 * 1024;
 export const CASE_SCOPE_REVISION = "case-lanes-v3";
-export const JUDGING_DEFAULTS = Object.freeze({ slots: 8, caseLanes: CASE_LANES, sliceMs: 2000 });
+export const JUDGING_DEFAULTS = Object.freeze({ slots: 8, caseLanes: 10, sliceMs: 2000 });
 /** Reject capacity changes outside the supported sandbox and drain bounds. */
 export function judgingCapacity(env: Record<string, string | undefined>) {
   const integer = (name: string, fallback: number, max: number) => {
