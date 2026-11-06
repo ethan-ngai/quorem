@@ -132,9 +132,11 @@ void test("production places sequential database work in the production database
 });
 
 void test("private judging uses service bindings for wakes, native cases, and verification", () => {
+  const resources = outputs();
+  resources.services.origins.value.VERIFICATION_SERVICE_TRANSPORT = "cloudflare-binding";
   const config = stageConfig(
     { ...input(), runnerWakeService: "quorem-hono-services-stage" },
-    outputs(),
+    resources,
     "/tmp/wrangler.json",
   );
   assert.deepEqual(config.services, [
@@ -142,4 +144,16 @@ void test("private judging uses service bindings for wakes, native cases, and ve
     { binding: "CASE_EXECUTION", service: "quorem-hono-services-stage" },
     { binding: "RESULT_VERIFIER", service: "quorem-hono-services-stage-verifier" },
   ]);
+});
+
+void test("API-only releases retain HTTP verification until reciprocal binding is provisioned", () => {
+  const config = stageConfig(
+    { ...input(), runnerWakeService: "quorem-hono-services-stage" },
+    outputs(),
+    "/tmp/wrangler.json",
+  );
+  assert.deepEqual(
+    config.services.map(({ binding }) => binding),
+    ["RUNNER_WAKE", "CASE_EXECUTION"],
+  );
 });
