@@ -49,7 +49,8 @@ const ids = {
   last: crypto.randomUUID(),
 };
 before(async () => {
-  await migrate(pool, "product", resolve("apps/api/migrations"));
+  await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
+  await migrate(pool, "product", resolve(import.meta.dirname, "../../../../../migrations"));
   await pool.query(
     "INSERT INTO users(id,display_name,kind) VALUES ('review-a','A','account'),('review-b','B','account'),('review-c','C','account')",
   );

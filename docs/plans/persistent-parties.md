@@ -76,6 +76,8 @@ Guest sessions currently end with a match. Persistent parties require live party
 - The next round and 24-hour cap invalidate review access; review has no live execution or draft mutation capabilities.
 - Live two-account and guest flows; disposable PostgreSQL integration tests use a database separate from development.
 
-## Current implementation gaps
+## Implementation
 
-Current `finishMatch` deletes active match reservations. Match workspace reads require active/finalizing state and ownership. Presence is scoped to match/interview sockets. The existing result popup's Return to lobby / Quick requeue controls are disabled concept previews. This design requires a real lifecycle and authorization change, beyond enabling those buttons.
+Implemented in the party lifecycle, platform presence, dedicated completed-round review projection, and shared lobby/results controls. The old single-round lobby mutation routes are removed. Winner rows show authoritative elapsed round time. Review restores browser-local drafts; opponents expose only their final admitted submission.
+
+Disposable PostgreSQL tests cover presence, eligibility, readiness races, expiry, guest authorization and review retention. The mandatory native SQL runtime validation also exercises two accounts and a guest through two rounds, frozen sharing policy, automatic requeue, host transfer and disbanding.
