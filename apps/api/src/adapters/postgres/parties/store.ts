@@ -17,7 +17,7 @@ export async function validateGuest(tx: Transaction, who: Principal) {
       throw missing();
     const party = (
       await tx.execute<{ host: string }>(
-        sql`SELECT host_owner_id AS host FROM parties WHERE id=${who.scope.partyId}::uuid AND disbanded_at IS NULL`,
+        sql`SELECT host_owner_id AS host FROM parties WHERE id=${who.scope.partyId}::uuid AND disbanded_at IS NULL FOR UPDATE`,
       )
     ).rows[0];
     if (!party || !(await capabilitiesInTransaction(tx, party.host)).hostGuests) throw missing();
