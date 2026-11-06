@@ -652,7 +652,7 @@
 }
 .lock-shackle {
   transform-origin: 17px 11px;
-  transition: transform 180ms var(--motion-easing);
+  transition: transform var(--motion-standard) var(--motion-easing);
 }
 .lobby-lock-icon[data-locked="false"] .lock-shackle {
   transform: translate(2px, -1px) rotate(28deg);

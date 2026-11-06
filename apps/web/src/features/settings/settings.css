@@ -70,7 +70,7 @@
   box-shadow: none;
 }
 [data-theme="light"] .settings-dialog.unified-settings {
-  box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 .unified-settings .settings-feedback {

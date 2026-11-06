@@ -45,7 +45,7 @@
   gap: 6px;
 }
 .competitive-dialog[data-state="open"] {
-  animation: competitive-dialog-in 180ms var(--motion-easing);
+  animation: competitive-dialog-in var(--motion-standard) var(--motion-easing);
 }
 .competitive-dialog[data-state="closed"] {
   animation: competitive-dialog-out 140ms var(--motion-easing);

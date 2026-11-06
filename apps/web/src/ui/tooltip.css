@@ -7,7 +7,7 @@
   background: var(--color-surface);
   color: var(--color-text);
   font: 11px/1.4 var(--font-interface);
-  box-shadow: var(--shadow-small);
+  box-shadow: var(--shadow-sm);
   animation: tooltip-enter var(--motion-fast) var(--motion-easing);
 }
 .workspace-tooltip code {
