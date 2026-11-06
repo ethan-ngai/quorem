@@ -33,12 +33,14 @@ export async function streamedCaseRequest(options: {
         yield encoder.encode('"operation":"compile-execute",');
       yield encoder.encode('"source":');
       yield* encodeJsonStringChunks(options.source.stream());
-      yield encoder.encode(',"signature":');
-      for await (const part of options.metadata.stream(
-        metadata.signature.start,
-        metadata.signature.length,
-      ))
-        yield part as Uint8Array;
+      if (metadata.signature) {
+        yield encoder.encode(',"signature":');
+        for await (const part of options.metadata.stream(
+          metadata.signature.start,
+          metadata.signature.length,
+        ))
+          yield part as Uint8Array;
+      }
       yield encoder.encode(',"methods":{');
       for (let i = 0; i < metadata.methods.length; i++) {
         if (i) yield encoder.encode(",");

@@ -65,9 +65,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           },
         ],
       });
-      parsedContent.implementations = parsedContent.implementations.filter(
-        (item: { language: string }) => item.language === "python",
-      );
       parsedContent.problem.slug = `fixture-${crypto.randomUUID().slice(0, 8)}`;
       const raw = JSON.stringify(parsedContent).replace('"expected":[999]', '"expected":[999]');
       const http = createApp({ allowedOrigins: [], requestId: () => "http-test" }).route(
@@ -89,7 +86,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       );
       const createResponse = await http.request("/v1/admin/question-drafts", {
         method: "POST",
-        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","implementations":[],"approaches":[],"canonicalApproachId":""}}',
+        body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}}',
       });
       expect(createResponse.status).toBe(201);
       const empty = (await createResponse.json()) as { id: string; revision: string };
@@ -193,9 +190,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
       expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
       expect(fork.content.approaches).toEqual(parsedContent.approaches);
-      expect(
-        fork.content.implementations.every((item: object) => !("referenceSource" in item)),
-      ).toBe(true);
+      expect(fork.content).not.toHaveProperty("implementations");
       expect(
         JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
           .items,
@@ -223,13 +218,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       nul.problem.constraints = [];
       nul.problem.examples = [{ args: ["visible\u0000text"], expected: "visible\u0000text" }];
       nul.hiddenCases = [{ args: ["SECRET\u0000HIDDEN"], expected: "SECRET\u0000HIDDEN" }];
-      nul.implementations = nul.implementations.filter(
-        (x: { language: string }) => x.language === "python",
-      );
-      for (const approach of nul.approaches)
-        approach.implementations = approach.implementations.filter(
-          (item: { language: string }) => item.language === "python",
-        );
       const nd = JSON.parse(await repository.create(actor, JSON.stringify(nul), undefined));
       const np = JSON.parse(await repository.publish(actor, nd.id, "1", "private"));
       const side = await pool.query(
@@ -262,14 +250,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         },
       ];
       sq.hiddenCases = structuredClone(sq.problem.examples);
-      sq.implementations = [
-        {
-          language: "postgresql",
-          starterSource: "select 1",
-          runtimeRevision: "postgresql-17.6-v1",
-          harnessRevision: "quorem-postgresql-v2",
-        },
-      ];
       sq.approaches = [
         {
           ...sq.approaches[0],
@@ -310,7 +290,11 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         await repository.create(actor, undefined, op.publishedVersionId),
       );
       expect(stageFork.content.problem.odyssey.levels).toHaveLength(2);
-      expect(stageFork.content.odysseyHiddenCases).toHaveLength(2);
+      expect(
+        stageFork.content.problem.odyssey.levels.every(
+          (level: { hiddenCases: unknown[] }) => level.hiddenCases.length,
+        ),
+      ).toBe(true);
       const stagedSql = structuredClone(sq);
       stagedSql.problem.slug = `sqlstage-${crypto.randomUUID().slice(0, 8)}`;
       stagedSql.problem.odyssey = {
@@ -320,16 +304,16 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
             statementMarkdown: "Query items",
             methods: [],
             examples: stagedSql.problem.examples,
+            hiddenCases: stagedSql.hiddenCases,
           },
         ],
       };
-      stagedSql.odysseyHiddenCases = [stagedSql.hiddenCases];
       stagedSql.problem.examples = [];
       stagedSql.hiddenCases = [];
       const osd = JSON.parse(await repository.create(actor, JSON.stringify(stagedSql), undefined));
       const osp = JSON.parse(await repository.publish(actor, osd.id, "1", "private"));
       const sqlFork = JSON.parse(await repository.create(actor, undefined, osp.publishedVersionId));
-      expect(sqlFork.content.odysseyHiddenCases).toHaveLength(1);
+      expect(sqlFork.content.problem.odyssey.levels[0].hiddenCases).toHaveLength(1);
       const batchDrafts = await Promise.all(
         Array.from({ length: 3 }, () => repository.create(actor, raw, undefined).then(JSON.parse)),
       );

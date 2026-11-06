@@ -1,71 +1,56 @@
 {
-  "problem": {
-    "id": "00000000-0000-4000-8000-000000000116",
-    "slug": "sql-positive-items",
-    "version": "1",
-    "title": "Positive Items",
-    "difficulty": "easy",
-    "tags": ["Database"],
-    "statementMarkdown": "Return the positive item IDs in ascending order.",
-    "constraints": [],
-    "signature": {
-      "className": "Solution",
-      "methodName": "solve",
-      "parameters": [],
-      "returnType": "int"
-    },
-    "limits": {
-      "wallTimeMs": 2000,
-      "memoryBytes": 268435456,
-      "outputBytes": 65536,
-      "maxProcesses": 16,
-      "maxCollectionElements": 10000,
-      "maxNestingDepth": 100
-    },
-    "sql": {
-      "dialect": "postgresql",
-      "outputOrder": "ordered",
-      "tables": [{ "name": "items", "columns": [{ "name": "id", "type": "integer" }] }],
-      "output": [{ "name": "id", "type": "integer" }]
-    },
-    "examples": [
-      {
-        "args": [{ "tables": [{ "name": "items", "rows": [[2], [-1], [1]] }] }],
-        "expected": { "rows": [[1], [2]] }
-      }
-    ]
-  },
+  "approaches": [
+    {
+      "complexityNotes": "",
+      "explanationMarkdown": "",
+      "id": "default",
+      "implementations": [
+        {
+          "language": "postgresql",
+          "source": "SELECT id FROM items WHERE id \u003e 0 ORDER BY id;"
+        }
+      ],
+      "spaceComplexity": "",
+      "timeComplexity": "",
+      "title": ""
+    }
+  ],
+  "attribution": "Original Quorem fixture",
+  "canonicalApproachId": "default",
   "hiddenCases": [
     {
       "args": [{ "tables": [{ "name": "items", "rows": [[-4], [3], [0]] }] }],
       "expected": { "rows": [[3]] }
     }
   ],
-  "attribution": "Original Quorem fixture",
-  "implementations": [
-    {
-      "language": "postgresql",
-      "starterSource": "SELECT id FROM items;",
-      "runtimeRevision": "postgresql-17.6-v1",
-      "harnessRevision": "quorem-postgresql-v2"
-    }
-  ],
-  "canonicalApproachId": "default",
-  "approaches": [
-  {
-    "id": "default",
-    "title": "",
-    "defaultLanguage": "postgresql",
-    "explanationMarkdown": "",
-    "timeComplexity": "",
-    "spaceComplexity": "",
-    "complexityNotes": "",
-    "implementations": [
+  "problem": {
+    "constraints": [],
+    "difficulty": "easy",
+    "examples": [
       {
-        "language": "postgresql",
-        "source": "SELECT id FROM items WHERE id > 0 ORDER BY id;"
+        "args": [{ "tables": [{ "name": "items", "rows": [[2], [-1], [1]] }] }],
+        "expected": { "rows": [[1], [2]] }
       }
-    ]
+    ],
+    "id": "00000000-0000-4000-8000-000000000116",
+    "limits": {
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100,
+      "maxProcesses": 16,
+      "memoryBytes": 268435456,
+      "outputBytes": 65536,
+      "wallTimeMs": 2000
+    },
+    "slug": "sql-positive-items",
+    "sql": {
+      "dialect": "postgresql",
+      "output": [{ "name": "id", "type": "integer" }],
+      "outputOrder": "ordered",
+      "tables": [{ "columns": [{ "name": "id", "type": "integer" }], "name": "items" }]
+    },
+    "statementMarkdown": "Return the positive item IDs in ascending order.",
+    "tags": ["Database"],
+    "title": "Positive Items",
+    "version": "1"
   }
-]
 }

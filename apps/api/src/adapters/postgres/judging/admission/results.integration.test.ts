@@ -152,10 +152,6 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
         ],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-        [versions[i]],
-      );
-      await pool.query(
         "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
         [versions[i], i ? '["public"]' : "[1]", i ? '"public"' : "2"],
       );
@@ -188,7 +184,6 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
     await pool.query("DELETE FROM workspaces WHERE owner_id=$1", [owner]);
     await pool.query("DELETE FROM problem_examples WHERE version_id=ANY($1::uuid[])", [versions]);
     await pool.query("DELETE FROM problem_test_cases WHERE version_id=ANY($1::uuid[])", [versions]);
-    await pool.query("DELETE FROM problem_languages WHERE version_id=ANY($1::uuid[])", [versions]);
     await pool.query("DELETE FROM problem_versions WHERE id=ANY($1::uuid[])", [versions]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=ANY($1)", [[owner, other]]);

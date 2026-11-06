@@ -7,16 +7,15 @@ import {
 } from "@quorem/database/core";
 import {
   normalizeQuestionDraft,
+  questionLanguages,
   questionPublicationSlug,
   questionSlugFits,
   parseLosslessJson,
   stringifyLosslessJson,
-  generateQuestionImplementations,
   validateQuestionPublication,
   validateQuestionSchema,
   type JsonValue,
   type RuntimeResolver,
-  type QuestionProblem,
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
@@ -112,7 +111,7 @@ function draftJson(row: DraftRow): string {
   const d: Obj = {
     id: row.id,
     revision: row.revision,
-    content: parseLosslessJson(row.content),
+    content: parseLosslessJson(normal(row.content)),
     updatedAt: row.updatedAt,
   };
   if (row.publishedVersionId) d.publishedVersionId = row.publishedVersionId;
@@ -182,19 +181,18 @@ async function prepareImport(raw: string, admin: boolean) {
   return { normalized, slug, leetcode, digest: await contentDigest(normalized) };
 }
 
-/** Compare authored content without identity fields or generated starter code. */
+/** Compare authored content without publication identity fields. */
 function comparablePublication(raw: string): Obj {
   const value = content(raw);
   const problem = object(value.problem);
   delete problem.id;
   delete problem.version;
   problem.companies = list(problem.companies).map(str).sort();
-  delete value.implementations;
   const stages = list(problem.odyssey ? object(problem.odyssey).levels : undefined);
   const groups = [
     problem.examples,
     value.hiddenCases,
-    ...list(value.odysseyHiddenCases),
+    ...stages.map((level) => object(level).hiddenCases),
     ...stages.map((stage) => object(stage).examples),
   ];
   for (const group of groups)
@@ -203,7 +201,6 @@ function comparablePublication(raw: string): Obj {
       if (!list(test.calls).length) delete test.calls;
       if (test.explanation === "") delete test.explanation;
     }
-  if (!list(value.odysseyHiddenCases).length) delete value.odysseyHiddenCases;
   return value;
 }
 
@@ -274,7 +271,6 @@ async function importItem(
     const sections = [
       ["question", before.problem, after.problem],
       ["hidden tests", before.hiddenCases, after.hiddenCases],
-      ["stage tests", before.odysseyHiddenCases, after.odysseyHiddenCases],
       ["canonical approach", before.canonicalApproachId, after.canonicalApproachId],
       ["approaches", before.approaches, after.approaches],
       ["attribution", before.attribution, after.attribution],
@@ -321,14 +317,6 @@ function preparePublication(raw: string, runtime: RuntimeResolver) {
   const c = content(raw),
     p = object(c.problem);
   try {
-    c.implementations = generateQuestionImplementations(
-      JSON.parse(stringifyLosslessJson(p)) as QuestionProblem,
-      runtime,
-    );
-  } catch (error) {
-    throw bad(error instanceof Error ? error.message : "Invalid starter");
-  }
-  try {
     validateQuestionPublication(stringifyLosslessJson(c), validateQuestionSchema, runtime);
   } catch (error) {
     throw bad(error instanceof Error ? error.message : "Invalid question content");
@@ -359,12 +347,12 @@ async function editPublication(
   const missingLanguage = (
     await tx.execute(sql`
     SELECT 1 FROM workspaces WHERE problem_version_id=${versionId}::uuid
-      AND language NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(list(c.implementations).map((item) => str(object(item).language)))}::jsonb))
+      AND language NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(questionLanguages(!!p.sql))}::jsonb))
     LIMIT 1
   `)
   ).rows.length;
   if (missingLanguage) throw bad("Keep languages used by existing workspaces");
-  await tx.execute(sql`SET CONSTRAINTS workspace_problem_language_fkey,
+  await tx.execute(sql`SET CONSTRAINTS workspace_problem_version_fkey,
     matches_problem_version_id_fkey,matches_selected_problem_version_id_fkey,
     question_drafts_published_version_id_fkey,question_drafts_edit_version_fkey,
     runner_job_inputs_version_id_fkey DEFERRED`);

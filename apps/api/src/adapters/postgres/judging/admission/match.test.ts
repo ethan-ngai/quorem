@@ -72,10 +72,6 @@ beforeAll(async () => {
     ],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-    [version],
-  );
-  await pool.query(
     "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
     [version],
   );
@@ -154,7 +150,6 @@ afterAll(async () => {
   await pool.query("DELETE FROM users WHERE id=ANY($1)", [[host, ...guests]]);
   await pool.query("DELETE FROM problem_examples WHERE version_id=$1", [version]);
   await pool.query("DELETE FROM problem_test_cases WHERE version_id=$1", [version]);
-  await pool.query("DELETE FROM problem_languages WHERE version_id=$1", [version]);
   await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
   await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
   await pool.end();

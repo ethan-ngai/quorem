@@ -1,8 +1,11 @@
 /** @file snapshot.ts @description Authorized interview snapshot public projection. @module interviews */
+import { projectQuestionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import {
   JsonNumber,
+  primarySignature,
+  type QuestionProblem,
   parseLosslessJson,
   stringifyLosslessJson,
   type JsonValue,
@@ -122,10 +125,17 @@ export async function prepareInterviewSnapshot(
       totalLevels: new JsonNumber(String(row.total)),
     };
   } else restorePublicExamples(problem, null);
-  const signatures: Obj = { odyssey: { levels: [{ methods: [problem.signature], examples: [] }] } };
-  restorePublicExamples(signatures, null);
-  const cleanLevel = jsonObject((jsonObject(signatures.odyssey).levels as JsonValue[])[0]);
-  problem.signature = (cleanLevel.methods as JsonValue[])[0];
+  if (problem.sql) delete problem.signature;
+  else {
+    const signature = primarySignature(
+      problem as unknown as QuestionProblem,
+    ) as unknown as JsonValue;
+    const signatures: Obj = { odyssey: { levels: [{ methods: [signature], examples: [] }] } };
+    restorePublicExamples(signatures, null);
+    const cleanLevel = jsonObject((jsonObject(signatures.odyssey).levels as JsonValue[])[0]);
+    problem.signature = (cleanLevel.methods as JsonValue[])[0];
+  }
+  projectQuestionRuntime(problem, question.language as string);
   const languages = problem.languages;
   if (!Array.isArray(languages)) throw new Error("Invalid interview languages");
   problem.languages = languages.map((entry) => {

@@ -156,7 +156,6 @@ describe("drafts", () => {
     },
     hiddenCases: [],
     attribution: "",
-    implementations: [],
     canonicalApproachId: "default",
     approaches: [
       {
@@ -176,13 +175,8 @@ describe("drafts", () => {
     expect(() =>
       validateQuestionDraft({
         ...content,
-        implementations: [
-          {
-            language: "python",
-            runtimeRevision: "r",
-            harnessRevision: "h",
-            starterSource: "a\0b",
-          },
+        approaches: [
+          { ...content.approaches[0], implementations: [{ language: "python", source: "a\0b" }] },
         ],
       }),
     ).toThrow("NUL");

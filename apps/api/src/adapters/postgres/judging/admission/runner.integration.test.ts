@@ -154,14 +154,6 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       ],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version],
-    );
-    await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1')",
-      [version],
-    );
-    await pool.query(
       "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]','2')",
       [version],
     );
@@ -1032,17 +1024,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [sqlProblem, sqlProblem]);
       await pool.query(
         "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
-        [
-          sqlVersion,
-          sqlProblem,
-          JSON.stringify(signature),
-          JSON.stringify(limits),
-          JSON.stringify(sqlConfig),
-        ],
-      );
-      await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1')",
-        [sqlVersion],
+        [sqlVersion, sqlProblem, null, JSON.stringify(limits), JSON.stringify(sqlConfig)],
       );
       await pool.query(
         "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
@@ -1281,13 +1263,9 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
       await pool.query(
         "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Odyssey','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
-        [v, p, JSON.stringify(signature), JSON.stringify(limits), JSON.stringify(odyssey)],
+        [v, p, null, JSON.stringify(limits), JSON.stringify(odyssey)],
       );
       await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [v, p]);
-      await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-        [v],
-      );
       await pool.query(
         "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
         [w, owner, v],

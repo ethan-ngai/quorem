@@ -1,8 +1,10 @@
 /** @file publication.ts @description Definition and publication semantics over raw question JSON. @module questions */
+import { generateQuestionImplementations } from "./starter.ts";
+import { validSource } from "./source.ts";
 import { canonicalCode } from "./editorial.ts";
 import type { QuestionContent, Signature } from "./model.ts";
 import { validateQuestionDraft } from "./draft.ts";
-import { validateSignature } from "./signature.ts";
+import { primarySignature, validateSignature } from "./signature.ts";
 import { validateConstraints } from "./constraints.ts";
 import { validateCodingCase, validateCodingSequence } from "./coding-case.ts";
 import { validateSqlCase, validateSqlSchema } from "./sql-case.ts";
@@ -20,30 +22,6 @@ function object(value: JsonValue | undefined): { [key: string]: JsonValue } {
 function array(value: JsonValue | undefined): JsonValue[] {
   return Array.isArray(value) ? value : [];
 }
-function signatureIdentity(sig: Signature): string {
-  return JSON.stringify({
-    description: sig.description || "",
-    returns: sig.returns || "",
-    throws: (sig.throws ?? []).map((t) => ({ type: t.type, description: t.description })),
-    outputOrder: sig.outputOrder || "",
-    nodeReferences: sig.nodeReferences ?? "",
-    className: sig.className,
-    methodName: sig.methodName,
-    parameters: sig.parameters.map((p) => ({
-      description: p.description || "",
-      name: p.name,
-      type: p.type,
-      input: p.input
-        ? {
-            preset: p.input.preset,
-            placeholder: p.input.placeholder ?? null,
-            rows: p.input.rows ?? null,
-          }
-        : null,
-    })),
-    returnType: sig.returnType,
-  });
-}
 function core(
   rawJson: string,
   validateSchema: SchemaValidator,
@@ -55,9 +33,12 @@ function core(
   const content = JSON.parse(rawJson) as QuestionContent,
     p = content.problem;
   validateQuestionDraft(content);
-  const suites = content.odysseyHiddenCases ?? [],
-    levels = p.odyssey?.levels;
-  if (!levels && suites.length) throw new Error("staged tests require stages");
+  const levels = p.odyssey?.levels;
+  const suites = levels?.map((level) => level.hiddenCases) ?? [];
+  if ((p.sql || levels) && p.signature !== undefined)
+    throw new Error(
+      "Signature is derived for staged coding questions; SQL has no coding signature",
+    );
   if (levels && (p.examples.length || content.hiddenCases.length))
     throw new Error("put staged examples and tests in their stages");
   if (
@@ -81,8 +62,8 @@ function core(
       throw new Error("SQL supports informational prose only");
     validateSqlSchema(p.sql);
   } else {
-    validateSignature(p.signature, !!levels);
-    validateConstraints(p.signature, p.constraints);
+    if (!levels) validateSignature(primarySignature(p), false);
+    validateConstraints(primarySignature(p), p.constraints);
   }
   const limits = p.limits;
   if (p.sql && (limits.memoryBytes < 268435456 || limits.maxProcesses < 16))
@@ -102,21 +83,15 @@ function core(
     const json = stringifyLosslessJson(v);
     if (p.sql) validateSqlCase(p.sql, json, true);
     else if (methods)
-      validateCodingSequence(p.signature, p.constraints, methods, json, true, limit);
-    else validateCodingCase(p.signature, p.constraints, json, true, limit);
+      validateCodingSequence(primarySignature(p), p.constraints, methods, json, true, limit);
+    else validateCodingCase(primarySignature(p), p.constraints, json, true, limit);
   };
   if (levels) {
     const rawOdyssey = object(rawProblem.odyssey),
       rawLevels = array(rawOdyssey.levels),
-      rawSuites = array(raw.odysseyHiddenCases);
+      rawSuites = rawLevels.map((level) => object(level).hiddenCases);
     if (levels.length < 1 || levels.length > 8 || suites.length !== levels.length)
       throw new Error("Odyssey requires 1 to 8 levels with a private suite per level");
-    if (
-      !p.sql &&
-      (!levels[0].methods.length ||
-        signatureIdentity(p.signature) !== signatureIdentity(levels[0].methods[0]))
-    )
-      throw new Error("primary signature must match the first stage method");
     let methods: Signature[] = [];
     const names = new Set<string>();
     for (let i = 0; i < levels.length; i++) {
@@ -166,29 +141,11 @@ export function validateQuestionPublication(
   options: { requireCanonicalSource?: boolean } = {},
 ): void {
   const c = core(rawJson, validateSchema, true);
-  const languages = new Set<string>();
-  for (const impl of c.implementations) {
-    const runtime = resolveRuntime(impl.language);
-    if (
-      !runtime ||
-      languages.has(impl.language) ||
-      runtime.revision !== impl.runtimeRevision ||
-      runtime.harness !== impl.harnessRevision ||
-      !impl.starterSource.trim()
-    )
-      throw new Error("invalid or duplicate language implementation");
-    languages.add(impl.language);
-  }
-  if (
-    c.problem.sql
-      ? languages.size !== 1 || !languages.has("postgresql")
-      : !languages.has("python") || languages.has("postgresql")
-  )
-    throw new Error(
-      c.problem.sql
-        ? "SQL problems require the PostgreSQL implementation"
-        : "Python implementation required for coding problems",
-    );
+  const generated = generateQuestionImplementations(c.problem, resolveRuntime);
+  for (const implementation of generated)
+    if (!validSource(implementation.starterSource))
+      throw new Error("Generated starter exceeds execution source bounds");
+  const languages = new Set<string>(generated.map((item) => item.language));
   const canonicalLanguage = c.problem.sql ? "postgresql" : "python";
   if (options.requireCanonicalSource !== false && !canonicalCode(c)?.source.trim())
     throw new Error(`${canonicalLanguage} canonical solution required`);
@@ -216,8 +173,9 @@ export function validateQuestionPublication(
       variants.add(implementation.language);
     }
     if (
-      !variants.has(approach.defaultLanguage) ||
-      (canonical && approach.defaultLanguage !== canonicalLanguage)
+      canonical
+        ? approach.defaultLanguage !== undefined
+        : !approach.defaultLanguage || !variants.has(approach.defaultLanguage)
     )
       throw new Error("valid approach default language required");
   }

@@ -38,10 +38,7 @@ it("admits more than 320 indexed cases without Worker reference aggregation", as
       await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Fixture')`);
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
       await tx.execute(
-        sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES(${version}::uuid,${problem}::uuid,1,'Fixture','easy','',${JSON.stringify(signature)}::jsonb,'[]','{}','test',${JSON.stringify({ levels })}::jsonb)`,
-      );
-      await tx.execute(
-        sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES(${version}::uuid,'python','','python-3.12-v1','quorem-harness-v2')`,
+        sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES(${version}::uuid,${problem}::uuid,1,'Fixture','easy','',NULL,'[]','{}','test',${JSON.stringify({ levels })}::jsonb)`,
       );
       await tx.execute(
         sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,

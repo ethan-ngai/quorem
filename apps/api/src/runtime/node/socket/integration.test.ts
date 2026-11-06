@@ -583,10 +583,6 @@ void test("submission SSE sends only invalidations and enforces ownership", asyn
     [version, problem],
   );
   await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','runtime','harness')",
-    [version],
-  );
-  await pool.query(
     "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
     [workspace, host.userId, version],
   );

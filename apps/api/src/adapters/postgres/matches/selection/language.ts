@@ -1,6 +1,7 @@
 /** @file language.ts @description Transactional match workspace-language selection. @module matches */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import { questionRuntime } from "../../problems/runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { MatchLanguageSelection } from "../../../../modules/matches/selection/model.ts";
 import { matchEvent } from "../reconcile/repository.ts";
@@ -47,18 +48,13 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
               "Match language selection is closed",
               409,
             );
-          if (
-            !(
-              await tx.execute(
-                sql`SELECT 1 FROM problem_languages WHERE version_id=${state.version}::uuid AND language=${language}`,
-              )
-            ).rows.length
-          )
-            throw new ApplicationError(
-              "invalid_input",
-              "Language is unavailable for this problem",
-              400,
-            );
+          const problem = (
+            await tx.execute<{ isSql: boolean }>(
+              sql`SELECT sql_config IS NOT NULL AND sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions WHERE id=${state.version}::uuid`,
+            )
+          ).rows[0];
+          if (!problem) throw new ApplicationError("not_found", "Question unavailable", 404);
+          questionRuntime(language, problem.isSql);
           if (
             (
               await tx.execute(

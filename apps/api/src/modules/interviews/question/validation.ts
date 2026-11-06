@@ -12,7 +12,6 @@ export function validateCustomQuestionShape(value: unknown): void {
       (k) =>
         ![
           "odyssey",
-          "odysseyHiddenCases",
           "title",
           "statementMarkdown",
           "signature",

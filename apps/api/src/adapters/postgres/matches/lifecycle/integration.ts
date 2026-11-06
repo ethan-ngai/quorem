@@ -125,9 +125,6 @@ before(async () => {
     examples: [{ args: [1], expected: 2, explanation: "Increment." }],
   });
   fixture.hiddenCases = [{ args: [3], expected: 4 }];
-  fixture.implementations = fixture.implementations.filter(
-    (item: { language: string }) => item.language === "python",
-  );
   fixture.implementations[0].starterSource = "class Solution:\n def f(self,x): pass\n";
   fixture.approaches[0].implementations.find(
     (item: { language: string }) => item.language === "python",
@@ -702,10 +699,6 @@ void test("selected SQL question gives each participant a PostgreSQL workspace",
   await pool.query(
     "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'SQL','easy','','{}','[]','{}','test')",
     [v, p],
-  );
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17-v1','quorem-harness-v2')",
-    [v],
   );
   await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [p, v]);
   await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [v]);

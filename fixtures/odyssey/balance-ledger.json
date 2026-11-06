@@ -1,82 +1,105 @@
 {
-  "problem": {
-    "id": "00000000-0000-4000-8000-000000000115",
-    "slug": "balance-ledger",
-    "version": "1",
-    "title": "Balance Ledger",
-    "difficulty": "easy",
-    "tags": ["Design"],
-    "statementMarkdown": "Build a small ledger across two levels. Keep your implementation as new requirements unlock.",
-    "examples": [],
-    "constraints": [],
-    "signature": {
-      "className": "Solution",
-      "methodName": "deposit",
-      "parameters": [
+  "approaches": [
+    {
+      "complexityNotes": "",
+      "explanationMarkdown": "",
+      "id": "default",
+      "implementations": [
         {
-          "name": "amount",
-          "type": "int"
+          "language": "python",
+          "source": "class Solution:\n    def __init__(self):\n        self.balance = 0\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance\n    def withdraw(self, amount):\n        if amount \u003e self.balance:\n            return False\n        self.balance -= amount\n        return True\n    def clear(self):\n        self.balance = 0\n"
         }
       ],
-      "returnType": "int"
-    },
+      "spaceComplexity": "",
+      "timeComplexity": "",
+      "title": ""
+    }
+  ],
+  "attribution": "Original Quorem fixture",
+  "canonicalApproachId": "default",
+  "hiddenCases": [],
+  "problem": {
+    "constraints": [],
+    "difficulty": "easy",
+    "examples": [],
+    "id": "00000000-0000-4000-8000-000000000115",
     "limits": {
-      "wallTimeMs": 2000,
+      "maxCollectionElements": 10000,
+      "maxNestingDepth": 100,
+      "maxProcesses": 16,
       "memoryBytes": 268435456,
       "outputBytes": 65536,
-      "maxProcesses": 16,
-      "maxCollectionElements": 10000,
-      "maxNestingDepth": 100
+      "wallTimeMs": 2000
     },
     "odyssey": {
       "levels": [
         {
-          "title": "Deposits",
-          "statementMarkdown": "Implement deposit(amount). Add the positive amount to the running balance and return the balance. Each test begins with zero balance.",
-          "methods": [
-            {
-              "className": "Solution",
-              "methodName": "deposit",
-              "parameters": [
-                {
-                  "name": "amount",
-                  "type": "int"
-                }
-              ],
-              "returnType": "int"
-            }
-          ],
           "examples": [
             {
               "args": [],
               "calls": [
-                {
-                  "methodName": "deposit",
-                  "args": [5],
-                  "expected": 5
-                },
-                {
-                  "methodName": "deposit",
-                  "args": [3],
-                  "expected": 8
-                }
+                { "args": [5], "expected": 5, "methodName": "deposit" },
+                { "args": [3], "expected": 8, "methodName": "deposit" }
               ]
             }
-          ]
+          ],
+          "hiddenCases": [
+            {
+              "args": [],
+              "calls": [
+                { "args": [5], "expected": 5, "methodName": "deposit" },
+                { "args": [3], "expected": 8, "methodName": "deposit" }
+              ]
+            },
+            { "args": [], "calls": [{ "args": [2], "expected": 2, "methodName": "deposit" }] }
+          ],
+          "methods": [
+            {
+              "className": "Solution",
+              "methodName": "deposit",
+              "parameters": [{ "name": "amount", "type": "int" }],
+              "returnType": "int"
+            }
+          ],
+          "statementMarkdown": "Implement deposit(amount). Add the positive amount to the running balance and return the balance. Each test begins with zero balance.",
+          "title": "Deposits"
         },
         {
-          "title": "Withdrawals",
-          "statementMarkdown": "Add withdraw(amount). Return false without changing balance when funds are insufficient; otherwise subtract amount and return true. Deposits must still work. Add clear() to reset the balance; it returns no value.",
+          "examples": [
+            {
+              "args": [],
+              "calls": [
+                { "args": [5], "expected": 5, "methodName": "deposit" },
+                { "args": [3], "expected": true, "methodName": "withdraw" },
+                { "args": [3], "expected": false, "methodName": "withdraw" },
+                { "args": [1], "expected": 3, "methodName": "deposit" }
+              ]
+            }
+          ],
+          "hiddenCases": [
+            {
+              "args": [],
+              "calls": [
+                { "args": [5], "expected": 5, "methodName": "deposit" },
+                { "args": [3], "expected": true, "methodName": "withdraw" },
+                { "args": [3], "expected": false, "methodName": "withdraw" },
+                { "args": [1], "expected": 3, "methodName": "deposit" }
+              ]
+            },
+            {
+              "args": [],
+              "calls": [
+                { "args": [7], "expected": 7, "methodName": "deposit" },
+                { "args": [], "expected": null, "methodName": "clear" },
+                { "args": [1], "expected": 1, "methodName": "deposit" }
+              ]
+            }
+          ],
           "methods": [
             {
               "className": "Solution",
               "methodName": "withdraw",
-              "parameters": [
-                {
-                  "name": "amount",
-                  "type": "int"
-                }
-              ],
+              "parameters": [{ "name": "amount", "type": "int" }],
               "returnType": "bool"
             },
             {
@@ -86,157 +109,15 @@
               "returnType": "void"
             }
           ],
-          "examples": [
-            {
-              "args": [],
-              "calls": [
-                {
-                  "methodName": "deposit",
-                  "args": [5],
-                  "expected": 5
-                },
-                {
-                  "methodName": "withdraw",
-                  "args": [3],
-                  "expected": true
-                },
-                {
-                  "methodName": "withdraw",
-                  "args": [3],
-                  "expected": false
-                },
-                {
-                  "methodName": "deposit",
-                  "args": [1],
-                  "expected": 3
-                }
-              ]
-            }
-          ]
+          "statementMarkdown": "Add withdraw(amount). Return false without changing balance when funds are insufficient; otherwise subtract amount and return true. Deposits must still work. Add clear() to reset the balance; it returns no value.",
+          "title": "Withdrawals"
         }
       ]
-    }
-  },
-  "hiddenCases": [],
-  "odysseyHiddenCases": [
-    [
-      {
-        "args": [],
-        "calls": [
-          {
-            "methodName": "deposit",
-            "args": [5],
-            "expected": 5
-          },
-          {
-            "methodName": "deposit",
-            "args": [3],
-            "expected": 8
-          }
-        ]
-      },
-      {
-        "args": [],
-        "calls": [
-          {
-            "methodName": "deposit",
-            "args": [2],
-            "expected": 2
-          }
-        ]
-      }
-    ],
-    [
-      {
-        "args": [],
-        "calls": [
-          {
-            "methodName": "deposit",
-            "args": [5],
-            "expected": 5
-          },
-          {
-            "methodName": "withdraw",
-            "args": [3],
-            "expected": true
-          },
-          {
-            "methodName": "withdraw",
-            "args": [3],
-            "expected": false
-          },
-          {
-            "methodName": "deposit",
-            "args": [1],
-            "expected": 3
-          }
-        ]
-      },
-      {
-        "args": [],
-        "calls": [
-          {
-            "methodName": "deposit",
-            "args": [7],
-            "expected": 7
-          },
-          {
-            "methodName": "clear",
-            "args": [],
-            "expected": null
-          },
-          {
-            "methodName": "deposit",
-            "args": [1],
-            "expected": 1
-          }
-        ]
-      }
-    ]
-  ],
-  "attribution": "Original Quorem fixture",
-  "implementations": [
-    {
-      "language": "python",
-      "starterSource": "class Solution:\n    def __init__(self):\n        self.balance = 0\n\n    def deposit(self, amount: int) -> int:\n        pass\n",
-      "runtimeRevision": "python-3.12-v1",
-      "harnessRevision": "quorem-harness-v2"
     },
-    {
-      "language": "java",
-      "starterSource": "class Solution {\n    private int balance = 0;\n    public int deposit(int amount) { return 0; }\n}\n",
-      "runtimeRevision": "java-21.0.9-v1",
-      "harnessRevision": "quorem-java-v1"
-    },
-    {
-      "language": "typescript",
-      "starterSource": "class Solution {\n  private balance = 0;\n  deposit(amount: number): number { return 0; }\n}\n",
-      "runtimeRevision": "typescript-5.9.3-node-22.21.1-v1",
-      "harnessRevision": "quorem-typescript-v1"
-    },
-    {
-      "language": "ocaml",
-      "starterSource": "let balance = ref 0\nlet deposit amount = 0\n",
-      "runtimeRevision": "ocaml-4.13.1-v1",
-      "harnessRevision": "quorem-ocaml-v1"
-    }
-  ],
-  "canonicalApproachId": "default",
-  "approaches": [
-  {
-    "id": "default",
-    "title": "",
-    "defaultLanguage": "python",
-    "explanationMarkdown": "",
-    "timeComplexity": "",
-    "spaceComplexity": "",
-    "complexityNotes": "",
-    "implementations": [
-      {
-        "language": "python",
-        "source": "class Solution:\n    def __init__(self):\n        self.balance = 0\n    def deposit(self, amount):\n        self.balance += amount\n        return self.balance\n    def withdraw(self, amount):\n        if amount > self.balance:\n            return False\n        self.balance -= amount\n        return True\n    def clear(self):\n        self.balance = 0\n"
-      }
-    ]
+    "slug": "balance-ledger",
+    "statementMarkdown": "Build a small ledger across two levels. Keep your implementation as new requirements unlock.",
+    "tags": ["Design"],
+    "title": "Balance Ledger",
+    "version": "1"
   }
-]
 }

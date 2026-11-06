@@ -2,13 +2,21 @@
 export type {
   QuestionContent,
   QuestionProblem,
+  AuthoredQuestionProblem,
   Signature,
   Constraint,
   ConstraintTarget,
   InputPresetConfig,
   ExecutionLimits,
 } from "./model.ts";
-export { validQuestionType, validateInputConfig, validateSignature } from "./signature.ts";
+export {
+  validQuestionType,
+  validateInputConfig,
+  validateSignature,
+  primarySignature,
+  findPrimarySignature,
+  blankSignature,
+} from "./signature.ts";
 export { validateConstraints, constraintTargetOptions, comparisonChoices } from "./constraints.ts";
 export {
   rangeContains,
@@ -16,7 +24,13 @@ export {
   comparisonMatches,
   propertyMatches,
 } from "./constraintPredicates.ts";
-export { generateStarter, generateQuestionImplementations } from "./starter.ts";
+export {
+  generateStarter,
+  generateMethodStarter,
+  generateQuestionImplementations,
+  questionLanguages,
+  supportsQuestionLanguage,
+} from "./starter.ts";
 export type { StarterLanguage } from "./starter.ts";
 export { validateQuestionDraft } from "./draft.ts";
 export { JsonNumber, parseLosslessJson, stringifyLosslessJson } from "./json.ts";
@@ -46,8 +60,11 @@ export {
   approachTitle,
   selectApproach,
   approachCode,
+  approachDefaultLanguage,
   canonicalCode,
   withCanonicalApproach,
 } from "./editorial.ts";
 
 export { questionSlugFits, questionPublicationSlug } from "./identity.ts";
+
+export { publicQuestionProblem } from "./projection.ts";

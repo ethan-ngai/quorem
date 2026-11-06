@@ -4,7 +4,7 @@ import { blankApproach } from "@quorem/questions";
 import { SolutionDisplay } from "./SolutionDisplay";
 
 const approach = {
-  ...blankApproach("java"),
+  ...blankApproach("java", "java-approach"),
   implementations: [
     { language: "python" as const, source: "PYTHON_SOURCE" },
     { language: "java" as const, source: "JAVA_SOURCE" },

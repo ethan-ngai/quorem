@@ -6,12 +6,7 @@ import {
   questionAuthoring,
 } from "../adapters/postgres/problems/authoring/repository.ts";
 import { readPublishedFixture } from "../adapters/postgres/problems/private-content.ts";
-import { refreshQuestionLanguages } from "./refresh-question-languages.ts";
-import { sql } from "drizzle-orm";
-import {
-  persistQuestionVersion,
-  resumeQuestionVersion,
-} from "../adapters/postgres/problems/publication.ts";
+import { resumeQuestionVersion } from "../adapters/postgres/problems/publication.ts";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { applyAccess, grantFingerprint } from "./access.ts";
 import { seedCatalog } from "./seed.ts";
@@ -72,107 +67,6 @@ afterAll(() => {
 });
 
 describe("operator CLI contracts", () => {
-  it.skipIf(!url)("refreshes Python-only publications atomically and idempotently", async () => {
-    const previousDatabase = process.env.QUOREM_OPERATOR_DATABASE_URL;
-    process.env.QUOREM_OPERATOR_DATABASE_URL = url;
-    const pool = createNodePool({
-      connectionString: url!,
-      max: 1,
-      connectionTimeoutMs: 3000,
-      idleTimeoutMs: 1000,
-      onIdleError: () => {},
-    });
-    try {
-      const raw = JSON.parse(
-        await readFile(resolve("../../fixtures/problems/run-widths.json"), "utf8"),
-      );
-      const id = crypto.randomUUID();
-      raw.problem.id = id;
-      raw.problem.slug = `refresh-${id}`;
-      delete raw.problem.leetcodeId;
-      raw.implementations = raw.implementations.filter(
-        (item: { language: string }) => item.language === "python",
-      );
-      for (const approach of raw.approaches)
-        approach.implementations = approach.implementations.filter(
-          (item: { language: string }) => item.language === "python",
-        );
-      await withNodeConnection(pool, { lifetimeMs: 15000 }, (scope) =>
-        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-          await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
-          const parent = (
-            await tx.execute<{ id: string }>(
-              sql`INSERT INTO problems(slug) VALUES(${raw.problem.slug}) RETURNING id::text`,
-            )
-          ).rows[0];
-          await persistQuestionVersion(
-            tx,
-            JSON.stringify(raw),
-            parent.id,
-            id,
-            Number(raw.problem.version),
-            null,
-            languageRuntime,
-          );
-        }),
-      );
-      const args = [
-        "--id",
-        id,
-        "--apply",
-        "--op-id",
-        `refresh-test-${id}`,
-        "--reason",
-        "Regression fixture",
-      ];
-      expect((await refreshQuestionLanguages(["--id", id])).applied).toBe(false);
-      expect(
-        (await pool.query("SELECT language FROM problem_languages WHERE version_id=$1", [id])).rows,
-      ).toHaveLength(1);
-      expect((await refreshQuestionLanguages(args)).applied).toBe(true);
-      const languages = (
-        await pool.query(
-          "SELECT language,starter_source FROM problem_languages WHERE version_id=$1 ORDER BY language",
-          [id],
-        )
-      ).rows;
-      expect(languages.map((item) => item.language)).toEqual([
-        "java",
-        "ocaml",
-        "python",
-        "typescript",
-      ]);
-      expect(languages.find((item) => item.language === "python").starter_source).toContain(
-        "values: list[int]",
-      );
-      const revision = (
-        await pool.query("SELECT revision FROM question_drafts WHERE published_version_id=$1", [id])
-      ).rows[0].revision;
-      await refreshQuestionLanguages(args);
-      expect(
-        (
-          await pool.query("SELECT revision FROM question_drafts WHERE published_version_id=$1", [
-            id,
-          ])
-        ).rows[0].revision,
-      ).toBe(revision);
-      expect(
-        (
-          await pool.query(
-            "SELECT count(*)::int AS n FROM problem_test_cases WHERE version_id=$1",
-            [id],
-          )
-        ).rows[0].n,
-      ).toBe(raw.hiddenCases.length);
-      await expect(
-        refreshQuestionLanguages([...args.slice(0, -1), "Different reason"]),
-      ).rejects.toThrow("Operation ID already used");
-    } finally {
-      await pool.end();
-      if (previousDatabase === undefined) delete process.env.QUOREM_OPERATOR_DATABASE_URL;
-      else process.env.QUOREM_OPERATOR_DATABASE_URL = previousDatabase;
-    }
-  });
   it("keeps the historical Go access fingerprint", () => {
     expect(
       grantFingerprint({
@@ -190,11 +84,11 @@ describe("operator CLI contracts", () => {
   it("pins canonical seed fingerprints, including raw JSON escapes", async () => {
     const raw = await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8");
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "ec14fc422587b3917c1a964a8ef20933263e9a079fb348b8987993049c0dac31",
+      "ab8d3edec43ca7eb052e189f5c3ccc7c126c3b230a3cb2b1ec2df3b91ab67356",
     );
     const escaped = raw.replaceAll('"a-bC!"', '"\\u0061-bC!"');
     expect(seedFingerprint(escaped, "cli-operator").fingerprint).toBe(
-      "cadf7d46f184eb79496a386dbbf835d62fa57c0086dd69b9cc75c65bb8b4b5ce",
+      "a11bd0216d9625ec386fce717ccfc810bf7f2a4cfa15b5eba9c322b0635c12c7",
     );
   });
   it("pins canonical seed identity for lossless SQL numeric input", async () => {
@@ -216,14 +110,6 @@ describe("operator CLI contracts", () => {
       },
     ];
     p.hiddenCases = p.problem.examples;
-    p.implementations = [
-      {
-        language: "postgresql",
-        starterSource: "select 1",
-        runtimeRevision: "postgresql-17.6-v1",
-        harnessRevision: "quorem-postgresql-v2",
-      },
-    ];
     p.approaches = [
       {
         ...p.approaches[0],
@@ -233,7 +119,7 @@ describe("operator CLI contracts", () => {
     ];
     const raw = JSON.stringify(p).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "bea1a8be83887930101a24ab9086cacde3c59fab44c11e75feba69058639d282",
+      "25a0c568d413cd3e6cf978c90afd0af0df9e84de7c3641b8844b0e68850cf638",
     );
   });
   it("validates candidate fixtures with canonical publication rules", async () => {
@@ -391,13 +277,9 @@ describe("operator CLI contracts", () => {
           ),
         );
         expect(
-          (
-            await pool.query(
-              "SELECT sealed,(SELECT count(*)::int FROM problem_languages WHERE version_id=$1) AS languages FROM problem_versions WHERE id=$1",
-              [versionId],
-            )
-          ).rows[0],
-        ).toMatchObject({ sealed: true, languages: 4 });
+          (await pool.query("SELECT sealed FROM problem_versions WHERE id=$1", [versionId]))
+            .rows[0],
+        ).toMatchObject({ sealed: true });
         await expect(
           run((scope) =>
             scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, (tx) =>
@@ -462,12 +344,14 @@ describe("operator CLI contracts", () => {
             );
           const owned = await read(admin, first, "python");
           expect(owned?.starterSource).toBeTruthy();
-          expect(JSON.parse(owned!.content).odysseyHiddenCases.length).toBeGreaterThan(0);
+          expect(
+            JSON.parse(owned!.content).problem.odyssey.levels[0].hiddenCases.length,
+          ).toBeGreaterThan(0);
           expect(await read(user, first, "python")).toBeUndefined();
           expect(await read(admin, first, "postgresql")).toBeUndefined();
           const global = await read(user, "e91ec728-4597-5dfb-9d19-7c4ba17138b7", "python");
           expect(global?.language).toBe("python");
-          expect(JSON.parse(global!.content).implementations).toHaveLength(4);
+          expect(JSON.parse(global!.content)).not.toHaveProperty("implementations");
         } finally {
           await rm(dir, { recursive: true, force: true });
         }
@@ -527,14 +411,6 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
           },
         ];
         fixture.hiddenCases = fixture.problem.examples;
-        fixture.implementations = [
-          {
-            language: "postgresql",
-            starterSource: "select 1",
-            runtimeRevision: "postgresql-17.6-v1",
-            harnessRevision: "quorem-postgresql-v2",
-          },
-        ];
         fixture.approaches = [
           {
             ...fixture.approaches[0],

@@ -75,10 +75,6 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       ],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version],
-    );
-    await pool.query(
       "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
       [version],
     );
@@ -128,9 +124,6 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     await pool.query("DELETE FROM users WHERE id=$1", [user]);
     await pool.query("DELETE FROM problem_examples WHERE version_id=$1", [version]);
     await pool.query("DELETE FROM problem_test_cases WHERE version_id=$1", [version]);
-    await pool.query("DELETE FROM problem_languages WHERE version_id=ANY($1::uuid[])", [
-      [version, version2],
-    ]);
     await pool.query("DELETE FROM problem_versions WHERE id=ANY($1::uuid[])", [
       [version, version2],
     ]);
@@ -273,10 +266,6 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
           maxNestingDepth: 100,
         }),
       ],
-    );
-    await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version2],
     );
     await pool.query(
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",

@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { expect, it } from "vitest";
 import { adaptSignature } from "./authoringSignature";
 import { blankQuestion } from "./content";
@@ -5,7 +6,10 @@ it("adapts public and private case arity before shared test controls receive a s
   const content = blankQuestion();
   content.problem.examples = [{ args: [], expected: 1, explanation: "Keep explanation" }];
   content.hiddenCases = [{ args: [], expected: 1 }];
-  const signature = { ...content.problem.signature, parameters: [{ name: "n", type: "int" }] };
+  const signature = {
+    ...primarySignature(content.problem),
+    parameters: [{ name: "n", type: "int" }],
+  };
   const next = adaptSignature(content, signature);
   expect(next.problem.examples[0]).toEqual({
     args: [0],

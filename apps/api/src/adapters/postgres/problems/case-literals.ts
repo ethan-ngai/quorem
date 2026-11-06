@@ -1,4 +1,4 @@
-/** @file raw-cases.ts @description Preserve Go RawMessage spelling for seed lock compatibility. @module cli */
+/** @file case-literals.ts @description Preserve exact authored case spelling in seed and command identities. @module problems */
 import {
   JsonNumber,
   normalizeQuestionDraft,
@@ -62,14 +62,13 @@ export function markRawCases(raw: string, content: Obj): Map<string, string> {
     p = object(content.problem),
     sourceProblem = fields(root, "problem");
   cases(content.hiddenCases, fields(root, "hiddenCases")?.items);
-  const suites = fields(root, "odysseyHiddenCases")?.items;
-  array(content.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
   cases(p?.examples, fields(sourceProblem, "examples")?.items);
   const odyssey = object(p?.odyssey),
     levels = fields(fields(sourceProblem, "odyssey"), "levels")?.items;
-  array(odyssey?.levels).forEach((level, index) =>
-    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
-  );
+  array(odyssey?.levels).forEach((level, index) => {
+    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items);
+    cases(object(level)?.hiddenCases, fields(levels?.[index], "hiddenCases")?.items);
+  });
   return marks;
 }
 /** Interview custom cases have distinct public/private request paths. */
@@ -85,12 +84,11 @@ export function markRawInterviewCases(
   if (!custom || !customNode) return marks;
   cases(custom.publicCases, fields(customNode, "publicCases")?.items);
   cases(custom.privateCases, fields(customNode, "privateCases")?.items);
-  const suites = fields(customNode, "odysseyHiddenCases")?.items;
-  array(custom.odysseyHiddenCases).forEach((suite, index) => cases(suite, suites?.[index]?.items));
   const levels = fields(fields(customNode, "odyssey"), "levels")?.items;
-  array(object(custom.odyssey)?.levels).forEach((level, index) =>
-    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items),
-  );
+  array(object(custom.odyssey)?.levels).forEach((level, index) => {
+    cases(object(level)?.examples, fields(levels?.[index], "examples")?.items);
+    cases(object(level)?.hiddenCases, fields(levels?.[index], "hiddenCases")?.items);
+  });
   return marks;
 }
 
@@ -121,8 +119,10 @@ function caseProjection(c: Obj): JsonValue {
   return {
     examples: p?.examples ?? [],
     hiddenCases: c.hiddenCases ?? [],
-    odysseyHiddenCases: c.odysseyHiddenCases ?? [],
-    stages: levels.map((level) => object(level)?.examples ?? []),
+    stages: levels.map((level) => ({
+      examples: object(level)?.examples ?? [],
+      hiddenCases: object(level)?.hiddenCases ?? [],
+    })),
   };
 }
 /** Preserve only case lexemes after checking their decoded values have not changed. */

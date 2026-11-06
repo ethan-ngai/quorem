@@ -157,7 +157,6 @@ export function QuestionSetup({
             custom: {
               title: customTitle.trim(),
               statementMarkdown: statement,
-              signature: stages[0]!.methods[0]!.signature,
               ...staged,
             },
           },

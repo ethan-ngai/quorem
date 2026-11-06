@@ -1,6 +1,6 @@
+import { generateStarter, generateMethodStarter } from "@quorem/questions";
 import type { OdysseyLevel, Signature } from "@quorem/contracts";
 import type { EditorLanguage } from "../editor/editorLanguages";
-import { methodDocumentation } from "./methodDocumentation";
 
 import { questionTypeName as typeName } from "../editor/questionTypes";
 
@@ -58,30 +58,17 @@ export function methodDeclarationParts(
 }
 
 export function methodStub(method: Signature, language: EditorLanguage, indent = "    "): string {
-  const head = methodDeclarationParts(method, language)
-    .map(({ text }) => text)
-    .join("");
-  if (language === "python")
-    return `${indent}${head}\n${methodDocumentation(method, language, indent + indent)}${indent}${indent}raise NotImplementedError\n`;
-  if (language === "ocaml")
-    return `${methodDocumentation(method, language, "")}${head}\n    failwith "Implement solution"\n`;
-  const error =
-    language === "java"
-      ? 'new UnsupportedOperationException("Implement solution")'
-      : 'new Error("Implement solution")';
-  return `${methodDocumentation(method, language, indent)}${indent}${head} {\n${indent}${indent}throw ${error};\n${indent}}\n`;
+  if (language === "postgresql") return "-- Write your query here.\n";
+  return generateMethodStarter(method, language, true).replace(/^((?: {4})+)/gm, (spaces) =>
+    indent.repeat(spaces.length / 4),
+  );
 }
 
 export function initialOdysseySource(
   methods: readonly Signature[],
   language: EditorLanguage,
 ): string {
-  const body = methods.map((method) => methodStub(method, language)).join("\n");
-  if (language === "python")
-    return `class Solution:\n    def __init__(self):\n        pass\n\n${body}`;
-  if (language === "ocaml") return body;
-  const constructor = language === "java" ? "public Solution()" : "constructor()";
-  return `class Solution {\n    ${constructor} {\n    }\n\n${body}}\n`;
+  return generateStarter(methods, language, true);
 }
 
 /** Insert only missing methods in Solution's parsed body; preserve all existing code and helpers. */

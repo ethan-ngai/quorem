@@ -75,10 +75,6 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       [version, problem, JSON.stringify(signature), JSON.stringify(limits)],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version],
-    );
-    await pool.query(
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
@@ -247,10 +243,6 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       compiledWorkspace = crypto.randomUUID();
     try {
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'typescript','','typescript-5.9.3-node-22.21.1-v1','quorem-typescript-v1')",
-        [version],
-      );
-      await pool.query(
         "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'typescript')",
         [compiledWorkspace, user, version],
       );
@@ -332,10 +324,6 @@ describe.skipIf(!url || !socket)("real checkpoint provenance and engine integrat
       await pool.query("DELETE FROM execution_jobs WHERE id=$1", [executionId]);
       await pool.query("DELETE FROM submissions WHERE id=$1", [submissionId]);
       await pool.query("DELETE FROM workspaces WHERE id=$1", [compiledWorkspace]);
-      await pool.query(
-        "DELETE FROM problem_languages WHERE version_id=$1 AND language='typescript'",
-        [version],
-      );
     }
   }, 90000);
 });

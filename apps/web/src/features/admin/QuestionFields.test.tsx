@@ -26,6 +26,7 @@ it("public preview shows canonical code and excludes hidden inputs", () => {
 
 it("renders public SQL table inputs without private cases", () => {
   const content = blankQuestion();
+  delete content.problem.signature;
   content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
   content.problem.examples = [
     {
@@ -41,6 +42,7 @@ it("renders public SQL table inputs without private cases", () => {
 
 it("names SQL questions by type and PostgreSQL as the dialect", () => {
   const content = blankQuestion();
+  delete content.problem.signature;
   content.problem.sql = { dialect: "postgresql", outputOrder: "unordered" };
   const html = renderToStaticMarkup(
     <QuestionFields
@@ -56,4 +58,25 @@ it("names SQL questions by type and PostgreSQL as the dialect", () => {
   expect(html).toContain('aria-label="SQL dialect"');
   expect(html).toContain("postgresql.svg");
   expect(html).not.toContain("PostgreSQL question");
+});
+
+it("keeps an incomplete staged interface editable without a duplicate root signature", () => {
+  const content = blankQuestion();
+  delete content.problem.signature;
+  content.problem.odyssey = {
+    levels: [
+      { title: "Step", statementMarkdown: "Work", methods: [], examples: [], hiddenCases: [] },
+    ],
+  };
+  content.approaches = [];
+  content.canonicalApproachId = "";
+  const html = renderToStaticMarkup(
+    <QuestionFields
+      content={content}
+      disabled={false}
+      onChange={() => {}}
+      onValidityChange={() => {}}
+    />,
+  );
+  expect(html).toContain("Step");
 });

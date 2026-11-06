@@ -24,7 +24,6 @@ export type QuestionContent = components["schemas"]["QuestionContent"];
 export type QuestionDraft = components["schemas"]["QuestionDraft"];
 export type QuestionDraftSummary = components["schemas"]["QuestionDraftSummary"];
 export type QuestionDraftPage = components["schemas"]["QuestionDraftPage"];
-export type AuthoringImplementation = components["schemas"]["AuthoringImplementation"];
 export type SolutionApproach = components["schemas"]["SolutionApproach"];
 export type SolutionCode = components["schemas"]["SolutionCode"];
 export type ApproachComplexity = components["schemas"]["ApproachComplexity"];

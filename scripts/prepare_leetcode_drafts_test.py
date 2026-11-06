@@ -27,13 +27,12 @@ class DraftTest(unittest.TestCase):
         self.assertEqual(result['problem']['examples'], [])
         for key in ('starterSource', 'runtimeRevision', 'languages'):
             self.assertNotIn(key, result['problem'])
-        self.assertEqual(result['implementations'][0]['language'], 'python')
+        self.assertNotIn('implementations', result)
         self.assertEqual(result['problem']['companies'], ['Example'])
         self.assertEqual(result['problem']['leetcodeId'], 1)
         self.assertEqual(result['problem']['limits']['maxCollectionElements'], 100000)
         self.assertEqual(result['hiddenCases'], [{'args': [1], 'expected': 2}])
         self.assertIn('class Solution: pass', canonical_implementation(result)['source'])
-        self.assertNotIn('referenceSource', result['implementations'][0])
         self.assertEqual(len(result['approaches']), 1)
         self.assertEqual(canonical_approach(result)['timeComplexity'], '')
 
