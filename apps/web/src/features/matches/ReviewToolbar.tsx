@@ -11,14 +11,11 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import * as Popover from "../../ui/Popover";
+import { SelfIndicator } from "../../ui/SelfIndicator";
 import { SelectField } from "../../ui/SelectField";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { participantColor } from "../collaboration/participantColor";
-import {
-  ParticipantName,
-  participantNameLabel,
-  type ParticipantIdentity,
-} from "../collaboration/ParticipantName";
+import { ParticipantName, type ParticipantIdentity } from "../collaboration/ParticipantName";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -65,7 +62,8 @@ export function ReviewToolbar({
         disabled={disabled}
         options={review.participants.map((person) => ({
           value: person.userId,
-          label: participantNameLabel(person.displayName, person.own),
+          label: person.displayName,
+          trailing: person.own ? <SelfIndicator focusable={false} /> : undefined,
           leading: (
             <AccountAvatar
               name={person.displayName}
@@ -172,7 +170,11 @@ export function ReviewPaneHeader({
     <div className="review-pane-header" data-active={active || undefined}>
       <LanguageLogo language={language} tooltip={languageLabels[language]} />
       <span className="review-pane-name">
-        {participant ? <ParticipantName participant={participant} label={name} /> : name}
+        {participant ? (
+          <ParticipantName participant={participant} label={name} self={self} />
+        ) : (
+          name
+        )}
       </span>
       <Tooltip content={status}>
         <span className="review-state-icon" role="img" tabIndex={0} aria-label={status}>

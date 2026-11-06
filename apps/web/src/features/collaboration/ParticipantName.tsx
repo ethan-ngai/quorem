@@ -1,5 +1,6 @@
 /** @file ParticipantName.tsx @description Shared participant photo, identity color and name. @module collaboration */
 import { AccountAvatar } from "../navigation/AccountAvatar";
+import { SelfIndicator } from "../../ui/SelfIndicator";
 import { participantColor } from "./participantColor";
 import "./participant-name.css";
 
@@ -9,10 +10,6 @@ export type ParticipantIdentity = {
   image?: string;
   color?: number;
 };
-
-export function participantNameLabel(name: string, self = false) {
-  return `${name}${self ? " (you)" : ""}`;
-}
 
 export function ParticipantName({
   participant,
@@ -31,7 +28,10 @@ export function ParticipantName({
         color={participantColor(participant.userId, participant.color)}
         outline
       />
-      <span>{label ?? participantNameLabel(participant.displayName, self)}</span>
+      <span className="participant-name-text">
+        <span>{label ?? participant.displayName}</span>
+        {self && <SelfIndicator />}
+      </span>
     </span>
   );
 }

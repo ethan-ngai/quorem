@@ -155,3 +155,10 @@
   font-family: var(--font-code);
   font-variant-ligatures: none;
 }
+
+.select-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}

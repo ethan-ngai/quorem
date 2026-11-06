@@ -5,6 +5,12 @@
   min-width: 0;
   vertical-align: middle;
 }
-.participant-name > span:last-child {
+.participant-name-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.participant-name-text > span:first-child {
   overflow-wrap: anywhere;
 }

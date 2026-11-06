@@ -1,4 +1,3 @@
-import { participantNameLabel } from "../collaboration/ParticipantName";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchReview, ProblemVersion } from "@quorem/contracts";
@@ -80,7 +79,7 @@ export function ReviewComparison({
     <div className="review-reference" hidden={hidden}>
       <ReviewPaneHeader
         participant={participant}
-        name={participantNameLabel(participant.displayName, participant.own)}
+        name={participant.displayName}
         self={participant.own}
         language={selectedLanguage}
         disabled={disabled}

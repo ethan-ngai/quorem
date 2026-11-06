@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
-import { ParticipantName, participantNameLabel } from "../collaboration/ParticipantName";
+import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
@@ -200,10 +200,7 @@ export function CompletionDemo() {
                     (person) => person.userId === participant,
                   )}
                   self={participant === "you"}
-                  name={participantNameLabel(
-                    participant === "you" ? "jamie" : "Alex",
-                    participant === "you",
-                  )}
+                  name={participant === "you" ? "jamie" : "Alex"}
                   language="python"
                   active
                 />
@@ -229,7 +226,7 @@ export function CompletionDemo() {
                 <ReviewPaneHeader
                   participant={demoReview.participants.find((person) => person.userId === other)}
                   self={other === "you"}
-                  name={participantNameLabel(other === "you" ? "jamie" : "Alex", other === "you")}
+                  name={other === "you" ? "jamie" : "Alex"}
                   language="python"
                   onSelect={() => setParticipant(other)}
                 />

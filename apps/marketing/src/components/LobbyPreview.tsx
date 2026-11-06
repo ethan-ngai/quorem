@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MatchSettings } from "../../../web/src/features/matches/MatchControls";
+import { SelfIndicator } from "../../../web/src/ui/SelfIndicator";
 import { ModeIcon } from "../../../web/src/features/matches/ModeIcon";
 const catalog = [{ id: "two-sum-preview", title: "Two Sum", difficulty: "easy" }];
 const settings = {
@@ -31,7 +32,7 @@ export default function LobbyPreview() {
               <div>
                 <strong>
                   {name}
-                  {i === 0 ? " (you)" : ""}
+                  {i === 0 && <SelfIndicator focusable={false} />}
                 </strong>
                 <span>{i === 0 ? "Host" : i === 3 ? "Invite a friend" : "Player"}</span>
               </div>
