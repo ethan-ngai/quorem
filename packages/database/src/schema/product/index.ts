@@ -191,6 +191,7 @@ export const guest_sessions = pgTable(
     token_hash: text().primaryKey().notNull(),
     owner_id: text().notNull(),
     match_id: uuid().notNull(),
+    party_id: uuid(),
     created_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
@@ -669,6 +670,8 @@ export const matches = pgTable(
   {
     id: uuid().primaryKey().notNull(),
     host_owner_id: text().notNull(),
+    party_id: uuid(),
+    share_code_after_match: boolean().default(true).notNull(),
     invite_hash: text().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
     duration_minutes: integer().notNull(),
@@ -679,6 +682,7 @@ export const matches = pgTable(
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
+    completed_at: timestamp({ withTimezone: true, mode: "string" }),
     outcome: jsonb(),
     reconciled_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`'-infinity'`)
@@ -2220,3 +2224,29 @@ export const submission_result_header_fields = pgTable(
 export * from "./runner-inputs.ts";
 
 export * from "./verification.ts";
+
+export const parties = pgTable("parties", {
+  id: uuid().primaryKey().notNull(),
+  host_owner_id: text().notNull().references(() => users.id),
+  invite_hash: text().notNull().unique(),
+  settings: jsonb().notNull(),
+  version: bigint({ mode: "bigint" }).default(0n).notNull(),
+  current_match_id: uuid().references(() => matches.id),
+  latest_match_id: uuid().references(() => matches.id),
+  countdown_ends_at: timestamp({ withTimezone: true, mode: "string" }),
+  created_at: timestamp({ withTimezone: true, mode: "string" }).default(sql`clock_timestamp()`).notNull(),
+  disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
+});
+export const party_members = pgTable("party_members", {
+  party_id: uuid().notNull().references(() => parties.id),
+  owner_id: text().notNull().references(() => users.id).unique(),
+  seat: integer().notNull(),
+  ready: boolean().default(false).notNull(),
+  joined_at: timestamp({ withTimezone: true, mode: "string" }).default(sql`clock_timestamp()`).notNull(),
+  last_seen_at: timestamp({ withTimezone: true, mode: "string" }).default(sql`clock_timestamp()`).notNull(),
+}, (t) => [primaryKey({ columns: [t.party_id, t.owner_id] }), unique().on(t.party_id, t.seat), check("party_members_seat_check", sql`seat BETWEEN 1 AND 8`), index("party_members_last_seen").on(t.last_seen_at)]);
+export const platform_presence_leases = pgTable("platform_presence_leases", {
+  owner_id: text().notNull().references(() => users.id),
+  window_id: uuid().notNull(),
+  expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.owner_id, t.window_id] }), index("platform_presence_expiry").on(t.expires_at)]);
