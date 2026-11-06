@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
 import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
 import { CaseSandbox } from "./case-sandbox.js";
 
@@ -523,4 +524,83 @@ void test("one-case attempts never create unused sibling lanes during confirmed 
   await (await sandbox.fetch(request())).arrayBuffer();
   assert.equal(f.values.get("used-lanes"), 1);
   assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+});
+
+void test("durable shutdown receipts skip only canonically completed child executions", async () => {
+  const exit = frame(3, new Uint8Array(4));
+  const terminal = frame(4, new Uint8Array());
+  for (const kind of [
+    "valid",
+    "missing-exit",
+    "missing-teardown",
+    "trailing",
+    "forged-output",
+    "transport-error",
+  ]) {
+    const f = fixture();
+    let deletes = 0;
+    const env = {
+      CASES: {
+        getByName: () => ({
+          fetch: async (req) => {
+            if (req.method === "DELETE") {
+              deletes++;
+              return new Response(null, { status: 204 });
+            }
+            return new Response(
+              new ReadableStream({
+                start(controller) {
+                  if (kind === "forged-output") {
+                    controller.enqueue(frame(1, terminal));
+                  } else {
+                    if (kind !== "missing-exit") controller.enqueue(exit);
+                    if (kind !== "missing-teardown") controller.enqueue(terminal);
+                    if (kind === "trailing") controller.enqueue(new Uint8Array([0]));
+                  }
+                  if (kind === "transport-error")
+                    controller.error(new Error("transport interrupted"));
+                  else controller.close();
+                },
+              }),
+            );
+          },
+        }),
+      },
+    };
+    const sandbox = newSandbox(f.context, env);
+    const response = await sandbox.fetch(request("POST", { "x-quorem-case-ordinal": "1" }));
+    const consumption = response.arrayBuffer();
+    if (kind === "valid") await consumption;
+    else await assert.rejects(consumption);
+    assert.equal(f.values.get("completed-lanes") ?? 0, kind === "valid" ? 2 : 0, kind);
+    // Recreate the owner to ensure the optimization does not depend on instance memory.
+    const evicted = newSandbox(f.context, env);
+    assert.equal((await evicted.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+    assert.equal(deletes, kind === "valid" ? 0 : 1, kind);
+  }
+});
+
+void test("a stale shutdown response cannot certify a subsequent launch", async () => {
+  const f = fixture();
+  let finish;
+  const child = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(frame(3, new Uint8Array(4)));
+        finish = () => {
+          controller.enqueue(frame(4, new Uint8Array()));
+          controller.close();
+        };
+      },
+    }),
+  );
+  const sandbox = newSandbox(f.context);
+  const first = await sandbox.registerLane(request(), 1);
+  const response = await sandbox.completedLane(child, 1, first);
+  const consuming = response.arrayBuffer();
+  const second = await sandbox.registerLane(request(), 1);
+  assert.ok(second > first);
+  finish();
+  await consuming;
+  assert.equal(f.values.get("completed-lanes") ?? 0, 0);
 });
