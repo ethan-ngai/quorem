@@ -6,6 +6,7 @@ import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  CASE_LANES,
   defaultLimits,
   decodeManifestCheckpointFrame,
   languageRuntime,
@@ -527,7 +528,7 @@ void test("four native lanes overlap verification while checkpoints remain order
   const sandbox = {
     teardownAttempt: async () => {},
     async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
-      const lane = request.ordinal % 4;
+      const lane = request.ordinal % CASE_LANES;
       assert.equal(lanes.has(lane), false);
       lanes.add(lane);
       running++;
@@ -736,6 +737,62 @@ void test("twenty-case final windows keep at most ten native VMs live without in
   );
   assert.equal(peak, 10);
   assert.equal(calls, 20);
+  assert.equal(fixture.seals.length, 20);
+  assert.equal(fixture.frames.length, 0);
+});
+
+void test("idle native workers advance the final window while an earlier case remains busy", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const { fixture, job } = fastFixture();
+  fixture.port.finalizeCompletion = async () => {};
+  const busy = Promise.withResolvers<void>();
+  const advanced = Promise.withResolvers<void>();
+  let firstStopped = false,
+    active = 0,
+    peak = 0;
+  const execution = executeAndStage(
+    job,
+    fixture.port,
+    {
+      async teardownAttempt() {},
+      async runCase(request: Parameters<typeof confirmCaseOutput>[0]) {
+        active++;
+        peak = Math.max(peak, active);
+        try {
+          if (request.ordinal === 0) {
+            await busy.promise;
+            firstStopped = true;
+          }
+          if (request.ordinal === 10) advanced.resolve();
+          return confirmCaseOutput(request, {
+            stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+            stderr: Buffer.alloc(0),
+            exitCode: 0,
+          });
+        } finally {
+          active--;
+        }
+      },
+    },
+    undefined,
+    undefined,
+    undefined,
+    10,
+  );
+  try {
+    await Promise.race([
+      advanced.promise,
+      delay(1000).then(() => {
+        throw new Error("idle worker remained blocked");
+      }),
+    ]);
+    assert.equal(firstStopped, false);
+  } finally {
+    busy.resolve();
+  }
+  await execution;
+  assert.ok(peak >= 2 && peak <= 10);
   assert.equal(fixture.seals.length, 20);
   assert.equal(fixture.frames.length, 0);
 });
