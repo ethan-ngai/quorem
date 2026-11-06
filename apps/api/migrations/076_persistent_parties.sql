@@ -31,7 +31,7 @@ CREATE INDEX platform_presence_expiry ON platform_presence_leases (expires_at);
 CREATE INDEX party_members_last_seen ON party_members (last_seen_at);
 CREATE INDEX parties_countdown ON parties (countdown_ends_at) WHERE countdown_ends_at IS NOT NULL;
 ALTER TABLE matches ADD COLUMN party_id uuid REFERENCES parties(id);
-ALTER TABLE matches ADD COLUMN share_code_after_match boolean NOT NULL DEFAULT true;
+ALTER TABLE matches ADD COLUMN share_code_after_match boolean NOT NULL DEFAULT false;
 ALTER TABLE guest_sessions ADD COLUMN party_id uuid REFERENCES parties(id);
 ALTER TABLE matches ADD COLUMN completed_at timestamptz;
 UPDATE matches SET completed_at=(outcome->>'completedAt')::timestamptz WHERE outcome->>'completedAt' IS NOT NULL;

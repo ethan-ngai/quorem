@@ -2871,6 +2871,258 @@
       },
       "required": ["title", "statementMarkdown", "methods", "examples", "hiddenCases"],
       "additionalProperties": false
+    },
+    "PartySettings": {
+      "type": "object",
+      "properties": {
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "enum": [15, 30, 45, 60]
+        },
+        "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "difficulties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Difficulty"
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "questionFilters": {
+          "$ref": "#/$defs/MatchQuestionFilters"
+        },
+        "selectedProblemVersionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rules": {
+          "type": "object",
+          "properties": {
+            "clipboard": {
+              "$ref": "#/$defs/MatchRuleAction"
+            },
+            "focus": {
+              "$ref": "#/$defs/MatchRuleAction"
+            },
+            "hints": {
+              "$ref": "#/$defs/QuestionHints"
+            }
+          },
+          "additionalProperties": false
+        },
+        "accessMode": {
+          "type": "string",
+          "enum": ["accounts_only", "guests_allowed"]
+        },
+        "admissionLocked": {
+          "type": "boolean"
+        },
+        "shareCodeAfterMatch": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "required": ["durationMinutes"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "difficulty": {
+                  "$ref": "#/$defs/Difficulty"
+                }
+              },
+              "required": ["difficulty"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "difficulties": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Difficulty"
+                  },
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "uniqueItems": true
+                }
+              },
+              "required": ["difficulties"]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "selectedProblemVersionId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": ["selectedProblemVersionId"]
+            }
+          ]
+        }
+      ]
+    },
+    "PartyMember": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "online": {
+          "type": "boolean"
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "displayName", "ready", "online", "joinedAt"],
+      "additionalProperties": false
+    },
+    "PartySnapshot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "version": {
+          "type": "string"
+        },
+        "hostUserId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "settings": {
+          "$ref": "#/$defs/PartySettings"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PartyMember"
+          }
+        },
+        "currentMatchId": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "latestMatchId": {
+          "type": ["string", "null"],
+          "format": "uuid"
+        },
+        "countdownEndsAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "hostUserId",
+        "settings",
+        "members",
+        "currentMatchId",
+        "latestMatchId",
+        "countdownEndsAt"
+      ],
+      "additionalProperties": false
+    },
+    "PartyCurrent": {
+      "type": "object",
+      "properties": {
+        "party": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PartySnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["party"],
+      "additionalProperties": false
+    },
+    "PartyCreated": {
+      "type": "object",
+      "properties": {
+        "party": {
+          "$ref": "#/$defs/PartySnapshot"
+        },
+        "inviteUrl": {
+          "type": "string"
+        }
+      },
+      "required": ["party", "inviteUrl"],
+      "additionalProperties": false
+    },
+    "PartyJoinRequest": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        }
+      },
+      "required": ["token"],
+      "additionalProperties": false
+    },
+    "PartyReadyRequest": {
+      "type": "object",
+      "properties": {
+        "ready": {
+          "type": "boolean"
+        }
+      },
+      "required": ["ready"],
+      "additionalProperties": false
+    },
+    "PresenceHeartbeatRequest": {
+      "type": "object",
+      "properties": {
+        "windowId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": ["windowId"],
+      "additionalProperties": false
+    },
+    "PartyInvitation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "settings": {
+          "$ref": "#/$defs/PartySettings"
+        },
+        "participantCount": {
+          "type": "integer"
+        },
+        "capacity": {
+          "type": "integer"
+        }
+      },
+      "required": ["id", "settings", "participantCount", "capacity"],
+      "additionalProperties": false
     }
   },
   "$ref": "#/$defs/EventEnvelope"

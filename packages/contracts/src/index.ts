@@ -81,3 +81,9 @@ export function createApiClient(
 
 export type InterviewMonitoring = components["schemas"]["InterviewMonitoring"];
 export type InterviewRuleEvent = components["schemas"]["InterviewRuleEvent"];
+
+export type PartySettings = components["schemas"]["PartySettings"];
+export type PartyMember = components["schemas"]["PartyMember"];
+export type PartySnapshot = components["schemas"]["PartySnapshot"];
+export type PartyCreated = components["schemas"]["PartyCreated"];
+export type PartyInvitation = components["schemas"]["PartyInvitation"];

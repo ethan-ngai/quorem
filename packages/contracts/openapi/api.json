@@ -4035,6 +4035,505 @@
           }
         }
       }
+    },
+    "/v1/parties": {
+      "post": {
+        "operationId": "createParty",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCreated"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartySettings"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/current": {
+      "get": {
+        "operationId": "currentParty",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCurrent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}": {
+      "get": {
+        "operationId": "getParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}/settings": {
+      "put": {
+        "operationId": "updatePartySettings",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartySettings"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}/ready": {
+      "post": {
+        "operationId": "readyParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyReadyRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}/start": {
+      "post": {
+        "operationId": "startParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}/leave": {
+      "post": {
+        "operationId": "leaveParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{id}/disband": {
+      "post": {
+        "operationId": "disbandParty",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/join": {
+      "post": {
+        "operationId": "joinParty",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyJoinRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/invitations/{token}": {
+      "get": {
+        "operationId": "previewPartyInvitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyInvitation"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/presence/heartbeat": {
+      "post": {
+        "operationId": "heartbeatPresence",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartyCurrent"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceHeartbeatRequest"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6928,6 +7427,258 @@
           }
         },
         "required": ["title", "statementMarkdown", "methods", "examples", "hiddenCases"],
+        "additionalProperties": false
+      },
+      "PartySettings": {
+        "type": "object",
+        "properties": {
+          "difficulty": {
+            "$ref": "#/components/schemas/Difficulty"
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "enum": [15, 30, 45, 60]
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "difficulties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Difficulty"
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "questionFilters": {
+            "$ref": "#/components/schemas/MatchQuestionFilters"
+          },
+          "selectedProblemVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rules": {
+            "type": "object",
+            "properties": {
+              "clipboard": {
+                "$ref": "#/components/schemas/MatchRuleAction"
+              },
+              "focus": {
+                "$ref": "#/components/schemas/MatchRuleAction"
+              },
+              "hints": {
+                "$ref": "#/components/schemas/QuestionHints"
+              }
+            },
+            "additionalProperties": false
+          },
+          "accessMode": {
+            "type": "string",
+            "enum": ["accounts_only", "guests_allowed"]
+          },
+          "admissionLocked": {
+            "type": "boolean"
+          },
+          "shareCodeAfterMatch": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": ["durationMinutes"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "difficulty": {
+                    "$ref": "#/components/schemas/Difficulty"
+                  }
+                },
+                "required": ["difficulty"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "difficulties": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Difficulty"
+                    },
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "uniqueItems": true
+                  }
+                },
+                "required": ["difficulties"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "selectedProblemVersionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["selectedProblemVersionId"]
+              }
+            ]
+          }
+        ]
+      },
+      "PartyMember": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["userId", "displayName", "ready", "online", "joinedAt"],
+        "additionalProperties": false
+      },
+      "PartySnapshot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string"
+          },
+          "hostUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/PartySettings"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartyMember"
+            }
+          },
+          "currentMatchId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "latestMatchId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "countdownEndsAt": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "hostUserId",
+          "settings",
+          "members",
+          "currentMatchId",
+          "latestMatchId",
+          "countdownEndsAt"
+        ],
+        "additionalProperties": false
+      },
+      "PartyCurrent": {
+        "type": "object",
+        "properties": {
+          "party": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PartySnapshot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["party"],
+        "additionalProperties": false
+      },
+      "PartyCreated": {
+        "type": "object",
+        "properties": {
+          "party": {
+            "$ref": "#/components/schemas/PartySnapshot"
+          },
+          "inviteUrl": {
+            "type": "string"
+          }
+        },
+        "required": ["party", "inviteUrl"],
+        "additionalProperties": false
+      },
+      "PartyJoinRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": ["token"],
+        "additionalProperties": false
+      },
+      "PartyReadyRequest": {
+        "type": "object",
+        "properties": {
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ready"],
+        "additionalProperties": false
+      },
+      "PresenceHeartbeatRequest": {
+        "type": "object",
+        "properties": {
+          "windowId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": ["windowId"],
+        "additionalProperties": false
+      },
+      "PartyInvitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/PartySettings"
+          },
+          "participantCount": {
+            "type": "integer"
+          },
+          "capacity": {
+            "type": "integer"
+          }
+        },
+        "required": ["id", "settings", "participantCount", "capacity"],
         "additionalProperties": false
       }
     }
