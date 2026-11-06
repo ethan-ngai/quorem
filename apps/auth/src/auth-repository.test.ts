@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -106,4 +106,53 @@ describe.skipIf(!url)("auth repository expiry on disposable PostgreSQL", () => {
       await pool.end();
     }
   }, 12000);
+  it("internal public-key discovery survives an exhausted public endpoint budget", async () => {
+    const parsed = new URL(url!);
+    expect(parsed.pathname).toBe("/quorem_hono_auth_native_test");
+    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
+    expect(parsed.searchParams.has("host")).toBe(false);
+    const { createNodeRuntime } = await import("./node-auth.ts");
+    const runtime = await createNodeRuntime({
+      APP_ENV: "local",
+      AUTH_MODE: "password",
+      AUTH_ORIGIN: "http://127.0.0.1:5174",
+      AUTH_DATABASE_URL: url,
+      BETTER_AUTH_SECRET: "fixture-internal-keys-secret-".repeat(3),
+      AUTH_INTERNAL_SECRET: "fixture-internal-authority-".repeat(3),
+    });
+    const id = randomUUID();
+    const publicKey = generateKeyPairSync("ed25519").publicKey.export({ format: "jwk" });
+    let publicBudgetCalls = 0;
+    runtime.repository.rateLimit = async () => {
+      publicBudgetCalls++;
+      return { allowed: false, retryAfter: 60 };
+    };
+    try {
+      await migrateAuth(runtime.database);
+      await runtime.database.query(
+        `INSERT INTO quorem_auth.jwks(id,"publicKey","privateKey","createdAt",alg,crv) VALUES($1,$2,'fixture-unused',clock_timestamp(),'EdDSA','Ed25519')`,
+        [id, JSON.stringify(publicKey)],
+      );
+      const blocked = await runtime.auth.handler(
+        new Request(`${runtime.config.origin}/api/auth/jwks`),
+      );
+      expect(blocked.status).toBe(429);
+      await blocked.body?.cancel();
+      const before = publicBudgetCalls;
+      expect(before).toBe(1);
+      await Promise.all(
+        Array.from({ length: 32 }, async () => {
+          const response = await runtime.makeAuth().api.getJwks({ asResponse: true });
+          expect(response.status).toBe(200);
+          const value = (await response.json()) as { keys: { kid: string; d?: string }[] };
+          expect(value.keys.some((key) => key.kid === id)).toBe(true);
+          expect(value.keys.every((key) => key.d === undefined)).toBe(true);
+        }),
+      );
+      expect(publicBudgetCalls).toBe(before);
+    } finally {
+      await runtime.database.query("DELETE FROM quorem_auth.jwks WHERE id=$1", [id]);
+      await runtime.database.end();
+    }
+  });
 });
