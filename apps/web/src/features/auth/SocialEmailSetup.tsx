@@ -1,3 +1,6 @@
+import { TextInput } from "../../ui/TextControl";
+import { authInputConstraints } from "./inputConstraints";
+import { emailSchema } from "@quorem/contracts/auth";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -38,7 +41,12 @@ export function SocialEmailSetup() {
         if (result.linking) await connectProvider(result.provider);
         else await signInWithProvider(result.provider);
       } else {
-        await accountRequest("social-email/start", { email });
+        const parsed = emailSchema.safeParse(email);
+        if (!parsed.success) {
+          setError("Enter a valid email address.");
+          return;
+        }
+        await accountRequest("social-email/start", { email: parsed.data });
         setSent(true);
         cooldown.start(60);
       }
@@ -81,7 +89,9 @@ export function SocialEmailSetup() {
             {!token && (
               <label>
                 Email
-                <input
+                <TextInput
+                  unstyled
+                  constraint={authInputConstraints.email}
                   type="email"
                   required
                   maxLength={254}
