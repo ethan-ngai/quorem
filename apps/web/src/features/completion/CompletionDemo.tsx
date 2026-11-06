@@ -273,9 +273,14 @@ export function CompletionDemo() {
                 {competitive ? "Review code" : "Back to editor"}
               </button>
               {competitive && (
-                <button className="button button-primary" onClick={() => setReady(!ready)}>
-                  {ready ? "Unready" : "Ready up"}
-                </button>
+                <>
+                  <a className="button button-secondary" href="/party">
+                    Return to lobby
+                  </a>
+                  <button className="button button-primary" onClick={() => setReady(!ready)}>
+                    {ready ? "Unready" : "Ready up"}
+                  </button>
+                </>
               )}
             </>
           }
