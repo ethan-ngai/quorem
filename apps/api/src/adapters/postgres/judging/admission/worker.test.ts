@@ -68,7 +68,8 @@ it("recovers a delayed commit, dispatches before ack, and cannot consume deadlin
           state.storage.get("published"),
       ),
     ).toBe(job);
-    expect(await execution.settle(receipt)).toBe("abandoned");
+    // Publication can race an automatic alarm still acknowledging its committed receipt.
+    await expect.poll(() => execution.settle(receipt), { timeout: 3000 }).toBe("abandoned");
     expect(await deadline.settle(other)).toBe("pending");
   } finally {
     await run((scope) =>
