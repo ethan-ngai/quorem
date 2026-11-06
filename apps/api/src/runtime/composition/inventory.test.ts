@@ -12,6 +12,7 @@ const ports: HttpPorts = {
   managed: unavailable,
   guests: { lookup: unavailable, endMatch: unavailable, canBootstrap: unavailable },
   origins: [],
+  authIssuer: "https://auth.example.test",
   trustedPeer: () => undefined,
   deadline: { prearm: unavailable, wake: unavailable },
   execution: { prearm: unavailable, wake: unavailable },
@@ -49,7 +50,7 @@ it("registers the full HTTP inventory in the domain app or native socket classif
       ),
   );
   expect(missing).toEqual([]);
-  expect(inventory.http).toHaveLength(80);
+  expect(inventory.http).toHaveLength(83);
   const recorded = new Set(inventory.http.map((item) => `${item.method} ${normalize(item.path)}`));
   expect(
     [...registered].filter((route) => !route.startsWith("ALL ") && !recorded.has(route)),

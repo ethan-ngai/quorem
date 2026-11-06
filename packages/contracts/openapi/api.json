@@ -4116,20 +4116,31 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Success",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ProblemVersion" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemVersion"
+                }
+              }
             }
           },
           "default": {
             "description": "Safe application error",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
             }
           }
         }
@@ -4143,14 +4154,19 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" }
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/CreateReviewWorkspaceRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/CreateReviewWorkspaceRequest"
+              }
             }
           }
         },
@@ -4158,13 +4174,21 @@
           "201": {
             "description": "Created",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/Workspace" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
             }
           },
           "default": {
             "description": "Safe application error",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
             }
           }
         }
@@ -4206,6 +4230,211 @@
           },
           "default": {
             "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/social": {
+      "get": {
+        "operationId": "getSocialOverview",
+        "summary": "SocialOverview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialOverview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Player unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/players": {
+      "get": {
+        "operationId": "getPlayerPage",
+        "summary": "PlayerPage",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Player unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/players/{id}": {
+      "get": {
+        "operationId": "getPlayerProfile",
+        "summary": "PlayerProfile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerProfile"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Player unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -4791,8 +5020,13 @@
       "CreateReviewWorkspaceRequest": {
         "type": "object",
         "properties": {
-          "participantUserId": { "type": "string", "format": "uuid" },
-          "language": { "$ref": "#/components/schemas/Language" }
+          "participantUserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "$ref": "#/components/schemas/Language"
+          }
         },
         "required": ["participantUserId", "language"],
         "additionalProperties": false
@@ -5075,7 +5309,9 @@
           "displayName": {
             "type": "string"
           },
-          "image": { "type": "string" },
+          "image": {
+            "type": "string"
+          },
           "color": {
             "type": "integer",
             "minimum": 1,
@@ -7073,8 +7309,14 @@
           "displayName": {
             "type": "string"
           },
-          "image": { "type": "string" },
-          "color": { "type": "integer", "minimum": 1, "maximum": 24 },
+          "image": {
+            "type": "string"
+          },
+          "color": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          },
           "ready": {
             "type": "boolean"
           },
@@ -7272,8 +7514,14 @@
           "displayName": {
             "type": "string"
           },
-          "image": { "type": "string" },
-          "color": { "type": "integer", "minimum": 1, "maximum": 24 },
+          "image": {
+            "type": "string"
+          },
+          "color": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 24
+          },
           "own": {
             "type": "boolean"
           },
@@ -7356,6 +7604,133 @@
         },
         "required": ["name"],
         "additionalProperties": false
+      },
+      "PlayerIdentity": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "displayName", "image", "color", "username"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "color": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "username": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "ShowdownRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["played", "wins", "draws", "losses"],
+        "properties": {
+          "played": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "wins": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "draws": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "losses": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "Rival": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["player", "record", "lastPlayedAt"],
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "record": {
+            "$ref": "#/components/schemas/ShowdownRecord"
+          },
+          "lastPlayedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SocialOverview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["viewer", "windowDays", "minimumMatches", "rivals"],
+        "properties": {
+          "viewer": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "windowDays": {
+            "type": "integer"
+          },
+          "minimumMatches": {
+            "type": "integer"
+          },
+          "rivals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rival"
+            },
+            "maxItems": 20
+          }
+        }
+      },
+      "PlayerProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["player", "record", "headToHead", "isSelf", "windowDays"],
+        "properties": {
+          "player": {
+            "$ref": "#/components/schemas/PlayerIdentity"
+          },
+          "record": {
+            "$ref": "#/components/schemas/ShowdownRecord"
+          },
+          "headToHead": {
+            "$ref": "#/components/schemas/ShowdownRecord"
+          },
+          "isSelf": {
+            "type": "boolean"
+          },
+          "windowDays": {
+            "type": "integer"
+          }
+        }
+      },
+      "PlayerPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["items", "total"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            },
+            "maxItems": 20
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
       }
     }
   }

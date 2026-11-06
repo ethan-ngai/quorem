@@ -79,6 +79,30 @@ void queryClient.prefetchQuery(sessionQueryOptions());
 primeProfile();
 
 const rootRoute = createRootRoute({ component: PageLayout, notFoundComponent: NotFoundPage });
+const SocialPage = lazy(() =>
+  import("./features/social/SocialPage").then((module) => ({ default: module.SocialPage })),
+);
+const socialRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/social",
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening social…" />}>
+      <SocialPage />
+    </Suspense>
+  ),
+});
+const playerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/players/$id",
+  component: function PlayerRoute() {
+    const { id } = playerRoute.useParams();
+    return (
+      <Suspense fallback={<LoadingScreen label="Opening profile…" />}>
+        <SocialPage playerId={id} />
+      </Suspense>
+    );
+  },
+});
 const privacyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/privacy",
@@ -301,6 +325,8 @@ const routeTree = rootRoute.addChildren([
   matchRoute,
   reviewRoute,
   partyRoute,
+  socialRoute,
+  playerRoute,
   inviteRoute,
 ]);
 const router = createRouter({

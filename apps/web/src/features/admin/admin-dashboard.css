@@ -104,7 +104,7 @@
   text-decoration: none;
 }
 .admin-overview-link:hover {
-  text-decoration: underline;
+  color: var(--color-brand-accent);
 }
 .admin-overview-table {
   overflow-x: auto;

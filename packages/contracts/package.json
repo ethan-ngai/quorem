@@ -14,7 +14,8 @@
     "./java-type": "./src/java-type.ts",
     "./node-type": "./src/node-type.ts",
     "./long": "./src/long.ts",
-    "./questions/schema": "./questions/question-v1.schema.json"
+    "./questions/schema": "./questions/question-v1.schema.json",
+    "./social-policy": "./src/social-policy.ts"
   },
   "scripts": {
     "generate": "node scripts/generate.mjs",

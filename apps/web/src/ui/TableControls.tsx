@@ -34,9 +34,11 @@ export function TableSortHeader<T>({
 export function TablePagination<T>({
   table,
   disabled = false,
+  showPageSize = true,
 }: {
   table: Table<T>;
   disabled?: boolean;
+  showPageSize?: boolean;
 }) {
   const { pageIndex, pageSize } = table.getState().pagination;
   const total = table.getRowCount();
@@ -49,11 +51,13 @@ export function TablePagination<T>({
           : "0 entries"}
       </span>
       <div>
-        <PageSizeControl
-          value={pageSize}
-          onChange={(size) => table.setPageSize(size)}
-          disabled={disabled}
-        />
+        {showPageSize && (
+          <PageSizeControl
+            value={pageSize}
+            onChange={(size) => table.setPageSize(size)}
+            disabled={disabled}
+          />
+        )}
         <div className="table-page-navigation">
           <Tooltip content="Previous page">
             <button

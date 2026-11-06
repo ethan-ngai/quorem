@@ -14,16 +14,18 @@ export function Table({
   heading,
   children,
   className,
+  density = "regular",
 }: {
   label: string;
   heading: ReactNode;
   children: ReactNode;
   className?: string;
+  density?: "regular" | "compact";
 }) {
   const rowKeys = Children.toArray(children).map((row) => (isValidElement(row) ? row.key : row));
   const body = useChangeMotion<HTMLTableSectionElement>(JSON.stringify(rowKeys));
   return (
-    <table className={className ? `data-table ${className}` : "data-table"}>
+    <table data-density={density} className={className ? `data-table ${className}` : "data-table"}>
       <caption className="sr-only">{label}</caption>
       <thead>{heading}</thead>
       <tbody ref={body} className="motion-reveal">

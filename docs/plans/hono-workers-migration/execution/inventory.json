@@ -503,6 +503,21 @@
       "packet": "17",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/odyssey.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/social",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/players",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/players/{id}",
+      "registration": "apps/api/src/runtime/composition/http.ts"
     }
   ],
   "websocketCommands": [

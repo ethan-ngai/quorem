@@ -32,6 +32,7 @@ Status: original planning baseline with subsequent implementation updates. Confi
 | [Python intelligence](intelligence.md) | Language service, sessions, type declarations, capability checks |
 | [Judge](judge.md) | Python execution, fixtures, verdicts, isolation |
 | [Multiplayer](multiplayer.md) | 1v1 lifecycle, authority, realtime |
+| [Social](social.md) | Automatic nemeses, player profiles and future leaderboard groups |
 | [Identity](auth.md) | Better Auth/Cognito, sessions, Go verification |
 | [Operating defaults](operating-defaults.md) | Resource/latency limits, retention, admission |
 | [Delivery](delivery.md) | Local environment, AWS evaluation, CI/deployment |

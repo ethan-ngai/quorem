@@ -211,6 +211,7 @@ function makeHttp(
     allowed = origins(env);
   const identity = composeIdentity(run, security.verifier, security.sessions, allowed);
   const result = composeHttp({
+    authIssuer: required(env.AUTH_ORIGIN),
     run,
     ...identity,
     origins: allowed,
@@ -236,6 +237,7 @@ function socketAuthority(env: Env) {
     allowed = origins(env);
   const identity = composeIdentity(run, security.verifier, security.sessions, allowed);
   const composed = composeHttp({
+    authIssuer: required(env.AUTH_ORIGIN),
     run,
     ...identity,
     origins: allowed,

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
@@ -178,10 +179,19 @@ export function MatchEndView({
         <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
           <span>
             <strong>
-              <ParticipantName
-                participant={player}
-                self={player.userId === participantUserId(identity)}
-              />
+              {player.guest ? (
+                <ParticipantName
+                  participant={player}
+                  self={player.userId === participantUserId(identity)}
+                />
+              ) : (
+                <Link className="text-link" to="/players/$id" params={{ id: player.userId }}>
+                  <ParticipantName
+                    participant={player}
+                    self={player.userId === participantUserId(identity)}
+                  />
+                </Link>
+              )}
             </strong>
             {player.userId === snapshot.outcome?.winnerUserId && <MatchWinnerMetadata />}
           </span>

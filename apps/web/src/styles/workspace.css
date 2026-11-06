@@ -497,15 +497,6 @@ kbd {
 .lobby-expiry {
   margin-top: 20px;
 }
-.text-link {
-  display: inline-block;
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 13px;
-}
-.text-link:hover {
-  text-decoration: underline;
-}
 .invite-entry .button {
   margin: 16px 0 24px;
 }

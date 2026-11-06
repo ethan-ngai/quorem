@@ -1,3 +1,5 @@
+import { socialRoutes } from "../../modules/social/routes.ts";
+import { socialRepository } from "../../adapters/postgres/social/repository.ts";
 import { partyRoutes } from "../../modules/parties/routes.ts";
 import { partyRepository } from "../../adapters/postgres/parties/repository.ts";
 import { adminRoutes } from "../../modules/admin/routes.ts";
@@ -53,6 +55,7 @@ export interface HttpPorts {
   submissionNotices?: FanoutSubscriber;
   identify: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
+  authIssuer: string;
   managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>;
   guests: GuestIdentityReader & {
     endMatch(hash: string): Promise<boolean>;
@@ -113,6 +116,7 @@ export function composeHttp(ports: HttpPorts) {
       },
     }),
   );
+  app.route("/", socialRoutes({ identify, social: socialRepository(run, ports.authIssuer) }));
   app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));
   app.route(

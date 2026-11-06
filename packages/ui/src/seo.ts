@@ -7,6 +7,8 @@ export const socialImageAlt =
   "Quorem dark hero: pixel logo and wordmark beside a Python coding workspace. Compete beyond the algorithm.";
 export const publicPaths = ["/", "/practice", "/privacy", "/terms"];
 export const appPaths = [
+  "/social",
+  "/players",
   "/practice",
   "/privacy",
   "/terms",
@@ -21,6 +23,14 @@ export const appPaths = [
 ];
 
 const pages: Record<string, { title: string; description: string }> = {
+  "/social": {
+    title: "Social - Quorem",
+    description: "Discover your rivals and explore player profiles.",
+  },
+  "/players": {
+    title: "Player Profile - Quorem",
+    description: "Showdown records and head-to-head results.",
+  },
   "/": { title: siteTitle, description: siteDescription },
   "/app": {
     title: "Workspace - Quorem",
