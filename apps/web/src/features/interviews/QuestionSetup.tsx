@@ -402,37 +402,18 @@ function QuestionTests({
   const problem = { ...blankQuestion().problem, signature };
   return (
     <div className="authoring-test-collections">
-      <div className="result-tabs" role="tablist" aria-label="Question tests">
-        {(["public", "private"] as const).map((tab, index) => (
-          <button
-            type="button"
-            role="tab"
-            key={tab}
-            id={`${id}-${tab}`}
-            aria-controls={`${id}-cases`}
-            aria-selected={collection === tab}
-            tabIndex={collection === tab ? 0 : -1}
-            onClick={() => setCollection(tab)}
-            onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-              event.preventDefault();
-              const next =
-                event.key === "Home"
-                  ? "public"
-                  : event.key === "End"
-                    ? "private"
-                    : index === 0
-                      ? "private"
-                      : "public";
-              setCollection(next);
-              document.getElementById(`${id}-${next}`)?.focus();
-            }}
-          >
-            <Icon name={tab === "private" ? "lock" : "samples"} />
-            {tab === "public" ? "Test cases" : "Private tests"}
-          </button>
-        ))}
-      </div>
+      <AuthoringTabs
+        id={id}
+        label="Question tests"
+        appearance="default"
+        value={collection}
+        onChange={setCollection}
+        panelId={() => `${id}-cases`}
+        tabs={[
+          { value: "public", icon: <Icon name="samples" />, label: "Test cases" },
+          { value: "private", icon: <Icon name="lock" />, label: "Private tests" },
+        ]}
+      />
       <div
         className="authoring-case-browser"
         id={`${id}-cases`}

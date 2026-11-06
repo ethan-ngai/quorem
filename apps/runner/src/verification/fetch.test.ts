@@ -112,3 +112,35 @@ void test("verifier Worker binds proof reads to the source service and retains c
   await assert.rejects(response.json(), /Verification source unavailable/);
   assert.equal(reads, 1);
 });
+
+void test("verification source rejects malformed manifest and case references", async () => {
+  const { httpVerificationSource } = await import("./source-http.ts");
+  const { defaultLimits } = await import("@quorem/execution");
+  const job = {
+    jobId: "j",
+    submissionId: "s",
+    attemptId: "a",
+    sandboxScope: "s",
+    problemVersionId: "p",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: "s",
+    suiteRef: "p",
+    language: "python",
+    limits: defaultLimits(),
+  };
+  const source = httpVerificationSource({
+    origin: "https://source",
+    credential,
+    challenge: "challenge",
+    timeoutMs: 1000,
+    fetch: async (input) =>
+      Response.json(
+        String(input).endsWith("/manifest")
+          ? { kind: "run", caseCount: "1" }
+          : { hash: "a".repeat(64), size: 1, channel: "secret" },
+      ),
+  });
+  await assert.rejects(source.inputs.inputManifest(job), /Invalid input manifest/);
+  await assert.rejects(source.inputs.inputCaseRef(job, 0), /Invalid input case reference/);
+});

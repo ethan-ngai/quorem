@@ -29,15 +29,6 @@ export function validateConstraints(
     if (!binding) throw new Error(`Unknown constraint parameter ${target.parameter}.`);
     const type = binding.type.replaceAll("array<", "list<");
     const node = nodeType(type);
-    const supported = {
-      value: ["int", "long", "float", "str"].includes(type),
-      length: type === "str" || type.startsWith("list<"),
-      elements: ["list<int>", "list<long>", "list<float>"].includes(type),
-      sum: ["list<int>", "list<long>", "list<float>"].includes(type),
-      nodeCount: !!node,
-      nodeValues: ["int", "long", "float"].includes(node?.payload ?? ""),
-    }[target.projection];
-    if (!supported) throw new Error(`Unsupported constraint target ${target.parameter}.`);
     const value = binding.value;
     switch (target.projection) {
       case "value":

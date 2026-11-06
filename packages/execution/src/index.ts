@@ -65,3 +65,5 @@ export {
   JUDGING_DEFAULTS,
   judgingCapacity,
 } from "./scheduling.ts";
+
+export { decodeInputBlob, decodeInputCaseRef, decodeInputManifest } from "./input-contract.ts";

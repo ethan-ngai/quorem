@@ -1,6 +1,5 @@
 /** @file starter.ts @description Generate initial method source. @module questions */
-import { javaQuestionType } from "@quorem/contracts/java-type";
-import { nodeType, ocamlNodeNames } from "@quorem/contracts/node-type";
+import { sourceQuestionType as languageType } from "@quorem/contracts/question-type";
 import type { Signature } from "./model.ts";
 
 export type StarterLanguage = "python" | "java" | "typescript" | "ocaml" | "postgresql";
@@ -43,69 +42,13 @@ function documentation(sig: Signature, language: StarterLanguage, indent: string
   return `${indent}/**\n${indent} * ${lines.map((l) => l.replaceAll("*/", "* /")).join(`\n${indent} * `)}\n${indent} */\n`;
 }
 
-function languageType(
-  kind: string,
-  language: Exclude<StarterLanguage, "python" | "postgresql">,
+function method(
+  sig: Signature,
+  language: Exclude<StarterLanguage, "postgresql">,
+  staged: boolean,
 ): string {
-  if (language === "java") {
-    const type = javaQuestionType(kind);
-    if (!type) throw new Error(`unsupported type ${kind} for ${language}`);
-    return type;
-  }
-  const node = nodeType(kind);
-  if (node && (node.generic || node.kind === "NaryTreeNode")) {
-    const inner = languageType(node.payload, language);
-    if (language === "typescript") return `${node.kind}<${inner}> | null`;
-    return `${inner} ${ocamlNodeNames[node.kind]} option`;
-  }
-  for (const wrapper of ["optional", "array", "list"] as const) {
-    if (kind.startsWith(`${wrapper}<`) && kind.endsWith(">")) {
-      const inner = languageType(kind.slice(wrapper.length + 1, -1), language);
-      if (language === "typescript")
-        return wrapper === "optional" ? `${inner} | null` : `(${inner})[]`;
-      return `(${inner}) ${wrapper === "optional" ? "option" : wrapper}`;
-    }
-  }
-  const types: Record<string, Record<string, string>> = {
-    typescript: {
-      void: "void",
-      int: "number",
-      long: "bigint",
-      float: "number",
-      bool: "boolean",
-      str: "string",
-      datetime: "Date",
-      ListNode: "ListNode | null",
-      TreeNode: "TreeNode | null",
-    },
-    ocaml: {
-      void: "unit",
-      int: "int",
-      long: "int64",
-      float: "float",
-      bool: "bool",
-      str: "string",
-      datetime: "Unix.tm",
-      ListNode: "list_node option",
-      TreeNode: "tree_node option",
-    },
-  };
-  const value = types[language][kind];
-  if (!value) throw new Error(`unsupported type ${kind} for ${language}`);
-  return value;
-}
-
-function starter(sig: Signature, language: Exclude<StarterLanguage, "postgresql">): string {
   if (language === "python")
-    return `class ${sig.className}:\n    def ${sig.methodName}(${["self", ...sig.parameters.map((p) => p.name)].join(", ")}):\n${documentation(sig, language, "        ")}        raise NotImplementedError\n`;
-  const node = [...sig.parameters.map((p) => p.type), sig.returnType].some((t) =>
-    t.includes("Node"),
-  );
-  const note = !node
-    ? ""
-    : language === "ocaml"
-      ? "(* Judge supplies mutable list_node, tree_node and nary_tree_node records. *)\n"
-      : "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n";
+    return `    def ${sig.methodName}(${["self", ...sig.parameters.map((p) => p.name)].join(", ")}):\n${documentation(sig, language, "        ")}        raise NotImplementedError\n`;
   const result = languageType(sig.returnType, language);
   const params = sig.parameters.map((p) => {
     const t = languageType(p.type, language);
@@ -116,10 +59,17 @@ function starter(sig: Signature, language: Exclude<StarterLanguage, "postgresql"
         : `(${p.name}:${t})`;
   });
   if (language === "java")
-    return `${note}class ${sig.className} {\n${documentation(sig, language, "    ")}    public ${result} ${sig.methodName}(${params.join(", ")}) {\n        throw new UnsupportedOperationException("Implement solution");\n    }\n}\n`;
+    return `${documentation(sig, language, "    ")}    public ${result} ${sig.methodName}(${params.join(", ")}) {\n        throw new UnsupportedOperationException("Implement solution");\n    }\n`;
   if (language === "typescript")
-    return `${note}class ${sig.className} {\n${documentation(sig, language, "    ")}    ${sig.methodName}(${params.join(", ")}): ${result} {\n        throw new Error("Implement solution");\n    }\n}\n`;
-  return `${note}${documentation(sig, language, "")}let ${sig.methodName} ${params.join(" ")} : ${result} =\n    failwith "Implement solution"\n`;
+    return `${documentation(sig, language, "    ")}    ${sig.methodName}(${params.join(", ")}): ${result} {\n        throw new Error("Implement solution");\n    }\n`;
+  const args = staged && !params.length ? "()" : params.join(" ");
+  const node = [...sig.parameters.map((p) => p.type), sig.returnType].some((t) =>
+    t.includes("Node"),
+  );
+  const note = node
+    ? "(* Judge supplies mutable list_node, tree_node and nary_tree_node records. *)\n"
+    : "";
+  return `${note}${documentation(sig, language, "")}let ${sig.methodName} ${args} : ${result} =\n    failwith "Implement solution"\n`;
 }
 
 /** Generate a source document for a classic or staged question. */
@@ -130,19 +80,17 @@ export function generateStarter(
 ): string {
   if (language === "postgresql") return "-- Write your query here.\n";
   if (!methods.length) throw new Error("method required");
-  if (!staged) return starter(methods[0], language);
-  const bodies = methods.map((sig) => {
-    let source = starter(sig, language);
-    if (language === "ocaml")
-      return sig.parameters.length
-        ? source
-        : source.replace(`let ${sig.methodName}  :`, `let ${sig.methodName} () :`);
-    const marker = `class ${sig.className}${language === "python" ? ":" : " {"}\n`;
-    const offset = source.indexOf(marker);
-    if (offset < 0) throw new Error("unsupported stage starter");
-    source = source.slice(offset + marker.length);
-    return language === "python" ? source : source.replace(/}\n$/, "");
-  });
+  if (!staged) {
+    const sig = methods[0];
+    const body = method(sig, language, false);
+    if (language === "ocaml") return body;
+    const node =
+      language !== "python" &&
+      [...sig.parameters.map((p) => p.type), sig.returnType].some((t) => t.includes("Node"));
+    const note = node ? "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n" : "";
+    return `${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
+  }
+  const bodies = methods.map((sig) => method(sig, language, true));
   if (language === "ocaml") return bodies.join("\n");
   if (language === "python")
     return `class Solution:\n    def __init__(self):\n        pass\n\n${bodies.join("\n")}`;

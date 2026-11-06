@@ -1,9 +1,11 @@
-import { and, eq, inArray, isNull, lte, or, gt, sql } from "drizzle-orm";
+import { and, eq, isNull, or, gt, sql } from "drizzle-orm";
 import { product } from "@quorem/database/schema";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import type { Capabilities, CapabilityReader } from "../../../modules/access/model.ts";
 
-const { users, entitlement_grants: grants, quota_overrides: quotas } = product;
+import { activeGrants, hasGrant } from "./active-grants.ts";
+
+const { users, quota_overrides: quotas } = product;
 export async function capabilitiesInTransaction(
   tx: Transaction,
   userId: string,
@@ -24,27 +26,19 @@ export async function capabilitiesInTransaction(
     guestConcurrency: 2,
   };
   if (user.kind !== "account" || user.disabled) return result;
-  const active = await tx
-    .select({ feature: grants.feature })
-    .from(grants)
-    .where(
-      and(
-        eq(grants.user_id, userId),
-        isNull(grants.revoked_at),
-        lte(grants.valid_from, sql`clock_timestamp()`),
-        or(isNull(grants.expires_at), gt(grants.expires_at, sql`clock_timestamp()`)),
-        inArray(grants.feature, [
-          "internal",
-          "matches.host_guests",
-          "intelligence.hosted",
-          "experimental",
-          "interviews.host",
-          "questions.custom",
-        ]),
-      ),
-    );
-  const has = (feature: string) =>
-    active.some((row) => row.feature === "internal" || row.feature === feature);
+  const active = await activeGrants(
+    tx,
+    userId,
+    [
+      "matches.host_guests",
+      "intelligence.hosted",
+      "experimental",
+      "interviews.host",
+      "questions.custom",
+    ],
+    "read",
+  );
+  const has = (feature: string) => hasGrant(active, feature);
   result.hostGuests = has("matches.host_guests");
   result.hostedIntelligence = has("intelligence.hosted");
   result.experimental = has("experimental");

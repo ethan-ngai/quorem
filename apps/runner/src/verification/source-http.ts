@@ -1,5 +1,11 @@
 /** @file source-http.ts @description Private verifier access to fenced API pages. @module runner */
-import { encodeJob, type ExecutionInputReader, type InputPage } from "@quorem/execution";
+import {
+  decodeInputCaseRef,
+  decodeInputManifest,
+  encodeJob,
+  type ExecutionInputReader,
+  type InputPage,
+} from "@quorem/execution";
 import type { FrozenCase, VerificationSource } from "./verifier.ts";
 /** Every request is bound to one API-created challenge and uses a purpose-specific credential. */
 export function httpVerificationSource(options: {
@@ -94,21 +100,11 @@ export function httpVerificationSource(options: {
   const inputs: ExecutionInputReader = {
     async inputManifest(job, signal) {
       encodeJob(job);
-      return (
-        bundle?.manifest ??
-        ((await call("manifest", {}, signal)) as Awaited<
-          ReturnType<ExecutionInputReader["inputManifest"]>
-        >)
-      );
+      return decodeInputManifest(bundle?.manifest ?? (await call("manifest", {}, signal)));
     },
     async inputCaseRef(job, _ordinal, signal) {
       encodeJob(job);
-      return (
-        bundle?.ref ??
-        ((await call("ref", {}, signal)) as Awaited<
-          ReturnType<ExecutionInputReader["inputCaseRef"]>
-        >)
-      );
+      return decodeInputCaseRef(bundle?.ref ?? (await call("ref", {}, signal)));
     },
     async inputPage(job, kind, _ordinal, offset, signal) {
       encodeJob(job);

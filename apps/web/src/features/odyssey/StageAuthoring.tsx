@@ -1,5 +1,6 @@
 import { TextInput } from "../../ui/TextControl";
 import { inputConstraints, withMaxBytes } from "../../ui/input-constraints";
+import { AuthoringTabs } from "../../ui/AuthoringTabs";
 /** @file StageAuthoring.tsx @description Ordered step/method editing with typed stateful test suites. @module odyssey */
 import { randomUUID } from "../../randomUUID";
 import { useId, useState } from "react";
@@ -28,41 +29,18 @@ export function StageAuthoring({
   function patch(stage: StageDraft, update: Partial<StageDraft>) {
     onChange(value.map((item) => (item.id === stage.id ? { ...item, ...update } : item)));
   }
-  function selectAt(index: number) {
-    setRequested(value[index]!.id);
-    document.getElementById(`${id}-tab-${value[index]!.id}`)?.focus();
-  }
   return (
     <section className="stage-authoring">
       <div className="stage-authoring-nav">
-        <div className="result-tabs" role="tablist" aria-label="Question steps">
-          {value.map((stage, index) => (
-            <button
-              type="button"
-              role="tab"
-              key={stage.id}
-              id={`${id}-tab-${stage.id}`}
-              aria-controls={`${id}-panel-${stage.id}`}
-              aria-selected={selected === stage}
-              tabIndex={selected === stage ? 0 : -1}
-              onClick={() => setRequested(stage.id)}
-              onKeyDown={(event) => {
-                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                event.preventDefault();
-                selectAt(
-                  event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                      ? value.length - 1
-                      : (index + (event.key === "ArrowLeft" ? -1 : 1) + value.length) %
-                        value.length,
-                );
-              }}
-            >
-              Step {index + 1}
-            </button>
-          ))}
-        </div>
+        <AuthoringTabs
+          label="Question steps"
+          appearance="default"
+          value={selected?.id ?? ""}
+          onChange={setRequested}
+          tabId={(stageId) => `${id}-tab-${stageId}`}
+          panelId={(stageId) => `${id}-panel-${stageId}`}
+          tabs={value.map((stage, index) => ({ value: stage.id, label: `Step ${index + 1}` }))}
+        />
         <button
           type="button"
           className="quiet-button"
@@ -186,37 +164,18 @@ export function StageAuthoring({
               Add method
             </button>
             <div className="authoring-test-collections">
-              <div className="result-tabs" role="tablist" aria-label={`Step ${index + 1} tests`}>
-                {(["examples", "tests"] as const).map((tab, tabIndex) => (
-                  <button
-                    type="button"
-                    role="tab"
-                    key={tab}
-                    id={`${id}-${stage.id}-${tab}`}
-                    aria-controls={`${id}-${stage.id}-cases`}
-                    aria-selected={collection === tab}
-                    tabIndex={collection === tab ? 0 : -1}
-                    onClick={() => setCollections({ ...collections, [stage.id]: tab })}
-                    onKeyDown={(event) => {
-                      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                      event.preventDefault();
-                      const next =
-                        event.key === "Home"
-                          ? "examples"
-                          : event.key === "End"
-                            ? "tests"
-                            : tabIndex === 0
-                              ? "tests"
-                              : "examples";
-                      setCollections({ ...collections, [stage.id]: next });
-                      document.getElementById(`${id}-${stage.id}-${next}`)?.focus();
-                    }}
-                  >
-                    <Icon name={tab === "tests" ? "lock" : "samples"} />
-                    {tab === "examples" ? "Examples" : "Private tests"}
-                  </button>
-                ))}
-              </div>
+              <AuthoringTabs
+                id={`${id}-${stage.id}`}
+                label={`Step ${index + 1} tests`}
+                appearance="default"
+                value={collection}
+                onChange={(tab) => setCollections({ ...collections, [stage.id]: tab })}
+                panelId={() => `${id}-${stage.id}-cases`}
+                tabs={[
+                  { value: "examples", icon: <Icon name="samples" />, label: "Examples" },
+                  { value: "tests", icon: <Icon name="lock" />, label: "Private tests" },
+                ]}
+              />
               <p className="case-stale">Calls share one object. Each case starts fresh.</p>
               <div
                 role="tabpanel"

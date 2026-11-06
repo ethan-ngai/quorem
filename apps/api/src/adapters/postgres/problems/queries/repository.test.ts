@@ -115,6 +115,15 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
         [ids[2], `${uid}-company`],
       );
+      await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,1)", [
+        versions[1],
+        `${uid}-private-tag`,
+      ]);
+      await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-private-company`]);
+      await pool.query(
+        "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
+        [ids[1], `${uid}-private-company`],
+      );
       await pool.query(
         "INSERT INTO problem_solution_approaches VALUES($1,'default',0,'',true,'python','explanation','O(n)','O(1)','note')",
         [versions[1]],
@@ -247,6 +256,26 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             ),
           ).total,
         ).toBe(1);
+        for (const [actor, library, visible] of [
+          [undefined, "", false],
+          [{ userId: other }, "", false],
+          [{ userId: owner }, "", true],
+          [{ userId: owner }, "private", true],
+          [{ userId: owner }, "global", false],
+          [undefined, "private", false],
+        ] as const) {
+          const result = JSON.parse(
+            await queries.catalog(
+              actor,
+              parseCatalogFilter(new URLSearchParams(`q=${uid}&library=${library}`)),
+            ),
+          );
+          expect(result.items.some((item: { id: string }) => item.id === versions[1])).toBe(
+            visible,
+          );
+          expect(result.topics.includes(`${uid}-private-tag`)).toBe(visible);
+          expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
+        }
         expect(await queries.byVersion(undefined, historical)).toContain("old-starter");
         expect(await queries.bySlug(undefined, `${uid}-0`)).toContain('"version":"1"');
         expect(await queries.bySlug(undefined, `${uid}-1`)).toBeNull();

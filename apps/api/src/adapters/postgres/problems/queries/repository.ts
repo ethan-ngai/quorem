@@ -47,9 +47,15 @@ const from = sql.raw(
 function owner(actor: ProblemActor | undefined): string {
   return actor?.userId ?? "";
 }
-function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
+function catalogVisibility(
+  actor: ProblemActor | undefined,
+  library: CatalogFilter["library"],
+): SQL {
   const who = owner(actor);
-  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${f.library}='' OR (${f.library}='global' AND p.owner_id IS NULL) OR (${f.library}='private' AND (${who}<>'' AND p.owner_id=${who}))) AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
+  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${library}='' OR (${library}='global' AND p.owner_id IS NULL) OR (${library}='private' AND (${who}<>'' AND p.owner_id=${who})))`;
+}
+function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
+  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
 }
 type Projected = {
   data: string;
@@ -118,7 +124,7 @@ async function readCatalog(
   f: CatalogFilter,
 ): Promise<string> {
   const where = catalogWhere(actor, f),
-    who = owner(actor),
+    visibility = catalogVisibility(actor, f.library),
     cursor = f.cursor ? decodeCursor(f.cursor, f) : undefined;
   const [{ total }] = (
     await tx.execute<{ total: string }>(
@@ -147,12 +153,12 @@ async function readCatalog(
   const last = items.at(-1);
   const topics = (
     await tx.execute<{ tag: string }>(
-      sql`SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE (p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${f.library}='' OR (${f.library}='global' AND p.owner_id IS NULL) OR (${f.library}='private' AND (${who}<>'' AND p.owner_id=${who}))) ORDER BY t.tag`,
+      sql`SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility} ORDER BY t.tag`,
     )
   ).rows.map((r) => r.tag);
   const companies = (
     await tx.execute<{ name: string }>(
-      sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND (p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${f.library}='' OR (${f.library}='global' AND p.owner_id IS NULL) OR (${f.library}='private' AND (${who}<>'' AND p.owner_id=${who}))) ORDER BY c.name`,
+      sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND ${visibility} ORDER BY c.name`,
     )
   ).rows.map((r) => r.name);
   const n = Number(total);

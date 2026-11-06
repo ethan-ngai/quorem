@@ -1,3 +1,4 @@
+import { AuthoringTabs } from "../../ui/AuthoringTabs";
 /** @file InterviewTests.tsx @description Authorized interview test collections use the shared case browser. @module interviews */
 import { useId, useState } from "react";
 import type { InterviewSnapshot, Submission } from "@quorem/contracts";
@@ -48,45 +49,25 @@ export function InterviewTests({
     <>
       {!!tests?.length && (
         <div className="results-toolbar">
-          <div className="result-tabs" role="tablist" aria-label="Test collections">
-            {(["shared", "private"] as const).map((name, index) => (
-              <button
-                type="button"
-                key={name}
-                role="tab"
-                id={`${id}-${name}`}
-                aria-controls={`${id}-panel`}
-                aria-selected={privateSelected === (name === "private")}
-                tabIndex={privateSelected === (name === "private") ? 0 : -1}
-                onClick={() => {
-                  setCollection(name);
-                  if (name === "private") onCustomModeChange(false);
-                }}
-                onKeyDown={(event) => {
-                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                  event.preventDefault();
-                  const target =
-                    event.key === "Home"
-                      ? "shared"
-                      : event.key === "End"
-                        ? "private"
-                        : index === 0
-                          ? "private"
-                          : "shared";
-                  setCollection(target);
-                  if (target === "private") onCustomModeChange(false);
-                  document.getElementById(`${id}-${target}`)?.focus();
-                }}
-              >
-                <Icon name={name === "private" ? "lock" : "samples"} />
-                {name === "shared"
-                  ? "Test cases"
-                  : interviewer
-                    ? "Private tests"
-                    : "Revealed tests"}
-              </button>
-            ))}
-          </div>
+          <AuthoringTabs
+            id={id}
+            label="Test collections"
+            appearance="default"
+            value={privateSelected ? "private" : "shared"}
+            panelId={() => `${id}-panel`}
+            onChange={(name) => {
+              setCollection(name);
+              if (name === "private") onCustomModeChange(false);
+            }}
+            tabs={[
+              { value: "shared", icon: <Icon name="samples" />, label: "Test cases" },
+              {
+                value: "private",
+                icon: <Icon name="lock" />,
+                label: interviewer ? "Private tests" : "Revealed tests",
+              },
+            ]}
+          />
         </div>
       )}
       <div
