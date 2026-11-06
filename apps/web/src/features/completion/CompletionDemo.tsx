@@ -10,6 +10,8 @@ import { RotateCcw } from "lucide-react";
 import { CompletionDialog } from "./CompletionDialog";
 import { Celebration } from "../../ui/Celebration";
 import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
+import { MatchCompletionActions } from "../matches/MatchCompletionActions";
+import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
 import { PartyReadyStatus } from "../matches/PartyReadyStatus";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { PythonEditor } from "../editor/PythonEditor";
@@ -262,27 +264,28 @@ export function CompletionDemo() {
             )
           }
           actions={
-            <>
-              <button
-                className="button button-secondary"
-                onClick={() => {
-                  setOpen(false);
-                  if (competitive) setReview(true);
+            competitive ? (
+              <MatchCompletionActions
+                review={{
+                  disabled: false,
+                  onClick: () => {
+                    setOpen(false);
+                    setReview(true);
+                  },
                 }}
-              >
-                {competitive ? "Review code" : "Back to editor"}
+                lobby="return"
+                readiness={{
+                  ready,
+                  disabled: false,
+                  retry: false,
+                  onClick: () => setReady(!ready),
+                }}
+              />
+            ) : (
+              <button className="button button-secondary" onClick={() => setOpen(false)}>
+                Back to editor
               </button>
-              {competitive && (
-                <>
-                  <a className="button button-secondary" href="/party">
-                    Return to lobby
-                  </a>
-                  <button className="button button-primary" onClick={() => setReady(!ready)}>
-                    {ready ? "Unready" : "Ready up"}
-                  </button>
-                </>
-              )}
-            </>
+            )
           }
         >
           {competitive && (
@@ -291,7 +294,7 @@ export function CompletionDemo() {
                 <li data-you="true">
                   <span>
                     <strong>{lost ? "Alex" : "You"}</strong>
-                    <small>Winner · 8:42</small>
+                    <MatchWinnerMetadata elapsed="8:42" />
                   </span>
                   <span>24 / 24</span>
                 </li>

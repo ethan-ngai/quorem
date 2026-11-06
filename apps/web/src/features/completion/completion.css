@@ -54,6 +54,41 @@
   justify-content: center;
   gap: var(--space-2);
 }
+.completion-actions > .match-completion-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+.match-completion-actions .button {
+  gap: var(--space-2);
+}
+.match-completion-primary {
+  grid-column: 1 / -1;
+}
+.match-winner-metadata,
+.match-winner-crown,
+.match-winner-time {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.match-winner-metadata {
+  align-self: center;
+  gap: var(--space-2);
+  font-size: var(--text-label);
+  color: var(--color-text-secondary);
+}
+.match-winner-crown {
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
+}
+.match-winner-crown:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: var(--space-1);
+}
+.match-winner-time {
+  font-family: var(--font-code);
+}
 .completion-dialog .match-result-players {
   margin: var(--space-4) 0 0;
   max-height: 200px;

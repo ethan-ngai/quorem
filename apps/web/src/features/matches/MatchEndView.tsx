@@ -1,4 +1,6 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
+import { MatchCompletionActions } from "./MatchCompletionActions";
+import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -103,47 +105,38 @@ export function MatchEndView({
     !!snapshot.startedAt;
   const reviewPending = !!snapshot.startedAt && (!settled || !!snapshot.reviewPending);
   const actions = (
-    <>
-      {settled && !snapshot.reviewPending && (
-        <button
-          className="button button-secondary"
-          onClick={() => {
-            setCelebrate(false);
-            onReview();
-          }}
-        >
-          Review code
-        </button>
-      )}
-      {reviewPending && (
-        <button
-          className="button button-secondary"
-          disabled
-          title="Review is available after judging finishes."
-        >
-          Review code
-        </button>
-      )}
-      {candidateParty && !partyQuery.isError && (
-        <a className="button button-secondary" href="/party">
-          Return to lobby
-        </a>
-      )}
-      {!partyQuery.isError && !partyQuery.isFetching && partyQuery.data?.party === null && (
-        <a className="button button-primary" href="/practice?create=match">
-          Create lobby
-        </a>
-      )}
-      {party && !partyQuery.isError && member && (
-        <button
-          className={`button ${member.ready ? "button-secondary" : "button-primary"}`}
-          disabled={pending || !member.online || !!party.currentMatchId}
-          onClick={() => void toggleReady()}
-        >
-          {recovery ? "Retry readiness" : member.ready ? "Unready" : "Ready up"}
-        </button>
-      )}
-    </>
+    <MatchCompletionActions
+      review={
+        settled || reviewPending
+          ? {
+              disabled: reviewPending,
+              onClick: () => {
+                setCelebrate(false);
+                onReview();
+              },
+            }
+          : undefined
+      }
+      lobby={
+        partyQuery.isError
+          ? undefined
+          : candidateParty
+            ? "return"
+            : !partyQuery.isFetching && partyQuery.data?.party === null
+              ? "create"
+              : undefined
+      }
+      readiness={
+        party && !partyQuery.isError && member
+          ? {
+              ready: member.ready,
+              disabled: pending || !member.online || !!party.currentMatchId,
+              retry: !!recovery,
+              onClick: () => void toggleReady(),
+            }
+          : undefined
+      }
+    />
   );
   const own = ownParticipant(snapshot, identity);
   const forfeited = !!own?.forfeited;
@@ -175,11 +168,9 @@ export function MatchEndView({
             <strong>{player.displayName}</strong>
             {player.userId === participantUserId(identity) && <small>You</small>}
             {player.userId === snapshot.outcome?.winnerUserId && (
-              <small>
-                Winner
-                {elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt) &&
-                  ` · ${elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt)}`}
-              </small>
+              <MatchWinnerMetadata
+                elapsed={elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt)}
+              />
             )}
           </span>
           <span>
