@@ -20,7 +20,8 @@ import { admissionRoutes } from "../../modules/judging/admission/routes.ts";
 import type { FanoutSubscriber } from "../../adapters/events/fanout/publisher.ts";
 import { submissionRoutes } from "../../modules/judging/results/routes.ts";
 import { matchLifecycleRoutes } from "../../modules/matches/lifecycle/routes.ts";
-import { matchInvitationRoutes } from "../../modules/matches/invitations/routes.ts";
+import { matchLanguageRoutes } from "../../modules/matches/selection/routes.ts";
+import { matchReviewRoutes } from "../../modules/matches/review/routes.ts";
 import { interviewLifecycleRoutes } from "../../modules/interviews/lifecycle/routes.ts";
 import { interviewQuestionRoutes } from "../../modules/interviews/question/routes.ts";
 import { interviewDocumentRoutes } from "../../modules/interviews/document/routes.ts";
@@ -33,7 +34,7 @@ import { workspaceRepository } from "../../adapters/postgres/workspace/repositor
 import { postgresWorkspaceAdmission } from "../../adapters/postgres/judging/admission/repository.ts";
 import { submissionSnapshots } from "../../adapters/postgres/judging/results/repository.ts";
 import { matchLifecycle } from "../../adapters/postgres/matches/lifecycle/repository.ts";
-import { matchInvitations } from "../../adapters/postgres/matches/invitations/repository.ts";
+import { matchReviewRepository } from "../../adapters/postgres/matches/review/repository.ts";
 import { matchLanguageSelection } from "../../adapters/postgres/matches/selection/language.ts";
 import { interviewLifecycle } from "../../adapters/postgres/interviews/lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../../adapters/postgres/interviews/question/prepare.ts";
@@ -143,6 +144,7 @@ export function composeHttp(ports: HttpPorts) {
         ports.deadline,
         ports.shards,
         prearmReceipts(run),
+        ports.guestCreation,
       ),
       allowedOrigins: ports.origins,
       admissionEnabled: ports.guestAdmission,
@@ -151,17 +153,10 @@ export function composeHttp(ports: HttpPorts) {
     }),
   );
   app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));
+  app.route("/", matchReviewRoutes({ identify, review: matchReviewRepository(run) }));
   app.route(
     "/",
-    matchInvitationRoutes({
-      identify,
-      invitations: matchInvitations(run, ports.inviteKey),
-      language: matchLanguageSelection(run, ports.inviteKey),
-      allowedOrigins: ports.origins,
-      admissionEnabled: ports.guestAdmission,
-      trustedPeer: ports.trustedPeer,
-      budget,
-    }),
+    matchLanguageRoutes({ identify, language: matchLanguageSelection(run, ports.inviteKey) }),
   );
   app.route(
     "/",

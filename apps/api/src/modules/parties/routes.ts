@@ -45,7 +45,7 @@ export function partyRoutes(deps: {
 }) {
   const app = new Hono();
   const actor = async (request: Request) => {
-    const who = await identifyRequest(deps.identify, request);
+    const who = await identifyRequest((incoming) => deps.identify(incoming), request);
     if (!who) throw new ApplicationError("unauthenticated", "Sign in required", 401);
     return who;
   };
