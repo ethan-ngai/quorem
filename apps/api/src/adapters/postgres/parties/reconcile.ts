@@ -1,6 +1,6 @@
 /** @file reconcile.ts @description Party presence and round transitions. @module parties */
 import { sql } from "drizzle-orm";
-import type { Transaction } from "@quorem/database/core";
+import { classifyDatabaseError, type Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../application/error.ts";
 import type { PartySettings } from "../../../modules/parties/model.ts";
 import { capabilitiesInTransaction } from "../access/repository.ts";
@@ -23,7 +23,7 @@ export async function startRound(
       kind: string;
       disabled: boolean;
     }>(
-      sql`SELECT pm.owner_id AS owner,pm.seat,pm.ready,(${online}) AS online,u.kind,u.disabled FROM party_members pm JOIN users u ON u.id=pm.owner_id WHERE pm.party_id=${id}::uuid ORDER BY pm.seat FOR SHARE OF u`,
+      sql`SELECT pm.owner_id AS owner,pm.seat,pm.ready,(${online}) AS online,u.kind,u.disabled FROM party_members pm JOIN users u ON u.id=pm.owner_id WHERE pm.party_id=${id}::uuid ORDER BY pm.seat FOR SHARE OF u NOWAIT`,
     )
   ).rows;
   const required =
@@ -37,7 +37,7 @@ export async function startRound(
     if (member.disabled) throw conflict("A player is no longer eligible");
     if (member.kind === "guest") {
       const live = await tx.execute(
-        sql`SELECT 1 FROM guest_sessions WHERE owner_id=${member.owner} AND party_id=${id}::uuid AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE`,
+        sql`SELECT 1 FROM guest_sessions WHERE owner_id=${member.owner} AND party_id=${id}::uuid AND revoked_at IS NULL AND expires_at>clock_timestamp() FOR SHARE NOWAIT`,
       );
       if (!live.rows.length) throw conflict("A guest session has expired");
     }
@@ -186,6 +186,8 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
     } catch (error) {
       await tx.execute(sql`ROLLBACK TO SAVEPOINT party_round_start`);
       await tx.execute(sql`RELEASE SAVEPOINT party_round_start`);
+      // Readers acquire identity locks first; never wait for them while holding the party.
+      if (classifyDatabaseError(error) === "lock_timeout") return;
       if (!(error instanceof ApplicationError)) throw error;
       await reset(tx, id);
       const message = [

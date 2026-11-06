@@ -1,6 +1,10 @@
 /** @file repository.ts @description Transactional party commands and snapshots. @module parties */
 import { sql } from "drizzle-orm";
-import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import {
+  classifyDatabaseError,
+  type ConnectionScope,
+  type Transaction,
+} from "@quorem/database/core";
 import {
   activateDeadline,
   type Receipts,
@@ -352,7 +356,13 @@ export function partyRepository(
               throw new ApplicationError("forbidden", "Only the host can start", 403);
             if (p.current) throw conflict("A round is already active");
             if (p.latest) throw conflict("Ready players to start the next round");
-            await startRound(tx, id, p);
+            try {
+              await startRound(tx, id, p);
+            } catch (error) {
+              if (classifyDatabaseError(error) === "lock_timeout")
+                throw conflict("Party is updating. Try again.");
+              throw error;
+            }
           } else if (action === "disband") {
             if (p.host !== who.userId)
               throw new ApplicationError("forbidden", "Only the host can disband", 403);

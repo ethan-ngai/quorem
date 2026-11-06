@@ -49,7 +49,7 @@ beforeAll(async () => {
   await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
   await migrate(pool, "product", resolve("migrations"));
   await pool.query(
-    "INSERT INTO users(id,participant_id,display_name,kind) VALUES ('party-a',gen_random_uuid(),'A','account'),('party-b',gen_random_uuid(),'B','account'),('party-c',gen_random_uuid(),'C','account'),('party-d',gen_random_uuid(),'D','account'),('party-e',gen_random_uuid(),'E','account'),('party-f',gen_random_uuid(),'F','account')",
+    "INSERT INTO users(id,participant_id,display_name,kind) VALUES ('party-a',gen_random_uuid(),'A','account'),('party-b',gen_random_uuid(),'B','account'),('party-c',gen_random_uuid(),'C','account'),('party-d',gen_random_uuid(),'D','account'),('party-e',gen_random_uuid(),'E','account'),('party-f',gen_random_uuid(),'F','account'),('party-g',gen_random_uuid(),'G','account')",
   );
   const fixture = JSON.parse(
     readFileSync(
@@ -341,4 +341,99 @@ test("host transfer, guest re-entry and requeue errors preserve authorization", 
     await guestTokenHash(credential),
   ]);
   await expect(repo.joinGuest(token, credential, "Guest")).rejects.toMatchObject({ status: 401 });
+});
+
+test("guest identity locks do not block party reads or durable round start", async () => {
+  const owner = user("party-g");
+  await pool.query(
+    "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,'party-g','matches.host_guests','manual','race','fixture','test')",
+    [crypto.randomUUID()],
+  );
+  const settings = {
+    questionFilters: {},
+    admissionLocked: false,
+    accessMode: "guests_allowed",
+    mode: "showdown",
+    difficulties: ["easy"],
+    rules: { clipboard: "off", focus: "off" },
+    difficulty: "easy",
+    durationMinutes: 30,
+    shareCodeAfterMatch: true,
+  };
+  const created = (await repo.create(owner, "create-race", settings)) as {
+    party: { id: string };
+    inviteUrl: string;
+  };
+  const id = created.party.id,
+    token = created.inviteUrl.slice(8),
+    credential = newGuestToken(),
+    hash = await guestTokenHash(credential);
+  await repo.heartbeat(owner, crypto.randomUUID());
+  await repo.joinGuest(token, credential, "Guest");
+  const guest = await run((scope) => guestRepository(scope).lookup("match", hash));
+  if (!guest) throw new Error("guest missing");
+  await repo.heartbeat(guest, crypto.randomUUID());
+  await repo.mutate(owner, id, "ready-owner", "ready", true);
+  await repo.mutate(guest, id, "ready-guest", "ready", true);
+  const blocker = await pool.connect();
+  try {
+    await blocker.query("BEGIN");
+    await blocker.query("SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", [guest.userId]);
+    await blocker.query("SELECT token_hash FROM guest_sessions WHERE token_hash=$1 FOR UPDATE", [
+      hash,
+    ]);
+    await expect(repo.mutate(owner, id, "first-attempt", "start", null)).rejects.toMatchObject({
+      status: 409,
+    });
+    await blocker.query("ROLLBACK");
+    const started = (await repo.mutate(owner, id, "first-attempt", "start", null)) as {
+      currentMatchId: string;
+    };
+    expect(started.currentMatchId).toBeTruthy();
+    await pool.query(
+      'UPDATE matches SET state=\'completed\',completed_at=clock_timestamp(),outcome=\'{"kind":"draw","reason":"deadline_score"}\'::jsonb WHERE id=$1',
+      [started.currentMatchId],
+    );
+    await pool.query("DELETE FROM match_reservations WHERE match_id=$1", [started.currentMatchId]);
+    await repo.read(owner, id);
+    await repo.mutate(owner, id, "again-owner", "ready", true);
+    await repo.mutate(guest, id, "again-guest", "ready", true);
+    await pool.query(
+      "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+      [id],
+    );
+    await blocker.query("BEGIN");
+    await blocker.query("SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", [guest.userId]);
+    await blocker.query("SELECT token_hash FROM guest_sessions WHERE token_hash=$1 FOR UPDATE", [
+      hash,
+    ]);
+    const work = run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        reconcileParty(tx, id),
+      ),
+    );
+    const completed = await Promise.race([
+      work.then(() => true),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), 750)),
+    ]);
+    expect(completed).toBe(true);
+    await work;
+    // Complete the guest reader's normal identity -> party lock sequence.
+    const party = (
+      await blocker.query(
+        "SELECT countdown_ends_at,queue_error,(SELECT bool_and(ready) FROM party_members WHERE party_id=$1) AS all_ready FROM parties WHERE id=$1 FOR UPDATE",
+        [id],
+      )
+    ).rows[0];
+    expect(party.countdown_ends_at).not.toBeNull();
+    expect(party.queue_error).toBeNull();
+    expect(party.all_ready).toBe(true);
+    await blocker.query("ROLLBACK");
+    expect(
+      ((await repo.read(guest, id)) as { currentMatchId: string | null }).currentMatchId,
+    ).toBeTruthy();
+  } finally {
+    await blocker.query("ROLLBACK");
+    blocker.release();
+  }
 });
