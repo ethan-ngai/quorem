@@ -9,8 +9,8 @@ const icons = {
   wrong_answer: "wrong-answer",
   syntax_error: "syntax-error",
   runtime_error: "runtime-error",
-  time_limit: "clock",
-  memory_limit: "memory-limit",
+  time_limit: "time",
+  memory_limit: "memory",
   output_limit: "output-limit",
   invalid_output: "invalid-output",
 } as const satisfies Record<PublicCaseResult["status"], ComponentProps<typeof Icon>["name"]>;

@@ -1,13 +1,14 @@
 /** @file Icon.tsx @description Consistent functional workspace symbols. @module ui */
 import type { SVGProps } from "react";
-import { Swords } from "lucide-react";
+import { Clock3, MemoryStick, Swords } from "lucide-react";
+
+const symbols = { showdown: Swords, time: Clock3, memory: MemoryStick };
 
 const paths = {
   "syntax-error": "m8 5-5 7 5 7m8-14 5 7-5 7M12 7v5m0 4h.01",
   "runtime-error":
     "M9 4 7 2m8 2 2-2M8 8a4 4 0 0 1 8 0v7a4 4 0 0 1-8 0V8Zm0 2h8m-4 0v9M4 8l4 2m8 0 4-2M3 14h5m8 0h5M4 20l4-3m8 0 4 3",
   "wrong-answer": "M5 8h14M5 16h14M16 3 8 21",
-  "memory-limit": "M6 6h12v12H6Zm3 3h6v6H9ZM9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4",
   "output-limit": "M4 5h12M4 10h12M4 15h7M20 4v16m-4-4 4 4 4-4",
   "invalid-output": "M14 2H5v20h14V7Zm0 0v5h5M9 11l5 7m0-7-5 7",
 
@@ -53,9 +54,11 @@ const paths = {
 export function Icon({
   name,
   ...props
-}: SVGProps<SVGSVGElement> & { name: keyof typeof paths | "showdown" }) {
-  if (name === "showdown")
-    return <Swords size={18} strokeWidth={1.5} aria-hidden="true" {...props} />;
+}: SVGProps<SVGSVGElement> & { name: keyof typeof paths | keyof typeof symbols }) {
+  if (name === "showdown" || name === "time" || name === "memory") {
+    const Symbol = symbols[name];
+    return <Symbol size={18} strokeWidth={1.5} aria-hidden="true" {...props} />;
+  }
   return (
     <svg
       width="18"
