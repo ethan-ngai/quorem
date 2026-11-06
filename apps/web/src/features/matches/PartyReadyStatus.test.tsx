@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
 import {
+  MatchLobbyReadiness,
   PartyReadyStatus,
   PartyMemberReadiness,
   PartyReadinessIndicator,
@@ -10,8 +11,8 @@ it("shows each member's readiness and distinguishes an offline ready member", ()
   const html = renderToStaticMarkup(
     <PartyMemberReadiness
       members={[
-        { displayName: "Alice", ready: true, online: true },
-        { displayName: "Bob", ready: true, online: false },
+        { userId: "alice", displayName: "Alice", ready: true, online: true },
+        { userId: "bob", displayName: "Bob", ready: true, online: false },
       ]}
     />,
   );
@@ -39,4 +40,22 @@ it("keeps countdown and failure feedback without idle readiness prose", () => {
     <PartyReadyStatus countdownEndsAt={new Date(Date.now() + 5000).toISOString()} />,
   );
   expect(countdown).toContain("Next match in 5s");
+});
+
+it("keeps the count without new members and lists only new arrivals", () => {
+  const members = [
+    { userId: "a", displayName: "Alice", ready: true, online: true },
+    { userId: "b", displayName: "Bob", ready: true, online: false },
+  ];
+  const existing = renderToStaticMarkup(
+    <MatchLobbyReadiness members={members} participantIds={["a", "b"]} />,
+  );
+  expect(existing).toContain("1 / 2 ready");
+  expect(existing).not.toContain("Joined lobby");
+  const joined = renderToStaticMarkup(
+    <MatchLobbyReadiness members={members} participantIds={["a"]} />,
+  );
+  expect(joined).toContain("Joined lobby");
+  expect(joined).toContain("Bob");
+  expect(joined).not.toContain("Alice");
 });

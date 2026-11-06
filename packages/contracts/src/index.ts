@@ -42,6 +42,7 @@ export type HiddenCaseResult = components["schemas"]["HiddenCaseResult"];
 export type PublicCaseResult = components["schemas"]["PublicCaseResult"];
 export type Diagnostic = components["schemas"]["Diagnostic"];
 export type MatchSnapshot = components["schemas"]["MatchSnapshot"];
+export type Score = components["schemas"]["Score"];
 export type MatchMode = components["schemas"]["MatchMode"];
 export type MatchRules = components["schemas"]["MatchRules"];
 export type MatchRuleKind = components["schemas"]["MatchRuleKind"];

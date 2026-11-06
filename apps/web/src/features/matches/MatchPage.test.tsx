@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
-import type { MatchSnapshot } from "@quorem/contracts";
+import type { MatchSnapshot, ProblemVersion } from "@quorem/contracts";
 
 const state = vi.hoisted(() => ({ snapshot: undefined as MatchSnapshot | undefined, mounts: 0 }));
 vi.mock("./MatchControls", () => ({
@@ -20,11 +20,21 @@ vi.mock("../editor/useTheme", () => ({
 vi.mock("../editor/WorkspacePage", async () => {
   const React = await import("react");
   return {
-    WorkspacePage: ({ matchHeader }: { matchHeader: React.ReactNode }) => {
+    WorkspacePage: ({
+      matchHeader,
+    }: {
+      matchHeader: React.ReactNode | ((problem: ProblemVersion) => React.ReactNode);
+    }) => {
       React.useEffect(() => {
         state.mounts++;
       }, []);
-      return <div data-workspace="true">{matchHeader}</div>;
+      return (
+        <div data-workspace="true">
+          {typeof matchHeader === "function"
+            ? matchHeader({ title: "Two Sum" } as ProblemVersion)
+            : matchHeader}
+        </div>
+      );
     },
   };
 });

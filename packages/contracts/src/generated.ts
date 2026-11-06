@@ -1354,6 +1354,8 @@ export interface components {
             /** Format: uuid */
             userId: string;
             displayName: string;
+            image?: string;
+            color?: number;
             ready: boolean;
             /** @enum {string} */
             presence: "online" | "offline";
@@ -1920,6 +1922,8 @@ export interface components {
             /** Format: uuid */
             userId: string;
             displayName: string;
+            image?: string;
+            color?: number;
             ready: boolean;
             online: boolean;
             /** Format: date-time */
@@ -1980,6 +1984,8 @@ export interface components {
             /** Format: uuid */
             userId: string;
             displayName: string;
+            image?: string;
+            color?: number;
             own: boolean;
             workspace: components["schemas"]["MatchReviewWorkspace"] | null;
             submission: components["schemas"]["MatchReviewSubmission"] | null;

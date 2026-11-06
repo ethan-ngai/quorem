@@ -64,6 +64,11 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
         !uuidPattern.test(participant.userId) ||
         typeof participant.displayName !== "string" ||
         typeof participant.ready !== "boolean" ||
+        (participant.image !== undefined && typeof participant.image !== "string") ||
+        (participant.color !== undefined &&
+          (!Number.isInteger(participant.color) ||
+            Number(participant.color) < 1 ||
+            Number(participant.color) > 24)) ||
         (participant.presence !== "online" && participant.presence !== "offline") ||
         (participant.submissionState !== undefined &&
           (typeof participant.submissionState !== "string" ||

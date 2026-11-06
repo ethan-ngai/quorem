@@ -977,3 +977,24 @@ void test(
     }
   },
 );
+
+void test("match snapshots carry saved profile colors and pictures", async () => {
+  await pool.query(
+    "UPDATE users SET profile_color=7,profile_image='/profile/rival.png' WHERE id='match-rival'",
+  );
+  const created = (await repo.create(host, "profile-colors", settings)) as { id: string };
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,'match-rival',2)",
+    [created.id],
+  );
+  const snapshot = (await repo.read(host, created.id)) as {
+    participants: { displayName: string; color?: number; image?: string }[];
+  };
+  const profile = snapshot.participants.find((person) => person.displayName === "Rival")!;
+  assert.equal(profile.color, 7);
+  assert.equal(profile.image, "/profile/rival.png");
+  assert.equal(
+    snapshot.participants.find((person) => person.displayName === "Host")!.color,
+    undefined,
+  );
+});

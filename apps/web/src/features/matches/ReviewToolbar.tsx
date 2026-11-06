@@ -12,6 +12,13 @@ import {
 } from "lucide-react";
 import * as Popover from "../../ui/Popover";
 import { SelectField } from "../../ui/SelectField";
+import { AccountAvatar } from "../navigation/AccountAvatar";
+import { participantColor } from "../collaboration/participantColor";
+import {
+  ParticipantName,
+  participantNameLabel,
+  type ParticipantIdentity,
+} from "../collaboration/ParticipantName";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { LanguageLogo } from "../../ui/LanguageLogo";
@@ -58,7 +65,15 @@ export function ReviewToolbar({
         disabled={disabled}
         options={review.participants.map((person) => ({
           value: person.userId,
-          label: person.own ? "You" : person.displayName,
+          label: participantNameLabel(person.displayName, person.own),
+          leading: (
+            <AccountAvatar
+              name={person.displayName}
+              image={person.image}
+              color={participantColor(person.userId, person.color)}
+              outline
+            />
+          ),
         }))}
         onChange={onSelect}
       />
@@ -136,8 +151,12 @@ export function ReviewPaneHeader({
   original = false,
   onSelect,
   disabled,
+  participant,
+  self = false,
 }: {
   name: string;
+  participant?: ParticipantIdentity;
+  self?: boolean;
   language: EditorLanguage;
   active?: boolean;
   original?: boolean;
@@ -152,7 +171,9 @@ export function ReviewPaneHeader({
   return (
     <div className="review-pane-header" data-active={active || undefined}>
       <LanguageLogo language={language} tooltip={languageLabels[language]} />
-      <span className="review-pane-name">{name}</span>
+      <span className="review-pane-name">
+        {participant ? <ParticipantName participant={participant} label={name} /> : name}
+      </span>
       <Tooltip content={status}>
         <span className="review-state-icon" role="img" tabIndex={0} aria-label={status}>
           {original ? (
@@ -165,11 +186,11 @@ export function ReviewPaneHeader({
         </span>
       </Tooltip>
       {onSelect && (
-        <Tooltip content={`Edit ${name === "You" ? "your" : name + "'s"} copy`}>
+        <Tooltip content={`Edit ${self ? "your" : name + "'s"} copy`}>
           <button
             className="icon-button"
             disabled={disabled}
-            aria-label={`Edit ${name === "You" ? "your" : name + "'s"} copy`}
+            aria-label={`Edit ${self ? "your" : name + "'s"} copy`}
             onClick={onSelect}
           >
             <ArrowLeftRight size={14} />

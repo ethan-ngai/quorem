@@ -1,4 +1,7 @@
 import { RoomAlerts } from "../rooms/RoomAlerts";
+import { ParticipantName } from "../collaboration/ParticipantName";
+import { ScoreProgress } from "../../ui/ScoreProgress";
+import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
 /** @file MatchPage.tsx @description Match ledger and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
@@ -128,13 +131,14 @@ function MatchLedger({
                 aria-label={player?.presence ?? "offline"}
               />
             </Tooltip>
-            <strong>{index === 0 ? "You" : (player?.displayName ?? "Opponent")}</strong>
+            <strong>
+              {player ? <ParticipantName participant={player} self={index === 0} /> : "Opponent"}
+            </strong>
             {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
-            <Tooltip content="Best submission: cases passed">
-              <span className="competitive-score" tabIndex={0}>
-                {player?.bestScore ? `${player.bestScore.passed}/${player.bestScore.total}` : "—"}
-              </span>
-            </Tooltip>
+            <ScoreProgress
+              score={player?.bestScore}
+              color={participantColor(player?.userId ?? "opponent", player?.color)}
+            />
             {(player?.submissionState === "running" || player?.submissionState === "queued") && (
               <span className="score-judging motion-reveal">Judging…</span>
             )}

@@ -1,4 +1,5 @@
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
+import { participantUserId } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, requireData } from "../../api/client";
@@ -143,7 +144,11 @@ export function PartyPage() {
             Copy invitation
           </button>
         )}
-        <PartyMemberReadiness members={party.members} hostUserId={party.hostUserId} />
+        <PartyMemberReadiness
+          ownUserId={participantUserId(identity)}
+          members={party.members}
+          hostUserId={party.hostUserId}
+        />
         {!party.currentMatchId && (
           <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
         )}

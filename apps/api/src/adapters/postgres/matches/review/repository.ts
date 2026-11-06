@@ -12,6 +12,8 @@ type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 type Participant = {
   userId: string;
   displayName: string;
+  image: string | null;
+  color: number;
   own: boolean;
   workspace: { id: string; language: WorkspaceLanguage } | null;
   submission: {
@@ -70,7 +72,7 @@ export function matchReviewRepository(run: Run): MatchReview {
           const match = await authorizeReview(tx, principal, matchId);
           const participants = (
             await tx.execute<Participant>(sql`
-          SELECT u.participant_id AS "userId",u.display_name AS "displayName",p.owner_id=${principal.userId} AS own,
+          SELECT u.participant_id AS "userId",u.display_name AS "displayName",NULLIF(u.profile_image,'') AS image,u.profile_color AS color,p.owner_id=${principal.userId} AS own,
             CASE WHEN p.owner_id=${principal.userId} AND w.id IS NOT NULL THEN jsonb_build_object('id',w.id,'language',w.language) ELSE NULL END AS workspace,
             CASE WHEN s.id IS NOT NULL THEN jsonb_build_object('language',sw.language,'source',s.source,'verdict',s.result->>'verdict','state',s.state) ELSE NULL END AS submission
           FROM match_participants p JOIN users u ON u.id=p.owner_id
@@ -90,7 +92,7 @@ export function matchReviewRepository(run: Run): MatchReview {
             completedAt: match.completedAt,
             shareCodeAfterMatch: match.shareCodeAfterMatch,
             outcome: match.outcome,
-            participants,
+            participants: participants.map(({ image, color, ...person }) => ({ ...person, image: image ?? undefined, color: color || undefined })),
           });
           return `${prefix.slice(0, -1)},"problem":${problem}}`;
         }),

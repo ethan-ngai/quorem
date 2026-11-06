@@ -1,4 +1,7 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
+import { ParticipantName } from "../collaboration/ParticipantName";
+import { ScoreProgress } from "../../ui/ScoreProgress";
+import { participantColor } from "../collaboration/participantColor";
 import { MatchCompletionActions } from "./MatchCompletionActions";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
@@ -7,11 +10,7 @@ import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
-import {
-  PartyReadyStatus,
-  PartyMemberReadiness,
-  PartyReadinessIndicator,
-} from "./PartyReadyStatus";
+import { PartyReadyStatus, MatchLobbyReadiness, PartyReadinessIndicator } from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { partyCommand, useParty } from "./party";
 import { useEffect, useState } from "react";
@@ -182,17 +181,17 @@ export function MatchEndView({
       />
     </div>
   );
-  const joinedMembers =
-    party?.members.filter(
-      (member) => !snapshot.participants.some((player) => player.userId === member.userId),
-    ) ?? [];
   const standings = (
     <ol className="match-result-players" aria-label="Match results">
       {players.map((player) => (
         <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
           <span>
-            <strong>{player.displayName}</strong>
-            {player.userId === participantUserId(identity) && <small>You</small>}
+            <strong>
+              <ParticipantName
+                participant={player}
+                self={player.userId === participantUserId(identity)}
+              />
+            </strong>
             {player.userId === snapshot.outcome?.winnerUserId && (
               <MatchWinnerMetadata
                 elapsed={elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt)}
@@ -205,18 +204,11 @@ export function MatchEndView({
                 member={party.members.find((member) => member.userId === player.userId)}
               />
             )}
-            <span className="match-result-score-value">
-              {player.forfeited ? (
-                "Forfeited"
-              ) : player.bestScore ? (
-                <>
-                  <strong>{player.bestScore.passed}</strong>
-                  <span className="result-score-total"> / {player.bestScore.total}</span>
-                </>
-              ) : (
-                "—"
-              )}
-            </span>
+            <ScoreProgress
+              score={player.forfeited ? undefined : player.bestScore}
+              color={participantColor(player.userId, player.color)}
+              unavailableLabel={player.forfeited ? "Forfeited" : undefined}
+            />
           </span>
         </li>
       ))}
@@ -260,11 +252,13 @@ export function MatchEndView({
         {party && !partyQuery.isError && (
           <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
         )}
-        {joinedMembers.length > 0 && (
-          <section className="match-lobby-joined" aria-label="Joined lobby">
-            <h3>Joined lobby</h3>
-            <PartyMemberReadiness members={joinedMembers} hostUserId={party?.hostUserId} />
-          </section>
+        {party && (
+          <MatchLobbyReadiness
+            ownUserId={participantUserId(identity)}
+            members={party.members}
+            participantIds={snapshot.participants.map((player) => player.userId)}
+            hostUserId={party.hostUserId}
+          />
         )}
         {partyStatus}
         {error && <p role="alert">{error}</p>}

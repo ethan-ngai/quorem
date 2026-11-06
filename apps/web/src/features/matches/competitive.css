@@ -294,12 +294,7 @@
   margin: 0;
   flex-shrink: 0;
 }
-.competitive-score {
-  font: 13px var(--font-code);
-  background: var(--color-overlay);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
+
 .score-judging {
   font-size: 11px;
   color: var(--color-text-secondary);
@@ -734,7 +729,6 @@
   font-weight: 500;
 }
 .match-result-players small,
-.result-score-total,
 .match-guest-finished {
   font-size: 12px;
   color: var(--color-text-secondary);

@@ -123,37 +123,7 @@
 .match-result-players .match-result-score {
   align-items: center;
 }
-.match-lobby-joined {
-  margin-top: var(--space-4);
-}
-.match-lobby-joined h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-small);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-}
 
 .completion-trophy {
   color: var(--color-warning);
-}
-.match-result-score-value {
-  width: 9ch;
-  flex-shrink: 0;
-  font-family: var(--font-code);
-  font-size: var(--text-label);
-}
-.match-result-score-value {
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.match-lobby-joined .party-ready-members {
-  display: flex;
-  flex-wrap: wrap;
-}
-.match-lobby-joined .party-ready-members li {
-  gap: var(--space-1);
-}
-.match-lobby-joined .party-readiness-indicator {
-  margin-left: 0;
 }

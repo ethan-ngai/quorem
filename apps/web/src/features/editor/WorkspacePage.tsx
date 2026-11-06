@@ -1,3 +1,4 @@
+import { participantNameLabel } from "../collaboration/ParticipantName";
 import { matchCompletionOutcome } from "../matches/matchState";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -766,9 +767,12 @@ export function WorkspacePage({
               <div className="editor-frame">
                 {review && compareReview && !diffReview && (
                   <ReviewPaneHeader
-                    name={
-                      reviewParticipant?.own ? "You" : (reviewParticipant?.displayName ?? "You")
-                    }
+                    name={participantNameLabel(
+                      reviewParticipant?.displayName ?? "Player",
+                      reviewParticipant?.own,
+                    )}
+                    self={reviewParticipant?.own}
+                    participant={reviewParticipant}
                     language={documentLanguage}
                     active
                   />

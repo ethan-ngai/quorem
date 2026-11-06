@@ -1,3 +1,4 @@
+import { participantNameLabel } from "../collaboration/ParticipantName";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchReview, ProblemVersion } from "@quorem/contracts";
@@ -78,7 +79,9 @@ export function ReviewComparison({
   return (
     <div className="review-reference" hidden={hidden}>
       <ReviewPaneHeader
-        name={participant.own ? "You" : participant.displayName}
+        participant={participant}
+        name={participantNameLabel(participant.displayName, participant.own)}
+        self={participant.own}
         language={selectedLanguage}
         disabled={disabled}
         onSelect={() =>

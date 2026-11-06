@@ -2,6 +2,9 @@
 import { useEffect, useState } from "react";
 import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
+import { ParticipantName, participantNameLabel } from "../collaboration/ParticipantName";
+import { ScoreProgress } from "../../ui/ScoreProgress";
+import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
 import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "../editor/components/EditorialCode";
@@ -14,7 +17,7 @@ import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
 import { MatchCompletionActions } from "../matches/MatchCompletionActions";
 import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
 import { LeaveLobbyButton } from "../matches/LeaveLobbyButton";
-import { PartyReadinessIndicator, PartyMemberReadiness } from "../matches/PartyReadyStatus";
+import { PartyReadinessIndicator, MatchLobbyReadiness } from "../matches/PartyReadyStatus";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { PythonEditor } from "../editor/PythonEditor";
 import { useTheme } from "../editor/useTheme";
@@ -31,13 +34,15 @@ const demoReview = {
   participants: [
     {
       userId: "you",
-      displayName: "You",
+      color: 18,
+      displayName: "jamie",
       own: true,
       submission: { language: "python", source, state: "completed", verdict: "accepted" },
       workspace: null,
     },
     {
       userId: "alex",
+      color: 5,
       displayName: "Alex",
       own: false,
       submission: {
@@ -79,6 +84,16 @@ export function CompletionDemo() {
   const { editorSchemes, fontSize, tabSize, wrap } = useLocalEditorPreferences();
   const competitive = mode.startsWith("Competition");
   const lost = mode === "Competition loss";
+  const lobbyMembers = [
+    ...demoReview.participants.map((person) => ({
+      ...person,
+      ready: person.own ? ready : true,
+      online: true,
+    })),
+    { userId: "sam", displayName: "Sam", ready: false, online: true },
+    { userId: "jordan", displayName: "Jordan", ready: true, online: true },
+    { userId: "casey", displayName: "Casey", ready: false, online: true },
+  ];
   const inline = mode === "Interview" || mode === "Odyssey level";
   return (
     <WorkspaceLayout
@@ -181,7 +196,14 @@ export function CompletionDemo() {
             <div className="editor-frame">
               {review && compare && !diff && (
                 <ReviewPaneHeader
-                  name={participant === "you" ? "You" : "Alex"}
+                  participant={demoReview.participants.find(
+                    (person) => person.userId === participant,
+                  )}
+                  self={participant === "you"}
+                  name={participantNameLabel(
+                    participant === "you" ? "jamie" : "Alex",
+                    participant === "you",
+                  )}
                   language="python"
                   active
                 />
@@ -205,7 +227,9 @@ export function CompletionDemo() {
             {review && compare && !diff && (
               <div className="review-reference">
                 <ReviewPaneHeader
-                  name={other === "you" ? "You" : "Alex"}
+                  participant={demoReview.participants.find((person) => person.userId === other)}
+                  self={other === "you"}
+                  name={participantNameLabel(other === "you" ? "jamie" : "Alex", other === "you")}
                   language="python"
                   onSelect={() => setParticipant(other)}
                 />
@@ -301,7 +325,12 @@ export function CompletionDemo() {
               <ol className="match-result-players" aria-label="Match results">
                 <li data-you="true">
                   <span>
-                    <strong>{lost ? "Alex" : "You"}</strong>
+                    <strong>
+                      <ParticipantName
+                        participant={demoReview.participants[lost ? 1 : 0]!}
+                        self={!lost}
+                      />
+                    </strong>
                     <MatchWinnerMetadata elapsed="8:42" />
                   </span>
                   <span className="match-result-score">
@@ -310,12 +339,20 @@ export function CompletionDemo() {
                         member={{ ready: lost ? true : ready, online: true }}
                       />
                     )}
-                    <span className="match-result-score-value">24 / 24</span>
+                    <ScoreProgress
+                      score={{ passed: 24, total: 24 }}
+                      color={participantColor(lost ? "alex" : "you", lost ? 5 : 18)}
+                    />
                   </span>
                 </li>
                 <li>
                   <span>
-                    <strong>{lost ? "You" : "Alex"}</strong>
+                    <strong>
+                      <ParticipantName
+                        participant={demoReview.participants[lost ? 0 : 1]!}
+                        self={lost}
+                      />
+                    </strong>
                   </span>
                   <span className="match-result-score">
                     {inLobby && (
@@ -323,21 +360,19 @@ export function CompletionDemo() {
                         member={{ ready: lost ? ready : true, online: true }}
                       />
                     )}
-                    <span className="match-result-score-value">18 / 24</span>
+                    <ScoreProgress
+                      score={{ passed: 18, total: 24 }}
+                      color={participantColor(lost ? "you" : "alex", lost ? 18 : 5)}
+                    />
                   </span>
                 </li>
               </ol>
               {inLobby && (
-                <section className="match-lobby-joined" aria-label="Joined lobby">
-                  <h3>Joined lobby</h3>
-                  <PartyMemberReadiness
-                    members={[
-                      { displayName: "Sam", ready: false, online: true },
-                      { displayName: "Jordan", ready: true, online: true },
-                      { displayName: "Casey", ready: false, online: true },
-                    ]}
-                  />
-                </section>
+                <MatchLobbyReadiness
+                  ownUserId="you"
+                  members={lobbyMembers}
+                  participantIds={["you", "alex"]}
+                />
               )}
             </>
           )}

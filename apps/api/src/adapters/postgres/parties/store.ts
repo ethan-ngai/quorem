@@ -41,7 +41,7 @@ export async function lockParty(tx: Transaction, id: string, owner: string) {
 export async function snapshot(tx: Transaction, id: string) {
   const row = (
     await tx.execute<{ data: unknown }>(
-      sql`SELECT jsonb_build_object('id',p.id,'version',p.version::text,'hostUserId',h.participant_id,'settings',p.settings,'currentMatchId',p.current_match_id,'latestMatchId',p.latest_match_id,'countdownEndsAt',p.countdown_ends_at,'queueError',p.queue_error,'members',COALESCE((SELECT jsonb_agg(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'ready',pm.ready,'online',(${online}),'joinedAt',pm.joined_at) ORDER BY pm.seat) FROM party_members pm JOIN users u ON u.id=pm.owner_id WHERE pm.party_id=p.id),'[]'::jsonb)) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id WHERE p.id=${id}::uuid`,
+      sql`SELECT jsonb_build_object('id',p.id,'version',p.version::text,'hostUserId',h.participant_id,'settings',p.settings,'currentMatchId',p.current_match_id,'latestMatchId',p.latest_match_id,'countdownEndsAt',p.countdown_ends_at,'queueError',p.queue_error,'members',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',pm.ready,'online',(${online}),'joinedAt',pm.joined_at)) ORDER BY pm.seat) FROM party_members pm JOIN users u ON u.id=pm.owner_id WHERE pm.party_id=p.id),'[]'::jsonb)) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id WHERE p.id=${id}::uuid`,
     )
   ).rows[0];
   if (!row) throw missing();

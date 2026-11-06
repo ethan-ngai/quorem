@@ -841,6 +841,14 @@
         "displayName": {
           "type": "string"
         },
+        "image": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
         "ready": {
           "type": "boolean"
         },
@@ -2833,6 +2841,14 @@
         "displayName": {
           "type": "string"
         },
+        "image": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
         "ready": {
           "type": "boolean"
         },
@@ -3029,6 +3045,14 @@
         },
         "displayName": {
           "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
         },
         "own": {
           "type": "boolean"
