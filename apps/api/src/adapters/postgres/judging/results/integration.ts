@@ -7,6 +7,7 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal, GuestPrincipal } from "../../../../modules/identity/model.ts";
 import { submissionSnapshots } from "./repository.ts";
+import { verifyBufferedResultArrays } from "./array-stream.integration.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
 if (
   !url ||
@@ -1223,36 +1224,84 @@ void test("actual 27 interview promotion feeds authorized streamed results", asy
   assert.deepEqual(retained, { private: 0, headers: 0, public: 0 });
   assert.doesNotMatch(await repo.interview(alice, session, submission), /PRIVATE|"expected":2/);
 });
-void test("streams a synthetic legacy-sized 408-case result without a Worker case plan", async () => {
-  const id = crypto.randomUUID();
-  await pool.query(
-    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','paged','running','[]')",
-    [id, workspace],
-  );
-  await pool.query(
-    "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
-    [
-      id,
-      Buffer.from(
-        '{"verdict":"accepted","publicCasesPresent":true,"publicCaseCount":408,"channel":"public"}',
-      ),
-    ],
-  );
-  await pool.query(
-    "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',n,convert_to(json_build_object('index',n,'status','accepted')::text,'UTF8') FROM generate_series(0,407) n",
-    [id],
-  );
-  await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
-  let acquisitions = 0;
-  const batched = submissionSnapshots((operation) => {
-    acquisitions++;
-    return run(operation);
+for (const interviewRead of [false, true])
+  void test(`streams 408 small cases in bounded pages (${interviewRead ? "interview" : "owner"})`, async () => {
+    const id = crypto.randomUUID();
+    await pool.query(
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'results-alice',$2,'run','','paged','running','[]')",
+      [id, workspace],
+    );
+    await pool.query(
+      "INSERT INTO submission_result_headers(submission_id,header_data) VALUES($1,$2)",
+      [
+        id,
+        Buffer.from(
+          '{"verdict":"accepted","publicCasesPresent":true,"publicCaseCount":408,"channel":"public"}',
+        ),
+      ],
+    );
+    await pool.query(
+      "INSERT INTO submission_public_result_cases(submission_id,channel,ordinal,result_data) SELECT $1,'public',n,convert_to(json_build_object('index',n,'status','accepted')::text,'UTF8') FROM generate_series(0,407) n",
+      [id],
+    );
+    if (interviewRead) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("UPDATE submissions SET workspace_id=NULL,interview_id=$2 WHERE id=$1", [
+          id,
+          interview,
+        ]);
+        await client.query(
+          "INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id,level) SELECT $1,session_id,document_version,document_epoch,question_epoch,fixture_id,level FROM interview_execution WHERE submission_id=$2",
+          [id, interviewSubmission],
+        );
+        await client.query("COMMIT");
+      } finally {
+        client.release();
+      }
+    }
+    await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
+    let acquisitions = 0;
+    const batched = submissionSnapshots((operation) => {
+      acquisitions++;
+      return run(operation);
+    });
+    const value = JSON.parse(
+      await new Response(
+        await (interviewRead ? batched.interview(host, interview, id) : batched.read(alice, id)),
+      ).text(),
+    );
+    assert.ok(
+      acquisitions <= (interviewRead ? 410 : 10),
+      `Expected bounded result reads, acquired ${acquisitions}`,
+    );
+    assert.equal(value.publicCases.length, 408);
+    assert.equal(value.publicCases[407].index, 407);
+    if (interviewRead) {
+      const reader = (await actual.interview(host, interview, id)).getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const part = await reader.read();
+        assert.equal(part.done, false);
+        if (/"index"\s*:\s*0[,}]/.test(decoder.decode(part.value))) break;
+      }
+      await pool.query(
+        "UPDATE interview_members SET removed_at=clock_timestamp() WHERE session_id=$1 AND user_id='results-host'",
+        [interview],
+      );
+      try {
+        await assert.rejects(async () => {
+          while (!(await reader.read()).done) {}
+        });
+      } finally {
+        await pool.query(
+          "UPDATE interview_members SET removed_at=NULL WHERE session_id=$1 AND user_id='results-host'",
+          [interview],
+        );
+      }
+    }
   });
-  const value = JSON.parse(await new Response(await batched.read(alice, id)).text());
-  assert.ok(acquisitions <= 10, `Expected bounded result pages, acquired ${acquisitions}`);
-  assert.equal(value.publicCases.length, 408);
-  assert.equal(value.publicCases[407].index, 407);
-});
 void test("classic interview fallback shares verified examples without hiding them", async () => {
   const { postgresCompletionStaging } = await import("../worker/staging.ts");
   const { postgresCompletionPromotion } = await import("../worker/promote.ts");
@@ -1414,6 +1463,8 @@ void test("classic interview fallback shares verified examples without hiding th
     const value = JSON.parse(await new Response(await snapshot(actor, session)).text());
     assert.deepEqual(value.question.progress.caseStatuses, [{ index: 0, status: "accepted" }]);
   }
+
+  await verifyBufferedResultArrays(pool, actual, alice, session, submission);
 });
 void test("status backfill scans retained case pages and preserves case index and NUL", async () => {
   const { backfillOnePublicStatus } = await import("./status-backfill.ts");

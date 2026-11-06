@@ -17,6 +17,7 @@ import { resultCase } from "./projection.ts";
 import { projectedObject } from "./projected-stream.ts";
 import { StreamingJsonReader } from "@quorem/questions";
 import { interviewAccess } from "./interview.ts";
+import { ResultArray } from "./array-stream.ts";
 type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 type Row = {
   id: string;
@@ -443,8 +444,7 @@ async function streamSnapshot(
       yield "]";
     }
     if (interviewId && prepared.privatePlan) {
-      const plan = prepared.privatePlan,
-        interview = interviewId;
+      const plan = prepared.privatePlan;
       async function* entries(): AsyncGenerator<{
         ordinal: number;
         id: string;
@@ -460,24 +460,7 @@ async function streamSnapshot(
         while (cursor < plan.candidates) {
           const entry = await run((scope) =>
             scope.transaction(options, async (tx) => {
-              await identity(tx, who);
-              const current = await load(tx, id);
-              const access = await interviewAccess(tx, who, interview);
-              if (
-                current.interview !== interviewId ||
-                access.role !== prepared.access?.role ||
-                (access.role !== "interviewer" && access.epoch !== prepared.access?.epoch)
-              )
-                throw missing();
-              if (
-                prepared.headerVersion &&
-                !(
-                  await tx.execute(
-                    sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid AND xmin::text=${prepared.headerVersion}`,
-                  )
-                ).rows.length
-              )
-                throw new Error("Result changed during streaming");
+              await authorizePage(tx);
               return (
                 await tx.execute<{ ordinal: number; id: string; version: string }>(
                   sql`SELECT c.ordinal,c.case_id AS id,c.xmin::text AS version FROM interview_question_private_cases c JOIN interview_members m ON m.session_id=c.session_id AND m.user_id=${who.userId} AND m.removed_at IS NULL LEFT JOIN interview_case_visibility v ON v.session_id=c.session_id AND v.question_epoch=c.question_epoch AND v.case_id=c.case_id WHERE c.session_id=${interviewId}::uuid AND c.question_epoch=${plan.epoch}::uuid AND c.ordinal>=${cursor} AND c.ordinal<${plan.candidates} AND (m.role='interviewer' OR v.case_id IS NOT NULL) ORDER BY c.ordinal LIMIT 1`,
@@ -490,62 +473,72 @@ async function streamSnapshot(
           yield entry;
         }
       }
-      let index = 0;
-      for await (const entry of entries()) {
-        if (index === 0) yield ',"privateCaseResults":[';
-        yield (index++ ? "," : "") + '{"caseId":' + JSON.stringify(entry.id) + ',"case":';
-        const input = new StreamingJsonReader(
-          bytes(entry.example ? "example" : "case", entry.ordinal, entry.id, entry.version)[
-            Symbol.asyncIterator
-          ](),
-        );
-        if (entry.example) {
-          await input.expect("[");
-          for (let n = 0; n < entry.ordinal; n++) {
-            for await (const _ of input.valueChunks()) {
-            }
-            await input.expect(",");
-          }
-        }
-        yield* projectedObject(input, new Set(["args", "expected", "calls"]), true);
-        if (entry.ordinal < prepared.privateCount) {
-          yield ",";
-          let first = true;
-          for await (const part of bytes("private", entry.ordinal, entry.id)) {
-            if (first) {
-              if (!part.startsWith("{")) throw new Error("Invalid private result");
-              yield part.slice(1);
-              first = false;
-            } else yield part;
-          }
-          if (first) throw new Error("Invalid private result");
-        } else {
-          if (prepared.headerFields.hiddenCases && entry.ordinal < prepared.hiddenCount) {
-            const input = new StreamingJsonReader(
-              bytes("header", 0, "hiddenCases")[Symbol.asyncIterator](),
+      const authorizeArray = (kind: "example" | "header") =>
+        run((scope) =>
+          scope.transaction(options, async (tx) => {
+            await authorizePage(tx);
+            const current = await tx.execute(
+              kind === "example"
+                ? sql`SELECT 1 FROM interview_snapshot_public_examples WHERE session_id=${interviewId}::uuid AND fixture_id=${prepared.fixture} AND level=0 AND xmin::text=${plan.exampleVersion}`
+                : sql`SELECT 1 FROM submission_result_header_fields WHERE submission_id=${id}::uuid AND field='hiddenCases' AND xmin::text=${prepared.headerFields.hiddenCases}`,
             );
-            await input.expect("[");
-            for (let n = 0; n < entry.ordinal; n++) {
-              for await (const _ of input.valueChunks()) {
-              }
-              await input.expect(",");
-            }
+            if (!current.rows.length) throw new Error("Result changed during streaming");
+          }),
+        );
+      const examples = plan.fallback
+        ? new ResultArray(bytes("example", 0)[Symbol.asyncIterator](), () =>
+            authorizeArray("example"),
+          )
+        : undefined;
+      const hidden = prepared.headerFields.hiddenCases
+        ? new ResultArray(bytes("header", 0, "hiddenCases")[Symbol.asyncIterator](), () =>
+            authorizeArray("header"),
+          )
+        : undefined;
+      let index = 0;
+      try {
+        for await (const entry of entries()) {
+          const input = entry.example
+            ? await examples!.at(entry.ordinal)
+            : new StreamingJsonReader(
+                bytes("case", entry.ordinal, entry.id, entry.version)[Symbol.asyncIterator](),
+              );
+          if (index === 0) yield ',"privateCaseResults":[';
+          yield (index++ ? "," : "") + '{"caseId":' + JSON.stringify(entry.id) + ',"case":';
+          yield* projectedObject(input, new Set(["args", "expected", "calls"]), true);
+          if (entry.ordinal < prepared.privateCount) {
             yield ",";
             let first = true;
-            for await (const part of input.valueChunks()) {
+            for await (const part of bytes("private", entry.ordinal, entry.id)) {
               if (first) {
-                if (!part.startsWith("{")) throw new Error("Invalid hidden status");
+                if (!part.startsWith("{")) throw new Error("Invalid private result");
                 yield part.slice(1);
                 first = false;
               } else yield part;
             }
+            if (first) throw new Error("Invalid private result");
           } else {
-            const detail = prepared.hidden[entry.ordinal]
-              ? resultCase(prepared.hidden[entry.ordinal], false)
-              : { index: new JsonNumber(String(entry.ordinal)) };
-            yield "," + stringifyLosslessJson(detail).slice(1);
+            if (prepared.headerFields.hiddenCases && entry.ordinal < prepared.hiddenCount) {
+              const input = await hidden!.at(entry.ordinal);
+              yield ",";
+              let first = true;
+              for await (const part of input.valueChunks()) {
+                if (first) {
+                  if (!part.startsWith("{")) throw new Error("Invalid hidden status");
+                  yield part.slice(1);
+                  first = false;
+                } else yield part;
+              }
+            } else {
+              const detail = prepared.hidden[entry.ordinal]
+                ? resultCase(prepared.hidden[entry.ordinal], false)
+                : { index: new JsonNumber(String(entry.ordinal)) };
+              yield "," + stringifyLosslessJson(detail).slice(1);
+            }
           }
         }
+      } finally {
+        await Promise.all([examples?.close(), hidden?.close()]);
       }
       if (index) yield "]";
     }
