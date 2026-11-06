@@ -34,11 +34,18 @@ describe("input constraints", () => {
     expect(validateInput("Ada ", inputConstraints.name).data).toBe("Ada");
     expect(validateInput(" ", inputConstraints.name).success).toBe(false);
   });
-  it("distinguishes partial identifiers and email from complete values", () => {
+  it("distinguishes partial identifiers from complete values", () => {
     expect(isAllowedInput("123", inputConstraints.identifier)).toBe(false);
     expect(validateInput("123", inputConstraints.identifier).success).toBe(false);
-    expect(isAllowedInput("hello@", inputConstraints.email)).toBe(true);
-    expect(validateInput("hello@", inputConstraints.email).success).toBe(false);
-    expect(validateInput("hello@example.com", inputConstraints.email).success).toBe(true);
   });
+});
+
+it("rejects impossible slug and scientific prefixes", () => {
+  for (const source of ["1abc", "-abc", "abc--"])
+    expect(inputConstraints.slug.edit(source)).toBe(false);
+  expect(inputConstraints.slug.edit("abc-")).toBe(true);
+  for (const source of ["e", "-e", ".e"])
+    expect(inputConstraints.scientific.edit(source)).toBe(false);
+  for (const source of ["-", ".", "1e", "1e-", "1e-2"])
+    expect(inputConstraints.scientific.edit(source)).toBe(true);
 });

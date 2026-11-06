@@ -1,3 +1,5 @@
+import { z } from "zod";
+import type { InputConstraint } from "../../ui/input-constraints";
 import type { QuestionProblem } from "@quorem/contracts";
 
 type Column = { name: string; type: string };
@@ -96,7 +98,8 @@ function cell(value: unknown, type: string, output: boolean): unknown {
       throw new Error("Enter a valid number in range.");
     return number;
   }
-  if (type === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(source)) throw new Error("Use YYYY-MM-DD.");
+  if (type === "date" && !z.iso.date().safeParse(source).success)
+    throw new Error("Use a valid YYYY-MM-DD date.");
   if (
     (type === "timestamp" || type === "timestamptz") &&
     !/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/.test(source)
@@ -105,13 +108,83 @@ function cell(value: unknown, type: string, output: boolean): unknown {
   return source;
 }
 
+/** SQL cells preserve text verbatim; machine values admit editable prefixes. */
+export function sqlCellInputConstraint(type: string): InputConstraint | undefined {
+  if (type === "text") return undefined;
+  let accepts: (value: string) => boolean;
+  if (type === "integer" || type === "bigint") {
+    const min = type === "integer" ? -2147483648n : -9223372036854775808n;
+    const max = type === "integer" ? 2147483647n : 9223372036854775807n;
+    accepts = (value) =>
+      /^-?\d*$/.test(value) &&
+      (!/^-?\d+$/.test(value) || (BigInt(value) >= min && BigInt(value) <= max));
+  } else if (["numeric", "real", "double precision"].includes(type)) {
+    accepts = (value) =>
+      value.length <= 128 &&
+      /^-?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d{0,3})?|\.)?$/.test(value) &&
+      (!/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) ||
+        type === "numeric" ||
+        (Number.isFinite(Number(value)) &&
+          (type !== "real" || Number.isFinite(Math.fround(Number(value))))));
+  } else if (["date", "timestamp", "timestamptz"].includes(type)) {
+    accepts = (value) => {
+      const pattern =
+        type === "date"
+          ? /^\d{0,4}(?:-\d{0,2}(?:-\d{0,2})?)?$/
+          : /^\d{0,4}(?:-\d{0,2}(?:-\d{0,2}(?:[ T]\d{0,2}(?::\d{0,2}(?::\d{0,2}(?:\.\d*)?)?)?(?:Z|[+-]\d{0,2}(?::?\d{0,2})?)?)?)?)?$/;
+      if (!pattern.test(value)) return false;
+      if (value.length >= 10 && !z.iso.date().safeParse(value.slice(0, 10)).success) return false;
+      const parts = value.match(
+        /^\d{4}-(\d{2})(?:-(\d{2}))?(?:[ T](\d{2})(?::(\d{2}))?(?::(\d{2}))?)?/,
+      );
+      return (
+        !parts ||
+        (Number(parts[1]) >= 1 &&
+          Number(parts[1]) <= 12 &&
+          (!parts[2] || (Number(parts[2]) >= 1 && Number(parts[2]) <= 31)) &&
+          (!parts[3] || Number(parts[3]) <= 23) &&
+          (!parts[4] || Number(parts[4]) <= 59) &&
+          (!parts[5] || Number(parts[5]) <= 59))
+      );
+    };
+  } else return undefined;
+  return {
+    edit: accepts,
+    schema: z.string().refine((value) => {
+      try {
+        cell(value, type, false);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Enter a valid SQL cell value."),
+    trim: true,
+  };
+}
+
 function rows(values: unknown[][], columns: Column[], output: boolean, name: string) {
   return values.map((row, rowIndex) => {
     if (row.length !== columns.length)
       throw new Error(`${name}, row ${rowIndex + 1}: wrong number of cells.`);
     return row.map((value, index) => {
       try {
-        return cell(value, columns[index]!.type, output);
+        const type = columns[index]!.type;
+        const parsed = z
+          .unknown()
+          .transform((source, context) => {
+            try {
+              return cell(source, type, output);
+            } catch (cause) {
+              context.addIssue({
+                code: "custom",
+                message: cause instanceof Error ? cause.message : "Invalid SQL cell.",
+              });
+              return z.NEVER;
+            }
+          })
+          .safeParse(value);
+        if (!parsed.success) throw new Error(parsed.error.issues[0]!.message);
+        return parsed.data;
       } catch (error) {
         throw new Error(
           `${name}, row ${rowIndex + 1}, ${columns[index]!.name}: ${(error as Error).message}`,

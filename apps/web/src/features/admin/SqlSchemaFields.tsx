@@ -1,5 +1,6 @@
+import { z } from "zod";
 import { TextInput } from "../../ui/TextControl";
-import { inputConstraints } from "../../ui/input-constraints";
+import { inputConstraints, withMaxBytes, withMaxCharacters } from "../../ui/input-constraints";
 import { useRef } from "react";
 import { Trash2 } from "lucide-react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -11,6 +12,8 @@ import { Field } from "./AuthoringFields";
 
 type SqlSchema = NonNullable<ProblemVersion["sql"]>;
 type Column = NonNullable<SqlSchema["output"]>[number];
+
+const outputNameConstraint = withMaxBytes({ edit: () => true, schema: z.string().min(1) }, 256);
 
 const inputTypes = [
   "integer",
@@ -60,7 +63,9 @@ function SqlColumns({
           <div className="admin-sql-column">
             <TextInput
               unstyled
-              constraint={output ? undefined : inputConstraints.identifier}
+              constraint={
+                output ? outputNameConstraint : withMaxCharacters(inputConstraints.identifier, 63)
+              }
               maxLength={output ? undefined : 63}
               className="admin-code"
               aria-label={`Column ${index + 1} name`}
@@ -136,7 +141,7 @@ export function SqlSchemaFields({
               <Field label="Table name">
                 <TextInput
                   unstyled
-                  constraint={inputConstraints.identifier}
+                  constraint={withMaxCharacters(inputConstraints.identifier, 63)}
                   maxLength={63}
                   value={table.name}
                   onChange={(event) => updateTable(index, { name: event.target.value })}

@@ -174,16 +174,16 @@ export function AuthoringNumberField({
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => () => validity.current(false), []);
+  const constraint =
+    scale === 1
+      ? inputConstraints.integer({ min: 1, max: Number.MAX_SAFE_INTEGER })
+      : inputConstraints.decimal({ min: 0, max: Number.MAX_SAFE_INTEGER / scale });
   return (
     <NoticeRegion id={id} message={invalid ? error : undefined} label={`Check ${label}`}>
       <Field label={label} icon={icon} hint={hint} unit={unit}>
         <TextInput
           mono
-          constraint={
-            scale === 1
-              ? inputConstraints.integer({ min: 1 })
-              : inputConstraints.decimal({ min: 0 })
-          }
+          constraint={constraint}
           aria-label={unit ? `${label} (${unit})` : label}
           type="text"
           inputMode={scale === 1 ? "numeric" : "decimal"}
@@ -193,10 +193,6 @@ export function AuthoringNumberField({
           onChange={(event) => {
             setSource(event.target.value);
             const next = event.target.value === "" ? NaN : Number(event.target.value) * scale;
-            const constraint =
-              scale === 1
-                ? inputConstraints.integer({ min: 1 })
-                : inputConstraints.decimal({ min: 0 });
             const bad =
               !validateInput(event.target.value, constraint).success ||
               !Number.isSafeInteger(next) ||

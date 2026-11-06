@@ -9,6 +9,7 @@ export type InputConstraint = {
 const singleLineEdit = (value: string) => !/[\p{Cc}\p{Cf}]/u.test(value);
 const nameEdit = (value: string) => singleLineEdit(value) && !/ {2}/.test(value);
 const singleLineSchema = z.string().min(1).refine(singleLineEdit);
+const scientificComplete = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function numeric(
   integer: boolean,
@@ -19,6 +20,7 @@ function numeric(
   return {
     edit: (value) =>
       pattern.test(value) &&
+      (!complete.test(value) || Number.isFinite(Number(value))) &&
       !(min !== undefined && min >= 0 && value.startsWith("-")) &&
       !(max !== undefined && max >= 0 && complete.test(value) && Number(value) > max),
     schema: z.string().refine((value) => {
@@ -35,30 +37,33 @@ function numeric(
 }
 
 export const inputConstraints = {
-  singleLine: { edit: singleLineEdit, schema: singleLineSchema, trim: true },
   name: { edit: nameEdit, schema: singleLineSchema.refine(nameEdit), trim: true },
   tag: { edit: nameEdit, schema: singleLineSchema.refine(nameEdit), trim: true },
   identifier: {
-    edit: (value: string) => /^(?:[A-Za-z_][A-Za-z0-9_]*)?$/.test(value),
-    schema: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+    edit: (value: string) => value.length <= 80 && /^(?:[A-Za-z_][A-Za-z0-9_]*)?$/.test(value),
+    schema: z
+      .string()
+      .max(80)
+      .regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
     trim: true,
   },
   slug: {
-    edit: (value: string) => /^[a-z0-9-]*$/.test(value),
-    schema: z.string().regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
-    trim: true,
-  },
-  email: {
-    edit: (value: string) => !/\s/.test(value),
-    schema: z.email(),
+    edit: (value: string) =>
+      value.length <= 80 && /^(?:[a-z][a-z0-9]*(?:-[a-z0-9]+)*-?)?$/.test(value),
+    schema: z
+      .string()
+      .max(80)
+      .regex(/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/),
     trim: true,
   },
   integer: (bounds?: { min?: number; max?: number }) => numeric(true, bounds),
   scientific: {
-    edit: (value: string) => /^-?(?:(?:\d+(?:\.\d*)?|\.\d*)?(?:[eE][+-]?\d*)?)?$/.test(value),
+    edit: (value: string) =>
+      /^-?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d*)?|\.)?$/.test(value) &&
+      (!scientificComplete.test(value) || Number.isFinite(Number(value))),
     schema: z
       .string()
-      .regex(/^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/)
+      .regex(scientificComplete)
       .refine((value) => Number.isFinite(Number(value))),
     trim: true,
   },
@@ -76,12 +81,25 @@ export function validateInput(value: string, constraint: InputConstraint) {
   return constraint.schema.safeParse(constraint.trim ? value.trimEnd() : value);
 }
 
-/** Apply limits measured in UTF-8 bytes, matching persisted question contracts. */
-export function withMaxBytes(constraint: InputConstraint, max: number): InputConstraint {
-  const withinLimit = (value: string) => new TextEncoder().encode(value).length <= max;
+function withLengthLimit(
+  constraint: InputConstraint,
+  max: number,
+  measure: (value: string) => number,
+): InputConstraint {
+  const withinLimit = (value: string) => measure(value) <= max;
   return {
     ...constraint,
     edit: (value) => constraint.edit(value) && withinLimit(value),
     schema: constraint.schema.refine(withinLimit),
   };
+}
+
+/** Apply limits measured in UTF-8 bytes, matching persisted question contracts. */
+export function withMaxBytes(constraint: InputConstraint, max: number): InputConstraint {
+  return withLengthLimit(constraint, max, (value) => new TextEncoder().encode(value).length);
+}
+
+/** Count Unicode characters as the interview and guest policies do. */
+export function withMaxCharacters(constraint: InputConstraint, max: number): InputConstraint {
+  return withLengthLimit(constraint, max, (value) => Array.from(value).length);
 }

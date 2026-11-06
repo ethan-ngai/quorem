@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
 import { userFacingErrorMessage } from "../../ui/errors";
 /** @file InterviewInvite.tsx @description Account and guest admission through scoped interview invitations. @module interviews */
 import { randomUUID } from "../../randomUUID";
@@ -15,6 +17,8 @@ import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
 import { useErrorNotification } from "../../ui/Notifications";
 
 /** Joining as a guest creates only an interview-scoped credential. */
+const nameConstraint = withMaxCharacters(inputConstraints.name, 40);
+
 export function InterviewInvite({ token }: { token: string }) {
   const account = useSession();
   const theme = useTheme();
@@ -33,10 +37,12 @@ export function InterviewInvite({ token }: { token: string }) {
     setBusy(true);
     setError(undefined);
     try {
+      const parsed = validateInput(name, nameConstraint);
+      if (!account.data && !parsed.success) throw new Error("Enter a valid display name.");
       const session = await interviewRequest<{ id: string }>(
         `/v1/interview-invites/${encodeURIComponent(token)}/join`,
         "POST",
-        { name: name.trim() || undefined },
+        { name: parsed.success ? parsed.data : undefined },
         randomUUID(),
       );
       window.location.assign(`/interview/${session.id}`);
@@ -107,9 +113,10 @@ export function InterviewInvite({ token }: { token: string }) {
               {!account.data && (
                 <label className="guest-name-field">
                   Display name
-                  <input
+                  <TextInput
+                    unstyled
+                    constraint={nameConstraint}
                     required
-                    maxLength={80}
                     autoComplete="nickname"
                     value={name}
                     onChange={(event) => setName(event.target.value)}

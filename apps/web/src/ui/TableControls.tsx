@@ -1,3 +1,5 @@
+import { TextInput } from "./TextControl";
+import { inputConstraints } from "./input-constraints";
 /** @file TableControls.tsx @description Shared server sorting and page controls. @module ui */
 import { pageSizeSchema } from "@quorem/contracts/pagination";
 import type { Column, Table } from "@tanstack/react-table";
@@ -77,9 +79,12 @@ function PageSizeControl({
       />
       {(editing || !preset) && (
         <div className="table-page-size-custom">
-          <input
+          <TextInput
+            unstyled
+            constraint={inputConstraints.integer({ min: 1, max: Number.MAX_SAFE_INTEGER })}
             ref={input}
-            type="number"
+            type="text"
+            inputMode="numeric"
             min={1}
             step={1}
             required

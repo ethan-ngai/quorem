@@ -7,9 +7,21 @@ import {
 } from "@quorem/contracts/auth";
 import type { InputConstraint } from "../../ui/input-constraints";
 
+const emailDraftSchema = emailInputSchema.refine((value) => {
+  if (value.startsWith(".") || value.includes("..")) return false;
+  const [local = "", domain, extra] = value.split("@");
+  if (domain === undefined) return true;
+  return (
+    extra === undefined &&
+    local.length > 0 &&
+    !local.endsWith(".") &&
+    /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)*(?:[A-Za-z0-9][A-Za-z0-9-]*)?$/.test(domain)
+  );
+});
+
 export const authInputConstraints = {
   email: {
-    edit: (value: string) => emailInputSchema.safeParse(value).success,
+    edit: (value: string) => emailDraftSchema.safeParse(value).success,
     schema: emailSchema,
   },
   username: {

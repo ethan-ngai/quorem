@@ -21,3 +21,11 @@ describe("auth input constraints", () => {
     expect(authInputConstraints.code.schema.safeParse("001234").success).toBe(true);
   });
 });
+
+it("blocks impossible email prefixes while retaining incomplete valid domains", () => {
+  for (const source of [".name", "name..x", "name@@", "name@-", "name@host_", "name.@host"])
+    expect(authInputConstraints.email.edit(source)).toBe(false);
+  for (const source of ["", "name", "name@", "name@host-", "name@host.", "name@host.com"])
+    expect(authInputConstraints.email.edit(source)).toBe(true);
+  expect(authInputConstraints.email.schema.safeParse("name@").success).toBe(false);
+});

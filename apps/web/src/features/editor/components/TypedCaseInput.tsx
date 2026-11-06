@@ -1,3 +1,4 @@
+import { TextInput, TextArea } from "../../../ui/TextControl";
 import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { useNodeReferenceSelection } from "./NodePreview";
 import "./machine-values.css";
@@ -9,7 +10,7 @@ import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
 import { useState, useRef, type ReactNode } from "react";
 import { innerType } from "../customCases";
-import { resolveInputPreset, type InputConfig } from "../inputPresets";
+import { inputPresetSchemas, resolveInputPreset, type InputConfig } from "../inputPresets";
 
 export function TypedCaseInput({
   id,
@@ -56,10 +57,15 @@ export function TypedCaseInput({
   while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
   const control = optional ? resolveInputPreset(controlType, input) : preset;
   const framed = !!control.delimiters;
+  const schemas = inputPresetSchemas(preset);
+  const constraint = {
+    edit: (source: string) => schemas.edit.safeParse(source).success,
+    schema: schemas.value,
+  };
   let error = rejected ?? validationError;
   if (touched && !error) {
     try {
-      preset.parse(value);
+      schemas.value.parse(value);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : "Check the input format.";
     }
@@ -83,7 +89,7 @@ export function TypedCaseInput({
     },
     onChange: (event: { target: { value: string } }) => {
       const source = event.target.value;
-      if (!preset.accepts(source)) {
+      if (!schemas.edit.safeParse(source).success) {
         setRejected("This input does not accept those characters.");
         return;
       }
@@ -177,9 +183,18 @@ export function TypedCaseInput({
               {control.kind === "number" ||
               ((control.kind === "sequence" || control.kind === "linkedList") &&
                 (input?.rows ?? 1) === 1) ? (
-                <input {...props} type="text" autoComplete="off" spellCheck={false} />
+                <TextInput
+                  {...props}
+                  unstyled
+                  constraint={constraint}
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
               ) : (
-                <textarea
+                <TextArea
+                  unstyled
+                  constraint={constraint}
                   {...props}
                   rows={
                     input?.rows ??
