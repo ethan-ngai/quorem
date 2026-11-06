@@ -3,14 +3,13 @@ import type { QuestionSearch } from "./questionSearch";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 
-/** @returns All administrative drafts; backend checks the live server-owned role. */
+/** @returns One authorized draft page; backend checks the live server-owned role. */
 export async function listDrafts(
   query: Omit<QuestionSearch, "section" | "draft" | "publication">,
-  cursor?: string,
   signal?: AbortSignal,
 ) {
   const { data, error } = await api().GET("/v1/admin/question-drafts", {
-    params: { query: { ...query, cursor } },
+    params: { query },
     signal,
   });
   return requireData(data, error);
@@ -88,7 +87,7 @@ export async function listPublications(
   signal?: AbortSignal,
 ) {
   const { data, error } = await api().GET("/v1/admin/question-publications", {
-    params: { query },
+    params: { query: { ...query, sort: query.sort === "updatedAt" ? undefined : query.sort } },
     signal,
   });
   return requireData(data, error);

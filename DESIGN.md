@@ -64,6 +64,8 @@ Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs
 
 Application and marketing product previews consume the same components and styles. Preview containers own scale and composition, not substitute button/editor/test styling. A preview must work without an application page ancestor. Label illustrative data and keep previews separate from real judging, sessions and persistence.
 
+List tables share the UI table surface, sort headers and pagination controls. Servers filter and order the full authorized result before paging; users can choose rows per page. Page-size, sort and filter changes reset pagination. Embedded SQL and document tables retain their compact reading/editing semantics.
+
 ## Workspace and interaction
 
 Problem left, solution right, results below the editor; panes resize with pointer and keyboard. Keep source, undo, selection, focus and scroll stable through theme, pane and result changes. Controls align through shared insets. Narrow layouts preserve usable actions and content access without horizontal page overflow.

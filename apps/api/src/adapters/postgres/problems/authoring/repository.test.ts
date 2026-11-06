@@ -109,7 +109,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const actor = { userId: owner, admin: false, globalAllowed: false };
       const draft = JSON.parse(await repository.create(actor, raw, undefined));
       expect(draft.revision).toBe("1");
-      expect(JSON.parse(await repository.list(actor, "")).items).toEqual(
+      expect(JSON.parse(await repository.list(actor)).items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: empty.id, ready: false }),
           expect.objectContaining({ id: draft.id, ready: true, isSql: false, fromLeetCode: false }),
@@ -123,6 +123,25 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect((await readyDrafts.json()).items.map((item: { id: string }) => item.id)).toEqual([
         draft.id,
       ]);
+      const firstPage = await (
+        await http.request("/v1/admin/question-drafts?limit=1&sort=title&order=asc")
+      ).json();
+      const secondPage = await (
+        await http.request("/v1/admin/question-drafts?limit=1&page=2&sort=title&order=asc")
+      ).json();
+      expect(firstPage).toMatchObject({ total: 2, page: 1, limit: 1 });
+      expect(secondPage).toMatchObject({ total: 2, page: 2, limit: 1 });
+      expect(firstPage.items[0].id).not.toBe(secondPage.items[0].id);
+      const readyPage = await (
+        await http.request(
+          "/v1/admin/question-drafts?readiness=ready&limit=1&sort=difficulty&order=desc",
+        )
+      ).json();
+      expect(readyPage).toMatchObject({ total: 1, items: [{ id: draft.id }] });
+      expect((await http.request("/v1/admin/question-drafts?limit=101")).status).toBe(400);
+      expect((await http.request("/v1/admin/question-publications?sort=updatedAt")).status).toBe(
+        400,
+      );
       const unmatched = await http.request("/v1/admin/question-drafts?sql=true");
       expect((await unmatched.json()).items).toEqual([]);
       const updated = JSON.parse(await repository.update(actor, draft.id, "1", raw));
@@ -142,6 +161,12 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           }),
         ]),
       );
+      const publicationsPage = await (
+        await http.request(
+          "/v1/admin/question-publications?limit=1&sort=difficulty&order=desc&page=2",
+        )
+      ).json();
+      expect(publicationsPage).toMatchObject({ items: [], total: 1, page: 2, limit: 1 });
       expect(await catalog.byVersion({ userId: owner }, published.publishedVersionId)).toContain(
         "class Solution",
       );

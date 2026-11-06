@@ -1,3 +1,5 @@
+import { useServerTable } from "../../ui/useServerTable";
+import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { Link } from "@tanstack/react-router";
 import type { QuestionSearch } from "./questionSearch";
@@ -7,7 +9,7 @@ import { CatalogFilters } from "../practice/CatalogFilters";
 import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
-import { CatalogRow, CatalogTable } from "../practice/CatalogLayout";
+import { TableRow, Table } from "../../ui/Table";
 import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -23,6 +25,11 @@ import { mutateQuestionBatch, listPublications } from "./api";
 
 type Publication = Awaited<ReturnType<typeof listPublications>>["items"][number];
 type Row = QuestionDraftSummary | Publication;
+const dashboardColumns = [
+  { accessorKey: "title" },
+  { accessorKey: "difficulty" },
+  { accessorKey: "updatedAt", sortDescFirst: true },
+];
 type Action = "publish" | "delete";
 
 export function QuestionDashboard({
@@ -38,8 +45,7 @@ export function QuestionDashboard({
   publicationFailed,
   onRunning,
   busy,
-  loadMore,
-  loadingMore,
+  total,
   onOpen,
   onChanged,
 }: {
@@ -55,8 +61,7 @@ export function QuestionDashboard({
   publicationFailed: boolean;
   onRunning: (running: boolean) => void;
   busy: boolean;
-  loadMore?: () => void;
-  loadingMore: boolean;
+  total?: number;
   onOpen: (row: Row) => void;
   onChanged: () => Promise<unknown>;
 }) {
@@ -83,6 +88,27 @@ export function QuestionDashboard({
   const loading = tab === "drafts" ? draftLoading : publicationLoading;
   const failed = tab === "drafts" ? draftFailed : publicationFailed;
 
+  const page = search.page ?? 1;
+  const limit = search.limit ?? 50;
+  const table = useServerTable({
+    data: rows,
+    columns: dashboardColumns,
+    total,
+    loading: loading || failed,
+    state: {
+      page,
+      limit,
+      sort: search.sort ?? (tab === "drafts" ? "updatedAt" : "title"),
+      order: search.order ?? (tab === "drafts" ? "desc" : "asc"),
+    },
+    onChange: (next) =>
+      onSearch({
+        page: next.page === 1 ? undefined : next.page,
+        limit: next.limit,
+        sort: next.sort,
+        order: next.order,
+      }),
+  });
   function toggle(ids: string[], checked: boolean) {
     setSelection((current) => {
       const next = new Set(current?.scope === selectionScope ? current.ids : undefined);
@@ -181,7 +207,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "drafts"}
             disabled={disabled}
             onClick={() => {
-              onSearch({ section: "drafts" });
+              onSearch({ sort: undefined, order: undefined, section: "drafts" });
             }}
           >
             <Icon name="problem" />
@@ -193,7 +219,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "publications"}
             disabled={disabled}
             onClick={() => {
-              onSearch({ section: "publications" });
+              onSearch({ sort: undefined, order: undefined, section: "publications" });
             }}
           >
             <Globe size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -312,7 +338,7 @@ export function QuestionDashboard({
         <p role="alert">Questions could not be loaded. Refresh to try again.</p>
       ) : (
         <div className="admin-table-scroll">
-          <CatalogTable
+          <Table
             className="admin-question-table"
             label={tab === "drafts" ? "Draft questions" : "Question publications"}
             heading={
@@ -336,10 +362,16 @@ export function QuestionDashboard({
                     }
                   />
                 </th>
-                <th scope="col">Question</th>
-                <th scope="col">Difficulty</th>
+                <TableSortHeader column={table.getColumn("title")!} disabled={disabled}>
+                  Question
+                </TableSortHeader>
+                <TableSortHeader column={table.getColumn("difficulty")!} disabled={disabled}>
+                  Difficulty
+                </TableSortHeader>
                 {tab === "drafts" ? (
-                  <th scope="col">Last edited</th>
+                  <TableSortHeader column={table.getColumn("updatedAt")!} disabled={disabled}>
+                    Last edited
+                  </TableSortHeader>
                 ) : (
                   <th aria-label="Visibility" />
                 )}
@@ -347,7 +379,7 @@ export function QuestionDashboard({
             }
           >
             {rows.map((row) => (
-              <CatalogRow
+              <TableRow
                 key={row.id}
                 data-selected={selected.has(row.id)}
                 onOpen={disabled ? undefined : () => onOpen(row)}
@@ -364,7 +396,7 @@ export function QuestionDashboard({
                 <th scope="row">
                   <div className="admin-question-heading">
                     {disabled ? (
-                      <span className="catalog-question-title">
+                      <span className="table-title">
                         {row.title || "Untitled question"}
                       </span>
                     ) : (
@@ -375,7 +407,7 @@ export function QuestionDashboard({
                           draft: "revision" in row ? row.id : undefined,
                           publication: "revision" in row ? undefined : row.id,
                         }}
-                        className="catalog-question-title"
+                        className="table-title"
                       >
                         {row.title || "Untitled question"}
                       </Link>
@@ -428,25 +460,17 @@ export function QuestionDashboard({
                     {row.isPrivate && <QuestionIndicators privateQuestion odyssey={false} />}
                   </td>
                 )}
-              </CatalogRow>
+              </TableRow>
             ))}
             {!rows.length && (
               <tr>
                 <td colSpan={4}>No matching questions.</td>
               </tr>
             )}
-          </CatalogTable>
+          </Table>
         </div>
       )}
-      {tab === "drafts" && loadMore && (
-        <button
-          className="button button-secondary"
-          disabled={disabled || loadingMore}
-          onClick={loadMore}
-        >
-          {loadingMore ? "Loading…" : "Load more drafts"}
-        </button>
-      )}
+      {!loading && !failed && <TablePagination table={table} disabled={disabled} />}
       <SessionDialog
         open={!!action}
         pending={running}

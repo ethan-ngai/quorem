@@ -1535,8 +1535,9 @@ export interface components {
                 companies: string[];
             };
             items: components["schemas"]["QuestionDraftSummary"][];
-            /** Format: uuid */
-            nextCursor?: string;
+            total: number;
+            page: number;
+            limit: number;
         };
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
@@ -2508,6 +2509,10 @@ export interface operations {
                 company?: string;
                 source?: string;
                 readiness?: string;
+                page?: number;
+                limit?: number;
+                sort?: "title" | "difficulty";
+                order?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -2541,6 +2546,9 @@ export interface operations {
                             fromLeetCode: boolean;
                             current: boolean;
                         }[];
+                        total: number;
+                        page: number;
+                        limit: number;
                     };
                 };
             };
@@ -2566,7 +2574,10 @@ export interface operations {
                 company?: string;
                 source?: string;
                 readiness?: string;
-                cursor?: string;
+                page?: number;
+                limit?: number;
+                sort?: "title" | "difficulty" | "updatedAt";
+                order?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -3249,7 +3260,12 @@ export interface operations {
     };
     listInterviews: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                limit?: number;
+                sort?: "title" | "role" | "updatedAt";
+                order?: "asc" | "desc";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3262,7 +3278,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSummary"][];
+                    "application/json": {
+                        items: components["schemas"]["InterviewSummary"][];
+                        total: number;
+                        page: number;
+                        limit: number;
+                        hosting: number;
+                    };
                 };
             };
             /** @description Safe application error */

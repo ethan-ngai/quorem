@@ -35,7 +35,7 @@ import {
   removePublicationRow,
 } from "./mutation.ts";
 
-/** Match catalog metadata before cursoring through drafts. */
+/** Match catalog metadata before sorting and pagination. */
 function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
   const {
     query = "",
@@ -55,6 +55,35 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     AND (${company}='' OR companies && string_to_array(${company},','))
     AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
   `;
+}
+
+type DraftListRow = {
+  id: string;
+  revision: string;
+  title: string;
+  slug: string;
+  editVersionId: string | null;
+  updated_at: Date;
+  updatedAt: string;
+  raw: string;
+  fromLeetCode: boolean;
+  isSql: boolean;
+  isOdyssey: boolean;
+  difficulty: string;
+  tags: string[];
+  companies: string[];
+};
+
+function authoringOrder(filters?: AuthoringFilters, drafts = false): SQL {
+  const sort = filters?.sort ?? (drafts ? "updatedAt" : "title");
+  const direction = (filters?.order ?? (drafts ? "desc" : "asc")) === "desc" ? sql`DESC` : sql`ASC`;
+  const key =
+    sort === "difficulty"
+      ? sql`CASE difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END`
+      : sort === "updatedAt"
+        ? sql`updated_at`
+        : sql`lower(title)`;
+  return sql`${key} ${direction},id ${direction}`;
 }
 
 async function authoringFacets(tx: Transaction, catalog: SQL) {
@@ -625,7 +654,12 @@ function createQuestionAuthoring(
   operatorSeedSource?: string,
 ): QuestionAuthoring {
   const transact = <T>(action: (tx: Transaction) => Promise<T>, readOnly = false) =>
-    run((scope) => scope.transaction({ ...opts, readOnly }, action));
+    run((scope) =>
+      scope.transaction(
+        { ...opts, readOnly, isolation: readOnly ? "repeatable read" : "read committed" },
+        action,
+      ),
+    );
   return {
     async mutateBatch(actor, batch) {
       return transact(async (tx) => {
@@ -701,21 +735,29 @@ function createQuestionAuthoring(
           ) chosen
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
         `;
-        const result = await tx.execute(sql`SELECT * FROM (${catalog}) catalog
-          WHERE ${matchesAuthoringFilters(filters)} ORDER BY lower(title),slug`);
+        const { page = 1, limit = 50 } = filters ?? {};
+        const where = matchesAuthoringFilters(filters);
+        const order = authoringOrder(filters);
+        const result = await tx.execute(
+          sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${(page - 1) * limit}`,
+        );
+        const count = await tx.execute<{ total: number }>(
+          sql`SELECT count(*)::int AS total FROM (${catalog}) catalog WHERE ${where}`,
+        );
         const facets = await authoringFacets(tx, catalog);
-
-        return JSON.stringify({ items: result.rows, facets });
+        return JSON.stringify({
+          items: result.rows,
+          total: count.rows[0].total,
+          page,
+          limit,
+          facets,
+        });
       }, true);
     },
-    async list(actor, cursor, filters) {
-      const items = [];
-      let facets;
-      let scanCursor = cursor;
-      do {
-        const rows = await transact(async (tx) => {
-          const { admin } = await author(tx, actor, false);
-          const catalog = sql`SELECT id::text AS id,revision::text AS revision,updated_at,
+    async list(actor, filters) {
+      return transact(async (tx) => {
+        const { admin } = await author(tx, actor, false);
+        const catalog = sql`SELECT id::text AS id,revision::text AS revision,updated_at,
                 COALESCE(content->'problem'->>'difficulty','easy') AS difficulty,
                 COALESCE(jsonb_typeof(content->'problem'->'odyssey')='object',false) AS "isOdyssey",
                 ARRAY(SELECT jsonb_array_elements_text(COALESCE(content->'problem'->'tags','[]'::jsonb))) AS tags,
@@ -724,32 +766,13 @@ function createQuestionAuthoring(
                 COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
                 COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
                 FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))`;
-          if (!scanCursor) facets = await authoringFacets(tx, catalog);
-          return (
-            await tx.execute<{
-              id: string;
-              revision: string;
-              title: string;
-              slug: string;
-              editVersionId: string | null;
-              updatedAt: string;
-              raw: string;
-              fromLeetCode: boolean;
-              isSql: boolean;
-              isOdyssey: boolean;
-              difficulty: string;
-              tags: string[];
-              companies: string[];
-            }>(
-              sql`SELECT id,revision,title,slug,"editVersionId","updatedAt",raw,"fromLeetCode","isSql","isOdyssey",difficulty,tags,companies
-              FROM (${catalog}) catalog WHERE ${matchesAuthoringFilters(filters)}
-              AND (${scanCursor}='' OR (updated_at,id::uuid)<(SELECT updated_at,id FROM question_drafts
-                WHERE id::text=${scanCursor} AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))))
-              ORDER BY updated_at DESC,id DESC LIMIT 50`,
-            )
-          ).rows;
-        }, true);
-        for (const { raw, editVersionId, ...row } of rows) {
+        const { page = 1, limit = 50 } = filters ?? {};
+        const where = matchesAuthoringFilters(filters);
+        const order = authoringOrder(filters, true);
+        const facets = await authoringFacets(tx, catalog);
+        const offset = (page - 1) * limit;
+        const summarize = (row: DraftListRow) => {
+          const { raw, editVersionId, updated_at: _updatedAt, ...summary } = row;
           let ready = true;
           try {
             preparePublication(raw, runtime);
@@ -757,14 +780,40 @@ function createQuestionAuthoring(
             if (!(error instanceof ApplicationError)) throw error;
             ready = false;
           }
-          if (!filters?.readiness || ready === (filters.readiness === "ready"))
-            items.push({ ...row, ready, ...(editVersionId ? { editVersionId } : {}) });
-          if (items.length > 50)
-            return JSON.stringify({ items: items.slice(0, 50), nextCursor: items[49].id, facets });
+          return { ...summary, ready, ...(editVersionId ? { editVersionId } : {}) };
+        };
+        if (!filters?.readiness) {
+          const rows = await tx.execute<DraftListRow>(
+            sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT ${limit} OFFSET ${offset}`,
+          );
+          const count = await tx.execute<{ total: number }>(
+            sql`SELECT count(*)::int AS total FROM (${catalog}) catalog WHERE ${where}`,
+          );
+          return JSON.stringify({
+            items: rows.rows.map(summarize),
+            total: count.rows[0].total,
+            page,
+            limit,
+            facets,
+          });
         }
-        scanCursor = rows.length === 50 ? rows[49].id : "";
-      } while (scanCursor);
-      return JSON.stringify({ items, facets });
+        // Readiness uses the publication validator; scan bounded batches before pagination.
+        const items = [];
+        let total = 0;
+        for (let scanned = 0; ; scanned += 50) {
+          const rows = await tx.execute<DraftListRow>(
+            sql`SELECT * FROM (${catalog}) catalog WHERE ${where} ORDER BY ${order} LIMIT 50 OFFSET ${scanned}`,
+          );
+          for (const row of rows.rows) {
+            const summary = summarize(row);
+            if (summary.ready !== (filters.readiness === "ready")) continue;
+            if (total >= offset && items.length < limit) items.push(summary);
+            total++;
+          }
+          if (rows.rows.length < 50) break;
+        }
+        return JSON.stringify({ items, total, page, limit, facets });
+      }, true);
     },
     async get(actor, id) {
       return transact(async (tx) => {

@@ -1,5 +1,6 @@
-import { parseCatalogFilter } from "../queries.ts";
 /** @file routes.ts @description Question authoring HTTP transport. @module problems */
+import { parseListQuery } from "../../../application/list-query.ts";
+import { parseCatalogFilter } from "../queries.ts";
 import { Hono, type Context } from "hono";
 import {
   JsonNumber,
@@ -88,18 +89,25 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       (readiness !== undefined && !["ready", "needs-fixes"].includes(readiness))
     )
       invalid("Invalid question filters");
-    const catalog = parseCatalogFilter(query);
-    return { ...catalog, sql: catalog.sql || ("false" as const), source, readiness };
+    if (query.has("cursor")) invalid("Cursor pagination is unsupported");
+    const drafts = new URL(url).pathname.endsWith("question-drafts");
+    const pagination = parseListQuery(
+      query,
+      drafts ? (["title", "difficulty", "updatedAt"] as const) : (["title", "difficulty"] as const),
+      { page: 1, limit: 50, sort: drafts ? "updatedAt" : "title", order: drafts ? "desc" : "asc" },
+    );
+    const catalogQuery = new URLSearchParams(query);
+    catalogQuery.set("sort", pagination.sort === "updatedAt" ? "title" : pagination.sort);
+    const catalog = parseCatalogFilter(catalogQuery);
+    return { ...catalog, ...pagination, sql: catalog.sql || ("false" as const), source, readiness };
   }
   app.get("/v1/admin/question-publications", async (c) => {
     const p = await principal(c.req.raw);
     return json(c, await deps.authoring.publications(p, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts", async (c) => {
-    const p = await principal(c.req.raw),
-      cursor = c.req.query("cursor") ?? "";
-    if (cursor && !uuid.test(cursor)) invalid("Invalid cursor");
-    return json(c, await deps.authoring.list(p, cursor, filters(c.req.url)));
+    const p = await principal(c.req.raw);
+    return json(c, await deps.authoring.list(p, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),
