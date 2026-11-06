@@ -1,5 +1,5 @@
 /** @file PartyReadyStatus.tsx @description Shared per-member readiness and automatic-start feedback. @module matches */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { Tooltip } from "../../ui/Tooltip";
@@ -51,13 +51,19 @@ export function PartyMemberReadiness({
   members,
   hostUserId,
   ownUserId,
+  actions,
 }: {
   members: ReadyMember[];
   hostUserId?: string;
   ownUserId?: string;
+  actions?: (member: ReadyMember) => ReactNode;
 }) {
   return (
-    <ul className="party-ready-members" aria-label="Lobby readiness">
+    <ul
+      className="party-ready-members"
+      data-actions={actions ? true : undefined}
+      aria-label="Lobby readiness"
+    >
       {members.map((member) => (
         <li key={member.userId}>
           <ParticipantName participant={member} self={member.userId === ownUserId} />
@@ -69,6 +75,7 @@ export function PartyMemberReadiness({
             </Tooltip>
           )}
           <PartyReadinessIndicator member={member} />
+          {actions?.(member)}
         </li>
       ))}
     </ul>

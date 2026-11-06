@@ -1,3 +1,4 @@
+import { freezePartyTeams, initializeTeamWorkspaces } from "../factions/start.ts";
 /** @file reconcile.ts @description Party presence and round transitions. @module parties */
 import { sql } from "drizzle-orm";
 import { classifyDatabaseError, type Transaction } from "@quorem/database/core";
@@ -73,7 +74,9 @@ export async function startRound(
     access: s.accessMode,
     settings: s,
   };
+  if (s.mode === "factions") await freezePartyTeams(tx, id, match);
   await start(tx, match, record);
+  if (s.mode === "factions") await initializeTeamWorkspaces(tx, match);
   await matchEvent(tx, match, "match.updated");
   await tx.execute(
     sql`UPDATE parties SET current_match_id=${match}::uuid,countdown_ends_at=NULL,queue_error=NULL,version=version+1 WHERE id=${id}::uuid`,

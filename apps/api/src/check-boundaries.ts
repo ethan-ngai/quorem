@@ -32,9 +32,10 @@ export function boundaryViolations(root: string, sources: ReadonlyMap<string, st
       const pure =
         purePackages.some((pkg) => name === pkg || name.startsWith(`${pkg}/`)) ||
         name === "@quorem/contracts/match-rules" ||
+        name === "@quorem/contracts/factions" ||
         name === "@quorem/contracts/auth-policy" ||
         name === "@quorem/contracts/pagination" ||
-        (relative(root, file).split(sep).join("/") === "modules/interviews/document/changes.ts" &&
+        (relative(root, file).split(sep).join("/") === "application/document-changes.ts" &&
           name === "@codemirror/state");
       const relativeBusiness =
         name.startsWith(".") &&

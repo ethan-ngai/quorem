@@ -1,6 +1,6 @@
 /** @file collaboration.ts @description Interview policy around shared document synchronization. @module interviews */
 import { randomUUID } from "../../randomUUID";
-import { unlockedMethodEdit } from "../odyssey/methodStubs";
+import { synchronizeMethodStubs } from "../collaboration/methodStubs";
 import type {
   OdysseyProgress,
   InterviewDocument,
@@ -9,9 +9,8 @@ import type {
 } from "@quorem/contracts";
 import type { EditorLanguage } from "../editor/editorLanguages";
 import { createInterviewRuleReporter } from "./ruleEvents";
-import { getSyncedVersion } from "@codemirror/collab";
-import { ChangeSet, EditorState, type Extension } from "@codemirror/state";
-import { toast } from "sonner";
+import { type Extension } from "@codemirror/state";
+import { sourceFilter } from "../collaboration/sourceFilter";
 import type { EditorView } from "@codemirror/view";
 import { createDocumentSync, type CollaborationStatus } from "../collaboration/documentSync";
 import { createInterviewSocket } from "./socket";
@@ -37,15 +36,6 @@ export function createCollaboration(
   let refreshGeneration = 0;
   let refreshAbort: AbortController | undefined;
   let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
-  const sourceFilter = EditorState.changeFilter.of((transaction) => {
-    let hasNUL = false;
-    transaction.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
-      if (inserted.toString().includes("\0")) hasNUL = true;
-    });
-    if (hasNUL)
-      toast.error("Source cannot contain NUL characters.", { id: "interview-source-nul" });
-    return !hasNUL;
-  });
   const sync = createDocumentSync({
     document,
     clientID,
@@ -74,38 +64,16 @@ export function createCollaboration(
       reports.stop();
       transport.stop();
     },
-    async onSynchronized({ view, pull, schedule }) {
-      if (odyssey) {
-        const before = view.state.doc.toString();
-        const version = getSyncedVersion(view.state);
-        const edit = await unlockedMethodEdit(before, odyssey.language, odyssey.progress.levels);
-        if (
-          edit &&
-          before === view.state.doc.toString() &&
-          version === getSyncedVersion(view.state)
-        ) {
-          try {
-            // Version-checked server insertion avoids duplicate stubs when peers unlock together.
-            await transport.request("push", {
-              key: randomUUID(),
-              push: {
-                epoch: document.epoch,
-                version,
-                updates: [
-                  {
-                    clientID: "odyssey-stubs",
-                    changes: ChangeSet.of(edit, before.length).toJSON(),
-                  },
-                ],
-              },
-            });
-          } catch (error) {
-            if (!(error instanceof InterviewError) || error.code !== "stale_version") throw error;
-          }
-          await pull();
-          schedule(0);
-        }
-      }
+    async onSynchronized(documentState) {
+      if (odyssey)
+        await synchronizeMethodStubs(
+          documentState,
+          document.epoch,
+          odyssey.progress,
+          odyssey.language,
+          (push, key) => transport.request("push", { push, key }),
+          (error) => error instanceof InterviewError && error.code === "stale_version",
+        );
     },
   });
   let refreshing = false;

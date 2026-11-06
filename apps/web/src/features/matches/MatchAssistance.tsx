@@ -19,11 +19,13 @@ export function MatchAssistance({
   identity,
   submission,
   complexityAvailable,
+  onPaidAction,
 }: {
   match: MatchSnapshot;
   identity: DevelopmentIdentity;
   submission?: Submission;
   complexityAvailable: boolean;
+  onPaidAction?: (input: RuleActionRequest) => Promise<void>;
 }) {
   const client = useQueryClient();
   const own = ownParticipant(match, identity);
@@ -44,9 +46,10 @@ export function MatchAssistance({
         ...input,
         ...(result.quote.caseIndex !== undefined ? { caseIndex: result.quote.caseIndex } : {}),
       };
-      if (!input.approval && (result.quote.seconds || result.quote.points))
-        setConfirmation({ input: selectedInput, quote: result.quote });
-      else if (!input.approval) {
+      if (!input.approval && (result.quote.seconds || result.quote.points)) {
+        if (onPaidAction) await onPaidAction(selectedInput);
+        else setConfirmation({ input: selectedInput, quote: result.quote });
+      } else if (!input.approval) {
         const opened = await matchRuleAction(identity, match.id, {
           ...selectedInput,
           approval: result.quote,

@@ -1,7 +1,7 @@
-/** @file changes.ts @description CodeMirror changes with source integrity checks. @module interviews */
+/** @file document-changes.ts @description CodeMirror changes with source integrity checks. @module application */
 import { ChangeSet, Text } from "@codemirror/state";
 import { validSource } from "@quorem/questions";
-import { ApplicationError } from "../../../application/error.ts";
+import { ApplicationError } from "./error.ts";
 const invalid = () => new ApplicationError("invalid_input", "Invalid change set", 400);
 /** Apply one ordered ChangeSet to a UTF-16 document, rejecting malformed source. */
 export function applyDocumentChanges(source: string, value: unknown): string {

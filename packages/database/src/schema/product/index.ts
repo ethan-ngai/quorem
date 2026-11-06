@@ -10,6 +10,7 @@ import {
   unique,
   uuid,
   integer,
+  smallint,
   boolean,
   check,
   bigserial,
@@ -579,6 +580,7 @@ export const workspaces = pgTable(
   {
     id: uuid().primaryKey().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     problem_version_id: uuid(),
     language: text().notNull(),
     kind: text().default("solo").notNull(),
@@ -590,6 +592,8 @@ export const workspaces = pgTable(
     review_source_owner_id: text(),
   },
   (table): PgTableExtraConfigValue[] => [
+    check("workspaces_team_check", sql`team BETWEEN 1 AND 4`),
+    check("workspace_team_context", sql`team IS NULL OR (kind='match' AND match_id IS NOT NULL)`),
     uniqueIndex("review_workspace_owner_source_language")
       .on(table.review_match_id, table.owner_id, table.review_source_owner_id, table.language)
       .where(sql`kind = 'review'`),
@@ -789,7 +793,10 @@ export const matches = pgTable(
       sql`(state = ANY (ARRAY['completed'::text, 'cancelled'::text])) = (outcome IS NOT NULL)`,
     ),
     check("matches_duration_minutes_check", sql`duration_minutes = ANY (ARRAY[15, 30, 45, 60])`),
-    check("matches_mode_check", sql`mode = ANY (ARRAY['showdown'::text, 'free-for-all'::text])`),
+    check(
+      "matches_mode_check",
+      sql`mode = ANY (ARRAY['showdown'::text, 'free-for-all'::text, 'factions'::text])`,
+    ),
     check(
       "matches_state_check",
       sql`state = ANY (ARRAY['waiting'::text, 'ready'::text, 'active'::text, 'finalizing'::text, 'completed'::text, 'cancelled'::text])`,
@@ -1192,11 +1199,6 @@ export const submissions = pgTable(
       columns: [table.interview_id],
       foreignColumns: [interviews.id],
       name: "submissions_interview_id_fkey",
-    }),
-    foreignKey({
-      columns: [table.workspace_id, table.owner_id],
-      foreignColumns: [workspaces.id, workspaces.owner_id],
-      name: "submission_workspace_owner_fkey",
     }),
     foreignKey({
       columns: [table.id, table.interview_id],
@@ -1749,6 +1751,7 @@ export const match_participants = pgTable(
   {
     match_id: uuid().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     seat: integer().notNull(),
     competitor_id: text(),
     eligible_finish_at: timestamp({ withTimezone: true, mode: "string" }),
@@ -1762,6 +1765,7 @@ export const match_participants = pgTable(
     last_rule_event_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
+    check("match_participants_team_check", sql`team BETWEEN 1 AND 4`),
     foreignKey({
       columns: [table.match_id],
       foreignColumns: [matches.id],
@@ -1771,11 +1775,6 @@ export const match_participants = pgTable(
       columns: [table.owner_id],
       foreignColumns: [users.id],
       name: "match_participants_owner_id_fkey",
-    }),
-    foreignKey({
-      columns: [table.workspace_id, table.owner_id],
-      foreignColumns: [workspaces.id, workspaces.owner_id],
-      name: "match_participant_workspace_owner_fkey",
     }),
     primaryKey({ columns: [table.match_id, table.owner_id], name: "match_participants_pkey" }),
     unique("match_participants_match_id_seat_key").on(table.match_id, table.seat),
@@ -2282,6 +2281,7 @@ export const parties = pgTable(
     host_owner_id: text().notNull(),
     invite_hash: text().notNull(),
     settings: jsonb().notNull(),
+    team_count: smallint().default(2).notNull(),
     guest_joins: integer().default(0).notNull(),
     version: bigint({ mode: "bigint" }).default(0n).notNull(),
     current_match_id: uuid(),
@@ -2294,6 +2294,7 @@ export const parties = pgTable(
     disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (t) => [
+    check("parties_team_count_check", sql`team_count BETWEEN 2 AND 4`),
     foreignKey({
       columns: [t.host_owner_id],
       foreignColumns: [users.id],
@@ -2321,6 +2322,7 @@ export const party_members = pgTable(
   {
     party_id: uuid().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     seat: integer().notNull(),
     ready: boolean().default(false).notNull(),
     joined_at: timestamp({ withTimezone: true, mode: "string" })
@@ -2331,6 +2333,7 @@ export const party_members = pgTable(
       .notNull(),
   },
   (t) => [
+    check("party_members_team_check", sql`team BETWEEN 1 AND 4`),
     foreignKey({
       columns: [t.party_id],
       foreignColumns: [parties.id],
@@ -2366,6 +2369,7 @@ export const platform_presence_leases = pgTable(
   ],
 );
 
+export * from "./factions.ts";
 export const match_private_result_cases = pgTable(
   "match_private_result_cases",
   {

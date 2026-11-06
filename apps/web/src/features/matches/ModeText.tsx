@@ -6,10 +6,12 @@ export function ModeText({
   mode,
   showdown,
   freeForAll,
+  factions = "Factions",
 }: {
   mode: MatchSnapshot["mode"];
   showdown: ReactNode;
   freeForAll: ReactNode;
+  factions?: ReactNode;
 }) {
   return (
     <span className="mode-text">
@@ -26,6 +28,13 @@ export function ModeText({
         aria-hidden={mode !== "free-for-all"}
       >
         {freeForAll}
+      </span>
+      <span
+        className="mode-text-option"
+        data-active={mode === "factions"}
+        aria-hidden={mode !== "factions"}
+      >
+        {factions}
       </span>
     </span>
   );
