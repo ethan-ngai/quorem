@@ -24,7 +24,7 @@ try {
   await client.query("BEGIN READ ONLY");
   await client.query("SET LOCAL statement_timeout = '5s'");
   const { rows } = await client.query(
-    `SELECT s.admitted_at AS admitted, a.claimed_at AS claimed,
+    `SELECT i.case_count AS "caseCount", s.admitted_at AS admitted, a.claimed_at AS claimed,
       s.updated_at AS finalized, j.attempts,
       round(1000 * extract(epoch FROM a.claimed_at-s.admitted_at))::int AS "claimMs",
       round(1000 * extract(epoch FROM s.updated_at-a.claimed_at))::int AS "claimToFinalMs"
@@ -39,8 +39,8 @@ try {
     WHERE s.admitted_at >= $1::timestamptz
       AND s.admitted_at < $1::timestamptz + interval '2 minutes'
       AND w.problem_version_id=$2::uuid AND s.source_hash=$3 AND s.kind='run' AND s.custom_run
-      AND j.language='python' AND j.finished AND s.state='completed' AND i.case_count=1
-    ORDER BY s.admitted_at LIMIT 10`,
+      AND j.language='python' AND j.finished AND s.state='completed' AND i.case_count IN (1,5,20)
+    ORDER BY s.admitted_at LIMIT 50`,
     [start.toISOString(), version, createHash("sha256").update(acceptedSource).digest("hex")],
   );
   console.log(JSON.stringify({ benchmarkTimings: rows }));

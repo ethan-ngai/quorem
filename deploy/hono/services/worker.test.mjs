@@ -90,7 +90,7 @@ function runnerNamespace() {
   };
 }
 
-void test("direct wakes durably fan out independent single-attempt alarms and honor pause", async (t) => {
+void test("direct wakes arm independent slots without waiting for a parent alarm and honor pause", async (t) => {
   const f = runnerNamespace(),
     root = f.get(f.name),
     active = f.env.RUNNER_CONTROL;
@@ -111,6 +111,10 @@ void test("direct wakes durably fan out independent single-attempt alarms and ho
   assert.equal((await wake(direct, secret("x"))).status, 404);
   assert.equal((await wake(f.env.DRAIN_ORIGIN, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 404);
   assert.equal((await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
+  const slots = [...f.contexts.keys()].filter((name) => name !== f.name);
+  assert.equal(slots.length, 8);
+  assert.ok(slots.every((name) => f.contexts.get(name).alarm !== null));
+  assert.equal(dispatch.mock.callCount(), 0);
   assert.equal((await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 204);
   assert.equal(f.contexts.get(f.name).arms, 1);
   f.contexts.get(f.name).alarm = Date.now() + 30000;
@@ -119,12 +123,15 @@ void test("direct wakes durably fan out independent single-attempt alarms and ho
   f.env.RUNNER_CONTROL = {
     getByName: () => ({ fetch: async () => new Response(null, { status: 503 }) }),
   };
+  const armed = slots.map((name) => f.contexts.get(name).arms);
+  assert.equal((await wake(direct, f.env.QUOREM_RUNNER_DRAIN_SECRET)).status, 503);
   await f.alarm(f.name);
-  assert.equal(f.contexts.size, 1);
+  assert.deepEqual(
+    slots.map((name) => f.contexts.get(name).arms),
+    armed,
+  );
   f.env.RUNNER_CONTROL = active;
   await f.alarm(f.name);
-  const slots = [...f.contexts.keys()].filter((name) => name !== f.name);
-  assert.equal(slots.length, 8);
   assert.equal(dispatch.mock.callCount(), 0);
   await Promise.all(slots.map((name) => f.alarm(name)));
   assert.equal(dispatch.mock.callCount(), 8);
@@ -133,6 +140,21 @@ void test("direct wakes durably fan out independent single-attempt alarms and ho
   await f.alarm(f.name);
   await f.alarm(slots[0]);
   assert.equal(dispatch.mock.callCount(), 8);
+});
+
+void test("an interrupted direct fanout leaves the parent alarm for recovery", async () => {
+  const f = runnerNamespace(),
+    root = f.get(f.name),
+    original = root.wakeChildren.bind(root);
+  root.wakeChildren = async () => {
+    throw new Error("fixture interrupted");
+  };
+  assert.equal((await root.fetch(root.command("wake"))).status, 503);
+  assert.ok(f.contexts.get(f.name).alarm !== null);
+  assert.equal(f.contexts.size, 1);
+  root.wakeChildren = original;
+  await f.alarm(f.name);
+  assert.equal(f.contexts.size, 9);
 });
 
 void test("a failed slot durably halts future namespace work after eviction", async (t) => {
