@@ -4,6 +4,7 @@ import type { ConnectionScope } from "@quorem/database/core";
 import { encodeJob, manifestCaseBinding, type Job } from "@quorem/execution";
 import { inputBundleInTransaction } from "../inputs/read.ts";
 import { validateFieldChunks } from "./field-validation.ts";
+import { lockCompletionFrame } from "./frame-lock.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const statuses = new Set([
   "accepted",
@@ -34,10 +35,7 @@ export function postgresVerificationPrepare(run: Run) {
     const wire = encodeJob(job);
     const challenge = await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-        const locked = await tx.execute(
-          sql`SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN execution_completion_staging st ON st.job_id=j.id JOIN runner_job_inputs i ON i.job_id=j.id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND st.attempt_id=j.attempt_id AND st.sandbox_scope=j.sandbox_scope AND NOT st.eof AND i.sealed FOR UPDATE OF j,s,st`,
-        );
-        if (!locked.rows.length) throw new Error("Stale verification");
+        await lockCompletionFrame(tx, job, channel, localOrdinal);
         const { manifest, ref } = await inputBundleInTransaction(
           tx,
           job,

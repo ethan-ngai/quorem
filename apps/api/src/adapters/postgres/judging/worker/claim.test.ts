@@ -16,6 +16,7 @@ import {
 } from "@quorem/execution";
 import { createVerificationSourceHandler } from "./verification-http.ts";
 import { postgresInputReader } from "../inputs/read.ts";
+import { lockCompletionFrame } from "./frame-lock.ts";
 import { localVerifier, sealFixture } from "./manifest-fixture.ts";
 const url = process.env.QUOREM_RUNNER_TEST_DATABASE_URL;
 assertRunnerFixture(url ?? "postgres://127.0.0.1/quorem_hono_runner_test", [
@@ -633,6 +634,97 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [submissionId]);
     }
   });
+  it("independent frame writers retain same-frame and attempt-transition fences", async () => {
+    const s = crypto.randomUUID(),
+      j = crypto.randomUUID();
+    let release!: () => void;
+    let held: Promise<unknown> | undefined;
+    try {
+      await pool.query(
+        "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[]')",
+        [s, user, workspace],
+      );
+      await pool.query(
+        "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
+        [j, s],
+      );
+      await sealFixture(run, version, j, [{ args: [], expected: 2 }]);
+      const live = await claims.claimAfterTeardown(true, "scope-frame-parallel", null);
+      expect(live?.jobId).toBe(j);
+      const staging = postgresCompletionStaging(run, verifier.verification);
+      await staging.begin(live!, {
+        submissionId: s,
+        attemptId: live!.attemptId,
+        engineFailure: false,
+        diagnosticsPresent: true,
+        publicPresent: true,
+        samplePresent: false,
+        privatePresent: false,
+        publicCount: 1,
+        sampleCount: 0,
+        privateCount: 0,
+      });
+      let entered!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      held = run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+          await lockCompletionFrame(tx, live!, "public", 0);
+          entered();
+          await gate;
+        }),
+      );
+      await ready;
+      const chunk = {
+        channel: "public" as const,
+        ordinal: 1,
+        field: "actual" as const,
+        chunkOrdinal: 0,
+        bytes: new TextEncoder().encode("2"),
+      };
+      // A different frame must commit while the first frame still owns its locks.
+      await staging.chunk(live!, {
+        ...chunk,
+        channel: "header",
+        ordinal: 0,
+        field: "diagnostics",
+        bytes: new TextEncoder().encode("[]"),
+      });
+      let sameDone = false,
+        transitionDone = false;
+      const same = staging.chunk(live!, { ...chunk, ordinal: 0 }).then(() => {
+        sameDone = true;
+      });
+      void same.catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(sameDone).toBe(false);
+      const transition = pool
+        .query("UPDATE submissions SET cancel_requested=true WHERE id=$1", [s])
+        .then(() => {
+          transitionDone = true;
+        });
+      void transition.catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(sameDone).toBe(false);
+      expect(transitionDone).toBe(false);
+      release();
+      await held;
+      await same.catch((error: Error) => expect(error.message).toContain("Stale"));
+      await transition;
+      await expect(
+        staging.chunk(live!, { ...chunk, bytes: new TextEncoder().encode("3") }),
+      ).rejects.toThrow("Stale");
+    } finally {
+      release?.();
+      await held?.catch(() => {});
+      await pool.query("DELETE FROM execution_jobs WHERE id=$1", [j]);
+      await pool.query("DELETE FROM submissions WHERE id=$1", [s]);
+    }
+  }, 10000);
   it("rejects claims without manifest capability before a supported claim", async () => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();

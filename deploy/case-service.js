@@ -1,5 +1,11 @@
 import { signedCaseProbe } from "./case-proof.js";
-export async function caseRequest(request, env, attempt, credential = env.JUDGE_CONTROL_TOKEN) {
+export async function caseRequest(
+  request,
+  env,
+  attempt,
+  credential = env.JUDGE_CONTROL_TOKEN,
+  options = {},
+) {
   if (
     typeof credential !== "string" ||
     credential.length < 32 ||
@@ -78,6 +84,9 @@ export async function caseRequest(request, env, attempt, credential = env.JUDGE_
   headers.delete("Authorization");
   headers.delete("CF-Access-Client-Id");
   headers.delete("CF-Access-Client-Secret");
+  const deferred = bound && request.method === "POST";
+  const controller = deferred ? new AbortController() : undefined;
+  const signal = controller ? AbortSignal.any([request.signal, controller.signal]) : request.signal;
   const forwarded =
     attestedBody === undefined
       ? new Request(request, { headers })
@@ -85,11 +94,52 @@ export async function caseRequest(request, env, attempt, credential = env.JUDGE_
           method: request.method,
           headers,
           body: attestedBody,
-          signal: request.signal,
+          signal,
         });
-  const response = await env.CASES.getByName(attempt, {
-    locationHint: env.APP_LOCATION_HINT || "enam",
-  }).fetch(forwarded);
+  const delegate = async () => {
+    await options.beforeDelegate?.(signal);
+    signal.throwIfAborted();
+    return env.CASES.getByName(attempt, {
+      locationHint: env.APP_LOCATION_HINT || "enam",
+    }).fetch(forwarded);
+  };
+  let response;
+  if (deferred) {
+    const stream = new TransformStream(),
+      writer = stream.writable.getWriter();
+    void writer.closed.catch(() => controller.abort());
+    const work = (async () => {
+      let reader;
+      try {
+        const actual = await delegate();
+        if (actual.status !== 200 || !actual.body) {
+          await actual.body?.cancel();
+          throw new Error("Case delegation unavailable");
+        }
+        reader = actual.body.getReader();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          await writer.write(value);
+        }
+        await writer.close();
+      } catch (error) {
+        controller.abort();
+        await reader?.cancel().catch(() => {});
+        await writer.abort(error).catch(() => {});
+      } finally {
+        reader?.releaseLock();
+      }
+    })();
+    options.waitUntil?.(work);
+    // Only transport admission is early; terminal teardown and EOF still come from the case owner.
+    response = new Response(stream.readable, {
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-quorem-case-admitted-at": String(Date.now()),
+      },
+    });
+  } else response = await delegate();
   if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
     if (!bound || env.CASE_DIAGNOSTICS !== "true" || response.status !== 200) {
       await response.body?.cancel();

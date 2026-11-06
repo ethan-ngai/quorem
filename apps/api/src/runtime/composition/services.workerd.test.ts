@@ -349,12 +349,16 @@ it("real control objects block paused case posts and unactivated drains", async 
   expect((await post(null)).status).toBe(404);
   expect((await post(secret("z"))).status).toBe(404);
   expect(forwarded).toBe(0);
-  expect((await post()).status).toBe(200);
+  const admitted = await post();
+  expect(admitted.status).toBe(200);
+  expect(new TextDecoder().decode(await admitted.arrayBuffer())).toBe("ok");
   expect(forwarded).toBe(1);
   expect(
     (await controlPost("/pause", { operation: crypto.randomUUID(), expectedGeneration: 1 })).status,
   ).toBe(204);
-  expect((await post()).status).toBe(503);
+  const paused = await post();
+  expect(paused.status).toBe(200);
+  await expect(paused.arrayBuffer()).rejects.toThrow("Case admission unavailable");
   expect(forwarded).toBe(1);
   const drain = await worker.fetch(
     new Request(`${env.DRAIN_ORIGIN}/internal/drain`, {

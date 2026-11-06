@@ -636,3 +636,61 @@ void test(
     assert.equal(fixture.frames.length, 0);
   },
 );
+
+void test(
+  "atomic final windows verify a stopped case before the last native case finishes",
+  { timeout: 3000 },
+  async () => {
+    const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+    const { fixture, job } = fastFixture();
+    fixture.port.finalizeCompletion = async () => {};
+    let verified!: () => void;
+    const firstVerified = new Promise<void>((resolve) => {
+      verified = resolve;
+    });
+    const seal = fixture.port.sealCompletionFrame.bind(fixture.port);
+    let lastRunning = true,
+      finalCalls = 0;
+    fixture.port.sealCompletionFrame = async (...args) => {
+      await seal(...args);
+      if (args[2] === 0) {
+        assert.equal(lastRunning, true);
+        verified();
+      }
+    };
+    const sandbox = {
+      async teardownAttempt() {},
+      async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
+        if (request.ordinal === 19) {
+          await Promise.race([
+            firstVerified,
+            new Promise<never>((_, reject) =>
+              signal?.addEventListener("abort", () => reject(signal.reason), { once: true }),
+            ),
+          ]);
+          lastRunning = false;
+        }
+        return confirmCaseOutput(request, {
+          stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+          stderr: Buffer.alloc(0),
+          exitCode: 0,
+        });
+      },
+    };
+    await executeAndStage(
+      job,
+      fixture.port,
+      sandbox,
+      AbortSignal.timeout(1500),
+      undefined,
+      () => {
+        assert.equal(lastRunning, false);
+        finalCalls++;
+      },
+      20,
+    );
+    assert.equal(fixture.seals.length, 20);
+    assert.equal(fixture.frames.length, 0);
+    assert.equal(finalCalls, 1);
+  },
+);

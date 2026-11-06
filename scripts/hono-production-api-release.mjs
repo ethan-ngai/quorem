@@ -15,6 +15,7 @@ import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
+import { configureProductionHyperdrive } from "./hono-production-capacity.mjs";
 
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
@@ -149,8 +150,12 @@ async function release(env) {
       connectionTimeoutMillis: 10000,
       query_timeout: 10000,
     });
+    let maxConnections;
     try {
       await operator.connect();
+      maxConnections = (
+        await operator.query("SELECT current_setting('max_connections')::int AS maximum")
+      ).rows[0].maximum;
       await operator.query("BEGIN");
       await configureRestrictedRole(operator, keys.RUNTIME_ROLE, keys.RUNTIME_PASSWORD, () => {}, {
         databaseName: "neondb",
@@ -173,6 +178,12 @@ async function release(env) {
     } finally {
       await operator.end().catch(() => {});
     }
+    await configureProductionHyperdrive(env, {
+      id: api.hyperdrive_id.value,
+      role: keys.RUNTIME_ROLE,
+      password: keys.RUNTIME_PASSWORD,
+      maxConnections,
+    });
     if (env.HONO_JUDGING_SCOPE_UPDATE === "true") {
       putWorkerSecrets(
         worker,
