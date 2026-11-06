@@ -94,11 +94,27 @@ export async function listPublications(
   return requireData(data, error);
 }
 
-/** Deletes an unpublished draft at the revision selected by the author. */
-export async function deleteDraft(draft: Pick<QuestionDraft, "id" | "revision">) {
-  const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}", {
-    params: { path: { id: draft.id } },
-    body: { revision: draft.revision },
-  });
-  return requireData(data, error);
+/** @returns Per-question outcomes for one bounded batch, preserving selection order. */
+export async function mutateQuestionBatch(
+  batch:
+    | {
+        action: "publish";
+        items: { id: string; revision: string; visibility: "private" | "global" }[];
+      }
+    | { action: "delete-drafts"; items: { id: string; revision: string }[] }
+    | { action: "delete-publications"; items: { id: string; current: boolean }[] },
+) {
+  const result =
+    batch.action === "publish"
+      ? await api().POST("/v1/admin/question-drafts/publish-batch", {
+          body: { items: batch.items },
+        })
+      : batch.action === "delete-drafts"
+        ? await api().POST("/v1/admin/question-drafts/delete-batch", {
+            body: { items: batch.items },
+          })
+        : await api().POST("/v1/admin/question-publications/delete-batch", {
+            body: { items: batch.items },
+          });
+  return requireData(result.data, result.error);
 }

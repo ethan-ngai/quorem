@@ -8,7 +8,14 @@ export interface AuthorActor {
   readonly admin: boolean;
   readonly globalAllowed?: boolean;
 }
+export type DraftMutation = { id: string; revision: string };
+export type AuthoringBatch =
+  | { action: "publish"; items: (DraftMutation & { visibility: "private" | "global" })[] }
+  | { action: "delete-drafts"; items: DraftMutation[] }
+  | { action: "delete-publications"; items: { id: string; current: boolean }[] };
+
 export interface QuestionAuthoring {
+  mutateBatch(actor: AuthorActor, batch: AuthoringBatch): Promise<string>;
   publications(actor: AuthorActor, filters?: AuthoringFilters): Promise<string>;
   list(actor: AuthorActor, cursor: string, filters?: AuthoringFilters): Promise<string>;
   get(actor: AuthorActor, id: string): Promise<string>;

@@ -18,15 +18,8 @@ import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
-import {
-  createDraft,
-  deleteDraft,
-  deleteQuestionPublication,
-  fetchDeletionImpact,
-  listPublications,
-  publishDraft,
-} from "./api";
+import { userFacingErrorMessage } from "../../ui/errors";
+import { mutateQuestionBatch, listPublications } from "./api";
 
 type Publication = Awaited<ReturnType<typeof listPublications>>["items"][number];
 type Row = QuestionDraftSummary | Publication;
@@ -114,30 +107,49 @@ export function QuestionDashboard({
     const failures: typeof errors = [];
     const succeeded: string[] = [];
     try {
-      // Serialize mutations so drafts sharing a slug follow the table order.
-      for (const [index, row] of confirmed.entries()) {
-        setProgress(`Working on ${index + 1} of ${confirmed.length}…`);
+      for (let offset = 0; offset < confirmed.length; offset += 16) {
+        const rows = confirmed.slice(offset, offset + 16);
+        setProgress(`Completed ${offset} of ${confirmed.length}…`);
         try {
-          if ("revision" in row) {
-            if (action === "publish")
-              await publishDraft(row, row.editVersionId ? "global" : visibility);
-            else await deleteDraft(row);
-          } else {
-            const draft = await createDraft({ problemVersionId: row.id, edit: true });
-            const impact = await fetchDeletionImpact(draft.id);
-            if (impact.current !== row.current)
-              throw new UserFacingError(
-                "The current version changed. Refresh and review this selection.",
-              );
-            await deleteQuestionPublication(draft, row.current ? null : undefined);
+          const draftRows = rows.filter((row): row is QuestionDraftSummary => "revision" in row);
+          const result = await mutateQuestionBatch(
+            action === "publish"
+              ? {
+                  action: "publish",
+                  items: draftRows.map((row) => ({
+                    id: row.id,
+                    revision: row.revision,
+                    visibility: row.editVersionId ? "global" : visibility,
+                  })),
+                }
+              : draftRows.length
+                ? {
+                    action: "delete-drafts",
+                    items: draftRows.map(({ id, revision }) => ({ id, revision })),
+                  }
+                : {
+                    action: "delete-publications",
+                    items: rows
+                      .filter((row): row is Publication => !("revision" in row))
+                      .map(({ id, current }) => ({ id, current })),
+                  },
+          );
+          for (const item of result.items) {
+            if (item.status === "succeeded") succeeded.push(item.id);
+            else
+              failures.push({
+                id: item.id,
+                title: rows.find((row) => row.id === item.id)?.title || "Untitled question",
+                message: item.message || "The change could not be completed.",
+              });
           }
-          succeeded.push(row.id);
         } catch (cause) {
-          failures.push({
-            id: row.id,
-            title: row.title || "Untitled question",
-            message: userFacingErrorMessage(cause, "The change could not be completed."),
-          });
+          for (const row of rows)
+            failures.push({
+              id: row.id,
+              title: row.title || "Untitled question",
+              message: userFacingErrorMessage(cause, "The change could not be completed."),
+            });
         }
       }
       toggle(succeeded, false);
