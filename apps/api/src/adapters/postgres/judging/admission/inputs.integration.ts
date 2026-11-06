@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
+import { storeCustomInputs } from "../inputs/bind.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
@@ -537,4 +538,51 @@ void test("custom validator metadata excludes large prose and descriptions", asy
     ),
     (error: unknown) => error instanceof Error && "status" in error && error.status === 503,
   );
+});
+
+void test("custom input batches retain order, duplicate hashes and lossless bytes in two queries", async () => {
+  const nonce = crypto.randomUUID();
+  const raw = Array.from(
+    { length: 20 },
+    (_, index) => `{"args":[${index % 10},9007199254740993,"\\u0000", "${nonce}"],"expected":-0}`,
+  );
+  let queries = 0;
+  const store = (values: readonly string[]) =>
+    run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+        const tracked = new Proxy(tx, {
+          get(target, name, receiver) {
+            const value = Reflect.get(target, name, receiver);
+            return name === "execute"
+              ? (...args: unknown[]) => {
+                  queries++;
+                  return Reflect.apply(value, target, args);
+                }
+              : value;
+          },
+        });
+        return storeCustomInputs(tracked, values);
+      }),
+    );
+  const hashes = await store(raw);
+  assert.equal(queries, 2);
+  assert.equal(hashes.length, 20);
+  assert.deepEqual(hashes[0], hashes[10]);
+  for (let ordinal = 0; ordinal < hashes.length; ordinal++) {
+    const { rows } = await pool.query(
+      "SELECT convert_from(data,'UTF8') AS raw FROM runner_input_blobs WHERE hash=$1",
+      [hashes[ordinal]],
+    );
+    assert.equal(rows[0].raw, raw[ordinal]);
+  }
+  queries = 0;
+  const large = JSON.stringify({ args: ["💡".repeat(40000)], expected: nonce });
+  const more = await store([large, ...Array.from({ length: 65 }, () => raw[0])]);
+  assert.equal(more.length, 66);
+  assert.ok(queries <= 8, `Expected bounded batches, received ${queries} queries`);
+  const { rows } = await pool.query(
+    "SELECT convert_from(data,'UTF8') AS raw FROM runner_input_blobs WHERE hash=$1",
+    [more[0]],
+  );
+  assert.equal(rows[0].raw, large);
 });

@@ -1,7 +1,7 @@
 /** @file bind.ts @description Atomic, sealed input bindings for an admitted job. @module judging */
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
-import { storeInputBlob } from "./blob.ts";
+import { INPUT_BLOB_BATCH_ROWS, storeInputBlob, storeInputBlobs } from "./blob.ts";
 
 export type FixtureOwner = { version: string } | { session: string; fixture: Uint8Array };
 /** A sealed fixture is selected in PostgreSQL, never materialized as a Worker array. */
@@ -12,9 +12,29 @@ export function fixtureRows(owner: FixtureOwner, level: number) {
     ? sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_version_input_cases c JOIN runner_version_inputs i USING(version_id) WHERE i.sealed AND c.version_id=${owner.version}::uuid AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`
     : sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`;
 }
-/** Store one already validated custom-case JSON value without changing its lexical bytes. */
-export async function storeCustomInput(tx: Transaction, raw: string): Promise<Uint8Array> {
-  return storeInputBlob(tx, sql`${new TextEncoder().encode(raw)}`);
+/** Batch bounded custom inputs without changing their lexical JSON bytes. */
+export async function storeCustomInputs(
+  tx: Transaction,
+  raw: readonly string[],
+): Promise<Uint8Array[]> {
+  const hashes: Uint8Array[] = [],
+    encoder = new TextEncoder();
+  let batch: ReturnType<typeof sql>[] = [],
+    bytes = 0;
+  const flush = async () => {
+    if (batch.length) hashes.push(...(await storeInputBlobs(tx, batch)));
+    batch = [];
+    bytes = 0;
+  };
+  for (const value of raw) {
+    const encoded = encoder.encode(value);
+    if (batch.length && (batch.length === INPUT_BLOB_BATCH_ROWS || bytes + encoded.length > 65536))
+      await flush();
+    batch.push(sql`${encoded}`);
+    bytes += encoded.length;
+  }
+  await flush();
+  return hashes;
 }
 /** Call after job and, for interviews, interview_execution are inserted, inside admission's transaction. */
 export async function bindJobInputs(
