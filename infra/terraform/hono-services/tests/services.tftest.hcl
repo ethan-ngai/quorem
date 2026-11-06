@@ -48,6 +48,13 @@ run "isolated_stage" {
     error_message = "Terraform must own three isolated custom domains."
   }
 }
+run "verification_source_binding" {
+  command = plan
+  assert {
+    condition     = length([for binding in cloudflare_worker_version.verifier.bindings : binding if binding.name == "VERIFICATION_SOURCE" && binding.type == "service" && binding.service == "quorem-hono-stage"]) == 1
+    error_message = "Proof reads must use the matching API Worker service binding."
+  }
+}
 run "reject_live_name" {
   command = plan
   variables { worker_name = "quorem-production" }
