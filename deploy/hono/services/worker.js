@@ -353,14 +353,12 @@ export class MailRelayService extends DurableObject {
     this.lifecycle = new ContainerLifecycle(
       ctx,
       {
-        ...selected(env, [
-          "MAIL_RELAY_TOKEN",
-          "AUTH_EMAIL_FROM",
-          "SMTP_HOST",
-          "SMTP_PORT",
-          "SMTP_USERNAME",
-          "SMTP_PASSWORD",
-        ]),
+        MAIL_RELAY_TOKEN: env.MAIL_RELAY_TOKEN,
+        AUTH_EMAIL_FROM: env.AUTH_EMAIL_FROM,
+        SMTP_HOST: env.SMTP_HOST,
+        SMTP_PORT: env.SMTP_PORT,
+        SMTP_USERNAME: env.SMTP_USERNAME,
+        SMTP_PASSWORD: env.SMTP_PASSWORD,
         APP_ENV: "production",
         MAIL_RELAY_LISTEN: "0.0.0.0:8092",
       },
