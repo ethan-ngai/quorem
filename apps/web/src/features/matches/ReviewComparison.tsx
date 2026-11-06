@@ -6,6 +6,7 @@ import { useWorkspaceDraft } from "../editor/useWorkspaceDraft";
 import { readBrowserDraft } from "../editor/recovery";
 import { languageFileNames, type EditorLanguage } from "../editor/editorLanguages";
 import type { EditorScheme } from "../editor/editorSchemes";
+import { ReviewPaneHeader } from "./ReviewToolbar";
 import { createReviewWorkspace } from "./useMatchReview";
 
 export function ReviewComparison({
@@ -76,22 +77,17 @@ export function ReviewComparison({
   }, [current, draft.workspace, participant.userId, selectedLanguage, onSource]);
   return (
     <div className="review-reference" hidden={hidden}>
-      <strong>
-        {participant.own ? "Your draft" : `Your copy of ${participant.displayName}`} ·{" "}
-        {selectedLanguage} · Reference{" "}
-        <button
-          className="quiet-button"
-          disabled={disabled}
-          onClick={() =>
-            void draft
-              .saveBeforeSwitch()
-              .then(onSelect)
-              .catch(() => setSaveError(true))
-          }
-        >
-          Edit this copy
-        </button>
-      </strong>
+      <ReviewPaneHeader
+        name={participant.own ? "You" : participant.displayName}
+        language={selectedLanguage}
+        disabled={disabled}
+        onSelect={() =>
+          void draft
+            .saveBeforeSwitch()
+            .then(onSelect)
+            .catch(() => setSaveError(true))
+        }
+      />
       {saveError && <p role="alert">Could not save this comparison draft.</p>}
       {workspace.isError ? (
         <p role="alert">Could not open comparison draft.</p>

@@ -44,5 +44,5 @@ it("marks the comparison copy read-only until explicitly selected", () => {
     />,
   );
   expect(markup).toContain('data-readonly="true"');
-  expect(markup).toContain("Edit this copy");
+  expect(markup).toContain('aria-label="Edit Bob&#x27;s copy"');
 });

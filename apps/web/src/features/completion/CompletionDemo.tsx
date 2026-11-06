@@ -1,7 +1,8 @@
 /** @file CompletionDemo.tsx @description Development-only completion fixtures. @module completion */
 import { useEffect, useState } from "react";
 import type { MatchReview } from "@quorem/contracts";
-import { ReviewToolbar } from "../matches/ReviewToolbar";
+import { LanguageLogo } from "../../ui/LanguageLogo";
+import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "../editor/components/EditorialCode";
 import { ExecutionActions } from "../editor/components/ExecutionActions";
 import "../matches/review.css";
@@ -155,26 +156,32 @@ export function CompletionDemo() {
                 onCompare={() => setCompare(!compare)}
                 onDiff={() => setDiff(!diff)}
                 onOriginal={() => setOriginal(!original)}
-              />
-              <div className="review-active-label">
-                Editing: {participant === "you" ? "Your draft" : "Your copy of Alex"} · python
-              </div>
+                originalContent={
+                  <>
+                    <ReviewPaneHeader name="Original submission" language="python" original />
+                    <EditorialCode
+                      source={participant === "you" ? source : opponentSource}
+                      language="python"
+                      label="Original submission"
+                      theme={theme}
+                      colorScheme={editorSchemes[theme]}
+                    />
+                  </>
+                }
+              >
+                <LanguageLogo language="python" tooltip="Python" />
+              </ReviewToolbar>
             </>
-          )}
-          {review && original && (
-            <div className="review-reference">
-              <strong>Original submission · python</strong>
-              <EditorialCode
-                source={participant === "you" ? source : opponentSource}
-                language="python"
-                label="Original submission"
-                theme={theme}
-                colorScheme={editorSchemes[theme]}
-              />
-            </div>
           )}
           <div className="review-editor-grid">
             <div className="editor-frame">
+              {review && compare && !diff && (
+                <ReviewPaneHeader
+                  name={participant === "you" ? "You" : "Alex"}
+                  language="python"
+                  active
+                />
+              )}
               <PythonEditor
                 documentKey={`completion-demo:${participant}`}
                 documentUri="file:///workspace/solution.py"
@@ -193,18 +200,23 @@ export function CompletionDemo() {
             </div>
             {review && compare && !diff && (
               <div className="review-reference">
-                <strong>
-                  {other === "you" ? "Your draft" : "Your copy of Alex"} · Reference{" "}
-                  <button className="quiet-button" onClick={() => setParticipant(other)}>
-                    Edit this copy
-                  </button>
-                </strong>
-                <EditorialCode
-                  source={drafts[other]!}
+                <ReviewPaneHeader
+                  name={other === "you" ? "You" : "Alex"}
                   language="python"
-                  label="Comparison draft"
+                  onSelect={() => setParticipant(other)}
+                />
+                <PythonEditor
+                  documentKey={`completion-demo:reference:${other}`}
+                  documentUri="file:///workspace/solution.py"
+                  initialSource={drafts[other]!}
+                  language="python"
                   theme={theme}
                   colorScheme={editorSchemes[theme]}
+                  fontSize={fontSize}
+                  tabSize={tabSize}
+                  wrap={wrap}
+                  readOnly
+                  onSourceChange={() => {}}
                 />
               </div>
             )}
@@ -214,11 +226,7 @@ export function CompletionDemo() {
       results={<div className="result-message">Illustrative fixture · execution unavailable</div>}
       actions={
         <>
-          <span>
-            {review
-              ? `Run / Submit: ${participant === "you" ? "Your draft" : "Your copy of Alex"} · python`
-              : "Round complete"}
-          </span>
+          {!review && <span>Round complete</span>}
           <ExecutionActions disabled onRun={() => {}} onSubmit={() => {}} />
         </>
       }

@@ -29,7 +29,7 @@ import { SaveIndicator } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
 import { importBrowserDrafts, clearOwnerRecovery, readBrowserDraft } from "./recovery";
 import { authenticatedFetch } from "../auth/session";
-import { ReviewToolbar } from "../matches/ReviewToolbar";
+import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "./components/EditorialCode";
 import { useMatchReview, createReviewWorkspace } from "../matches/useMatchReview";
 import { ReviewComparison } from "../matches/ReviewComparison";
@@ -49,7 +49,7 @@ import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
-import { SolutionToolbar } from "./components/SolutionToolbar";
+import { SolutionControls } from "./components/SolutionToolbar";
 import { WorkspaceTests } from "./components/WorkspaceTests";
 import { ExecutionActions } from "./components/ExecutionActions";
 import "../../styles/workspace.css";
@@ -527,6 +527,27 @@ export function WorkspacePage({
       </main>
     );
 
+  const solutionControls = (
+    <SolutionControls
+      language={documentLanguage}
+      iconOnly={review}
+      languages={problem.languages ?? [{ language: "python" }]}
+      disabled={
+        loading ||
+        languageSwitching ||
+        submissionBusy ||
+        admissionPending ||
+        (!!match && !review && (match.state !== "active" || matchRules.blocked))
+      }
+      onChange={(value) => void changeLanguage(value)}
+      intelligence={
+        hostedIntelligenceEnabled || browserIntelligenceAvailable
+          ? { status: intelligenceStatus, hint: intelligenceHint }
+          : undefined
+      }
+    />
+  );
+
   return (
     <>
       {loading && (
@@ -708,55 +729,50 @@ export function WorkspacePage({
                 diff={diffReview}
                 original={showOriginal}
                 canDiff={
-                  comparisonSource?.participantId === reviewReference?.userId &&
-                  comparisonSource?.language === documentLanguage
+                  (reviewReference?.own
+                    ? reviewReference.workspace?.language
+                    : reviewReference?.submission?.language) === documentLanguage
                 }
                 onSelect={selectReviewParticipant}
                 onCompare={() => setCompareReview(!compareReview)}
                 onDiff={() => setDiffReview(!diffReview)}
                 onOriginal={() => setShowOriginal(!showOriginal)}
-              />
+                originalContent={
+                  reviewParticipant?.submission && (
+                    <>
+                      <ReviewPaneHeader
+                        name="Original submission"
+                        language={reviewParticipant.submission.language as EditorLanguage}
+                        original
+                      />
+                      <EditorialCode
+                        source={reviewParticipant.submission.source}
+                        language={reviewParticipant.submission.language as EditorLanguage}
+                        label="Original submission"
+                        theme={theme}
+                        colorScheme={editorSchemes[theme]}
+                      />
+                    </>
+                  )
+                }
+              >
+                {solutionControls}
+              </ReviewToolbar>
             )}
-            {review && showOriginal && reviewParticipant?.submission && (
-              <div className="review-reference">
-                <strong>Original submission · {reviewParticipant.submission.language}</strong>
-                <EditorialCode
-                  source={reviewParticipant.submission.source}
-                  language={reviewParticipant.submission.language as EditorLanguage}
-                  label="Original submission"
-                  theme={theme}
-                  colorScheme={editorSchemes[theme]}
-                />
-              </div>
+            {!(review && reviewQuery.data) && (
+              <div className="code-toolbar">{solutionControls}</div>
             )}
-            {review && (
-              <div className="review-active-label">
-                Editing:{" "}
-                {reviewParticipant?.own
-                  ? "Your draft"
-                  : `Your copy of ${reviewParticipant?.displayName}`}{" "}
-                · {documentLanguage}
-              </div>
-            )}
-            <SolutionToolbar
-              language={documentLanguage}
-              languages={problem.languages ?? [{ language: "python" }]}
-              disabled={
-                loading ||
-                languageSwitching ||
-                submissionBusy ||
-                admissionPending ||
-                (!!match && !review && (match.state !== "active" || matchRules.blocked))
-              }
-              onChange={(value) => void changeLanguage(value)}
-              intelligence={
-                hostedIntelligenceEnabled || browserIntelligenceAvailable
-                  ? { status: intelligenceStatus, hint: intelligenceHint }
-                  : undefined
-              }
-            />
             <div className="review-editor-grid">
               <div className="editor-frame">
+                {review && compareReview && !diffReview && (
+                  <ReviewPaneHeader
+                    name={
+                      reviewParticipant?.own ? "You" : (reviewParticipant?.displayName ?? "You")
+                    }
+                    language={documentLanguage}
+                    active
+                  />
+                )}
                 <PythonEditor
                   language={documentLanguage}
                   key={editorDocumentKey}
@@ -830,15 +846,6 @@ export function WorkspacePage({
         }
         actions={
           <>
-            {review && (
-              <span>
-                Run / Submit:{" "}
-                {reviewParticipant?.own
-                  ? "Your draft"
-                  : `Your copy of ${reviewParticipant?.displayName}`}{" "}
-                · {documentLanguage}
-              </span>
-            )}
             <ExecutionActions
               disabled={
                 submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
