@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
 import { signedCaseProbe, verifyCaseProbe } from "../../case-proof.js";
 import { CaseSandbox } from "../../case-sandbox.js";
-import worker, { ImageService, RunnerService } from "./worker.js";
+import worker, { ImageService, MailRelayService, RunnerService } from "./worker.js";
 const secret = (value) => value.repeat(64);
 const base = () => {
   const env = {
@@ -1127,4 +1127,74 @@ void test("case diagnostic inventory is bounded and emits only safe metadata", a
     source: "setup",
   });
   assert.ok(!JSON.stringify(out).includes("attempt-"));
+});
+
+void test("authenticated mail health starts the trusted relay with only its runtime configuration", async () => {
+  const env = {
+    ...base(),
+    MAIL_RELAY_ENABLED: "true",
+    MAIL_RELAY_ORIGIN: "https://mail-stage.example.test",
+    MAIL_RELAY_TOKEN: secret("m"),
+    AUTH_EMAIL_FROM: "Quorem <fixture@example.test>",
+    SMTP_HOST: "smtp.example.test",
+    SMTP_PORT: "465",
+    SMTP_USERNAME: "fixture",
+    SMTP_PASSWORD: "fixture-password",
+  };
+  const starts = [],
+    targets = [];
+  let running = false;
+  const relay = new MailRelayService(
+    {
+      waitUntil() {},
+      container: {
+        get running() {
+          return running;
+        },
+        start(options) {
+          starts.push(options);
+          running = true;
+        },
+        async setInactivityTimeout() {},
+        monitor() {
+          return new Promise(() => {});
+        },
+        getTcpPort(port) {
+          assert.equal(port, 8092);
+          return {
+            async fetch(input) {
+              targets.push(new URL(input instanceof Request ? input.url : input).pathname);
+              return new Response(null, { status: 204 });
+            },
+          };
+        },
+      },
+    },
+    env,
+  );
+  env.MAIL = { getByName: () => ({ fetch: (request) => relay.fetch(request) }) };
+  const probe = (token) =>
+    worker.fetch(
+      new Request(`${env.MAIL_RELAY_ORIGIN}/internal/mail/health`, {
+        headers: { authorization: `Bearer ${token}` },
+      }),
+      env,
+    );
+  assert.equal((await probe(secret("z"))).status, 404);
+  assert.equal(starts.length, 0);
+  assert.equal((await probe(env.MAIL_RELAY_TOKEN)).status, 204);
+  assert.equal(starts.length, 1);
+  assert.deepEqual(targets, ["/health", "/health"]);
+  assert.deepEqual(Object.keys(starts[0].env).sort(), [
+    "APP_ENV",
+    "AUTH_EMAIL_FROM",
+    "MAIL_RELAY_LISTEN",
+    "MAIL_RELAY_TOKEN",
+    "SMTP_HOST",
+    "SMTP_PASSWORD",
+    "SMTP_PORT",
+    "SMTP_USERNAME",
+  ]);
+  assert.equal(starts[0].env.MAIL_RELAY_TOKEN, env.MAIL_RELAY_TOKEN);
+  assert.equal(starts[0].enableInternet, true);
 });

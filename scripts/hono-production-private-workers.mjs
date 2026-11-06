@@ -30,6 +30,13 @@ const op = (release, label) => {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 };
 
+/** An explicit repair may reuse only the paused operation owned by the deployed release. */
+export function rolloutPauseOperation(release, previousRelease, cases, preserveScope) {
+  if (preserveScope && cases.paused && cases.pauseOperation === op(previousRelease, "pause-case"))
+    return cases.pauseOperation;
+  return op(release, "pause-case");
+}
+
 function outputs(env, directory, key) {
   runStageCommand("terraform", terraformBackendArgs(env, directory, key), env);
   return JSON.parse(
@@ -127,7 +134,12 @@ async function rollout(env, benchmarkOnly) {
     const generation = caseAdvanced ? cases.generation : cases.generation + 1;
     const prior = { ...cases, generation: generation - 1 };
     const runnerOperation = op(release, "pause-runner"),
-      pauseCase = op(release, "pause-case");
+      pauseCase = rolloutPauseOperation(
+        release,
+        priorOutput.SERVICES_RELEASE,
+        cases,
+        env.HONO_PRESERVE_JUDGING_SCOPE === "true",
+      );
     if (
       caseAdvanced &&
       !(

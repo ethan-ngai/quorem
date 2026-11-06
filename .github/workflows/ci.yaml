@@ -221,7 +221,7 @@ jobs:
         run: |
           node scripts/hono-stage-validation.mjs
           node scripts/hono-recovery-validation.mjs
-          node --test scripts/hono-production-terraform.test.mjs scripts/hono-native-image-reuse.test.mjs
+          node --test scripts/hono-production-terraform.test.mjs scripts/hono-native-image-reuse.test.mjs scripts/hono-production-private-workers.test.mjs
           node --import ./deploy/test-register.mjs --test deploy/case-sandbox.test.mjs deploy/hono/services/*.test.mjs
       - run: node scripts/build-hono-service-workers.mjs
       - run: node --test scripts/hono-service-workers.test.mjs scripts/judging-workload-benchmark.test.mjs scripts/hono-production-workload-actors.test.mjs scripts/hono-judging-release.test.mjs
