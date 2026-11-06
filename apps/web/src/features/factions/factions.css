@@ -48,3 +48,7 @@
   font-size: var(--text-label);
   white-space: pre;
 }
+
+.faction-team .party-ready-members {
+  grid-template-columns: minmax(0, 1fr);
+}

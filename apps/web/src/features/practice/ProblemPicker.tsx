@@ -1,3 +1,4 @@
+import { Disclosure } from "../../ui/Disclosure";
 import { useServerTable } from "../../ui/useServerTable";
 import { TablePagination } from "../../ui/TableControls";
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
@@ -30,6 +31,7 @@ export function ProblemPicker({
   filters: externalFilters,
   onFiltersChange,
   label = "Problem",
+  discloseFilters = false,
 }: {
   items: readonly { id: string; title: string; difficulty?: string }[];
   value?: string;
@@ -42,6 +44,7 @@ export function ProblemPicker({
   filters?: CatalogSearch;
   onFiltersChange?: (filters: CatalogSearch) => void;
   label?: string;
+  discloseFilters?: boolean;
 }) {
   const warningId = useId();
   const [open, setOpen] = useState(false);
@@ -143,6 +146,21 @@ export function ProblemPicker({
     );
     setOpen(false);
   }
+  const filterControls = (
+    <fieldset
+      className="practice-filters picker-filters"
+      disabled={disabled}
+      aria-label="Question filters"
+    >
+      <CatalogFilters
+        search={filters}
+        update={update}
+        topics={facets.data?.topics ?? []}
+        companies={facets.data?.companies ?? []}
+        showDifficulty={!difficulties}
+      />
+    </fieldset>
+  );
   return (
     <div className="problem-picker">
       <Popover.Root
@@ -252,19 +270,20 @@ export function ProblemPicker({
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
-      <fieldset
-        className="practice-filters picker-filters"
-        disabled={disabled}
-        aria-label="Question filters"
-      >
-        <CatalogFilters
-          search={filters}
-          update={update}
-          topics={facets.data?.topics ?? []}
-          companies={facets.data?.companies ?? []}
-          showDifficulty={!difficulties}
-        />
-      </fieldset>
+      {discloseFilters ? (
+        <Disclosure
+          title="Question filters"
+          summary={
+            Object.values(filters).filter((value) => value && value !== "false").length
+              ? "Filtered pool"
+              : undefined
+          }
+        >
+          {filterControls}
+        </Disclosure>
+      ) : (
+        filterControls
+      )}
       {allowRandom && (
         <div className="sr-only" id={warningId} role="status">
           {randomWarning}

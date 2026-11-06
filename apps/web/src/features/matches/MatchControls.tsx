@@ -1,3 +1,5 @@
+import { Disclosure } from "../../ui/Disclosure";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { DifficultySegments } from "../../ui/DifficultySegments";
 import { matchPreset } from "@quorem/contracts/match-rules";
@@ -91,7 +93,7 @@ export function MatchSettings({
   const rules = value.rules ?? matchPreset();
   return (
     <div className="match-options">
-      <div className="match-option">
+      <div className="match-option match-mode-option">
         <span>
           <Swords />
           Game mode
@@ -154,6 +156,7 @@ export function MatchSettings({
             value={value.selectedProblemVersionId}
             disabled={disabled}
             allowRandom
+            discloseFilters
             onChange={(selectedProblemVersionId, problem) => {
               setPickedProblem(problem);
               onChange({ ...value, difficulties: pools, selectedProblemVersionId });
@@ -186,9 +189,38 @@ export function MatchSettings({
       <MatchRuleSettingsControls
         value={rules}
         disabled={disabled}
-        canEditPermissions={canEditPermissions}
         onChange={(rules) => onChange({ ...value, rules })}
       />
+      <Disclosure
+        title="Lobby options"
+        summary={
+          rules.settingsEditors === "everyone" ? "Everyone can edit" : "Host controls settings"
+        }
+      >
+        <div className="match-option">
+          <span>Everyone can edit settings</span>
+          <ToggleSwitch
+            label="Everyone can edit lobby settings"
+            checked={rules.settingsEditors === "everyone"}
+            disabled={disabled || !canEditPermissions}
+            onChange={(enabled) =>
+              onChange({
+                ...value,
+                rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
+              })
+            }
+          />
+        </div>
+        <div className="match-option">
+          <span>Share code after match</span>
+          <ToggleSwitch
+            label="Share code after match"
+            checked={value.shareCodeAfterMatch}
+            disabled={disabled}
+            onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
+          />
+        </div>
+      </Disclosure>
     </div>
   );
 }
