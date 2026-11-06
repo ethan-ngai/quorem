@@ -16,6 +16,7 @@
     "./node-type": "./src/node-type.ts",
     "./long": "./src/long.ts",
     "./questions/schema": "./questions/question-v1.schema.json",
+    "./social-policy": "./src/social-policy.ts",
     "./factions": "./src/factions.ts",
     "./match-rules": "./src/match-rules.ts"
   },

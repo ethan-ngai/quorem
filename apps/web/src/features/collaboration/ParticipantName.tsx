@@ -9,6 +9,7 @@ import "./participant-name.css";
 export type ParticipantIdentity = {
   userId: string;
   displayName: string;
+  username?: string | null;
   image?: string;
   color?: number;
 };

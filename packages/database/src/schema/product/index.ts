@@ -1376,6 +1376,7 @@ export const identity_bindings = pgTable(
       foreignColumns: [users.id],
       name: "identity_bindings_user_id_fkey",
     }),
+    index("identity_bindings_user_issuer").on(table.user_id, table.issuer),
     primaryKey({ columns: [table.issuer, table.subject], name: "identity_bindings_pkey" }),
   ],
 );

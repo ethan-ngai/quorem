@@ -11,6 +11,7 @@ const ports: HttpPorts = {
   identify: unavailable,
   guests: { lookup: unavailable, endMatch: unavailable, canBootstrap: unavailable },
   origins: [],
+  authIssuer: "https://auth.example.test",
   trustedPeer: () => undefined,
   deadline: { prearm: unavailable, wake: unavailable },
   execution: { prearm: unavailable, wake: unavailable },

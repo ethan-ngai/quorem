@@ -93,6 +93,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Use accessible loading status. Pending buttons lock immediately, keep their text visible and reserve the icon slot, and swap the icon for the shared spinner after a 200 ms grace period. Use immediate status indicators for long-running work outside buttons when they are the only feedback.
 - Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
 - Use the shared `ScrollCue` for overflow hints in scrollable panes. Match its axis to the scroll direction.
+- Links remain un-underlined, including hover. Use short color/background transitions for feedback and retain visible keyboard focus; respect reduced motion.
 - Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.
 - Dismiss hover tooltips when the pointer leaves the trigger. Empty hints show no tooltip.
 - Preserve disabled/pending geometry, prevent duplicate actions and use shared destructive-action treatment.

@@ -15,15 +15,17 @@ export function Table({
   children,
   className,
   rowGroups = false,
+  density = "regular",
 }: {
   label: string;
   heading: ReactNode;
   children: ReactNode;
   className?: string;
   rowGroups?: boolean;
+  density?: "regular" | "compact";
 }) {
   return (
-    <table className={className ? `data-table ${className}` : "data-table"}>
+    <table data-density={density} className={className ? `data-table ${className}` : "data-table"}>
       <caption className="sr-only">{label}</caption>
       <thead>{heading}</thead>
       {rowGroups ? children : <TableBody>{children}</TableBody>}

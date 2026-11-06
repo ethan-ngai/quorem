@@ -1,0 +1,120 @@
+.social-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}
+.social-page h1 {
+  font-size: var(--text-h1);
+  margin: 0 0 var(--space-2);
+}
+.social-page h2 {
+  font-size: var(--text-h3);
+  margin: 0;
+}
+.social-page h3 {
+  font-size: var(--text-body);
+}
+.social-page > section {
+  margin-block: var(--space-5);
+}
+.social-heading,
+.social-section-heading,
+.social-search,
+.social-nemesis {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.social-heading {
+  margin-block: var(--space-3) var(--space-5);
+  flex-wrap: wrap;
+}
+.social-heading p,
+.social-muted {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.social-search {
+  margin-block: var(--space-4);
+}
+.social-search .search-field {
+  flex: 1;
+}
+.social-nemesis {
+  border-block: 1px solid var(--color-border);
+  padding-block: var(--space-4);
+  margin-block: var(--space-4);
+}
+.social-nemesis > a {
+  font-size: var(--text-h3);
+}
+.social-record {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-5);
+  margin-block: var(--space-4);
+}
+.social-record dt {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.social-record dd {
+  margin: var(--space-2) 0 0;
+  font-family: var(--font-code);
+  font-size: var(--text-h2);
+  font-variant-numeric: tabular-nums;
+}
+.social-empty {
+  padding-block: var(--space-6);
+  color: var(--color-text-secondary);
+}
+.social-table {
+  overflow-x: auto;
+}
+.social-table td:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@media (max-width: 620px) {
+  .social-page {
+    padding: var(--space-4);
+  }
+  .social-nemesis {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .social-record {
+    gap: var(--space-4);
+    width: 100%;
+  }
+}
+
+.social-heading > div {
+  min-width: 0;
+}
+.social-directory {
+  max-height: 28rem;
+  overflow: auto;
+}
+.social-table .data-table {
+  table-layout: fixed;
+}
+.social-table th:first-child {
+  width: 42%;
+}
+.social-table th:last-child {
+  width: 22%;
+}
+.social-directory .identity-link {
+  display: inline-flex;
+  max-width: 100%;
+}
+@media (max-width: 620px) {
+  .social-last-played {
+    display: none;
+  }
+  .social-table th:first-child {
+    width: 55%;
+  }
+}

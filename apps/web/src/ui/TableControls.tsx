@@ -36,9 +36,11 @@ export function TablePagination<T extends RowData>({
   table,
   disabled = false,
   snapshot,
+  showPageSize = true,
 }: {
   table: ReactTable<typeof serverTableFeatures, T>;
   disabled?: boolean;
+  showPageSize?: boolean;
   snapshot?: Pick<ListState, "page" | "limit">;
 }) {
   // Display the page these rows came from; don't navigate from stale totals.
@@ -56,11 +58,11 @@ export function TablePagination<T extends RowData>({
           : "0 entries"}
       </span>
       <div>
-        <PageSizeControl
+        {showPageSize && <PageSizeControl
           value={pageSize}
           onChange={(size) => table.setPageSize(size)}
           disabled={unavailable}
-        />
+        />}
         <div className="table-page-navigation">
           <Tooltip content="Previous page">
             <button

@@ -8,6 +8,14 @@ export const socialImageAlt =
 export const publicPaths = ["/", "/practice", "/privacy", "/terms"];
 
 const pages: Record<string, { title: string; description: string }> = {
+  "/social": {
+    title: "Social - Quorem",
+    description: "Discover your rivals and explore player profiles.",
+  },
+  "/players": {
+    title: "Player Profile - Quorem",
+    description: "Showdown records and head-to-head results.",
+  },
   "/": { title: siteTitle, description: siteDescription },
   "/home": { title: "Home - Quorem", description: "Your Quorem practice and match activity." },
   "/practice": {

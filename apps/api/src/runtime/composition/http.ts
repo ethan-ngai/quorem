@@ -1,3 +1,5 @@
+import { socialRoutes } from "../../modules/social/routes.ts";
+import { socialRepository } from "../../adapters/postgres/social/repository.ts";
 import { dashboardRoutes } from "../../modules/dashboard/routes.ts";
 import { playerDashboard } from "../../adapters/postgres/dashboard/repository.ts";
 import { factionRoutes } from "../../modules/factions/routes.ts";
@@ -60,6 +62,7 @@ export interface HttpPorts {
   identify: (request: Request) => Promise<Principal | undefined>;
   identifyAccount?: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
+  authIssuer?: string;
   renewedCookies?: (request: Request) => readonly string[];
   guests: GuestIdentityReader & {
     endMatch(hash: string): Promise<boolean>;
@@ -136,6 +139,7 @@ export function composeHttp(ports: HttpPorts) {
       factions,
     }),
   );
+  app.route("/", socialRoutes({ identify, social: socialRepository(run, ports.authIssuer ?? "") }));
   app.route("/", dashboardRoutes({ identify, read: playerDashboard(run) }));
   app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));

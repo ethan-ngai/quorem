@@ -1,0 +1,29 @@
+/* Link feedback preserves text geometry and keyboard focus. */
+a {
+  text-decoration: none;
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast);
+}
+.text-link,
+.identity-link {
+  display: inline-block;
+  border-radius: var(--radius-sm);
+}
+.text-link {
+  color: var(--color-primary);
+  font-size: var(--text-small);
+}
+.identity-link {
+  color: var(--color-text);
+}
+.text-link:hover,
+.identity-link:hover {
+  color: var(--color-brand-accent);
+  background-color: var(--color-overlay);
+}
+@media (prefers-reduced-motion: reduce) {
+  a {
+    transition: none;
+  }
+}

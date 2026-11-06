@@ -33,6 +33,7 @@ export function boundaryViolations(root: string, sources: ReadonlyMap<string, st
         purePackages.some((pkg) => name === pkg || name.startsWith(`${pkg}/`)) ||
         name === "@quorem/contracts/match-rules" ||
         name === "@quorem/contracts/factions" ||
+        name === "@quorem/contracts/social-policy" ||
         name === "@quorem/contracts/auth-policy" ||
         name === "@quorem/contracts/pagination" ||
         name === "@quorem/contracts/catalog-filter" ||
