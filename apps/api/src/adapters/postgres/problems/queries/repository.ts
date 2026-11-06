@@ -88,7 +88,7 @@ async function redactMatchTopics(
   const ids = new Set(restricted.map((r) => r.id));
   for (const value of values) {
     const problem = object(value);
-    if (ids.has(String(problem.id))) problem.tags = [];
+    if (typeof problem.id === "string" && ids.has(problem.id)) problem.tags = [];
   }
   return values;
 }

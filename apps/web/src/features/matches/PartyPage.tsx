@@ -192,7 +192,6 @@ export function PartyPage() {
             )
           }
           canEditPermissions={host}
-          showHostRules
         />
         <div className="match-option">
           <span>Share code after match</span>

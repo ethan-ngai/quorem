@@ -34,7 +34,6 @@ export function MatchSettings({
   disabled = false,
   identity,
   participantCount = 0,
-  showHostRules: _showHostRules = false,
   canEditPermissions = true,
   catalog,
 }: {
@@ -43,7 +42,6 @@ export function MatchSettings({
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
-  showHostRules?: boolean;
   canEditPermissions?: boolean;
   catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
 }) {

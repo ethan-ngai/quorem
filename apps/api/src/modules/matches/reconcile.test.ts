@@ -128,6 +128,13 @@ describe("penalty victory rules", () => {
     ];
     expect(reconcile(now, now + minute, null, players, rows).outcome).toBeNull();
   });
+  it("does not turn unresolved persisted finalization into a draw", () => {
+    const rows = [{ ...entry("bob", "running"), eligibleAt: now - minute }];
+    expect(reconcile(now, now + minute, now - 2n * minute, players, rows).outcome).toEqual({
+      kind: "no_contest",
+      reason: "unresolved_eligible_work",
+    });
+  });
   it("High Score runs until deadline and subtracts points from the best score", () => {
     const rules = { victory: "high_score" as const, penalties: new Map([["alice", 30]]) };
     const rows = [accepted("alice"), partial("bob", 3), partial("bob", 1)];

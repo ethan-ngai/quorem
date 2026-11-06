@@ -91,7 +91,7 @@ export function reconcile(
       const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
       if (time <= candidateTime && !s.intermediate && !cannotPass && !candidates.has(s.owner))
         blocked = true;
-    } else if (now >= deadline) {
+    } else if (now >= deadline || finalizingAt !== null) {
       if (!draw && s.owner === winner) continue;
       const upper =
         rules.victory === "high_score" ? 100 - (rules.penalties.get(s.owner) ?? 0) : s.maxPossible;

@@ -1248,6 +1248,15 @@ void test("failed hidden reveal exposes only its sealed input and result after p
   );
   assert.equal(publicResult.hiddenCases[0].status, "wrong_answer");
   assert.equal(publicResult.hiddenCases[0].actual, undefined);
+  await pool.query(
+    "UPDATE matches SET rules=jsonb_set(rules,'{feedback}','\"aggregate\"') WHERE id=$1",
+    [room.id],
+  );
+  const aggregateResult = JSON.parse(
+    await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
+  );
+  assert.equal(aggregateResult.hiddenCases, undefined);
+  assert.equal(aggregateResult.verdict, "wrong_answer");
   const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
   const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);
   assert.equal(quoted.revealed, undefined);

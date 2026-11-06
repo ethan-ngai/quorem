@@ -39,7 +39,7 @@
   color: var(--color-text-secondary);
 }
 .match-rule-amount input {
-  width: 7ch;
+  width: 10ch;
   font: inherit;
   color: var(--color-text);
   background: var(--color-field);
@@ -62,4 +62,18 @@
   max-height: 240px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.match-rule-cost:has(> span) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+}
+@media (max-width: 560px) {
+  .match-rule-cost:has(> span) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .match-rule-cost > span {
+    grid-column: 1 / -1;
+  }
 }

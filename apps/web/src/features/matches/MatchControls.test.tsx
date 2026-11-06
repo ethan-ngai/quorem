@@ -11,7 +11,6 @@ describe("server-rendered match settings", () => {
         <MatchSettings
           identity="alice"
           disabled
-          showHostRules
           catalog={[{ id: "example", title: "Two Sum", difficulty: "easy" }]}
           value={{
             mode: "free-for-all",
