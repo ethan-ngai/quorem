@@ -16,7 +16,7 @@ import type {
   WorkspaceRepository,
 } from "../../../modules/workspace/model.ts";
 import { evaluatedStatusBytes, evaluatedStatusPlan } from "../judging/results/evaluated-status.ts";
-import { lookupGuestInTransaction } from "../identity/guest.ts";
+import { guestMayReadMatch } from "../identity/guest.ts";
 import { publicOdysseyLevels, visibleProblem } from "../problems/queries/public-projection.ts";
 
 type Run = <T>(callback: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -61,26 +61,13 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
     );
     if (!visible.rows.length) throw missing();
   } else {
-    if (
-      !row.matchId ||
-      (principal.kind === "guest" &&
-        (principal.scope.kind !== "match" || principal.scope.matchId !== row.matchId))
-    )
-      throw missing();
+    if (!row.matchId) throw missing();
     const membership = await tx.execute(
       sql`SELECT m.id FROM matches m JOIN match_participants mp ON mp.match_id=m.id AND mp.owner_id=${principal.userId} AND NOT mp.forfeited JOIN users host ON host.id=m.host_owner_id AND NOT host.disabled WHERE m.id=${row.matchId}::uuid AND m.problem_version_id=${row.problemVersionId}::uuid AND m.state IN ('active','finalizing') FOR SHARE OF m,mp,host`,
     );
     if (!membership.rows.length) throw missing();
-    if (principal.kind === "guest") {
-      const live = await lookupGuestInTransaction(tx, "match", principal.sessionId);
-      if (
-        !live ||
-        live.userId !== principal.userId ||
-        live.scope.kind !== "match" ||
-        live.scope.matchId !== row.matchId
-      )
-        throw missing();
-    }
+    if (principal.kind === "guest" && !(await guestMayReadMatch(tx, principal, row.matchId)))
+      throw missing();
   }
   return dto(row);
 }
