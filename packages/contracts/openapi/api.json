@@ -4108,6 +4108,68 @@
         }
       }
     },
+    "/v1/workspaces/{id}/problem": {
+      "get": {
+        "operationId": "getWorkspaceProblem",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ProblemVersion" } }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/review/workspaces": {
+      "post": {
+        "operationId": "createMatchReviewWorkspace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateReviewWorkspaceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/Workspace" } }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
     "/v1/parties/invitations/{token}/guest": {
       "post": {
         "operationId": "joinPartyGuest",
@@ -4705,7 +4767,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": ["solo", "match"]
+            "enum": ["solo", "match", "review"]
           },
           "problemVersionId": {
             "type": "string",
@@ -4717,9 +4779,22 @@
           "matchId": {
             "type": "string",
             "format": "uuid"
+          },
+          "reviewMatchId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": ["id", "kind", "problemVersionId", "language"],
+        "additionalProperties": false
+      },
+      "CreateReviewWorkspaceRequest": {
+        "type": "object",
+        "properties": {
+          "participantUserId": { "type": "string", "format": "uuid" },
+          "language": { "$ref": "#/components/schemas/Language" }
+        },
+        "required": ["participantUserId", "language"],
         "additionalProperties": false
       },
       "CreateWorkspaceRequest": {

@@ -73,6 +73,13 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
       ORDER BY s.admitted_at,s.id FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
     )`,
   );
+  const expiredReview = sql`SELECT w.id FROM workspaces w JOIN matches m ON m.id=w.review_match_id
+    WHERE w.kind='review' AND m.completed_at<statement_timestamp()-interval '24 hours'
+      AND NOT EXISTS (SELECT 1 FROM submissions s WHERE s.workspace_id=w.id)`;
+  statements.push(
+    sql`DELETE FROM odyssey_progress WHERE scope_id IN (${expiredReview})`,
+    sql`DELETE FROM workspaces WHERE id IN (${expiredReview})`,
+  );
   let changed = 0;
   for (const statement of statements)
     changed += await run((scope) =>

@@ -16,7 +16,9 @@ import type {
   WorkspaceRepository,
 } from "../../../modules/workspace/model.ts";
 import { evaluatedStatusBytes, evaluatedStatusPlan } from "../judging/results/evaluated-status.ts";
+import { authorizeFrozenOwnWorkspace, authorizeReview } from "../matches/review/authorization.ts";
 import { guestMayReadMatch } from "../identity/guest.ts";
+import { projectAuthorizedVersion } from "../problems/queries/repository.ts";
 import { publicOdysseyLevels, visibleProblem } from "../problems/queries/public-projection.ts";
 
 type Run = <T>(callback: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -25,10 +27,12 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const missing = () => new ApplicationError("not_found", "Workspace not found", 404);
 type Row = {
   id: string;
-  kind: "solo" | "match";
+  kind: "solo" | "match" | "review";
   problemVersionId: string;
   language: WorkspaceLanguage;
   matchId: string | null;
+  reviewMatchId: string | null;
+  reviewSourceOwnerId: string | null;
 };
 function dto(row: Row): Workspace {
   return {
@@ -37,10 +41,11 @@ function dto(row: Row): Workspace {
     problemVersionId: row.problemVersionId,
     language: row.language,
     ...(row.matchId ? { matchId: row.matchId } : {}),
+    ...(row.reviewMatchId ? { reviewMatchId: row.reviewMatchId } : {}),
   };
 }
-async function lockUser(tx: Transaction, principal: Principal, reset = false): Promise<void> {
-  const lock = reset ? sql`FOR NO KEY UPDATE` : sql`FOR SHARE`;
+async function lockUser(tx: Transaction, principal: Principal, _reset = false): Promise<void> {
+  const lock = sql`FOR NO KEY UPDATE`;
   const rows = await tx.execute(
     sql`SELECT id FROM users WHERE id=${principal.userId} AND NOT disabled ${lock}`,
   );
@@ -50,7 +55,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   if (!uuid.test(id)) throw missing();
   const row = (
     await tx.execute<Row>(
-      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND w.owner_id=${principal.userId} AND ${visibleProblem({ userId: principal.userId }, true)} FOR SHARE OF w,p,v`,
+      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND w.owner_id=${principal.userId} FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -60,12 +65,18 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
       sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${row.problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)}`,
     );
     if (!visible.rows.length) throw missing();
+  } else if (row.kind === "review") {
+    if (!row.reviewMatchId || !row.reviewSourceOwnerId) throw missing();
+    const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
+    if (review.problemId !== row.problemVersionId) throw missing();
   } else {
     if (!row.matchId) throw missing();
     const membership = await tx.execute(
       sql`SELECT m.id FROM matches m JOIN match_participants mp ON mp.match_id=m.id AND mp.owner_id=${principal.userId} AND NOT mp.forfeited JOIN users host ON host.id=m.host_owner_id AND NOT host.disabled WHERE m.id=${row.matchId}::uuid AND m.problem_version_id=${row.problemVersionId}::uuid AND m.state IN ('active','finalizing') FOR SHARE OF m,mp,host`,
     );
-    if (!membership.rows.length) throw missing();
+    if (!membership.rows.length) {
+      await authorizeFrozenOwnWorkspace(tx, principal, row.matchId, row.problemVersionId);
+    }
     if (principal.kind === "guest" && !(await guestMayReadMatch(tx, principal, row.matchId)))
       throw missing();
   }
@@ -130,10 +141,21 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         }),
       );
     },
+    async problem(principal, id) {
+      return run((scope) =>
+        scope.transaction(options, async (tx) => {
+          await lockUser(tx, principal);
+          const w = await workspace(tx, principal, id);
+          const problem = await projectAuthorizedVersion(tx, w.problemVersionId);
+          if (!problem) throw missing();
+          return problem;
+        }),
+      );
+    },
     async odyssey(principal, id) {
       const criteria = { kind: "workspace" as const, workspaceId: id, owner: principal.userId };
       const prepared = await run((scope) =>
-        scope.transaction({ ...options, isolation: "repeatable read" }, async (tx) => {
+        scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const w = await workspace(tx, principal, id);
           return {
@@ -164,7 +186,7 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
               if (part.done) controller.close();
               else {
                 await run((scope) =>
-                  scope.transaction({ ...options, isolation: "repeatable read" }, async (tx) => {
+                  scope.transaction(options, async (tx) => {
                     await lockUser(tx, principal);
                     await workspace(tx, principal, id);
                     const current = await evaluatedStatusPlan(tx, criteria);
@@ -193,7 +215,7 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal, true);
           const w = await workspace(tx, principal, id);
-          if (w.kind !== "solo")
+          if (w.kind === "match")
             throw new ApplicationError("not_found", "Practice workspace not found", 404);
           await progress(tx, principal.userId, w);
           const active = (

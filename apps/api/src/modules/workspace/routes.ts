@@ -5,12 +5,12 @@ import { identifyRequest } from "../identity/routes.ts";
 import type { Principal } from "../identity/model.ts";
 import type { WorkspaceLanguage, WorkspaceRepository } from "./model.ts";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const languages: readonly string[] = ["python", "java", "typescript", "ocaml", "postgresql"];
+export const languages: readonly string[] = ["python", "java", "typescript", "ocaml", "postgresql"];
 export interface WorkspaceRouteDependencies {
   repository: WorkspaceRepository;
   identify(request: Request): Promise<Principal | undefined>;
 }
-async function body(request: Request): Promise<Record<string, unknown>> {
+export async function body(request: Request): Promise<Record<string, unknown>> {
   if (Number(request.headers.get("content-length")) > 4096)
     throw new ApplicationError("payload_too_large", "Invalid request body", 413);
   const reader = request.body?.getReader();
@@ -69,6 +69,15 @@ export function workspaceRoutes(deps: WorkspaceRouteDependencies): Hono {
     const id = c.req.param("id");
     if (!uuid.test(id)) throw new ApplicationError("not_found", "Workspace not found", 404);
     return c.json(await deps.repository.read(who, id));
+  });
+  app.get("/v1/workspaces/:id/problem", async (c) => {
+    const who = await actor(c.req.raw);
+    const id = c.req.param("id");
+    if (!uuid.test(id)) throw new ApplicationError("not_found", "Workspace not found", 404);
+    return c.body(await deps.repository.problem(who, id), 200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
   });
   app.get("/v1/workspaces/:id/odyssey", async (c) => {
     const who = await actor(c.req.raw);
