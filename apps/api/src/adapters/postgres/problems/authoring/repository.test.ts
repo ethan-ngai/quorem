@@ -138,7 +138,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         )
       ).json();
       expect(readyPage).toMatchObject({ total: 1, items: [{ id: draft.id }] });
-      expect((await http.request("/v1/admin/question-drafts?limit=101")).status).toBe(400);
+      expect((await http.request("/v1/admin/question-drafts?limit=0")).status).toBe(400);
       expect((await http.request("/v1/admin/question-publications?sort=updatedAt")).status).toBe(
         400,
       );
