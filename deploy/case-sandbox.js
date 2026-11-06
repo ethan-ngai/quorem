@@ -1,17 +1,10 @@
+import { encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
 import { DurableObject } from "cloudflare:workers";
 import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
 
 const MAX_INPUT = 8 * 1024 * 1024;
 const FRAME_LIMIT = 64 * 1024;
 const languages = new Set(["python", "java", "typescript", "ocaml", "postgresql"]);
-
-function frame(channel, bytes) {
-  const output = new Uint8Array(8 + bytes.length);
-  output[0] = channel;
-  new DataView(output.buffer).setUint32(4, bytes.length);
-  output.set(bytes, 8);
-  return output;
-}
 
 async function input(request) {
   const reader = request.body?.getReader();

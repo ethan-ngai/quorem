@@ -2,7 +2,7 @@
 import { bytesInput } from "./input.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { defaultLimits } from "@quorem/execution";
 import { remoteSandbox } from "./remote.ts";
 const secret = "fixture-only-case-service-token-123456";
@@ -26,6 +26,7 @@ function setup(
   const key = generateKeyPairSync("ed25519"),
     wrong = generateKeyPairSync("ed25519");
   let deletions = 0;
+  const bodies: BodyInit[] = [];
   let scope = "";
   const fetcher: typeof fetch = async (input, init) => {
     const method = String(init?.method),
@@ -37,6 +38,14 @@ function setup(
       nonce = headers.get("x-quorem-owner-nonce") ?? "";
     const status = method === "DELETE" ? 204 : 200;
     if (method === "DELETE") deletions++;
+    if (method === "POST") {
+      bodies.push(init!.body!);
+      const body = await new Response(init!.body).arrayBuffer();
+      assert.equal(
+        createHash("sha256").update(new Uint8Array(body)).digest("hex"),
+        headers.get("x-quorem-body-sha256"),
+      );
+    }
     const namespaceId = (mode === "wrong-namespace" ? "b" : "a").repeat(64);
     const fields =
       method === "POST"
@@ -102,7 +111,7 @@ function setup(
     outputLimit: 65536,
     timeoutMs: 500,
   };
-  return { sandbox, fence, request, deletions: () => deletions };
+  return { sandbox, fence, request, bodies, deletions: () => deletions };
 }
 void test("signed owner and terminal frame authorize scoped success", async () => {
   const f = setup("success");
@@ -166,4 +175,18 @@ void test("confirmed process exit excludes teardown latency from contestant wall
     }),
   );
   assert.equal(truncated.deletions(), 1);
+});
+
+void test("small inputs are verified before dispatch; large inputs retain streaming", async () => {
+  for (const size of [1, 65536, 65537]) {
+    const f = setup("success");
+    await f.sandbox.runCase({ ...f.request, input: bytesInput(new Uint8Array(size)) });
+    assert.equal(f.bodies[0] instanceof Uint8Array, size <= 65536);
+  }
+  const f = setup("success");
+  await assert.rejects(
+    f.sandbox.runCase({ ...f.request, input: { ...f.request.input, hash: "0".repeat(64) } }),
+    /digest mismatch/,
+  );
+  assert.equal(f.bodies.length, 0);
 });

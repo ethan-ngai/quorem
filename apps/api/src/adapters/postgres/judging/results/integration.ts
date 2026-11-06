@@ -1243,7 +1243,13 @@ void test("streams a synthetic legacy-sized 408-case result without a Worker cas
     [id],
   );
   await pool.query("UPDATE submissions SET state='completed',result='{}' WHERE id=$1", [id]);
-  const value = JSON.parse(await repo.read(alice, id));
+  let acquisitions = 0;
+  const batched = submissionSnapshots((operation) => {
+    acquisitions++;
+    return run(operation);
+  });
+  const value = JSON.parse(await new Response(await batched.read(alice, id)).text());
+  assert.ok(acquisitions <= 10, `Expected bounded result pages, acquired ${acquisitions}`);
   assert.equal(value.publicCases.length, 408);
   assert.equal(value.publicCases[407].index, 407);
 });

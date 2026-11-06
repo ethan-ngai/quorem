@@ -322,6 +322,26 @@ async function streamSnapshot(
       };
     }),
   );
+  async function authorizePage(tx: Transaction): Promise<void> {
+    await identity(tx, who);
+    const current = await load(tx, id, interviewId ? undefined : who.userId);
+    assertScope(who, current);
+    if (prepared.headerVersion) {
+      const same = await tx.execute(
+        sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid AND xmin::text=${prepared.headerVersion}`,
+      );
+      if (!same.rows.length || !current.result) throw new Error("Result changed during streaming");
+    }
+    if (interviewId) {
+      const access = await interviewAccess(tx, who, interviewId);
+      if (
+        current.interview !== interviewId ||
+        access.role !== prepared.access?.role ||
+        (access.role !== "interviewer" && access.epoch !== prepared.access?.epoch)
+      )
+        throw missing();
+    }
+  }
   async function* bytes(
     kind: "public" | "case" | "private" | "example" | "header",
     ordinal: number,
@@ -340,25 +360,7 @@ async function streamSnapshot(
     for (let offset = 1; ; offset += 65536) {
       const part = await run((scope) =>
         scope.transaction(options, async (tx) => {
-          await identity(tx, who);
-          const current = await load(tx, id, interviewId ? undefined : who.userId);
-          assertScope(who, current);
-          if (prepared.headerVersion) {
-            const same = await tx.execute(
-              sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid AND xmin::text=${prepared.headerVersion}`,
-            );
-            if (!same.rows.length || !current.result)
-              throw new Error("Result changed during streaming");
-          }
-          if (interviewId) {
-            const access = await interviewAccess(tx, who, interviewId);
-            if (
-              current.interview !== interviewId ||
-              access.role !== prepared.access?.role ||
-              (access.role !== "interviewer" && access.epoch !== prepared.access?.epoch)
-            )
-              throw missing();
-          }
+          await authorizePage(tx);
           const query =
             kind === "header"
               ? sql`SELECT substring(field_data FROM ${offset} FOR 65536) AS data,xmin::text AS version FROM submission_result_header_fields WHERE submission_id=${id}::uuid AND field=${caseId} AND xmin::text=${rowVersion}`
@@ -399,9 +401,44 @@ async function streamSnapshot(
     }
     if (prepared.present) {
       yield ',"publicCases":[';
-      for (let ordinal = 0; ordinal < prepared.count; ordinal++) {
-        if (ordinal) yield ",";
-        yield* bytes("public", ordinal);
+      for (let ordinal = 0; ordinal < prepared.count;) {
+        if (interviewId) {
+          if (ordinal) yield ",";
+          yield* bytes("public", ordinal++);
+          continue;
+        }
+        // Match the existing page byte budget without a connection per small case.
+        const window = await run((scope) =>
+          scope.transaction(options, async (tx) => {
+            await authorizePage(tx);
+            return (
+              await tx.execute<{ ordinal: number; data: Uint8Array | null }>(sql`
+            WITH candidates AS (
+              SELECT ordinal,result_data FROM submission_public_result_cases
+              WHERE submission_id=${id}::uuid AND channel=${prepared.channel}
+                AND ordinal>=${ordinal} AND ordinal<${prepared.count}
+              ORDER BY ordinal LIMIT 64
+            ), sized AS (
+              SELECT *,sum(octet_length(result_data)) OVER (ORDER BY ordinal) AS bytes FROM candidates
+            ) SELECT ordinal,CASE WHEN bytes<=65536 THEN result_data END AS data FROM sized ORDER BY ordinal
+          `)
+            ).rows;
+          }),
+        );
+        if (!window.length) throw new Error("Result changed during streaming");
+        let consumed = 0;
+        for (const part of window) {
+          if (part.ordinal !== ordinal) throw new Error("Result changed during streaming");
+          if (part.data === null) break;
+          if (ordinal) yield ",";
+          yield new TextDecoder("utf-8", { fatal: true }).decode(part.data);
+          ordinal++;
+          consumed++;
+        }
+        if (!consumed) {
+          if (ordinal) yield ",";
+          yield* bytes("public", ordinal++);
+        }
       }
       yield "]";
     }
