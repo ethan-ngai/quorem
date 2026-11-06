@@ -1,7 +1,7 @@
 /** @file SolutionDisplay.tsx @description Shared approach and language presentation for published solutions. @module editor */
 import { useState } from "react";
 import type { SolutionApproach } from "@quorem/contracts";
-import { approachCode, selectApproach } from "@quorem/questions";
+import { approachCode, approachDefaultLanguage, selectApproach } from "@quorem/questions";
 import { SelectField } from "../../../ui/SelectField";
 import { LanguageLogo } from "../../../ui/LanguageLogo";
 import { ApproachPicker } from "./ApproachPicker";
@@ -38,7 +38,7 @@ export function SolutionDisplay({
   const code =
     approachCode(
       { ...approach, implementations: variants },
-      languages[approach.id] ?? preferredLanguage ?? approach.defaultLanguage,
+      languages[approach.id] ?? preferredLanguage ?? approachDefaultLanguage(approach),
     ) ?? variants[0];
   return (
     <div className="solution-display">

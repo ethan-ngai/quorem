@@ -13,18 +13,23 @@ export function EditorialCode({
   language,
   theme,
   colorScheme,
+  label = "Published solution",
 }: {
   source: string;
   language: EditorLanguage;
   theme: EditorTheme;
   colorScheme: EditorScheme;
+  label?: string;
 }) {
   const parent = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const viewRef = useRef<EditorView | null>(null);
   const palette = useRef(new Compartment()).current;
   const syntax = useRef(new Compartment()).current;
+  const accessibleLabel = useRef(new Compartment()).current;
   const stopMotion = useRef<() => void>(undefined);
+  const currentLabel = useRef(label);
+  currentLabel.current = label;
   const currentPalette = useRef({ theme, colorScheme });
   currentPalette.current = { theme, colorScheme };
   useEffect(
@@ -65,7 +70,9 @@ export function EditorialCode({
               ),
               EditorState.readOnly.of(true),
               EditorView.editable.of(false),
-              EditorView.contentAttributes.of({ "aria-label": "Published solution" }),
+              accessibleLabel.of(
+                EditorView.contentAttributes.of({ "aria-label": currentLabel.current }),
+              ),
             ],
           }),
         });
@@ -76,7 +83,14 @@ export function EditorialCode({
     return () => {
       disposed = true;
     };
-  }, [language, source, palette, syntax]);
+  }, [language, source, palette, syntax, accessibleLabel]);
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: accessibleLabel.reconfigure(
+        EditorView.contentAttributes.of({ "aria-label": label }),
+      ),
+    });
+  }, [label, accessibleLabel]);
   useEffect(() => {
     viewRef.current?.dispatch({
       effects: palette.reconfigure(editorColorTheme(colorScheme, theme)),

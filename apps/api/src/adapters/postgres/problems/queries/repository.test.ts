@@ -53,12 +53,14 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             ids[i],
             i === 2 ? "Beta" : "Alpha",
             i === 2 ? "hard" : "easy",
-            JSON.stringify({
-              className: "Solution",
-              methodName: "solve",
-              parameters: [],
-              returnType: "int",
-            }),
+            i === 1
+              ? JSON.stringify({
+                  className: "Solution",
+                  methodName: "solve",
+                  parameters: [],
+                  returnType: "int",
+                })
+              : null,
             JSON.stringify({
               wallTimeMs: 2000,
               memoryBytes: 268435456,
@@ -70,7 +72,19 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             i === 2
               ? JSON.stringify({
                   levels: [
-                    { title: "first", statementMarkdown: "first", methods: [], examples: [] },
+                    {
+                      title: "first",
+                      statementMarkdown: "first",
+                      methods: [
+                        {
+                          className: "Solution",
+                          methodName: "solve",
+                          parameters: [],
+                          returnType: "int",
+                        },
+                      ],
+                      examples: [],
+                    },
                     {
                       title: "SECRET FUTURE",
                       statementMarkdown: "secret",
@@ -84,10 +98,6 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             Buffer.from("SECRET HIDDEN"),
             i === 0 ? JSON.stringify({ dialect: "postgresql", outputOrder: "ordered" }) : null,
           ],
-        );
-        await pool.query(
-          "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,$2,'starter','runtime','harness')",
-          [versions[i], i === 0 ? "postgresql" : "python"],
         );
         await pool.query(
           "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
@@ -106,10 +116,6 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) SELECT $1,problem_id,2,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config FROM problem_versions WHERE id=$2`,
         [historical, versions[0]],
       );
-      await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','old-starter','runtime','harness')",
-        [historical],
-      );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
       await pool.query(
         "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
@@ -125,7 +131,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [ids[1], `${uid}-private-company`],
       );
       await pool.query(
-        "INSERT INTO problem_solution_approaches VALUES($1,'default',0,'',true,'python','explanation','O(n)','O(1)','note')",
+        "INSERT INTO problem_solution_approaches VALUES($1,'default',0,'',true,NULL,'explanation','O(n)','O(1)','note')",
         [versions[1]],
       );
       await pool.query(
@@ -152,7 +158,6 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problems: "id,slug,current_version_id,owner_id,leetcode_id",
         problem_versions:
           "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
-        problem_languages: "version_id,language,starter_source,runtime_revision,harness_revision",
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         problem_tags: "version_id,tag,ordinal",
         problem_solution_approaches:
@@ -177,7 +182,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       });
       try {
         await expect(
-          limited.query("SELECT reference_source_hash FROM problem_languages LIMIT 1"),
+          limited.query("SELECT fixture_identity_hash FROM problem_versions LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         await expect(
           limited.query("SELECT lossless_fixture FROM problem_versions LIMIT 1"),
@@ -276,7 +281,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           expect(result.topics.includes(`${uid}-private-tag`)).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
         }
-        expect(await queries.byVersion(undefined, historical)).toContain("old-starter");
+        expect(await queries.byVersion(undefined, historical)).toContain(
+          "-- Write your query here.",
+        );
         expect(await queries.bySlug(undefined, `${uid}-0`)).toContain('"version":"1"');
         expect(await queries.bySlug(undefined, `${uid}-1`)).toBeNull();
         expect(await queries.byVersion(undefined, versions[1])).toBeNull();

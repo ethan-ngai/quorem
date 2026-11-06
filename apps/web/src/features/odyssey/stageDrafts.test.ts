@@ -50,7 +50,7 @@ describe("typed stage authoring", () => {
       "add",
       "clear",
     ]);
-    expect(parsed.odysseyHiddenCases[1]![0]!.calls![0]!.expected).toBeNull();
+    expect(parsed.odyssey.levels[1]!.hiddenCases[0]!.calls![0]!.expected).toBeNull();
   });
   it("preserves method and parameter documentation through editing and serialization", () => {
     const first = initial();

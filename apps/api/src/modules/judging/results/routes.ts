@@ -39,6 +39,7 @@ export function submissionRoutes(deps: {
           const current = await actor(request);
           if (current.userId !== who.userId || current.sessionId !== who.sessionId)
             throw new ApplicationError("unauthenticated", "Session changed", 401);
+          await (await deps.snapshots.read(current, submissionId)).cancel();
         }),
         200,
         {

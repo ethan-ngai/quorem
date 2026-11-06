@@ -1,5 +1,7 @@
+import { readFile } from "node:fs/promises";
+import { seedCatalog } from "../../../../cli/seed.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { parseLosslessJson } from "@quorem/questions";
 import { interviewQuestionOperationFingerprint } from "../../../../modules/interviews/question/fingerprint.ts";
 import { fingerprintQuestionInput } from "./fingerprint-input.ts";
@@ -20,6 +22,21 @@ if (url)
     "/quorem_hono_interview_questions_test",
     "/quorem_hono_29c_commands_test",
   ]);
+beforeAll(async () => {
+  if (!url) return;
+  const pool = createNodePool({
+    connectionString: url,
+    max: 1,
+    connectionTimeoutMs: 2000,
+    idleTimeoutMs: 1000,
+    onIdleError: () => {},
+  });
+  try {
+    await seedCatalog(pool, true);
+  } finally {
+    await pool.end();
+  }
+});
 const actor = (userId: string): LocalPrincipal => ({
   kind: "local",
   userId,
@@ -170,19 +187,24 @@ describe.skipIf(!url)("interview question commands on PostgreSQL", () => {
       const staged = {
         title: "Stages",
         statementMarkdown: "Implement stages",
-        signature: sig,
         odyssey: {
           levels: [
-            { title: "First", statementMarkdown: "One", methods: [sig], examples: [c] },
+            {
+              title: "First",
+              statementMarkdown: "One",
+              methods: [sig],
+              examples: [c],
+              hiddenCases: [c],
+            },
             {
               title: "Second",
               statementMarkdown: "Two",
               methods: [{ ...sig, methodName: "next" }],
               examples: [c],
+              hiddenCases: [c],
             },
           ],
         },
-        odysseyHiddenCases: [[c], [c]],
       };
       const selected = JSON.parse(
         await new Response(
@@ -573,3 +595,70 @@ it("retains Go raw case spelling for operation replay and rejects mismatched spa
     "Question input mismatch",
   );
 });
+
+it.skipIf(!url)(
+  "reads published SQL interviews without a coding signature or language allowlist",
+  async () => {
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 1000,
+      onIdleError: () => {},
+    });
+    const host = actor(`sql-host-${crypto.randomUUID()}`);
+    try {
+      await pool.query("INSERT INTO users(id,display_name) VALUES($1,'SQL host')", [host.userId]);
+      for (const feature of ["questions.custom", "interviews.host"])
+        await pool.query(
+          "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,$3,'manual','fixture','test','test')",
+          [crypto.randomUUID(), host.userId, feature],
+        );
+      const run = <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
+        withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
+      const content = JSON.parse(
+        await readFile(
+          new URL(
+            "../../../../../../../fixtures/migration/sql-positive-items.json",
+            import.meta.url,
+          ),
+          "utf8",
+        ),
+      );
+      content.problem.slug = `sql-${crypto.randomUUID().slice(0, 8)}`;
+      const owner = { userId: host.userId, admin: false },
+        author = questionAuthoring(run, languageRuntime);
+      const draft = JSON.parse(await author.create(owner, JSON.stringify(content), undefined));
+      const publication = JSON.parse(
+        await author.publish(owner, draft.id, draft.revision, "private"),
+      );
+      const lifecycle = interviewLifecycle(run, {
+        question: preparePublishedInterviewQuestion,
+        snapshot: interviewSnapshotStream(run),
+      });
+      const created = JSON.parse(
+        await lifecycle.create(host, "sql-create", {
+          title: "SQL room",
+          question: { problemVersionId: publication.publishedVersionId, language: "postgresql" },
+        }),
+      );
+      const snapshot = JSON.parse(
+        await new Response(await lifecycle.read(host, created.id)).text(),
+      );
+      expect(snapshot.question.problem.sql.dialect).toBe("postgresql");
+      expect(snapshot.question.problem).not.toHaveProperty("signature");
+      expect(snapshot.question.languages).toEqual(["postgresql"]);
+      await expect(
+        interviewQuestionCommands(run).language(
+          host,
+          created.id,
+          "wrong-kind",
+          "java",
+          snapshot.document.epoch,
+        ),
+      ).rejects.toMatchObject({ code: "invalid_input" });
+    } finally {
+      await pool.end();
+    }
+  },
+);

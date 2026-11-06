@@ -42,7 +42,7 @@ function hasNodes(context?: NodeContext): context is NodeContext {
   );
 }
 
-/** Literals and their single diagram share a row when the available width permits. */
+/** Shrink the diagram beside the complete case value stack. */
 export function CasePreviewLayout({
   children,
   editable = false,

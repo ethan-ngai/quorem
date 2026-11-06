@@ -1,3 +1,4 @@
+import { reviewPending } from "../review/pending.ts";
 /** @file repository.ts @description Transactional match lifecycle and idempotency. @module matches */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
@@ -15,7 +16,7 @@ import {
 } from "../../../../modules/events/scheduling/scheduling.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { guestMayReadMatch } from "../../identity/guest.ts";
 import { selectMatchCandidate, validateSelectedMatchProblem } from "../selection/repository.ts";
 import { finishMatch, matchEvent, reconcileMatch } from "../reconcile/repository.ts";
 import { digest, fingerprint, inviteCipher, settingsBody, token } from "./crypto.ts";
@@ -74,17 +75,7 @@ export async function lockMatch(tx: Transaction, id: string): Promise<MatchRecor
 }
 /** Revalidates scoped guest credentials and current membership under the match lock. */
 export async function requireMatchMember(tx: Transaction, who: Principal, id: string) {
-  if (who.kind === "guest") {
-    if (who.scope.kind !== "match" || who.scope.matchId !== id) throw missing();
-    const actual = await lookupGuestInTransaction(tx, "match", who.sessionId);
-    if (
-      !actual ||
-      actual.userId !== who.userId ||
-      actual.scope.kind !== "match" ||
-      actual.scope.matchId !== id
-    )
-      throw missing();
-  }
+  if (who.kind === "guest" && !(await guestMayReadMatch(tx, who, id))) throw missing();
   if (
     !(
       await tx.execute(
@@ -98,13 +89,13 @@ export async function requireMatchMember(tx: Transaction, who: Principal, id: st
 export async function matchSnapshot(tx: Transaction, id: string, owner: string): Promise<unknown> {
   const row = (
     await tx.execute<{ data: unknown }>(
-      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',m.difficulties[1],'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action','announce','occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM match_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.match_id=m.id),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
+      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'partyId',m.party_id,'reviewPending',${reviewPending(sql`m.id`)},'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',COALESCE(v.difficulty,m.difficulties[1]),'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action','announce','occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM match_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.match_id=m.id),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
     )
   ).rows[0];
   if (!row) throw missing();
   return row.data;
 }
-async function hosting(tx: Transaction, owner: string, mode: string) {
+export async function hosting(tx: Transaction, owner: string, mode: string) {
   const user = (
     await tx.execute<{ kind: string }>(
       sql`SELECT kind FROM users WHERE id=${owner} AND NOT disabled`,
@@ -128,7 +119,7 @@ function stable(value: unknown): string {
       .join(",")}}`;
   return JSON.stringify(value);
 }
-async function start(tx: Transaction, id: string, m: MatchRecord) {
+export async function start(tx: Transaction, id: string, m: MatchRecord) {
   await hosting(tx, m.host, m.access);
   const chosen = await selectMatchCandidate(tx, m.host, m.settings);
   await tx.execute(

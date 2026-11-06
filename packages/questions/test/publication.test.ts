@@ -26,19 +26,10 @@ const checkSchema = (raw: string) => {
 const example = JSON.parse(
   readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
 );
-const runtime = (language: string) =>
-  language === "python" ? { revision: "python-3.12-v1", harness: "quorem-harness-v2" } : undefined;
+const runtime = () => ({ revision: "runtime", harness: "harness" });
 
 it("validates existing schema and authored definition before publication", () => {
   const content = structuredClone(example);
-  content.implementations = [
-    {
-      language: "python",
-      runtimeRevision: "python-3.12-v1",
-      harnessRevision: "quorem-harness-v2",
-      starterSource: "pass",
-    },
-  ];
   const raw = JSON.stringify(content);
   expect(() => validateQuestionPublication(raw, checkSchema, runtime)).not.toThrow();
   content.hiddenCases = [];
@@ -74,18 +65,18 @@ it("validates the existing staged fixture and rejects calls to future methods", 
     "utf8",
   );
   const fixture = JSON.parse(raw);
-  const resolve = (language: string) => {
-    const impl = fixture.implementations.find((x: { language: string }) => x.language === language);
-    return impl && { revision: impl.runtimeRevision, harness: impl.harnessRevision };
-  };
+  const resolve = runtime;
   expect(() => validateQuestionPublication(raw, checkSchema, resolve)).not.toThrow();
-  fixture.odysseyHiddenCases[0].push(fixture.odysseyHiddenCases[1][0]);
+  fixture.problem.odyssey.levels[0].hiddenCases.push(
+    fixture.problem.odyssey.levels[1].hiddenCases[0],
+  );
   expect(() =>
     validateQuestionPublication(JSON.stringify(fixture), checkSchema, resolve),
   ).toThrow();
 });
 it("validates SQL publication and rejects invalid fixture types", () => {
   const content = structuredClone(example);
+  delete content.problem.signature;
   content.problem.sql = {
     dialect: "postgresql",
     outputOrder: "ordered",
@@ -97,18 +88,9 @@ it("validates SQL publication and rejects invalid fixture types", () => {
     { args: [{ tables: [{ name: "items", rows: [[1]] }] }], expected: { rows: [[1]] } },
   ];
   content.hiddenCases = structuredClone(content.problem.examples);
-  content.implementations = [
-    {
-      language: "postgresql",
-      runtimeRevision: "postgresql-17.6-v1",
-      harnessRevision: "quorem-postgresql-v2",
-      starterSource: "select 1",
-    },
-  ];
   content.approaches = [
     {
       ...content.approaches[0],
-      defaultLanguage: "postgresql",
       implementations: [{ language: "postgresql", source: "select 1" }],
     },
   ];
@@ -126,11 +108,7 @@ it("accepts published coding fixture corpus", () => {
   const dir = new URL("../../../fixtures/problems/", import.meta.url);
   for (const name of readdirSync(dir).filter((n) => n.endsWith(".json"))) {
     const raw = readFileSync(new URL(name, dir), "utf8");
-    const data = JSON.parse(raw);
-    const resolve = (language: string) => {
-      const impl = data.implementations.find((x: { language: string }) => x.language === language);
-      return impl && { revision: impl.runtimeRevision, harness: impl.harnessRevision };
-    };
+    const resolve = runtime;
     expect(() => validateQuestionPublication(raw, checkSchema, resolve), name).not.toThrow();
   }
 });
@@ -141,22 +119,25 @@ it("accepts eight valid Odyssey levels with twenty hidden cases each", () => {
   );
   const fixture = JSON.parse(raw);
   const level = fixture.problem.odyssey.levels[0];
-  const hidden = fixture.odysseyHiddenCases[0][0];
+  const hidden = level.hiddenCases[0];
   fixture.problem.odyssey.levels = Array.from({ length: 8 }, (_, i) => ({
     ...structuredClone(level),
+    hiddenCases: Array.from({ length: 20 }, () => structuredClone(hidden)),
     methods:
       i === 0
         ? structuredClone(level.methods)
         : [{ ...structuredClone(level.methods[0]), methodName: `extra${i}` }],
   }));
-  fixture.odysseyHiddenCases = Array.from({ length: 8 }, () =>
-    Array.from({ length: 20 }, () => structuredClone(hidden)),
-  );
-  const resolve = (language: string) => {
-    const impl = fixture.implementations.find((x: { language: string }) => x.language === language);
-    return impl && { revision: impl.runtimeRevision, harness: impl.harnessRevision };
-  };
+  const resolve = runtime;
   expect(() =>
     validateQuestionPublication(JSON.stringify(fixture), checkSchema, resolve),
   ).not.toThrow();
+});
+
+it("rejects documentation that would generate an unrunnable starter", () => {
+  const content = structuredClone(example);
+  content.problem.signature.description = "x".repeat(65536);
+  expect(() => validateQuestionPublication(JSON.stringify(content), checkSchema, runtime)).toThrow(
+    "Generated starter exceeds execution source bounds",
+  );
 });

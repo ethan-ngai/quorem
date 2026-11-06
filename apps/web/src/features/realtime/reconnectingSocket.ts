@@ -92,9 +92,16 @@ export function createReconnectingSocket(options: SocketOptions) {
             )
               throw new Error("Invalid socket receipt");
             current.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
-            options.onMessage(
-              new MessageEvent("message", { data: JSON.stringify(envelope.payload) }),
-            );
+            // Keepalives belong to the transport, not domain event parsers.
+            const payload = envelope.payload;
+            if (
+              payload &&
+              typeof payload === "object" &&
+              !Array.isArray(payload) &&
+              (payload as { type?: unknown }).type === "heartbeat"
+            )
+              return;
+            options.onMessage(new MessageEvent("message", { data: JSON.stringify(payload) }));
           } catch {
             current.close(1002, "Invalid socket frame");
           }

@@ -12,7 +12,9 @@ await withDisposablePostgres(
         "exec",
         "node",
         "--test",
+        "--test-concurrency=1",
         "src/runtime/composition/sql-browser-http.test.ts",
+        "src/runtime/composition/party-browser-http.test.ts",
       ],
       {
         env: {

@@ -30,6 +30,7 @@ export function composeIdentity(
   const guests = {
     lookup: (kind: GuestKind, hash: string) =>
       run((scope) => guestRepository(scope).lookup(kind, hash)),
+    canBootstrap: (hash: string) => run((scope) => guestRepository(scope).canBootstrap(hash)),
     endMatch: (hash: string) => run((scope) => guestRepository(scope).endMatch(hash)),
   };
   const managed = (token: string, signal?: AbortSignal) =>

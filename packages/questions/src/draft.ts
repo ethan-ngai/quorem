@@ -1,5 +1,6 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
 import type { QuestionContent } from "./model.ts";
+import { questionSlugFits } from "./identity.ts";
 import { validSource } from "./source.ts";
 
 const bytes = (value: string) => new TextEncoder().encode(value).length;
@@ -26,15 +27,14 @@ export function validateQuestionDraft(content: QuestionContent): void {
     p.examples.length > 20 ||
     p.constraints.length > 64 ||
     content.hiddenCases.length > 100 ||
-    content.implementations.length > 4 ||
     content.approaches.length > 8 ||
-    p.signature.parameters.length > 16
+    (p.signature?.parameters.length ?? 0) > 16
   )
     throw new Error("question collection limit exceeded");
   if (
     bytes(p.id) > 64 ||
     bytes(p.version) > 32 ||
-    bytes(p.slug) > 80 ||
+    !questionSlugFits(p.slug) ||
     bytes(p.title) > 160 ||
     bytes(p.statementMarkdown) > 65536 ||
     bytes(content.attribution) > 2048
@@ -48,7 +48,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
       p.odyssey?.levels.flatMap((l) =>
         l.examples.map(({ args, expected, calls }) => ({ args, expected, calls })),
       ),
-      content.odysseyHiddenCases,
+      p.odyssey?.levels.map((level) => level.hiddenCases),
     ].some(hasNul)
   )
     throw new Error("SQL text cannot contain NUL characters");
@@ -76,14 +76,6 @@ export function validateQuestionDraft(content: QuestionContent): void {
   for (const c of p.constraints)
     if (c.kind === "prose" && bytes(c.text) > 4096)
       throw new Error("constraint text limit exceeded");
-  for (const v of content.implementations) {
-    if (!validSource(v.starterSource))
-      throw new Error(
-        "language source must be valid UTF-8, at most 65536 bytes, and contain no NUL characters",
-      );
-    if (bytes(v.runtimeRevision) > 128 || bytes(v.harnessRevision) > 128)
-      throw new Error("language revision limit exceeded");
-  }
   if (bytes(content.canonicalApproachId) > 64)
     throw new Error("canonical approach ID limit exceeded");
   for (const approach of content.approaches) {

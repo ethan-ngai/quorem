@@ -101,6 +101,7 @@ function custom(v: unknown): Obj {
                 title: level.title ?? "",
                 statementMarkdown: level.statementMarkdown ?? "",
                 methods: level.methods == null ? null : array(level.methods).map(signature),
+                hiddenCases: array(level.hiddenCases).map((x) => testCase(x)),
                 examples:
                   level.examples == null
                     ? null
@@ -110,16 +111,9 @@ function custom(v: unknown): Obj {
           },
         }
       : {}),
-    ...(opt(c, "odysseyHiddenCases")
-      ? {
-          odysseyHiddenCases: array(c.odysseyHiddenCases).map((s) =>
-            array(s).map((x) => testCase(x)),
-          ),
-        }
-      : {}),
     title: c.title ?? "",
     statementMarkdown: c.statementMarkdown ?? "",
-    signature: signature(c.signature),
+    ...(c.odyssey == null ? { signature: signature(c.signature) } : {}),
     ...(opt(c, "publicCases") ? { publicCases: array(c.publicCases).map((x) => testCase(x)) } : {}),
     ...(opt(c, "privateCases")
       ? { privateCases: array(c.privateCases).map((x) => testCase(x)) }

@@ -20,8 +20,6 @@ import { startNodeRuntime } from "../node.ts";
 
 const apiOrigin = "http://127.0.0.1:8765",
   webOrigin = "http://127.0.0.1:5187";
-const verifierOrigin = "http://127.0.0.1:18761",
-  runnerOrigin = "http://127.0.0.1:18762";
 const random = () => randomBytes(32).toString("hex");
 const root = resolve(import.meta.dirname, "../../../../..");
 
@@ -102,6 +100,11 @@ async function closeServer(server: Server) {
 }
 
 export async function startBrowserFixture(database: string, socket: string) {
+  // Keep fixture services separate from the normal local development stack.
+  const verifierPort = 19761;
+  const runnerPort = 19762;
+  const verifierOrigin = `http://127.0.0.1:${verifierPort}`;
+  const runnerOrigin = `http://127.0.0.1:${runnerPort}`;
   assertBrowserDatabase(database);
   if (!socket.startsWith("/") || !(await stat(socket)).isSocket())
     throw new Error("Fixture Docker socket required");
@@ -136,16 +139,27 @@ export async function startBrowserFixture(database: string, socket: string) {
   let closing = false;
   const finish = async () => {
     closing = true;
-    if (vite) await stop(vite, false);
-    if (runner) await stop(runner);
-    if (runtime) await runtime.close();
-    if (verifier) await stop(verifier);
-    if (pool) await pool.end();
-    await closeServer(queue);
+    const failures: unknown[] = [];
+    for (const dispose of [
+      () => vite && stop(vite, false),
+      () => runner && stop(runner),
+      () => runtime && runtime.close(),
+      () => verifier && stop(verifier),
+      () => pool && pool.end(),
+      () => closeServer(queue),
+    ]) {
+      try {
+        await dispose();
+      } catch (error) {
+        failures.push(error);
+      }
+    }
     for (const [key, value] of Object.entries(previousEnvironment)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+    if (failures.length)
+      throw new AggregateError(failures, "Fixture teardown could not confirm cleanup");
     if (cleanup) await cleanup();
     await rm(temp, { recursive: true, force: true });
   };
@@ -246,7 +260,7 @@ export async function startBrowserFixture(database: string, socket: string) {
       ["--experimental-strip-types", "apps/runner/src/runtime/verifier.ts"],
       {
         ...childEnv,
-        QUOREM_VERIFIER_LISTEN: "127.0.0.1:18761",
+        QUOREM_VERIFIER_LISTEN: `127.0.0.1:${verifierPort}`,
         QUOREM_VERIFICATION_SOURCE_ORIGIN: apiOrigin,
         QUOREM_VERIFICATION_SOURCE_KEY: sourceKey,
         QUOREM_VERIFICATION_SERVICE_KEY: verifierKey,
@@ -292,7 +306,7 @@ export async function startBrowserFixture(database: string, socket: string) {
         QUOREM_DOCKER_FENCE_ROOT: fenceRoot,
         QUOREM_DOCKER_NAMESPACE: namespace,
         QUOREM_RUNNER_MODE: "continuous",
-        QUOREM_RUNNER_LISTEN: "127.0.0.1:18762",
+        QUOREM_RUNNER_LISTEN: `127.0.0.1:${runnerPort}`,
         QUOREM_RUNNER_COMMAND_ORIGIN: apiOrigin,
         QUOREM_RUNNER_COMMAND_SECRET: runnerSecret,
         QUOREM_RUNNER_DRAIN_SECRET: drainSecret,

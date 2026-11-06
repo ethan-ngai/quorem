@@ -8,9 +8,10 @@ import {
   type JsonValue,
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
-import type { Principal } from "../../../../modules/identity/model.ts";
+import { guestScopeId, type Principal } from "../../../../modules/identity/model.ts";
 import type { SubmissionSnapshots } from "../../../../modules/judging/results/model.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { authorizeReview } from "../../matches/review/authorization.ts";
+import { guestMayReadMatch, lookupGuestInTransaction } from "../../identity/guest.ts";
 import { encode, object, publicResult } from "./projection.ts";
 import { jsonStream } from "../../../../modules/judging/results/stream.ts";
 import { resultCase } from "./projection.ts";
@@ -30,6 +31,8 @@ type Row = {
   custom: boolean;
   interview: string | null;
   match: string | null;
+  reviewMatch: string | null;
+  reviewSource: string | null;
   result: Uint8Array | null;
 };
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -37,17 +40,20 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const missing = () => new ApplicationError("not_found", "Submission not found", 404);
 async function identity(tx: Transaction, who: Principal): Promise<void> {
   const user = await tx.execute(
-    sql`SELECT id FROM users WHERE id=${who.userId} AND NOT disabled FOR SHARE`,
+    sql`SELECT id FROM users WHERE id=${who.userId} AND NOT disabled FOR NO KEY UPDATE`,
   );
   if (!user.rows.length) throw missing();
   if (who.kind === "guest") {
-    const actual = await lookupGuestInTransaction(tx, who.scope.kind, who.sessionId);
+    const actual = await lookupGuestInTransaction(
+      tx,
+      who.scope.kind === "interview" ? "interview" : "match",
+      who.sessionId,
+    );
     if (
       !actual ||
       actual.userId !== who.userId ||
       actual.scope.kind !== who.scope.kind ||
-      (actual.scope.kind === "match" ? actual.scope.matchId : actual.scope.interviewId) !==
-        (who.scope.kind === "match" ? who.scope.matchId : who.scope.interviewId)
+      guestScopeId(actual.scope) !== guestScopeId(who.scope)
     )
       throw missing();
   }
@@ -55,20 +61,21 @@ async function identity(tx: Transaction, who: Principal): Promise<void> {
 async function load(tx: Transaction, id: string, owner?: string, lock = false): Promise<Row> {
   if (!uuid.test(id)) throw missing();
   const result = await tx.execute<Row>(
-    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND s.owner_id=${owner}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
+    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND s.owner_id=${owner}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
   );
   const row = result.rows[0];
   if (!row) throw missing();
   return row;
 }
-function assertScope(who: Principal, row: Row): void {
+async function assertScope(tx: Transaction, who: Principal, row: Row): Promise<void> {
+  if (row.reviewMatch && row.reviewSource) {
+    await authorizeReview(tx, who, row.reviewMatch, row.reviewSource);
+    return;
+  }
   if (who.kind !== "guest") return;
-  if (
-    who.scope.kind === "match"
-      ? row.match !== who.scope.matchId
-      : row.interview !== who.scope.interviewId
-  )
-    throw missing();
+  if (who.scope.kind === "interview") {
+    if (row.interview !== who.scope.interviewId) throw missing();
+  } else if (!row.match || !(await guestMayReadMatch(tx, who, row.match))) throw missing();
 }
 function snapshot(row: Row, hideInterview: boolean): { [key: string]: JsonValue } {
   return {
@@ -113,11 +120,11 @@ export function submissionSnapshots(run: Run): SubmissionSnapshots {
                 409,
               );
             const row = await load(tx, id, who.userId);
-            assertScope(who, row);
+            await assertScope(tx, who, row);
             return stringifyLosslessJson(object(parseLosslessJson(replay.response)));
           }
           const row = await load(tx, id, who.userId, true);
-          assertScope(who, row);
+          await assertScope(tx, who, row);
           if (row.match && row.kind === "submit")
             throw new ApplicationError(
               "invalid_transition",
@@ -155,12 +162,12 @@ async function streamSnapshot(
   interviewId?: string,
 ): Promise<ReadableStream<Uint8Array>> {
   const prepared = await run((scope) =>
-    scope.transaction({ ...options, isolation: "repeatable read" }, async (tx) => {
+    scope.transaction(options, async (tx) => {
       await identity(tx, who);
       const access = interviewId ? await interviewAccess(tx, who, interviewId) : undefined;
-      const row = await load(tx, id, interviewId ? undefined : who.userId);
+      const row = await load(tx, id, interviewId ? undefined : who.userId, true);
       if (interviewId && row.interview !== interviewId) throw missing();
-      assertScope(who, row);
+      await assertScope(tx, who, row);
       const header = (
         await tx.execute<{ data: Uint8Array; version: string }>(
           sql`SELECT header_data AS data,xmin::text AS version FROM submission_result_headers WHERE submission_id=${id}::uuid`,
@@ -326,7 +333,7 @@ async function streamSnapshot(
   async function authorizePage(tx: Transaction): Promise<void> {
     await identity(tx, who);
     const current = await load(tx, id, interviewId ? undefined : who.userId);
-    assertScope(who, current);
+    await assertScope(tx, who, current);
     if (prepared.headerVersion) {
       const same = await tx.execute(
         sql`SELECT 1 FROM submission_result_headers WHERE submission_id=${id}::uuid AND xmin::text=${prepared.headerVersion}`,

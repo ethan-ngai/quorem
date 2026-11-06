@@ -1,3 +1,4 @@
+import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -7,7 +8,8 @@ import type { AdmissionFence } from "../../../../modules/judging/admission/admit
 import { bindJobInputs } from "../inputs/bind.ts";
 import { validateExecutionCases } from "../../../../modules/judging/admission/select-cases.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
-import { lookupGuestInTransaction } from "../../identity/guest.ts";
+import { authorizeReview } from "../../matches/review/authorization.ts";
+import { guestMayReadMatch } from "../../identity/guest.ts";
 import { visibleProblem } from "../../problems/queries/public-projection.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import {
@@ -73,19 +75,40 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
           await tx.execute<{
             version: string;
             matchId: string | null;
+            reviewMatchId: string | null;
+            reviewSourceOwnerId: string | null;
             language: string;
-            revision: string;
-            harness: string;
+            isSql: boolean;
             stages: number;
           }>(
-            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.language,l.runtime_revision AS revision,l.harness_revision AS harness,CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=w.language WHERE w.id=${command.workspaceId}::uuid AND w.owner_id=${principal.userId} AND ((w.match_id IS NULL AND ${visibleProblem({ userId: principal.userId }, false)}) OR (w.match_id IS NOT NULL AND ${visibleProblem({ userId: principal.userId }, true)})) FOR SHARE OF w,p,v`,
+            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND w.owner_id=${principal.userId} AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
           )
         ).rows[0];
         if (!row) throw failure("not_found", "Workspace not found", 404);
+        const runtime = questionRuntime(row.language, row.isSql);
         let matchSequence: string | null = null,
           admissionTime: string | null = null,
           sponsor: string | null = null;
-        if (row.matchId) {
+        if (row.reviewMatchId && row.reviewSourceOwnerId) {
+          const review = await authorizeReview(
+            tx,
+            principal,
+            row.reviewMatchId,
+            row.reviewSourceOwnerId,
+          );
+          if (review.problemId !== row.version)
+            throw failure("not_found", "Workspace not found", 404);
+          if (principal.kind === "guest") {
+            if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
+            if (!config.guestExecution)
+              throw failure(
+                "temporarily_unavailable",
+                "Guest execution is temporarily paused",
+                503,
+              );
+            sponsor = review.host;
+          }
+        } else if (row.matchId) {
           const locked = await tx.execute(
             sql`SELECT id FROM matches WHERE id=${row.matchId}::uuid FOR UPDATE`,
           );
@@ -113,15 +136,7 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
                 "Guest execution is temporarily paused",
                 503,
               );
-            if (principal.scope.kind !== "match" || principal.scope.matchId !== row.matchId)
-              throw failure("forbidden", "Guest membership unavailable", 403);
-            const current = await lookupGuestInTransaction(tx, "match", principal.sessionId);
-            if (
-              !current ||
-              current.userId !== principal.userId ||
-              current.scope.kind !== "match" ||
-              current.scope.matchId !== row.matchId
-            )
+            if (!(await guestMayReadMatch(tx, principal, row.matchId)))
               throw failure("forbidden", "Guest membership unavailable", 403);
             sponsor = match.host;
           }
@@ -185,9 +200,10 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
           sourceHash: command.sourceHash,
           customRun: command.customCases !== null,
           language: row.language,
-          runtimeRevision: row.revision,
-          harnessRevision: row.harness,
+          runtimeRevision: runtime.revision,
+          harnessRevision: runtime.harness,
           sponsorId: sponsor,
+          sponsorMatchId: row.reviewMatchId,
           context: {
             kind: "workspace",
             workspaceId: command.workspaceId,

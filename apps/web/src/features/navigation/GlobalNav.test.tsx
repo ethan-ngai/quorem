@@ -17,6 +17,7 @@ async function renderNavigation(
   path: string,
   workspaceSettings?: SettingsProps,
   activeState?: MatchSnapshot["state"] | "pending",
+  inParty = false,
 ) {
   const root = createRootRoute();
   const route = createRoute({
@@ -36,6 +37,7 @@ async function renderNavigation(
       user: { id: "alice", displayName: "Alice", emailVerified: true, role: "user" },
       mode: "development",
     });
+    client.setQueryData(["current-party", "alice"], { party: inParty ? { id: "party" } : null });
     if (activeState !== "pending") {
       client.setQueryData(["current-match", "alice"], {
         id: "current",
@@ -62,7 +64,7 @@ describe("global navigation", () => {
     expect(html).toContain('aria-label="Checking account"');
     expect(html).not.toContain("Sign in");
   });
-  it.each(["waiting", "ready", "active", "finalizing"] as const)(
+  it.each(["active", "finalizing"] as const)(
     "shows the return link from a cached %s snapshot",
     async (state) => {
       const html = await renderNavigation("/practice", undefined, state);
@@ -70,6 +72,11 @@ describe("global navigation", () => {
       expect(html).toContain('href="/match/current"');
     },
   );
+  it("offers a persistent party return link", async () => {
+    const html = await renderNavigation("/practice", undefined, "active", true);
+    expect(html).toContain('href="/party"');
+    expect(html).toContain("Return to lobby");
+  });
   it("waits for the first HTTP snapshot before offering match creation", async () => {
     const html = await renderNavigation("/practice", undefined, "pending");
     expect(html).toContain('aria-label="Checking active match"');
@@ -110,7 +117,7 @@ describe("global navigation", () => {
     );
     expect(html).not.toContain("nav-preferences");
   });
-  it.each(["/practice", "/invite/token", "/match/lobby", "/admin/questions"])(
+  it.each(["/practice", "/invite/token", "/match/lobby", "/questions"])(
     "omits the workspace shortcut outside a question workspace: %s",
     async (path) => {
       expect(await renderNavigation(path)).not.toContain('aria-label="Workspace settings"');

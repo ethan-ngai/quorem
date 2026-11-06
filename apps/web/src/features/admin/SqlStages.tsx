@@ -21,11 +21,10 @@ export function SqlStages({
   const levels = content.problem.odyssey!.levels;
   const [keys, setKeys] = useState(() => levels.map((_, index) => index));
   const [selected, setSelected] = useState(0);
-  function update(next: typeof levels, hidden = content.odysseyHiddenCases) {
+  function update(next: typeof levels) {
     onChange({
       ...content,
       problem: { ...content.problem, odyssey: { levels: next } },
-      odysseyHiddenCases: hidden,
     });
   }
   return (
@@ -46,18 +45,16 @@ export function SqlStages({
           onClick={() => {
             setKeys([...keys, Math.max(...keys, -1) + 1]);
             setSelected(levels.length);
-            update(
-              [
-                ...levels,
-                {
-                  title: `Step ${levels.length + 1}`,
-                  statementMarkdown: "",
-                  methods: [],
-                  examples: [],
-                },
-              ],
-              [...levels.map((_, index) => content.odysseyHiddenCases?.[index] ?? []), []],
-            );
+            update([
+              ...levels,
+              {
+                title: `Step ${levels.length + 1}`,
+                statementMarkdown: "",
+                methods: [],
+                examples: [],
+                hiddenCases: [],
+              },
+            ]);
           }}
         >
           Add step
@@ -113,12 +110,7 @@ export function SqlStages({
                 onClick={() => {
                   setKeys(keys.filter((_, position) => position !== index));
                   setSelected(Math.min(index, levels.length - 2));
-                  update(
-                    levels.filter((_, position) => position !== index),
-                    levels
-                      .map((_, position) => content.odysseyHiddenCases?.[position] ?? [])
-                      .filter((_, position) => position !== index),
-                  );
+                  update(levels.filter((_, position) => position !== index));
                 }}
               >
                 <Trash2 size={16} aria-hidden="true" /> Remove step and its tests

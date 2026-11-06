@@ -84,11 +84,11 @@ describe("operator CLI contracts", () => {
   it("pins canonical seed fingerprints, including raw JSON escapes", async () => {
     const raw = await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8");
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "ec14fc422587b3917c1a964a8ef20933263e9a079fb348b8987993049c0dac31",
+      "ab8d3edec43ca7eb052e189f5c3ccc7c126c3b230a3cb2b1ec2df3b91ab67356",
     );
     const escaped = raw.replaceAll('"a-bC!"', '"\\u0061-bC!"');
     expect(seedFingerprint(escaped, "cli-operator").fingerprint).toBe(
-      "cadf7d46f184eb79496a386dbbf835d62fa57c0086dd69b9cc75c65bb8b4b5ce",
+      "a11bd0216d9625ec386fce717ccfc810bf7f2a4cfa15b5eba9c322b0635c12c7",
     );
   });
   it("pins canonical seed identity for lossless SQL numeric input", async () => {
@@ -110,14 +110,6 @@ describe("operator CLI contracts", () => {
       },
     ];
     p.hiddenCases = p.problem.examples;
-    p.implementations = [
-      {
-        language: "postgresql",
-        starterSource: "select 1",
-        runtimeRevision: "postgresql-17.6-v1",
-        harnessRevision: "quorem-postgresql-v2",
-      },
-    ];
     p.approaches = [
       {
         ...p.approaches[0],
@@ -127,7 +119,7 @@ describe("operator CLI contracts", () => {
     ];
     const raw = JSON.stringify(p).replaceAll('"rows":[[1]]', '"rows":[[1e309]]');
     expect(seedFingerprint(raw, "cli-operator").fingerprint).toBe(
-      "bea1a8be83887930101a24ab9086cacde3c59fab44c11e75feba69058639d282",
+      "25a0c568d413cd3e6cf978c90afd0af0df9e84de7c3641b8844b0e68850cf638",
     );
   });
   it("validates candidate fixtures with canonical publication rules", async () => {
@@ -285,13 +277,9 @@ describe("operator CLI contracts", () => {
           ),
         );
         expect(
-          (
-            await pool.query(
-              "SELECT sealed,(SELECT count(*)::int FROM problem_languages WHERE version_id=$1) AS languages FROM problem_versions WHERE id=$1",
-              [versionId],
-            )
-          ).rows[0],
-        ).toMatchObject({ sealed: true, languages: 4 });
+          (await pool.query("SELECT sealed FROM problem_versions WHERE id=$1", [versionId]))
+            .rows[0],
+        ).toMatchObject({ sealed: true });
         await expect(
           run((scope) =>
             scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, (tx) =>
@@ -356,12 +344,14 @@ describe("operator CLI contracts", () => {
             );
           const owned = await read(admin, first, "python");
           expect(owned?.starterSource).toBeTruthy();
-          expect(JSON.parse(owned!.content).odysseyHiddenCases.length).toBeGreaterThan(0);
+          expect(
+            JSON.parse(owned!.content).problem.odyssey.levels[0].hiddenCases.length,
+          ).toBeGreaterThan(0);
           expect(await read(user, first, "python")).toBeUndefined();
           expect(await read(admin, first, "postgresql")).toBeUndefined();
           const global = await read(user, "e91ec728-4597-5dfb-9d19-7c4ba17138b7", "python");
           expect(global?.language).toBe("python");
-          expect(JSON.parse(global!.content).implementations).toHaveLength(4);
+          expect(JSON.parse(global!.content)).not.toHaveProperty("implementations");
         } finally {
           await rm(dir, { recursive: true, force: true });
         }
@@ -421,14 +411,6 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
           },
         ];
         fixture.hiddenCases = fixture.problem.examples;
-        fixture.implementations = [
-          {
-            language: "postgresql",
-            starterSource: "select 1",
-            runtimeRevision: "postgresql-17.6-v1",
-            harnessRevision: "quorem-postgresql-v2",
-          },
-        ];
         fixture.approaches = [
           {
             ...fixture.approaches[0],
@@ -567,7 +549,8 @@ it.skipIf(!url)(
         "conflict",
       );
       await repo.update(actor, items[0].draftId, "1", JSON.stringify(draft));
-      expect(JSON.parse(await repo.importDraft(actor, raw, false))).toEqual({
+      expect(JSON.parse(await repo.importDraft(actor, raw, false)).status).toBe("conflict");
+      expect(JSON.parse(await repo.importDraft(actor, JSON.stringify(draft), false))).toEqual({
         status: "existing",
         draftId: items[0].draftId,
       });

@@ -52,8 +52,6 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/v1/admin/question-drafts/one/publish':
             type(self).publishes += 1
             type(self).draft['publishedVersionId'] = 'version'
-            if self.draft['content']['implementations']:
-                self.draft['content']['implementations'][0]['starterSource'] = 'generated'
             type(self).published = {'id': 'version', 'leetcodeId': 1}
             if self.fail_after_publish:
                 type(self).fail_after_publish = False
@@ -73,7 +71,7 @@ class ImportTest(unittest.TestCase):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.tmp = tempfile.TemporaryDirectory()
         self.directory = Path(self.tmp.name)
-        self.content = {'problem': {'slug': 'lc-example', 'leetcodeId': 1, 'statementMarkdown': 'x', 'signature': {}}, 'hiddenCases': [], 'implementations': [{'language': 'python', 'starterSource': 'authored'}], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'implementations': [{'language': 'python', 'source': 'original'}]}]}
+        self.content = {'problem': {'slug': 'lc-example', 'leetcodeId': 1, 'statementMarkdown': 'x', 'signature': {}}, 'hiddenCases': [], 'canonicalApproachId': 'default', 'approaches': [{'id': 'default', 'implementations': [{'language': 'python', 'source': 'original'}]}]}
         data = json.dumps(self.content).encode()
         (self.directory / '1.json').write_bytes(data)
         (self.directory / 'manifest.json').write_text(json.dumps({'fixture_count': 1, 'fixtures': [{'file': '1.json', 'sha256': hashlib.sha256(data).hexdigest(), 'leetcodeId': 1}]}))

@@ -1,3 +1,4 @@
+import { publicQuestionFixture } from "../../../test/questionFixture";
 /** @file WorkspaceTests.test.tsx @description Shared case presentation retains authoring and Odyssey safety. @module editor */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -8,9 +9,7 @@ import { TestCases } from "./TestCases";
 import { WorkspaceTests } from "./WorkspaceTests";
 
 const problem = {
-  ...fixture.problem,
-  starterSource: fixture.implementations[0]!.starterSource,
-  runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+  ...publicQuestionFixture(fixture),
 } as ProblemVersion;
 const methods: Signature[] = [
   {
@@ -440,7 +439,7 @@ it("keeps public results separate from hidden case statuses", () => {
 it("renders SQL table examples without binding method arguments", () => {
   const sqlProblem: ProblemVersion = {
     ...problem,
-    signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+    signature: undefined,
     sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const },
     examples: [
       {
@@ -460,7 +459,11 @@ it.each(["coding", "sql"] as const)(
   (kind) => {
     const tested =
       kind === "sql"
-        ? { ...problem, sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const } }
+        ? {
+            ...problem,
+            signature: undefined,
+            sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const },
+          }
         : problem;
     const html = renderToStaticMarkup(
       <WorkspaceTests

@@ -298,7 +298,12 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       });
       void observe.catch(() => {});
       try {
-        const job = await claimNext(port, sandbox, { scope: sandbox.scope, resumable: true });
+        let job = await claimNext(port, sandbox, { scope: sandbox.scope, resumable: true });
+        // SKIP LOCKED can defer a claim while the concurrent result snapshot is read.
+        for (let attempt = 0; !job && attempt < 100; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          job = await claimNext(port, sandbox, { scope: sandbox.scope, resumable: true });
+        }
         expect(job?.submissionId).toBe(submission);
         await executeAndStage(job!, port, sandbox, AbortSignal.timeout(120000));
         await finishAfterTeardown(port, sandbox, job!, AbortSignal.timeout(120000));

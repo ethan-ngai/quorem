@@ -53,11 +53,16 @@ void test(
       });
       await result(alice, workspace.id, "run");
       await result(alice, workspace.id, "submit");
-      const match = await json("/v1/matches", alice, { selectedProblemVersionId: problem.id });
-      await json("/v1/matches/join", bob, { inviteToken: match.inviteUrl.split("/").at(-1) });
-      await json(`/v1/matches/${match.id}/ready`, alice, { ready: true });
-      const ready = await json(`/v1/matches/${match.id}/ready`, bob, { ready: true });
-      assert.equal(ready.state, "active");
+      const created = await json("/v1/parties", alice, { selectedProblemVersionId: problem.id });
+      const partyId = created.party.id;
+      await json("/v1/parties/join", bob, { token: created.inviteUrl.split("/").at(-1) });
+      await json("/v1/presence/heartbeat", alice, { windowId: randomUUID() });
+      await json("/v1/presence/heartbeat", bob, { windowId: randomUUID() });
+      await json(`/v1/parties/${partyId}/ready`, alice, { ready: true });
+      await json(`/v1/parties/${partyId}/ready`, bob, { ready: true });
+      const started = await json(`/v1/parties/${partyId}/start`, alice, {});
+      assert.ok(started.currentMatchId);
+      const match = { id: started.currentMatchId };
       const session = await json("/v1/session", bob, undefined, "GET");
       const snapshot = await json(`/v1/matches/${match.id}`, bob, undefined, "GET");
       const own = snapshot.participants.find(

@@ -28,7 +28,11 @@ interface PrincipalFields {
 }
 export type ManagedPrincipal = PrincipalFields & { kind: "managed"; credentialExpiresAt: number };
 export type LocalPrincipal = PrincipalFields & { kind: "local"; credentialExpiresAt?: never };
-export type GuestScope = { kind: "match"; matchId: string } | { kind: "interview"; interviewId: string };
+export type GuestScope = { kind: "match"; matchId: string } | { kind: "party"; partyId: string } | { kind: "interview"; interviewId: string };
+/** Stable resource binding for guest reauthorization. */
+export function guestScopeId(scope: GuestScope): string {
+  return scope.kind === "match" ? scope.matchId : scope.kind === "party" ? scope.partyId : scope.interviewId;
+}
 export type GuestPrincipal = PrincipalFields & { kind: "guest"; scope: GuestScope; admin: false; emailVerified: false; strongUntil: 0; credentialExpiresAt: number };
 export type Principal = ManagedPrincipal | LocalPrincipal | GuestPrincipal;
 export interface IdentityBindings {

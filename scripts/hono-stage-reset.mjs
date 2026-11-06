@@ -74,7 +74,6 @@ async function fixtureTables(client) {
   const checks = new Map();
   for (const name of [
     "problem_examples",
-    "problem_languages",
     "problem_odyssey_cases",
     "problem_solutions",
     "problem_solution_approaches",

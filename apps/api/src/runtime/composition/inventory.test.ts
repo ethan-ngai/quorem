@@ -10,7 +10,7 @@ const ports: HttpPorts = {
   submissionNotices: { subscribe: unavailable },
   identify: unavailable,
   managed: unavailable,
-  guests: { lookup: unavailable, endMatch: unavailable },
+  guests: { lookup: unavailable, endMatch: unavailable, canBootstrap: unavailable },
   origins: [],
   trustedPeer: () => undefined,
   deadline: { prearm: unavailable, wake: unavailable },
@@ -49,7 +49,11 @@ it("registers the full HTTP inventory in the domain app or native socket classif
       ),
   );
   expect(missing).toEqual([]);
-  expect(inventory.http).toHaveLength(64);
+  expect(inventory.http).toHaveLength(80);
+  const recorded = new Set(inventory.http.map((item) => `${item.method} ${normalize(item.path)}`));
+  expect(
+    [...registered].filter((route) => !route.startsWith("ALL ") && !recorded.has(route)),
+  ).toEqual([]);
 });
 it("classifies only supported browser socket routes", () => {
   const id = "12345678-1234-1234-1234-123456789abc";

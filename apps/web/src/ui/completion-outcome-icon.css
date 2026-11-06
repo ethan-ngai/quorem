@@ -1,0 +1,12 @@
+.completion-outcome-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+}
+.completion-outcome-icon[data-outcome="success"],
+.completion-outcome-icon[data-outcome="observer"] {
+  color: var(--color-success);
+}
+.completion-outcome-icon[data-outcome="loss"] {
+  color: var(--color-error);
+}

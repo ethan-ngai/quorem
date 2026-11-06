@@ -17,6 +17,7 @@ describe("server-rendered match settings", () => {
             difficulties: ["easy"],
             selectedProblemVersionId: "example",
             durationMinutes: 30,
+            shareCodeAfterMatch: true,
             rules: { clipboard: "warning", focus: "announce" },
           }}
           onChange={() => {}}

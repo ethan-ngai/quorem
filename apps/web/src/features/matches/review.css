@@ -1,0 +1,84 @@
+.review-toolbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.review-view-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.review-editor-grid {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.review-editor-grid > .editor-frame,
+.review-reference {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.review-editor-grid .python-editor {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.review-reference {
+  overflow: auto;
+  border-left: 1px solid var(--color-border);
+}
+.review-reference[hidden] {
+  display: none;
+}
+.review-pane-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  height: 40px;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.review-pane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.review-state-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-secondary);
+}
+.review-pane-header[data-active] {
+  color: var(--color-text);
+}
+.review-pane-header[data-active] .review-state-icon {
+  color: var(--color-primary);
+}
+.review-pane-header > .icon-button {
+  margin-left: auto;
+}
+.ui-popover.review-original {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(440px, 70dvh);
+  overflow: auto;
+  padding: 0;
+}
+@media (max-width: 600px) {
+  .review-editor-grid {
+    flex-direction: column;
+  }
+  .review-reference {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+  }
+}

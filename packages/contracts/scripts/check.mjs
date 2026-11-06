@@ -1,3 +1,7 @@
+import {
+  generateQuestionImplementations,
+  publicQuestionProblem,
+} from "../../questions/src/index.ts";
 /** @file check.mjs @description Validate fixtures and generated contract drift. @module contracts */
 import { readFileSync, readdirSync } from "node:fs";
 import assert from "node:assert/strict";
@@ -66,10 +70,15 @@ for (const field of [
 const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersion` });
 for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
-  const primary = fixture.implementations.find((item) => item.language === "python");
+  const languages = generateQuestionImplementations(fixture.problem, () => ({
+    revision: "fixture-runtime",
+    harness: "fixture-harness",
+  }));
+  const primary = languages[0];
   assert(
     validateProblem({
-      ...fixture.problem,
+      ...publicQuestionProblem(fixture.problem),
+      languages,
       starterSource: primary.starterSource,
       runtimeRevision: primary.runtimeRevision,
     }),
@@ -86,9 +95,7 @@ const authoredStages = JSON.parse(
 const stagedPad = {
   title: "Private stages",
   statementMarkdown: "Implement each stage.",
-  signature: authoredStages.problem.signature,
   odyssey: authoredStages.problem.odyssey,
-  odysseyHiddenCases: authoredStages.odysseyHiddenCases,
 };
 assert(validateInterviewCustom(stagedPad), JSON.stringify(validateInterviewCustom.errors));
 assert(!validateInterviewCustom({ ...stagedPad, starterSource: "ignored" }));
@@ -97,17 +104,19 @@ assert(!validateInterviewCustom({ ...stagedPad, privateCases: [] }));
 const classicPad = {
   title: "Classic",
   statementMarkdown: "Solve it.",
-  signature: stagedPad.signature,
+  signature: authoredStages.problem.odyssey.levels[0].methods[0],
   publicCases: [{ args: [1], expected: 1 }],
 };
 assert(validateInterviewCustom(classicPad), JSON.stringify(validateInterviewCustom.errors));
 const { publicCases: _, ...missingCases } = classicPad;
 assert(!validateInterviewCustom(missingCases));
-for (const missing of ["odyssey", "odysseyHiddenCases"]) {
-  const invalid = { ...stagedPad };
-  delete invalid[missing];
-  assert(!validateInterviewCustom(invalid), `Private stages require ${missing}`);
-}
+const missingStages = { ...stagedPad };
+delete missingStages.odyssey;
+assert(!validateInterviewCustom(missingStages));
+const missingStageTests = structuredClone(stagedPad);
+delete missingStageTests.odyssey.levels[0].hiddenCases;
+assert(!validateInterviewCustom(missingStageTests));
+assert(!validateInterviewCustom({ ...stagedPad, signature: classicPad.signature }));
 assert(
   !validateInterviewCustom({
     ...stagedPad,
@@ -117,7 +126,14 @@ assert(
 assert(
   !validateInterviewCustom({
     ...stagedPad,
-    odysseyHiddenCases: [Array(21).fill(stagedPad.odysseyHiddenCases[0][0])],
+    odyssey: {
+      levels: [
+        {
+          ...stagedPad.odyssey.levels[0],
+          hiddenCases: Array(21).fill(stagedPad.odyssey.levels[0].hiddenCases[0]),
+        },
+      ],
+    },
   }),
 );
 const interviewExecutionSchema =
@@ -178,7 +194,7 @@ assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));
 // Numeric bounds belong to the question-specific case codec, not the shared wire shape.
 assert(submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
-const validateMatchRequest = ajv.compile({ $ref: `${document.$id}#/$defs/CreateMatchRequest` });
+const validatePartySettings = ajv.compile({ $ref: `${document.$id}#/$defs/PartySettings` });
 const problemId = fixtures.submission.id;
 for (const request of [
   { difficulty: "easy", durationMinutes: 30 },
@@ -189,7 +205,7 @@ for (const request of [
     rules: { clipboard: "warning", focus: "announce" },
   },
 ])
-  assert(validateMatchRequest(request), JSON.stringify(validateMatchRequest.errors));
+  assert(validatePartySettings(request), JSON.stringify(validatePartySettings.errors));
 for (const request of [
   { durationMinutes: 30 },
   { difficulties: [], durationMinutes: 30 },
@@ -203,7 +219,7 @@ for (const request of [
   { difficulty: "easy", durationMinutes: 30, rules: { focus: "cooldown" } },
   { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "off", contents: "private" } },
 ])
-  assert(!validateMatchRequest(request), JSON.stringify(request));
+  assert(!validatePartySettings(request), JSON.stringify(request));
 const match = {
   id: problemId,
   version: "1",

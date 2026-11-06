@@ -10,6 +10,7 @@ import { cloudflareCoordinator } from "../../../scheduling/cloudflare.ts";
 import { matchLifecycleRoutes } from "../../../../modules/matches/lifecycle/routes.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { matchLifecycle } from "./repository.ts";
+import { normalizeSettings } from "../../../../modules/matches/lifecycle/model.ts";
 it("serves real lifecycle commands with a durable prearmed deadline", async () => {
   const bindings = env as unknown as {
     MATCH_LIFECYCLE_URL: string;
@@ -43,13 +44,11 @@ it("serves real lifecycle commands with a durable prearmed deadline", async () =
     "/",
     matchLifecycleRoutes({ lifecycle, identify: async () => who }),
   );
-  const response = await app.request("/v1/matches", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Idempotency-Key": "worker-create" },
-    body: JSON.stringify({ difficulty: "easy", durationMinutes: 30 }),
-  });
-  expect(response.status).toBe(201);
-  const created = (await response.json()) as { id: string };
+  const created = (await lifecycle.create(
+    who!,
+    "worker-create",
+    normalizeSettings({ difficulty: "easy", durationMinutes: 30 }),
+  )) as { id: string };
   const stub = bindings.DEADLINES.get(bindings.DEADLINES.idFromName("deadline-0"));
   expect(
     await runInDurableObject(stub as never, (_instance, state) => state.storage.getAlarm()),
@@ -103,17 +102,13 @@ it("serializes simultaneous ready requests in workerd", async () => {
         run((scope) => developmentIdentity(scope, request.headers.get("x-dev-user") ?? "")),
     }),
   );
-  const create = await app.request("/v1/matches", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": "create",
-      "x-dev-user": host,
-    },
-    body: JSON.stringify({ difficulty: "easy" }),
-  });
-  expect(create.status).toBe(201);
-  const { id } = (await create.json()) as { id: string };
+  const hostWho = (await run((scope) => developmentIdentity(scope, host)))!;
+  const rivalWho = (await run((scope) => developmentIdentity(scope, rival)))!;
+  const { id } = (await lifecycle.create(
+    hostWho,
+    "create",
+    normalizeSettings({ difficulty: "easy" }),
+  )) as { id: string };
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(
@@ -124,18 +119,11 @@ it("serializes simultaneous ready requests in workerd", async () => {
       );
     }),
   );
-  const ready = (user: string) =>
-    app.request(`/v1/matches/${id}/ready`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": "ready",
-        "x-dev-user": user,
-      },
-      body: '{"ready":true}',
-    });
-  const responses = await Promise.all([ready(host), ready(rival)]);
-  expect(responses.map((r) => r.status)).toEqual([200, 200]);
+  const responses = await Promise.all([
+    lifecycle.mutate(hostWho, id, "ready", "ready", true),
+    lifecycle.mutate(rivalWho, id, "ready", "ready", true),
+  ]);
+  expect(responses).toHaveLength(2);
   const count = await run((scope) =>
     scope.transaction(
       { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
@@ -190,13 +178,11 @@ it("projects live socket leases consistently in workerd HTTP and socket snapshot
     "/",
     matchLifecycleRoutes({ lifecycle, identify: async () => who }),
   );
-  const created = await app.request("/v1/matches", {
-    method: "POST",
-    headers: { "content-type": "application/json", "idempotency-key": "presence-create" },
-    body: '{"difficulty":"easy"}',
-  });
-  expect(created.status).toBe(201);
-  const { id } = (await created.json()) as { id: string };
+  const { id } = (await lifecycle.create(
+    who!,
+    "presence-create",
+    normalizeSettings({ difficulty: "easy" }),
+  )) as { id: string };
   const read = async () =>
     (await (await app.request(`/v1/matches/${id}`)).json()) as {
       version: string;
@@ -210,15 +196,10 @@ it("projects live socket leases consistently in workerd HTTP and socket snapshot
   expect((await read()).participants[0].presence).toBe("online");
   const snapshot = await matchSocketSnapshot(id, lifecycle).read(who, AbortSignal.timeout(5000));
   expect(JSON.parse(snapshot.body).payload.participants[0].presence).toBe("online");
-  const ready = await app.request(`/v1/matches/${id}/ready`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "idempotency-key": "presence-ready" },
-    body: '{"ready":true}',
-  });
-  expect(ready.status).toBe(200);
-  expect(
-    ((await ready.json()) as { participants: { presence: string }[] }).participants[0].presence,
-  ).toBe("online");
+  const ready = (await lifecycle.mutate(who!, id, "presence-ready", "ready", true)) as {
+    participants: { presence: string }[];
+  };
+  expect(ready.participants[0].presence).toBe("online");
   await leases.release(owner, id, first);
   expect((await read()).participants[0].presence).toBe("online");
   await run((scope) =>

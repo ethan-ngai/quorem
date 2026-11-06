@@ -88,3 +88,30 @@ export function validateSignature(sig: Signature, allowVoid = false): void {
     throw new Error("node reference return requires a matching node parameter");
   if (!(allowVoid && sig.returnType === "void")) validateInputConfig(sig.returnType);
 }
+
+type SignatureOwner = {
+  signature?: Signature;
+  sql?: unknown;
+  odyssey?: { levels: readonly { methods: readonly Signature[] }[] };
+};
+
+/** Resolve the authored coding interface; SQL and incomplete stages have none. */
+export function findPrimarySignature(problem: SignatureOwner): Signature | undefined {
+  return problem.sql
+    ? undefined
+    : problem.odyssey
+      ? problem.odyssey.levels[0]?.methods[0]
+      : problem.signature;
+}
+
+/** Validated coding consumers require a complete interface owner. */
+export function primarySignature(problem: SignatureOwner): Signature {
+  const signature = findPrimarySignature(problem);
+  if (!signature) throw new Error("Coding signature required");
+  return signature;
+}
+
+/** Initial classic coding interface; SQL and staged questions do not store one. */
+export function blankSignature(): Signature {
+  return { className: "Solution", methodName: "solve", parameters: [], returnType: "int" };
+}

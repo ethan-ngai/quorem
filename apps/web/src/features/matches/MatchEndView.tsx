@@ -1,9 +1,23 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
-import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, Flag, Trophy, Minus, X } from "lucide-react";
-import { useState } from "react";
+import { ParticipantName } from "../collaboration/ParticipantName";
+import { ScoreProgress } from "../../ui/ScoreProgress";
+import { participantColor } from "../collaboration/participantColor";
+import { MatchCompletionActions } from "./MatchCompletionActions";
+import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
+import { LeaveLobbyButton } from "./LeaveLobbyButton";
+import { MatchDurationRing } from "./MatchDurationRing";
+import { elapsedRoundSeconds } from "./matchTime";
+import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
+import { CompletionDialog } from "../completion/CompletionDialog";
+import { PersistentNotice } from "../../ui/PersistentNotice";
+import { useQueryClient } from "@tanstack/react-query";
+import { readPendingCommand } from "./commandRecovery";
+import { PartyReadyStatus, MatchLobbyReadiness, PartyReadinessIndicator } from "./PartyReadyStatus";
+import { useActiveMatch } from "./useActiveMatch";
+import { partyCommand, useParty } from "./party";
+import { useEffect, useState } from "react";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
-import { outcomeLabel, ownParticipant } from "./matchState";
+import { outcomeLabel, ownParticipant, matchCompletionOutcome } from "./matchState";
 
 /** Human explanations avoid exposing persistence reason codes. */
 export function matchEndDescription(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
@@ -28,109 +42,218 @@ export function matchEndDescription(snapshot: MatchSnapshot, identity: Developme
   if (snapshot.state === "cancelled") return "This lobby closed before the match finished.";
   return "Judging is complete. These are the final results.";
 }
+
 export function MatchEndView({
   snapshot,
   identity,
-  guest,
+  open,
+  onOpenChange,
+  onReview,
+  problemTitle,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
-  guest: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReview: () => void;
+  problemTitle?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [celebrate, setCelebrate] = useState(open);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const client = useQueryClient();
+  const partyQuery = useParty(identity);
+  const candidateParty = partyQuery.data?.party;
+  const party = candidateParty?.id === snapshot.partyId ? candidateParty : null;
+  const activeMatch = useActiveMatch(
+    identity,
+    !!party?.currentMatchId && party.currentMatchId !== snapshot.id,
+  );
+  useEffect(() => {
+    if (
+      party?.currentMatchId &&
+      party.currentMatchId !== snapshot.id &&
+      activeMatch.match?.id === party.currentMatchId
+    )
+      window.location.assign(`/match/${party.currentMatchId}`);
+  }, [party?.currentMatchId, snapshot.id, activeMatch.match?.id]);
+  const member = party?.members.find((person) => person.userId === participantUserId(identity));
+  const recovery =
+    party &&
+    readPendingCommand<{ ready: boolean }>(identity, `party:/v1/parties/${party.id}/ready`);
+  const leaveRecovery =
+    party && readPendingCommand(identity, `party:/v1/parties/${party.id}/leave`);
+  const leaveLobby = async () => {
+    if (!party || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await partyCommand(identity, `/v1/parties/${party.id}/leave`, "POST");
+      await client.invalidateQueries({ queryKey: ["current-party", identity] });
+    } catch {
+      setError("Could not leave the lobby. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+  const toggleReady = async () => {
+    if (!party || !member || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await partyCommand(identity, `/v1/parties/${party.id}/ready`, "POST", {
+        ready: recovery?.payload.ready ?? !member.ready,
+      });
+      await client.invalidateQueries({ queryKey: ["current-party", identity] });
+    } catch {
+      setError("Could not update readiness. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+  const settled =
+    (snapshot.state === "completed" || snapshot.state === "cancelled") &&
+    !!snapshot.outcome &&
+    !!snapshot.startedAt;
+  const reviewPending = !!snapshot.startedAt && (!settled || !!snapshot.reviewPending);
+  const actions = (
+    <MatchCompletionActions
+      review={
+        settled || reviewPending
+          ? {
+              disabled: reviewPending,
+              onClick: () => {
+                setCelebrate(false);
+                onReview();
+              },
+            }
+          : undefined
+      }
+      lobby={
+        partyQuery.isError
+          ? undefined
+          : candidateParty
+            ? "return"
+            : !partyQuery.isFetching && partyQuery.data?.party === null
+              ? "create"
+              : undefined
+      }
+      readiness={
+        party && !partyQuery.isError && member
+          ? {
+              ready: member.ready,
+              disabled: pending || !!leaveRecovery || !member.online || !!party.currentMatchId,
+              retry: !!recovery,
+              onClick: () => void toggleReady(),
+            }
+          : undefined
+      }
+    />
+  );
   const own = ownParticipant(snapshot, identity);
   const forfeited = !!own?.forfeited;
-  const won = snapshot.outcome?.winnerUserId === participantUserId(identity);
+  const outcome = matchCompletionOutcome(snapshot, identity);
   const title = forfeited ? "You forfeited" : outcomeLabel(snapshot, identity);
   const description = matchEndDescription(snapshot, identity);
-  const ResultIcon = forfeited ? Flag : won ? Trophy : Minus;
   const players = [...snapshot.participants].sort(
     (a, b) =>
       Number(a.forfeited) - Number(b.forfeited) ||
       (b.bestScore?.passed ?? 0) - (a.bestScore?.passed ?? 0),
   );
+  const partyStatus = (
+    <div className="match-party-status">
+      {(partyQuery.isPending || (partyQuery.isFetching && !candidateParty)) && (
+        <span role="status">Checking lobby…</span>
+      )}
+      <PersistentNotice
+        message={partyQuery.isError ? "Could not check your lobby. Try again." : undefined}
+        label="Lobby unavailable"
+        actions={[{ label: "Try again", onClick: () => void partyQuery.refetch() }]}
+      />
+    </div>
+  );
+  const standings = (
+    <ol className="match-result-players" aria-label="Match results">
+      {players.map((player) => (
+        <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
+          <span>
+            <strong>
+              <ParticipantName
+                participant={player}
+                self={player.userId === participantUserId(identity)}
+              />
+            </strong>
+            {player.userId === snapshot.outcome?.winnerUserId && <MatchWinnerMetadata />}
+          </span>
+          <span className="match-result-score">
+            {party && (
+              <PartyReadinessIndicator
+                member={party.members.find((member) => member.userId === player.userId)}
+              />
+            )}
+            <ScoreProgress
+              score={player.forfeited ? undefined : player.bestScore}
+              color={participantColor(player.userId, player.color)}
+              unavailableLabel={player.forfeited ? "Forfeited" : undefined}
+            />
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
   return (
     <>
-      <section className="match-page-content match-results-page">
-        <header className="match-results-heading">
-          <span className={`match-result-icon ${won ? "is-winner" : ""}`}>
-            <ResultIcon size={24} />
-          </span>
-          <h1>{title}</h1>
-          <p>{description}</p>
-        </header>
-        <ol className="match-result-players" aria-label="Match results">
-          {players.map((player) => (
-            <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
-              <span>
-                <strong>{player.displayName}</strong>
-                {player.userId === participantUserId(identity) && <small>You</small>}
-              </span>
-              <span>
-                {player.forfeited ? (
-                  "Forfeited"
-                ) : player.bestScore ? (
-                  <>
-                    <strong>{player.bestScore.passed}</strong>
-                    <span className="result-score-total"> / {player.bestScore.total}</span>
-                  </>
-                ) : (
-                  "—"
-                )}
-              </span>
-            </li>
-          ))}
-        </ol>
-        {guest && (
-          <p className="match-guest-finished">
-            Your guest session has ended. Sign in or continue browsing.
-          </p>
-        )}
-        <footer className="match-results-actions">
-          <button className="quiet-button" onClick={() => setOpen(true)}>
-            Match summary
-          </button>
-          <a className="button button-primary" href="/practice">
-            Back to practice
-            <ArrowRight size={16} />
-          </a>
-        </footer>
-      </section>
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="settings-backdrop" />
-          <Dialog.Content className="competitive-dialog match-end-dialog">
-            <Dialog.Close asChild>
-              <button className="icon-button match-dialog-close" aria-label="Close match summary">
-                <X size={18} />
-              </button>
-            </Dialog.Close>
-            <span className={`match-result-icon ${won ? "is-winner" : ""}`}>
-              <ResultIcon size={24} />
-            </span>
-            <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Description>{description}</Dialog.Description>
-            {own?.bestScore && (
-              <div className="match-end-score">
-                <strong>
-                  {own.bestScore.passed}
-                  <span> / {own.bestScore.total}</span>
-                </strong>
-                <span>cases passed</span>
-              </div>
+      {party && !partyQuery.isError && (
+        <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
+      )}
+      <CompletionDialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) setCelebrate(false);
+          onOpenChange(next);
+        }}
+        celebrate={celebrate}
+        title={title}
+        description={problemTitle ?? description}
+        context={<MatchSummaryMetadata mode={snapshot.mode} difficulty={snapshot.difficulty} />}
+        competitive
+        outcome={outcome}
+        pending={pending}
+        headerActions={
+          <>
+            <MatchDurationRing
+              durationMinutes={snapshot.durationMinutes}
+              elapsedSeconds={elapsedRoundSeconds(
+                snapshot.startedAt,
+                snapshot.outcome?.completedAt,
+              )}
+            />
+            {party && !partyQuery.isError && member && (
+              <LeaveLobbyButton disabled={pending} onClick={() => void leaveLobby()} />
             )}
-            <div className="competitive-dialog-actions">
-              <Dialog.Close asChild>
-                <button className="button button-secondary">Review results</button>
-              </Dialog.Close>
-              <a className="button button-primary" href="/practice">
-                Back to practice
-                <ArrowRight size={16} />
-              </a>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+          </>
+        }
+
+        actions={actions}
+      >
+        {standings}
+        {reviewPending && (
+          <p role="status">Code review will be available when the round and judging finish.</p>
+        )}
+        {party && !partyQuery.isError && (
+          <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
+        )}
+        {party && (
+          <MatchLobbyReadiness
+            ownUserId={participantUserId(identity)}
+            members={party.members}
+            participantIds={snapshot.participants.map((player) => player.userId)}
+            hostUserId={party.hostUserId}
+          />
+        )}
+        {partyStatus}
+        {error && <p role="alert">{error}</p>}
+      </CompletionDialog>
     </>
   );
 }

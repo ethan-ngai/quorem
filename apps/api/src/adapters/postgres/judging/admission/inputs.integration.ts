@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 /** @file inputs.integration.ts @description Isolated normalized admission conformance. @module judging */
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
@@ -78,10 +79,6 @@ before(async () => {
   await pool.query(
     "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Missing','easy','',$3::jsonb,'[]','{}','')",
     [missingVersion, missingProblem, signature],
-  );
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2'),($2,'python','','python-3.12-v1','quorem-harness-v2')",
-    [version, missingVersion],
   );
   await pool.query(
     "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$3,'python'),($2,'input-worker',$3,'python'),($4,'input-owner',$5,'python')",
@@ -351,11 +348,7 @@ void test("Odyssey admission binds cumulative unlocked stages and rejects stale 
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
   await pool.query(
     "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Odyssey','easy','',$3::jsonb,'[]','{}','',$4::jsonb)",
-    [v, p, JSON.stringify(signature), JSON.stringify({ levels })],
-  );
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-    [v],
+    [v, p, null, JSON.stringify({ levels })],
   );
   await pool.query(
     "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$2,'python')",
@@ -445,12 +438,8 @@ void test("SQL custom input uses the canonical schema before storing its manifes
     };
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','','{}','[]','{}','',$3::jsonb)",
+    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',NULL,'[]','{}','',$3::jsonb)",
     [v, p, JSON.stringify(config)],
-  );
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'postgresql','','postgresql-17.6-v1','quorem-postgresql-v1')",
-    [v],
   );
   await pool.query(
     "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$2,'postgresql')",
@@ -521,8 +510,8 @@ void test("custom validator metadata excludes large prose and descriptions", asy
     await import("../../../../modules/judging/admission/select-cases.ts");
   assert.doesNotThrow(() => validateExecutionCases(metadata, 0, ['{"args":[1]}']));
   assert.throws(() => validateExecutionCases(metadata, 0, ['{"args":[3]}']));
-  assert.equal(metadata.signature.methodName, "f");
-  assert.equal("description" in metadata.signature, false);
+  assert.equal(primarySignature(metadata).methodName, "f");
+  assert.equal("description" in primarySignature(metadata), false);
   const bad = crypto.randomUUID(),
     badProblem = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [badProblem, badProblem]);

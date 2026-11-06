@@ -111,13 +111,11 @@ export function parseStages(
     constraints = [],
   }: { allowIncomplete?: boolean; constraints?: Constraint[] } = {},
 ): {
-  odyssey: { levels: OdysseyLevel[] };
-  odysseyHiddenCases: CustomCase[][];
+  odyssey: { levels: (OdysseyLevel & { hiddenCases: CustomCase[] })[] };
 } {
   const primary = stages[0]?.methods[0]?.signature;
   const available = new Map<string, Signature>();
   const names = new Set<string>();
-  const hidden: CustomCase[][] = [];
   const levels = stages.map((stage, index) => {
     if (!allowIncomplete && (!stage.title.trim() || !stage.statement.trim()))
       throw new Error(`Step ${index + 1}: add a title and instructions.`);
@@ -188,14 +186,14 @@ export function parseStages(
         };
       });
     };
-    hidden.push(parse(stage.tests, "private tests"));
     return {
       title: stage.title,
       statementMarkdown: stage.statement,
       methods: stage.methods.map((method) => method.signature),
       examples: parse(stage.examples, "examples"),
+      hiddenCases: parse(stage.tests, "private tests"),
     };
   });
   if (!levels.length || levels.length > 8) throw new Error("Add 1–8 steps.");
-  return { odyssey: { levels }, odysseyHiddenCases: hidden };
+  return { odyssey: { levels } };
 }

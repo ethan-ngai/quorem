@@ -1,3 +1,4 @@
+import { publicQuestionFixture } from "../../test/questionFixture";
 import { describe, expect, it } from "vitest";
 import type { ProblemVersion } from "@quorem/contracts";
 import fixture from "../../../../../fixtures/problems/run-widths.json";
@@ -9,9 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("guest editing", () => {
   it("creates isolated browser documents in every supported language without a server workspace", () => {
     const problem = {
-      ...fixture.problem,
-      starterSource: fixture.implementations[0]!.starterSource,
-      runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+      ...publicQuestionFixture(fixture),
     } as ProblemVersion;
     const scopes = new Set<string>();
     for (const language of ["python", "java", "typescript", "ocaml"] as const) {
@@ -33,9 +32,7 @@ describe("guest editing", () => {
       getItem: (key: string) => store.get(key) ?? null,
     });
     const problem = {
-      ...fixture.problem,
-      starterSource: fixture.implementations[0]!.starterSource,
-      runtimeRevision: fixture.implementations[0]!.runtimeRevision,
+      ...publicQuestionFixture(fixture),
     } as ProblemVersion;
     const scope = browserDraftScope(guestWorkspace(problem, "java"));
     writeBrowserDraft("anonymous" as DevelopmentIdentity, scope, problem.id, "guest code");

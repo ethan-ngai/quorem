@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
 import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
@@ -83,7 +84,9 @@ export function WorkspaceTests({
             error={error}
             showCases={detachedCustomRun}
             sql={problem.sql}
-            returnType={problem.odyssey ? undefined : problem.signature.returnType}
+            returnType={
+              problem.sql || problem.odyssey ? undefined : primarySignature(problem).returnType
+            }
             showVerdict={!odyssey || selected}
             detailsVisible={detailsVisible}
             customMode={selected}

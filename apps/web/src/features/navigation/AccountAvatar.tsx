@@ -1,5 +1,6 @@
 /** @file AccountAvatar.tsx @description Account photos with native text initials as fallback. @module navigation */
 import { useState, type CSSProperties } from "react";
+import "./account-avatar.css";
 export function avatarIdentity(name?: string, username?: string | null) {
   const label = name?.trim() || username?.trim() || "Guest";
   const initials = (Array.from(label)[0] ?? "G").toLocaleUpperCase();

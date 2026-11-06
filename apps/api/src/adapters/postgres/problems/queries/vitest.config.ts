@@ -5,6 +5,7 @@ export default defineConfig({
     include: [
       "src/modules/problems/routes.test.ts",
       "src/adapters/postgres/problems/queries/repository.test.ts",
+      "src/adapters/postgres/problems/queries/public-projection.test.ts",
     ],
   },
 });

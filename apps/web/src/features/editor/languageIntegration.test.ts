@@ -1,5 +1,6 @@
 /** @file languageIntegration.test.ts @description Browser LSP client against the real isolated Python engine. @module editor */
 /// <reference types="node" />
+import { publicQuestionFixture } from "../../test/questionFixture";
 import { createRequire } from "node:module";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { history, undo } from "@codemirror/commands";
@@ -220,7 +221,10 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
       client.connect(transport);
       await client.initializing;
       const source = (prefix: string) =>
-        runWidths.implementations[0]!.starterSource.replace("        pass", `        ${prefix}`);
+        publicQuestionFixture(runWidths).starterSource.replace(
+          "        raise NotImplementedError",
+          `        ${prefix}`,
+        );
       client.didOpen({
         uri,
         languageId: "python",

@@ -69,10 +69,6 @@ describe.skipIf(!url)("runner claim fences", () => {
       [version, problem, JSON.stringify(limits)],
     );
     await pool.query(
-      "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-      [version],
-    );
-    await pool.query(
       "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
@@ -90,7 +86,6 @@ describe.skipIf(!url)("runner claim fences", () => {
     await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [submission]);
     await pool.query("DELETE FROM submissions WHERE id=$1", [submission]);
     await pool.query("DELETE FROM workspaces WHERE id=$1", [workspace]);
-    await pool.query("DELETE FROM problem_languages WHERE version_id=$1", [version]);
     await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [user]);

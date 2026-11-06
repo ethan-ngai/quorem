@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 import {
   activeMatchReturnLabel,
-  lobbyWaitingLabel,
+  matchCompletionOutcome,
   outcomeLabel,
   ownParticipant,
   remainingTime,
@@ -15,11 +15,7 @@ describe("active match return link", () => {
     (state) => {
       const match = { ...snapshot, state };
       const expected =
-        state === "waiting" || state === "ready"
-          ? "Return to active lobby"
-          : state === "active" || state === "finalizing"
-            ? "Return to active match"
-            : null;
+        state === "active" || state === "finalizing" ? "Return to active match" : null;
       expect(activeMatchReturnLabel(match, "alice")).toBe(expected);
       expect(activeMatchReturnLabel({ ...match, participants: [] }, "alice")).toBeNull();
       expect(
@@ -30,57 +26,6 @@ describe("active match return link", () => {
       ).toBeNull();
     },
   );
-});
-
-describe("lobby readiness", () => {
-  it("waits for every FFA participant and then an explicit host start", () => {
-    const ffa = {
-      ...snapshot,
-      mode: "free-for-all" as const,
-      participants: [
-        ...snapshot.participants,
-        {
-          userId: developmentUserIds.charlie,
-          displayName: "Charlie",
-          ready: false,
-          presence: "online" as const,
-        },
-      ],
-    };
-    expect(lobbyWaitingLabel(ffa, "alice")).toBe("Waiting for players to ready");
-    expect(
-      lobbyWaitingLabel(
-        { ...ffa, participants: ffa.participants.map((player) => ({ ...player, ready: true })) },
-        "alice",
-      ),
-    ).toBe("Waiting for host to start");
-  });
-  it("keeps join status even when the only player is ready", () => {
-    for (const ready of [false, true]) {
-      const solo = { ...snapshot, participants: [{ ...snapshot.participants[1]!, ready }] };
-      expect(lobbyWaitingLabel(solo, "alice")).toBe("Waiting for opponent to join");
-    }
-  });
-  it("names the participant still needing to ready", () => {
-    for (const ownReady of [false, true]) {
-      for (const opponentReady of [false, true]) {
-        const pair = {
-          ...snapshot,
-          participants: [
-            { ...snapshot.participants[0]!, ready: opponentReady },
-            { ...snapshot.participants[1]!, ready: ownReady },
-          ],
-        };
-        expect(lobbyWaitingLabel(pair, "alice")).toBe(
-          !opponentReady
-            ? "Waiting for opponent to ready"
-            : !ownReady
-              ? "Waiting for you to ready"
-              : "Starting Showdown…",
-        );
-      }
-    }
-  });
 });
 
 const snapshot: MatchSnapshot = {
@@ -136,7 +81,7 @@ describe("match presentation boundaries", () => {
       },
     };
     expect(outcomeLabel(terminal, "alice")).toBe("Opponent won");
-    expect(outcomeLabel(terminal, "bob")).toBe("You won");
+    expect(outcomeLabel(terminal, "bob")).toBe("Victory");
     expect(
       outcomeLabel({ ...terminal, outcome: { ...terminal.outcome, kind: "draw" } }, "alice"),
     ).toBe("Draw");
@@ -144,5 +89,44 @@ describe("match presentation boundaries", () => {
       outcomeLabel({ ...terminal, outcome: { ...terminal.outcome, kind: "no_contest" } }, "alice"),
     ).toBe("No contest");
     expect(outcomeLabel({ ...snapshot, state: "finalizing" }, "alice")).toBe("Finalizing results");
+  });
+});
+
+describe("viewer-relative completion outcomes", () => {
+  const settled: MatchSnapshot = {
+    ...snapshot,
+    state: "completed",
+    outcome: {
+      kind: "win",
+      winnerUserId: developmentUserIds.alice,
+      reason: "first_correct",
+      completedAt: snapshot.serverNow,
+    },
+  };
+  it("maps winners, losing participants and observers into the shared contract", () => {
+    expect(matchCompletionOutcome(settled, "alice")).toBe("success");
+    expect(matchCompletionOutcome(settled, "bob")).toBe("loss");
+    expect(matchCompletionOutcome(settled, "charlie")).toBe("observer");
+  });
+  it.each(["draw", "no_contest", "cancelled"] as const)(
+    "keeps %s neutral even with a stale winner field",
+    (kind) => {
+      expect(
+        matchCompletionOutcome({ ...settled, outcome: { ...settled.outcome!, kind } }, "alice"),
+      ).toBe("neutral");
+    },
+  );
+  it("treats forfeiture as a loss and unsettled results as pending", () => {
+    expect(
+      matchCompletionOutcome(
+        {
+          ...settled,
+          participants: settled.participants.map((player) => ({ ...player, forfeited: true })),
+        },
+        "alice",
+      ),
+    ).toBe("loss");
+    expect(matchCompletionOutcome({ ...settled, state: "finalizing" }, "alice")).toBe("pending");
+    expect(matchCompletionOutcome({ ...settled, state: "cancelled" }, "alice")).toBe("neutral");
   });
 });
