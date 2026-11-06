@@ -12,6 +12,8 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { admitWithRecovery } from "../../../../modules/judging/admission/admit.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { sql } from "drizzle-orm";
+import { checkAdmissionCapacity } from "./core.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 const url = process.env.QUOREM_ADMISSION_TEST_DATABASE_URL;
@@ -134,6 +136,39 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     ]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.end();
+  });
+  it("serializes only the final capacity check and atomically rejects excess admissions", async () => {
+    const schema = `capacity_${crypto.randomUUID().replaceAll("-", "")}`;
+    await pool.query(`CREATE SCHEMA ${schema}`);
+    try {
+      await pool.query(
+        `CREATE TABLE ${schema}.execution_jobs(id integer PRIMARY KEY,finished boolean NOT NULL)`,
+      );
+      await pool.query(
+        `INSERT INTO ${schema}.execution_jobs SELECT n,false FROM generate_series(1,199) n`,
+      );
+      const results = await Promise.allSettled(
+        Array.from({ length: 8 }, (_, ordinal) =>
+          run((scope) =>
+            scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, async (tx) => {
+              await tx.execute(sql`SET LOCAL search_path TO ${sql.identifier(schema)}`);
+              // Each contender has already staged its private job before entering the short mutex.
+              await tx.execute(sql`INSERT INTO execution_jobs VALUES(${200 + ordinal},false)`);
+              await checkAdmissionCapacity(tx);
+            }),
+          ),
+        ),
+      );
+      expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+      for (const result of results)
+        if (result.status === "rejected")
+          expect(result.reason).toMatchObject({ code: "queue_saturated" });
+      expect(
+        (await pool.query(`SELECT count(*)::int AS n FROM ${schema}.execution_jobs`)).rows[0].n,
+      ).toBe(200);
+    } finally {
+      await pool.query(`DROP SCHEMA ${schema} CASCADE`);
+    }
   });
   const command = (source: string) =>
     parseWorkspaceCommand(

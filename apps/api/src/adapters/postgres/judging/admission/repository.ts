@@ -11,6 +11,7 @@ import { lookupGuestInTransaction } from "../../identity/guest.ts";
 import { visibleProblem } from "../../problems/queries/public-projection.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import {
+  checkAdmissionCapacity,
   insertAdmittedExecution,
   prepareExecutionInputs,
   customValidationMetadata,
@@ -202,6 +203,7 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
           sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,
         );
         if (row.matchId && command.kind === "submit") await reconcileMatch(tx, row.matchId);
+        await checkAdmissionCapacity(tx);
         return {
           id,
           state: "queued",

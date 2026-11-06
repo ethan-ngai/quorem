@@ -75,14 +75,6 @@ export async function insertAdmittedExecution(
         429,
       );
   }
-  await tx.execute(sql`SELECT pg_advisory_xact_lock(740020)`);
-  if (
-    Number(
-      (await tx.execute(sql`SELECT count(*)::int AS count FROM execution_jobs WHERE NOT finished`))
-        .rows[0].count,
-    ) >= 200
-  )
-    throw new ApplicationError("queue_saturated", "Judge queue is full", 429);
   const id = crypto.randomUUID(),
     workspace = s.context.kind === "workspace" ? s.context : null,
     interview = s.context.kind === "interview" ? s.context : null;
@@ -110,6 +102,18 @@ export async function insertAdmittedExecution(
       sql`INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES(${id}::uuid,${workspace.matchId}::uuid,${s.sponsorId})`,
     );
   return { id, admittedAt: inserted.admittedAt };
+}
+
+/** Check capacity last, so input binding never holds the global admission mutex. */
+export async function checkAdmissionCapacity(tx: Transaction): Promise<void> {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(740020)`);
+  if (
+    Number(
+      (await tx.execute(sql`SELECT count(*)::int AS count FROM execution_jobs WHERE NOT finished`))
+        .rows[0].count,
+    ) > 200
+  )
+    throw new ApplicationError("queue_saturated", "Judge queue is full", 429);
 }
 
 /** Select only sealed, ordered case references; custom values were validated by the caller. */
