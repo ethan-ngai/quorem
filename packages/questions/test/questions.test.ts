@@ -159,3 +159,30 @@ describe("drafts", () => {
     ).toThrow("text limit");
   });
 });
+
+it("composes staged methods without parsing generated classes", () => {
+  const signature = {
+    className: "Solution",
+    methodName: "clear",
+    parameters: [],
+    returnType: "void",
+  } satisfies import("../src/model.ts").Signature;
+  expect(generateStarter([signature], "ocaml", true)).toContain("let clear () : unit");
+  expect(generateStarter([signature], "python", true)).toContain("    def clear(self):");
+  expect(generateStarter([signature], "typescript", true)).toContain("    clear(): void {");
+  expect(generateStarter([signature], "java", true)).toContain("    public void clear() {");
+});
+
+it("preserves source type syntax for nested optional collections", async () => {
+  const { sourceQuestionType, displayQuestionType } =
+    await import("@quorem/contracts/question-type");
+  expect(sourceQuestionType("list<int>", "typescript")).toBe("(number)[]");
+  expect(displayQuestionType("list<int>", "typescript")).toBe("number[]");
+  expect(sourceQuestionType("optional<TreeNode<str>>", "typescript")).toBe(
+    "TreeNode<string> | null | null",
+  );
+  expect(displayQuestionType("optional<TreeNode<str>>", "typescript")).toBe(
+    "TreeNode<string> | null",
+  );
+  expect(() => sourceQuestionType("unknown", "ocaml")).toThrow();
+});

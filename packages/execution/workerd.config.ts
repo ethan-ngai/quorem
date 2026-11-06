@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     include: [
       "test/contracts.test.ts",
+      "src/input-contract.test.ts",
       "test/verification-receipt.test.ts",
       "test/manifest-binding.test.ts",
       "test/manifest-checkpoint.test.ts",
