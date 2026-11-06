@@ -244,6 +244,9 @@
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);
 }
+.admin-dashboard .admin-bulk-selection {
+  justify-content: flex-start;
+}
 .admin-bulk-disclosure {
   display: grid;
   align-self: start;

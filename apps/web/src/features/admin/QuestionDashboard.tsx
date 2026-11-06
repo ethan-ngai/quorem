@@ -326,16 +326,18 @@ export function QuestionDashboard({
       >
         <div>
           <div className="admin-toolbar admin-bulk-bar">
-            {chosen.length > 0 && <span>{chosen.length} selected</span>}
-            <PersistentNotice
-              label="Bulk action needs attention"
-              message={[
-                ...(operationError ? [operationError] : []),
-                ...errors.map((error) => `${error.title}: ${error.message}`),
-              ]}
-              open={errorsOpen}
-              onOpenChange={setErrorsOpen}
-            />
+            <div className="admin-toolbar admin-bulk-selection">
+              {chosen.length > 0 && <span>{chosen.length} selected</span>}
+              <PersistentNotice
+                label="Bulk action needs attention"
+                message={[
+                  ...(operationError ? [operationError] : []),
+                  ...errors.map((error) => `${error.title}: ${error.message}`),
+                ]}
+                open={errorsOpen}
+                onOpenChange={setErrorsOpen}
+              />
+            </div>
             {chosen.length > 0 && (
               <div className="admin-toolbar">
                 {tab === "drafts" && (

@@ -125,5 +125,10 @@ export async function mutateQuestionBatch(
         : await api().POST("/v1/admin/question-publications/delete-batch", {
             body: { items: batch.items },
           });
+  if (result.response.status === 404)
+    throw new ApiError(
+      "Bulk actions are unavailable on this server. Try again after it updates.",
+      "batch_unavailable",
+    );
   return requireData(result.data, result.error);
 }
