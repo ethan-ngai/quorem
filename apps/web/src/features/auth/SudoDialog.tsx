@@ -2,6 +2,7 @@
 import { sudoLifetimeSeconds } from "@quorem/contracts/auth-policy";
 import { useState, useSyncExternalStore } from "react";
 import { KeyRound, Fingerprint, Mail } from "lucide-react";
+import { authInputConstraints } from "./inputConstraints";
 import { TextInput } from "../../ui/TextControl";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -101,6 +102,7 @@ function SudoPrompt({ status }: { status: SudoStatus }) {
           <label className="sudo-field">
             Password
             <TextInput
+              constraint={authInputConstraints.password}
               type="password"
               autoComplete="current-password"
               value={value}
@@ -114,6 +116,7 @@ function SudoPrompt({ status }: { status: SudoStatus }) {
           <label className="sudo-field">
             Code sent to your verified email
             <TextInput
+              constraint={authInputConstraints.code}
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]{6}"

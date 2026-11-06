@@ -1,9 +1,11 @@
+import { TextInput } from "../../ui/TextControl";
+import { authInputConstraints } from "./inputConstraints";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { toast } from "sonner";
 import { authErrorMessage } from "./errors";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
-import { emailInputSchema, emailSchema, passwordSchema } from "@quorem/contracts/auth";
+import { emailSchema, passwordSchema } from "@quorem/contracts/auth";
 import { Brand } from "../../ui/Icon";
 import { LoginShowcase } from "./LoginShowcase";
 import { useTheme } from "../editor/useTheme";
@@ -84,7 +86,9 @@ export function PasswordReset() {
                 <form onSubmit={(event) => void submit(event)}>
                   <label htmlFor="reset-password">New password</label>
                   <div className="auth-password">
-                    <input
+                    <TextInput
+                      unstyled
+                      constraint={authInputConstraints.password}
                       id="reset-password"
                       type={visible ? "text" : "password"}
                       autoComplete="new-password"
@@ -105,7 +109,10 @@ export function PasswordReset() {
                     </button>
                   </div>
                   <label htmlFor="reset-confirm">Confirm password</label>
-                  <input
+                  <TextInput
+                    unstyled
+                    maxLength={128}
+                    constraint={authInputConstraints.password}
                     id="reset-confirm"
                     type={visible ? "text" : "password"}
                     autoComplete="new-password"
@@ -164,17 +171,16 @@ function ResetEmailRequest() {
           }}
         >
           <label htmlFor="reset-email">Email</label>
-          <input
+          <TextInput
+            unstyled
+            constraint={authInputConstraints.email}
             id="reset-email"
             type="email"
             autoComplete="email"
             required
             maxLength={254}
             value={email}
-            onChange={(event) => {
-              if (emailInputSchema.safeParse(event.target.value).success)
-                setEmail(event.target.value);
-            }}
+            onChange={(event) => setEmail(event.target.value)}
             disabled={busy}
           />
           <button
