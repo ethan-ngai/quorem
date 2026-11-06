@@ -78,6 +78,7 @@ export interface Env extends AuthWorkerEnv {
   EXECUTION_RECOVERY: CoordinatorNamespace;
   EXECUTION_QUEUE: QueueBinding;
   RUNNER_WAKE?: { fetch(request: Request): Promise<Response> };
+  CASE_EXECUTION?: { fetch(request: Request): Promise<Response> };
 }
 const origins = (env: Env) =>
   required(env.ALLOWED_ORIGINS)
@@ -400,7 +401,12 @@ export default {
                   peer,
                   (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
                   judgingCapacity(env as unknown as Record<string, string | undefined>),
-                  profile,
+                  {
+                    profile,
+                    fetch: env.CASE_EXECUTION
+                      ? (input, init) => env.CASE_EXECUTION!.fetch(new Request(input, init))
+                      : undefined,
+                  },
                 ),
               profile,
             );

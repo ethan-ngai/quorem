@@ -118,15 +118,19 @@ async function release(env) {
       })),
       ...(config.r2_buckets ?? []).map(({ binding: name }) => ({ name, type: "r2_bucket" })),
     ];
-    const wake = before.find(({ name }) => name === "RUNNER_WAKE");
-    if (wake && (wake.type !== "service" || wake.service !== config.services[0].service))
-      throw new Error("Unexpected runner wake binding");
+    const judgingServices = config.services;
+    const judgingNames = new Set(judgingServices.map(({ binding }) => binding));
+    for (const { binding, service } of judgingServices) {
+      const existing = before.find(({ name }) => name === binding);
+      if (existing && (existing.type !== "service" || existing.service !== service))
+        throw new Error("Unexpected judging service binding");
+    }
     if (
       bindingSet(expected) !==
       bindingSet(
         before.filter(
           ({ name, type }) =>
-            name !== "RUNNER_WAKE" && type !== "secret_text" && type !== "secret_key",
+            !judgingNames.has(name) && type !== "secret_text" && type !== "secret_key",
         ),
       )
     )
@@ -201,12 +205,14 @@ async function release(env) {
     );
     const after = await bindings(env);
     const expectedBindings = [
-      ...before.filter(({ name }) => name !== "RUNNER_WAKE"),
-      { name: "RUNNER_WAKE", type: "service" },
+      ...before.filter(({ name }) => !judgingNames.has(name)),
+      ...judgingServices.map(({ binding: name }) => ({ name, type: "service" })),
     ];
     if (
       bindingSet(after) !== bindingSet(expectedBindings) ||
-      after.find(({ name }) => name === "RUNNER_WAKE")?.service !== config.services[0].service
+      judgingServices.some(
+        ({ binding, service }) => after.find(({ name }) => name === binding)?.service !== service,
+      )
     )
       throw new Error("Deployed Worker bindings differ from the previous version");
     await verify();

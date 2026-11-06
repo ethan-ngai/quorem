@@ -94,13 +94,20 @@ export async function benchmarkJudgingWorkload(
             await stream.body?.cancel();
             throw new Error("Benchmark SSE unavailable");
           }
-          let sample;
+          const eventsOpened = performance.now();
+          let sample,
+            snapshotCount = 0,
+            snapshotMs = 0;
           try {
             await readSubmissionEvents(stream.body, async () => {
               stage = "snapshot";
+              const snapshotStart = performance.now();
               const result = await (
                 await call(`/v1/submissions/${encodeURIComponent(id)}`, {}, 200)
               ).json();
+              const terminalSnapshotMs = Math.round(performance.now() - snapshotStart);
+              snapshotCount++;
+              snapshotMs += terminalSnapshotMs;
               if (["failed", "cancelled"].includes(result.state)) {
                 stage = "execution";
                 throw new Error("Benchmark execution failed");
@@ -113,6 +120,13 @@ export async function benchmarkJudgingWorkload(
                 round,
                 caseCount: cases.length,
                 admissionMs: Math.round(admitted - start),
+                eventsMs: Math.round(eventsOpened - admitted),
+                snapshotCount,
+                snapshotMs,
+                terminalSnapshotMs,
+                resultAgeMs: Number.isFinite(Date.parse(result.updatedAt))
+                  ? Math.max(0, Date.now() - Date.parse(result.updatedAt))
+                  : undefined,
                 totalMs: Math.round(performance.now() - start),
               };
               throw new Completed();
