@@ -1442,8 +1442,17 @@ void test("classic interview fallback shares verified examples without hiding th
     problem: {
       id: version,
       title: "Feedback",
-      signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
-      odyssey: { levels: [{ title: "One", statementMarkdown: "One", methods: [] }] },
+      odyssey: {
+        levels: [
+          {
+            title: "One",
+            statementMarkdown: "One",
+            methods: [
+              { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
+            ],
+          },
+        ],
+      },
     },
   };
   await pool.query("UPDATE interviews SET question=$2::jsonb WHERE id=$1", [
