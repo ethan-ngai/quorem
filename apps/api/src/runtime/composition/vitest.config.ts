@@ -3,6 +3,7 @@ export default defineConfig({
   test: {
     fileParallelism: false,
     include: [
+      "src/runtime/composition/match-cutover.test.ts",
       "src/runtime/composition/budget.test.ts",
       "src/runtime/composition/budget.http.test.ts",
       "src/runtime/composition/config.test.ts",

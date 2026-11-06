@@ -16,9 +16,12 @@ export function CompletionDialog({
   context,
   outcome,
   competitive = false,
+  celebrate = true,
   stats,
   children,
   actions,
+  headerActions,
+  pending = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,9 +31,12 @@ export function CompletionDialog({
   context: ReactNode;
   outcome: CompletionOutcome;
   competitive?: boolean;
+  celebrate?: boolean;
   stats?: { label: string; value: ReactNode; hideLabel?: boolean; numeric?: boolean }[];
   children?: ReactNode;
   actions: ReactNode;
+  headerActions?: ReactNode;
+  pending?: boolean;
 }) {
   return (
     <SessionDialog
@@ -40,17 +46,21 @@ export function CompletionDialog({
         <>
           <CompletionOutcomeIcon
             outcome={outcome}
-            successIcon={competitive ? <Trophy size={20} /> : undefined}
+            successIcon={
+              competitive ? <Trophy size={20} className="completion-trophy" /> : undefined
+            }
           />
-          {title}
+          <span className="completion-title-text">{title}</span>
         </>
       }
       description={description}
       descriptionHidden={descriptionHidden}
-      className="completion-dialog"
+      className={`completion-dialog${competitive ? " completion-dialog--competitive" : ""}`}
       closeLabel="Close summary"
+      actions={headerActions}
+      pending={pending}
     >
-      {open && <Celebration outcome={outcome} />}
+      {open && celebrate && <Celebration outcome={outcome} />}
       <div className="completion-context">{context}</div>
       {stats && (
         <dl className="completion-stats">

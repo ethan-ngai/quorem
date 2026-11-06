@@ -42,8 +42,7 @@ export type HiddenCaseResult = components["schemas"]["HiddenCaseResult"];
 export type PublicCaseResult = components["schemas"]["PublicCaseResult"];
 export type Diagnostic = components["schemas"]["Diagnostic"];
 export type MatchSnapshot = components["schemas"]["MatchSnapshot"];
-export type MatchInvite = components["schemas"]["MatchInvite"];
-export type CreateMatchRequest = components["schemas"]["CreateMatchRequest"];
+export type Score = components["schemas"]["Score"];
 export type MatchMode = components["schemas"]["MatchMode"];
 export type MatchRules = components["schemas"]["MatchRules"];
 export type MatchRuleKind = components["schemas"]["MatchRuleKind"];
@@ -81,3 +80,11 @@ export function createApiClient(
 
 export type InterviewMonitoring = components["schemas"]["InterviewMonitoring"];
 export type InterviewRuleEvent = components["schemas"]["InterviewRuleEvent"];
+
+export type PartySettings = components["schemas"]["PartySettings"];
+export type PartyMember = components["schemas"]["PartyMember"];
+export type PartySnapshot = components["schemas"]["PartySnapshot"];
+export type PartyCreated = components["schemas"]["PartyCreated"];
+export type PartyInvitation = components["schemas"]["PartyInvitation"];
+
+export type MatchReview = components["schemas"]["MatchReview"];

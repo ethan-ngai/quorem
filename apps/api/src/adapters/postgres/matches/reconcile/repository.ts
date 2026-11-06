@@ -1,4 +1,5 @@
 /** @file repository.ts @description Atomic PostgreSQL match reconciliation. @module matches */
+import { reviewPending } from "../review/pending.ts";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -137,7 +138,7 @@ export async function finishMatch(
   reason: string,
 ): Promise<void> {
   const result = await tx.execute(
-    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
+    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},completed_at=clock_timestamp(),outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
   );
   if (result.rows.length !== 1) throw new Error("Match finish failed");
   if (
@@ -179,6 +180,11 @@ export async function reconcileScheduledMatch(
   await tx.execute(sql`UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=${id}::uuid`);
   if (generation !== null) {
     if (!/^\d+$/.test(generation)) throw new Error("Invalid reconciliation generation");
+    const settled =
+      await tx.execute(sql`SELECT 1 FROM matches m JOIN match_reconciliation_pending p ON p.match_id=m.id
+      WHERE m.id=${id}::uuid AND p.generation=${generation}::bigint AND m.state IN ('completed','cancelled')
+        AND NOT (${reviewPending(sql`m.id`)})`);
+    if (settled.rows.length) await matchEvent(tx, id, "match.updated");
     await tx.execute(
       sql`DELETE FROM match_reconciliation_pending WHERE match_id=${id}::uuid AND generation=${generation}::bigint`,
     );

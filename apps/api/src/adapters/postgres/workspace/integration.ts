@@ -262,7 +262,8 @@ void test("guest private match workspace requires live scoped membership and cre
   };
   await assert.rejects(repo.read(wrongScope, matchWorkspace));
   await pool.query("update match_participants set forfeited=true where owner_id='workspace-guest'");
-  await assert.rejects(repo.read(guest, matchWorkspace));
+  assert.equal((await repo.read(guest, matchWorkspace)).id, matchWorkspace);
+  assert.equal(JSON.parse(await repo.problem(guest, matchWorkspace)).id, privateVersion);
   await pool.query(
     "update match_participants set forfeited=false where owner_id='workspace-guest'",
   );

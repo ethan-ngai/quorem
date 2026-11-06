@@ -29,10 +29,9 @@ export function Celebration({
             : marker.current?.parentElement?.getBoundingClientRect();
           const width = window.innerWidth;
           const height = window.innerHeight;
-          const halfWidth = Math.min(260, width / 2 - 24);
           const inset = bounds ? Math.min(24, bounds.width / 4) : 0;
-          const left = bounds ? bounds.left + inset : width / 2 - halfWidth;
-          const right = bounds ? bounds.right - inset : width / 2 + halfWidth;
+          const left = bounds ? bounds.left + inset : -24;
+          const right = bounds ? bounds.right - inset : width + 24;
           const y = (bounds ? bounds.top + bounds.height * 0.65 : height * 0.55) / height;
 
           // Convert theme tokens to hex; canvas-confetti's color parser expects hex.
@@ -64,15 +63,23 @@ export function Celebration({
               particleCount,
               startVelocity,
               spread: 110,
-              gravity: 0.75,
+              gravity: 1.15,
               decay: 0.95,
-              ticks: 220,
+              ticks: 150,
               scalar: 0.95,
               colors,
               shapes: ["square", "circle"],
             };
-            const finish = fire({ ...options, angle: 125, origin: { x: left / width, y } });
-            void fire({ ...options, angle: 55, origin: { x: right / width, y } });
+            const finish = fire({
+              ...options,
+              angle: bounds ? 125 : 55,
+              origin: { x: left / width, y },
+            });
+            void fire({
+              ...options,
+              angle: bounds ? 55 : 125,
+              origin: { x: right / width, y },
+            });
             return finish;
           };
           void burst(90, 30)?.then(() => canvas?.remove());

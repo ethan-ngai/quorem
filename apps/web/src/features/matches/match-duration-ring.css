@@ -1,0 +1,46 @@
+.match-duration {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-full);
+}
+.match-duration:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: var(--space-1);
+}
+.match-duration-ring {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.match-duration-ring > * {
+  grid-area: 1 / 1;
+}
+.match-duration-track-svg {
+  width: 100%;
+  height: 100%;
+}
+.match-duration-clock {
+  width: 100%;
+  height: 100%;
+}
+.match-duration-clock circle {
+  /* The progress stroke replaces the clock's outline. */
+  display: none;
+}
+.match-duration-value {
+  font: var(--text-label) / 1 var(--font-code);
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+  white-space: nowrap;
+}
+.match-duration-track {
+  stroke: var(--color-border);
+}
+.match-duration-fill {
+  stroke: var(--color-text-secondary);
+  stroke-linecap: round;
+}

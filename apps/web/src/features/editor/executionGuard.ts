@@ -14,6 +14,7 @@ type ExecutionContext = {
   slug: string;
   match?: Pick<MatchSnapshot, "id" | "state" | "problemVersionId">;
   matchWorkspaceId?: string;
+  review?: { matchId: string };
   loaded: boolean;
 };
 
@@ -26,6 +27,7 @@ export function canExecuteDocument({
   slug,
   match,
   matchWorkspaceId,
+  review,
   loaded,
 }: ExecutionContext) {
   if (
@@ -36,6 +38,11 @@ export function canExecuteDocument({
     workspace.problemVersionId !== problem.id
   )
     return false;
+  if (review)
+    return (
+      (workspace as { kind: string; reviewMatchId?: string }).kind === "review" &&
+      (workspace as { reviewMatchId?: string }).reviewMatchId === review.matchId
+    );
   if (!match) return workspace.kind === "solo" && problem.slug === slug;
   return (
     match.state === "active" &&

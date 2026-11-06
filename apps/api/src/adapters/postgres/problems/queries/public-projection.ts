@@ -11,7 +11,16 @@ import type { ProblemActor } from "../../../../modules/problems/model.ts";
 /** Requires `p` and `v` aliases; match access is limited to active participants. */
 export function visibleProblem(actor: ProblemActor | undefined, match: boolean): SQL {
   const who = actor?.userId ?? "";
-  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing'))))`;
+  const scope = actor?.guestScope;
+  const round =
+    scope?.kind === "match"
+      ? sql`m.id::text=${scope.matchId}`
+      : scope?.kind === "party"
+        ? sql`m.party_id::text=${scope.partyId}`
+        : scope
+          ? sql`false`
+          : sql`true`;
+  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing') AND ${round})))`;
 }
 export function jsonObject(value: JsonValue | undefined): { [key: string]: JsonValue } {
   if (!value || typeof value !== "object" || value instanceof JsonNumber || Array.isArray(value))

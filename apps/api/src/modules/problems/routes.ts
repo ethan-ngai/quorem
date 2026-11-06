@@ -14,7 +14,12 @@ export function problemRoutes(deps: ProblemRouteDependencies) {
   const app = new Hono();
   const actor = async (request: Request) => {
     const principal = await identifyRequest(deps.identify, request);
-    return principal ? { userId: principal.userId } : undefined;
+    return principal
+      ? {
+          userId: principal.userId,
+          ...(principal.kind === "guest" ? { guestScope: principal.scope } : {}),
+        }
+      : undefined;
   };
   const json = (c: Context, body: string) =>
     c.body(body, 200, { "Content-Type": "application/json; charset=utf-8" });

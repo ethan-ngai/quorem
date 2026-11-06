@@ -1,15 +1,12 @@
-import { GuestAccessToggle } from "./GuestAccessToggle";
-import { useErrorNotification } from "../../ui/Notifications";
-import { userFacingErrorMessage } from "../../ui/errors";
-import { SessionDialog } from "../../ui/SessionDialog";
-import type { CreateMatchRequest, DevelopmentIdentity } from "@quorem/contracts";
 import { useState } from "react";
+import type { DevelopmentIdentity } from "@quorem/contracts";
+import { SessionDialog } from "../../ui/SessionDialog";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { useSession } from "../auth/session";
-import { discardPendingCreate, pendingCreate } from "./commandRecovery";
-import { createMatch } from "./api";
+import { GuestAccessToggle } from "./GuestAccessToggle";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
-import { Icon } from "../../ui/Icon";
-import { useActiveMatch } from "./useActiveMatch";
+import { readPendingCommand } from "./commandRecovery";
+import { partyCommand, useParty, type Party, type PartySettings } from "./party";
 
 export function CreateMatchDialog({
   identity,
@@ -20,85 +17,81 @@ export function CreateMatchDialog({
 }) {
   const session = useSession();
   const [open, setOpen] = useState(true);
-  const [settings, setSettings] = useState<CreateMatchRequest>(
-    () => pendingCreate(identity)?.payload ?? defaultMatchSettings,
+  const [saved] = useState(
+    () => readPendingCommand<PartySettings>(identity, "party:/v1/parties")?.payload,
   );
+  const [settings, setSettings] = useState<PartySettings>(saved ?? defaultMatchSettings);
   const [pending, setPending] = useState(false);
-  const [checkingRecovery, setCheckingRecovery] = useState(false);
-  const [recovering, setRecovering] = useState(() => !!pendingCreate(identity));
-  const [error, setError] = useState<string>();
-  useErrorNotification(error);
-  const activeMatch = useActiveMatch(identity);
+  const [error, setError] = useState("");
+  const [recovering, setRecovering] = useState(
+    () => !!readPendingCommand(identity, "party:/v1/parties"),
+  );
+  const current = useParty(identity);
   return (
     <SessionDialog
       open={open}
       onOpenChange={setOpen}
       pending={pending}
-      descriptionHidden
       onExited={onClose}
       className="match-creation-dialog"
-      title={
-        <>
-          <Icon name="people" />
-          {activeMatch.match ? "You already have an active match" : "Create match"}
-        </>
-      }
-      description={
-        activeMatch.match
-          ? "Return to continue. Finish or leave this match before creating another."
-          : "Choose a mode, difficulty and problem."
-      }
+      title="Create lobby"
+      description="Choose settings for your party."
+      descriptionHidden
       actions={
-        <>
-          {!activeMatch.checking &&
-            !activeMatch.failed &&
-            !activeMatch.match &&
-            session.data?.kind !== "guest" &&
-            session.data?.capabilities?.hostGuests && (
-              <GuestAccessToggle
-                allowed={settings.accessMode === "guests_allowed"}
-                disabled={pending || recovering}
-                onToggle={() =>
-                  setSettings({
-                    ...settings,
-                    accessMode:
-                      settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
-                  })
-                }
-              />
-            )}
-        </>
+        session.data?.capabilities?.hostGuests ? (
+          <GuestAccessToggle
+            allowed={settings.accessMode === "guests_allowed"}
+            disabled={pending || recovering}
+            onToggle={() =>
+              setSettings({
+                ...settings,
+                accessMode:
+                  settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
+              })
+            }
+          />
+        ) : undefined
       }
     >
-      {activeMatch.checking ? (
-        <p role="status">Checking your active match…</p>
-      ) : activeMatch.failed ? (
+      {current.isPending ? (
+        <p role="status">Checking your lobby…</p>
+      ) : current.isError ? (
         <div>
-          <p role="alert">Could not check your active match.</p>
-          <button className="button button-secondary" onClick={() => void activeMatch.refresh()}>
+          <p role="alert">Could not check your lobby.</p>
+          <button className="button button-secondary" onClick={() => void current.refetch()}>
             Try again
           </button>
         </div>
-      ) : activeMatch.match ? (
-        <div className="competitive-dialog-actions">
-          <a className="button button-primary" href={`/match/${activeMatch.match.id}`}>
-            {activeMatch.label}
-          </a>
-        </div>
+      ) : current.data?.party && !recovering ? (
+        <a className="button button-primary" href="/party">
+          Return to lobby
+        </a>
       ) : (
         <form
           onSubmit={async (event) => {
             event.preventDefault();
             if (pending) return;
             setPending(true);
-            setError(undefined);
+            setError("");
             try {
-              const invite = await createMatch(identity, settings);
-              window.location.assign(`/match/${invite.id}`);
-            } catch (cause) {
-              setError(userFacingErrorMessage(cause, "Could not create match."));
-              setRecovering(!!pendingCreate(identity));
-              void activeMatch.refresh();
+              const created = await partyCommand<{ party: Party; inviteUrl: string }>(
+                identity,
+                "/v1/parties",
+                "POST",
+                settings,
+              );
+              try {
+                localStorage.setItem(
+                  `quorem.party-invite.v1:${created.party.id}`,
+                  created.inviteUrl,
+                );
+              } catch {
+                /* Party remains accessible without browser storage. */
+              }
+              window.location.assign("/party");
+            } catch {
+              setRecovering(!!readPendingCommand(identity, "party:/v1/parties"));
+              setError("Could not create lobby. Retry the same request.");
               setPending(false);
             }
           }}
@@ -109,49 +102,23 @@ export function CreateMatchDialog({
             onChange={setSettings}
             disabled={pending || recovering}
           />
-
+          <div className="match-option">
+            <span>Share code after match</span>
+            <ToggleSwitch
+              label="Share code after match"
+              checked={settings.shareCodeAfterMatch}
+              disabled={pending || recovering}
+              onChange={(shareCodeAfterMatch) => setSettings({ ...settings, shareCodeAfterMatch })}
+            />
+          </div>
           {recovering && (
-            <p role="status">
-              The previous request may have created a match. Retry it or check before changing
-              settings.
-            </p>
+            <p role="status">Retry the previous request to recover your invitation.</p>
           )}
-
+          {error && <p role="alert">{error}</p>}
           <footer className="competitive-dialog-actions">
-            {recovering ? (
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={pending}
-                onClick={async () => {
-                  setPending(true);
-                  setCheckingRecovery(true);
-                  const result = await activeMatch.refresh();
-                  if (result.isError) setError("Could not check your active match. Try again.");
-                  else if (!result.data) {
-                    if (discardPendingCreate(identity)) {
-                      setRecovering(false);
-                      setError(undefined);
-                    } else setError("Could not update saved match settings. Try again.");
-                  }
-                  setCheckingRecovery(false);
-                  setPending(false);
-                }}
-              >
-                Change settings
-              </button>
-            ) : (
-              <span />
-            )}
+            <span />
             <button className="button button-primary" disabled={pending}>
-              {pending
-                ? checkingRecovery
-                  ? "Checking…"
-                  : "Creating…"
-                : recovering
-                  ? "Retry creation"
-                  : "Create match"}
-              <Icon name="arrow" />
+              {pending ? "Creating…" : recovering ? "Retry creation" : "Create lobby"}
             </button>
           </footer>
         </form>

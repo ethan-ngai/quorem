@@ -10,8 +10,9 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { cloudflareCoordinator } from "../../../scheduling/cloudflare.ts";
 import { matchLifecycle } from "../lifecycle/repository.ts";
 import { matchInvitations } from "./repository.ts";
-import { matchLanguageSelection } from "../selection/language.ts";
-import { matchInvitationRoutes } from "../../../../modules/matches/invitations/routes.ts";
+import { partyRoutes } from "../../../../modules/parties/routes.ts";
+import type { Parties } from "../../../../modules/parties/model.ts";
+import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { normalizeSettings } from "../../../../modules/matches/lifecycle/model.ts";
 import { newGuestToken } from "../../../../modules/identity/guest/credentials.ts";
 
@@ -23,12 +24,7 @@ it("serves actual guest admission, origin and rotation with real PostgreSQL", as
       get(id: unknown): { wake(n: number): Promise<void> };
     };
   };
-  const url = new URL(bindings.MATCH_LIFECYCLE_URL);
-  expect([url.hostname, url.port, url.pathname]).toEqual([
-    "127.0.0.1",
-    "55471",
-    "/quorem_hono_invites_test",
-  ]);
+  assertRunnerFixture(bindings.MATCH_LIFECYCLE_URL, ["/quorem_hono_invites_test"]);
   const run = <T>(f: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(
       bindings.MATCH_LIFECYCLE_URL,
@@ -67,9 +63,12 @@ it("serves actual guest admission, origin and rotation with real PostgreSQL", as
     requestId: () => "invites-worker",
   }).route(
     "/",
-    matchInvitationRoutes({
-      invitations: invites,
-      language: matchLanguageSelection(run, key),
+    partyRoutes({
+      parties: {
+        preview: (token: string) => invites.preview(token),
+        joinGuest: (token: string, credential: string, name: string) =>
+          invites.joinGuest(token, credential, name),
+      } as Parties,
       identify: async () => who,
       allowedOrigins: ["https://example.test"],
       admissionEnabled: true,
@@ -77,12 +76,12 @@ it("serves actual guest admission, origin and rotation with real PostgreSQL", as
       budget: { allow: (peer) => run((scope) => publicGuestBudget(scope).allow(peer)) },
     }),
   );
-  const preview = await app.request(`/v1/match-invites/${token}`);
+  const preview = await app.request(`/v1/parties/invitations/${token}`);
   expect(preview.status).toBe(200);
   expect(preview.headers.get("referrer-policy")).toBe("no-referrer");
   const credential = newGuestToken();
   const join = (origin: string, cookie: string) =>
-    app.request(`/v1/match-invites/${token}/guest`, {
+    app.request(`/v1/parties/invitations/${token}/guest`, {
       method: "POST",
       headers: { origin, cookie, "content-type": "application/json" },
       body: '{"name":"Guest"}',
@@ -110,9 +109,10 @@ it("serves actual guest admission, origin and rotation with real PostgreSQL", as
   );
   expect(count).toBe(1);
   const rotate = (await invites.rotate(who!, created.id, "worker-rotate")) as { inviteUrl: string };
-  expect((await app.request(`/v1/match-invites/${token}`)).status).toBe(404);
+  expect((await app.request(`/v1/parties/invitations/${token}`)).status).toBe(404);
   expect(
-    (await app.request(`/v1/match-invites/${rotate.inviteUrl.slice("/invite/".length)}`)).status,
+    (await app.request(`/v1/parties/invitations/${rotate.inviteUrl.slice("/invite/".length)}`))
+      .status,
   ).toBe(200);
   await lifecycle.mutate(who!, created.id, "worker-close", "leave", null);
 });

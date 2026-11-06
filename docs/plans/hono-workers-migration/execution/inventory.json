@@ -10,6 +10,11 @@
     },
     {
       "method": "GET",
+      "path": "/v1/admin/overview",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
       "path": "/v1/admin/question-drafts",
       "packet": "14",
       "contract": "packages/contracts/openapi/api.json",
@@ -21,6 +26,31 @@
       "packet": "14",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts/delete-batch",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts/import",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts/import-batch",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-drafts/publish-batch",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/question-drafts/{id}",
+      "registration": "apps/api/src/runtime/composition/http.ts"
     },
     {
       "method": "GET",
@@ -37,11 +67,31 @@
       "registration": "apps/api/internal/httpapi/admin_questions.go"
     },
     {
+      "method": "GET",
+      "path": "/v1/admin/question-drafts/{id}/deletion-impact",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/question-drafts/{id}/publication",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
       "method": "POST",
       "path": "/v1/admin/question-drafts/{id}/publish",
       "packet": "14",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/admin_questions.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/question-publications",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/question-publications/delete-batch",
+      "registration": "apps/api/src/runtime/composition/http.ts"
     },
     {
       "method": "GET",
@@ -240,35 +290,7 @@
     },
     {
       "method": "GET",
-      "path": "/v1/match-invites/{token}",
-      "packet": "21",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "POST",
-      "path": "/v1/match-invites/{token}/guest",
-      "packet": "21",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "POST",
-      "path": "/v1/matches",
-      "packet": "20",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "GET",
       "path": "/v1/matches/current",
-      "packet": "21",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "POST",
-      "path": "/v1/matches/join",
       "packet": "21",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/server.go"
@@ -294,46 +316,23 @@
     },
     {
       "method": "POST",
-      "path": "/v1/matches/{id}/guests/{guest}/remove",
-      "packet": "21",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "POST",
       "path": "/v1/matches/{id}/leave",
       "packet": "20",
       "contract": "packages/contracts/openapi/api.json"
     },
     {
-      "method": "POST",
-      "path": "/v1/matches/{id}/ready",
-      "packet": "20",
-      "contract": "packages/contracts/openapi/api.json"
+      "method": "GET",
+      "path": "/v1/matches/{id}/review",
+      "registration": "apps/api/src/modules/matches/review/routes.ts"
     },
     {
       "method": "POST",
-      "path": "/v1/matches/{id}/rotate-invite",
-      "packet": "21",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
+      "path": "/v1/matches/{id}/review/workspaces",
+      "registration": "apps/api/src/modules/matches/review/routes.ts"
     },
     {
       "method": "POST",
       "path": "/v1/matches/{id}/rule-events",
-      "packet": "20",
-      "contract": "packages/contracts/openapi/api.json"
-    },
-    {
-      "method": "PUT",
-      "path": "/v1/matches/{id}/settings",
-      "packet": "20",
-      "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
-    },
-    {
-      "method": "POST",
-      "path": "/v1/matches/{id}/start",
       "packet": "20",
       "contract": "packages/contracts/openapi/api.json"
     },
@@ -343,6 +342,66 @@
       "packet": "21",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/match_languages.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/parties/current",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/parties/invitations/{id}",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/invitations/{id}/guest",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/join",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/parties/{id}",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/disband",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/leave",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/ready",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/parties/{id}/settings",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/start",
+      "registration": "apps/api/src/modules/parties/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/presence/heartbeat",
+      "registration": "apps/api/src/runtime/composition/http.ts"
     },
     {
       "method": "GET",
@@ -425,6 +484,11 @@
       "packet": "17",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspaces/{id}/problem",
+      "registration": "apps/api/src/modules/workspace/routes.ts"
     },
     {
       "method": "GET",

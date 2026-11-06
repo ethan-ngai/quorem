@@ -1,12 +1,61 @@
-/** @file CompletionDemo.tsx @description Development-only completion fixtures and future rematch preview. @module completion */
+/** @file CompletionDemo.tsx @description Development-only completion fixtures. @module completion */
 import { useEffect, useState } from "react";
-import { ArrowRight, RotateCcw, Users } from "lucide-react";
-import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
-import { DifficultyLabel } from "../../ui/DifficultyLabel";
+import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
+import { ParticipantName } from "../collaboration/ParticipantName";
+import { ScoreProgress } from "../../ui/ScoreProgress";
+import { participantColor } from "../collaboration/participantColor";
+import { SessionBar } from "../../ui/SessionBar";
+import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
+import { EditorialCode } from "../editor/components/EditorialCode";
+import { ExecutionActions } from "../editor/components/ExecutionActions";
+import "../matches/review.css";
+import { RotateCcw } from "lucide-react";
 import { CompletionDialog } from "./CompletionDialog";
 import { Celebration } from "../../ui/Celebration";
+import { MatchDurationRing } from "../matches/MatchDurationRing";
+import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
+import { MatchCompletionActions } from "../matches/MatchCompletionActions";
+import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
+import { LeaveLobbyButton } from "../matches/LeaveLobbyButton";
+import { PartyReadinessIndicator, MatchLobbyReadiness } from "../matches/PartyReadyStatus";
+import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
+import { PythonEditor } from "../editor/PythonEditor";
 import { useTheme } from "../editor/useTheme";
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import "../../styles/workspace.css";
+
+const source =
+  "def two_sum(nums, target):\n    seen = {}\n    for i, n in enumerate(nums):\n        if target - n in seen:\n            return [seen[target - n], i]\n        seen[n] = i";
+
+const opponentSource =
+  "def two_sum(nums, target):\n    for i, a in enumerate(nums):\n        for j in range(i + 1, len(nums)):\n            if a + nums[j] == target:\n                return [i, j]";
+const demoReview = {
+  shareCodeAfterMatch: true,
+  participants: [
+    {
+      userId: "you",
+      color: 18,
+      displayName: "jamie",
+      own: true,
+      submission: { language: "python", source, state: "completed", verdict: "accepted" },
+      workspace: null,
+    },
+    {
+      userId: "alex",
+      color: 5,
+      displayName: "Alex",
+      own: false,
+      submission: {
+        language: "python",
+        source: opponentSource,
+        state: "completed",
+        verdict: "wrong_answer",
+      },
+      workspace: null,
+    },
+  ],
+} as MatchReview;
 
 export function CompletionDemo() {
   useEffect(() => {
@@ -16,142 +65,262 @@ export function CompletionDemo() {
       document.title = previous;
     };
   }, []);
-  const [mode, setMode] = useState("Practice");
+  const [review, setReview] = useState(false);
+  const [participant, setParticipant] = useState("you");
+  const [drafts, setDrafts] = useState<Record<string, string>>({
+    you: source,
+    alex: opponentSource,
+  });
+  const [compare, setCompare] = useState(false);
+  const [diff, setDiff] = useState(false);
+  const [original, setOriginal] = useState(false);
+  const other = participant === "you" ? "alex" : "you";
+  const [mode, setMode] = useState("Competition");
   const [open, setOpen] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [inLobby, setInLobby] = useState(true);
   const [replay, setReplay] = useState(0);
+  const [panel, setPanel] = useState<WorkspacePanel>("code");
   const { theme, setPreference } = useTheme();
+  const { editorSchemes, fontSize, tabSize, wrap } = useLocalEditorPreferences();
   const competitive = mode.startsWith("Competition");
   const lost = mode === "Competition loss";
-  const observer = mode === "Interview";
-  const step = mode === "Odyssey level";
-  const finale = mode === "Odyssey finale";
+  const lobbyMembers = [
+    ...demoReview.participants.map((person) => ({
+      ...person,
+      ready: person.own ? ready : true,
+      online: true,
+    })),
+    { userId: "sam", displayName: "Sam", ready: false, online: true },
+    { userId: "jordan", displayName: "Jordan", ready: true, online: true },
+    { userId: "casey", displayName: "Casey", ready: false, online: true },
+  ];
+  const inline = mode === "Interview" || mode === "Odyssey level";
   return (
-    <main className="completion-demo">
-      <p>LOCAL DEMO · Illustrative results</p>
-      <h1>A good place to finish. A clear next step.</h1>
-      <p>
-        Choose a completion flow. Escape closes the summary; replay restarts the side bursts. System
-        reduced-motion settings disable confetti.
-      </p>
-      <div className="completion-demo-controls">
-        {[
-          "Practice",
-          "Competition",
-          "Competition loss",
-          "Interview",
-          "Odyssey level",
-          "Odyssey finale",
-        ].map((value) => (
+    <WorkspaceLayout
+      language="python"
+      panel={panel}
+      onPanelChange={setPanel}
+      navigation={
+        <div className="completion-demo-controls">
+          {[
+            "Practice",
+            "Competition",
+            "Competition loss",
+            "Interview",
+            "Odyssey level",
+            "Odyssey finale",
+          ].map((value) => (
+            <button
+              key={value}
+              className="button button-secondary"
+              onClick={() => {
+                setMode(value);
+                setReview(false);
+                setInLobby(true);
+                setReady(false);
+                setReplay((n) => n + 1);
+                setOpen(true);
+              }}
+            >
+              {value}
+            </button>
+          ))}
           <button
-            key={value}
             className="button button-secondary"
             onClick={() => {
-              setMode(value);
-              setReplay((value) => value + 1);
+              setReplay((n) => n + 1);
               setOpen(true);
             }}
           >
-            {value}
+            <RotateCcw size={16} /> Replay
           </button>
-        ))}
-        <button
-          className="button button-secondary"
-          onClick={() => {
-            setReplay((value) => value + 1);
-            setOpen(true);
-          }}
-        >
-          <RotateCcw size={16} /> Replay
-        </button>
-        <button
-          className="button button-secondary"
-          onClick={() => setPreference(theme === "dark" ? "light" : "dark")}
-        >
-          Switch theme
-        </button>
-      </div>
-      {step || observer ? (
-        <>
-          <p role="status">
-            {observer
-              ? "The candidate solved the problem. Both interview roles celebrate."
-              : "Level 2 cleared. Continue to level 3 — no popup interrupts your code."}
+          <button
+            className="button button-secondary"
+            onClick={() => setPreference(theme === "dark" ? "light" : "dark")}
+          >
+            Switch theme
+          </button>
+        </div>
+      }
+      header={
+        <SessionBar label="Demo session" actions={null} onResults={() => setOpen(true)}>
+          <span className="completion-demo-label">Local demo · illustrative results</span>
+        </SessionBar>
+      }
+      problem={
+        <div className="problem-scroll">
+          <div className="problem-heading">
+            <h1>Two Sum</h1>
+            <span className="difficulty difficulty-easy">Easy</span>
+          </div>
+          <p>
+            Given an array of integers and a target, return the indices of two numbers that add up
+            to the target.
           </p>
-          <Celebration key={replay} outcome={observer ? "observer" : "success"} inline />
+        </div>
+      }
+      editor={
+        <>
+          {review && (
+            <>
+              <ReviewToolbar
+                review={demoReview}
+                participantId={participant}
+                disabled={false}
+                compare={compare}
+                diff={diff}
+                original={original}
+                canDiff
+                onSelect={setParticipant}
+                onCompare={() => setCompare(!compare)}
+                onDiff={() => setDiff(!diff)}
+                onOriginal={() => setOriginal(!original)}
+                originalContent={
+                  <>
+                    <ReviewPaneHeader name="Original submission" language="python" original />
+                    <EditorialCode
+                      source={participant === "you" ? source : opponentSource}
+                      language="python"
+                      label="Original submission"
+                      theme={theme}
+                      colorScheme={editorSchemes[theme]}
+                    />
+                  </>
+                }
+              >
+                <LanguageLogo language="python" tooltip="Python" />
+              </ReviewToolbar>
+            </>
+          )}
+          <div className="review-editor-grid">
+            <div className="editor-frame">
+              {review && compare && !diff && (
+                <ReviewPaneHeader
+                  participant={demoReview.participants.find(
+                    (person) => person.userId === participant,
+                  )}
+                  self={participant === "you"}
+                  name={participant === "you" ? "jamie" : "Alex"}
+                  language="python"
+                  active
+                />
+              )}
+              <PythonEditor
+                documentKey={`completion-demo:${participant}`}
+                documentUri="file:///workspace/solution.py"
+                initialSource={drafts[participant]!}
+                theme={theme}
+                colorScheme={editorSchemes[theme]}
+                fontSize={fontSize}
+                tabSize={tabSize}
+                wrap={wrap}
+                readOnly={!review}
+                mergeOriginal={review && compare && diff ? drafts[other] : undefined}
+                onSourceChange={(value) =>
+                  setDrafts((current) => ({ ...current, [participant]: value }))
+                }
+              />
+            </div>
+            {review && compare && !diff && (
+              <div className="review-reference">
+                <ReviewPaneHeader
+                  participant={demoReview.participants.find((person) => person.userId === other)}
+                  self={other === "you"}
+                  name={other === "you" ? "jamie" : "Alex"}
+                  language="python"
+                  onSelect={() => setParticipant(other)}
+                />
+                <PythonEditor
+                  documentKey={`completion-demo:reference:${other}`}
+                  documentUri="file:///workspace/solution.py"
+                  initialSource={drafts[other]!}
+                  language="python"
+                  theme={theme}
+                  colorScheme={editorSchemes[theme]}
+                  fontSize={fontSize}
+                  tabSize={tabSize}
+                  wrap={wrap}
+                  readOnly
+                  onSourceChange={() => {}}
+                />
+              </div>
+            )}
+          </div>
         </>
+      }
+      results={<div className="result-message">Illustrative fixture · execution unavailable</div>}
+      actions={<ExecutionActions disabled onRun={() => {}} onSubmit={() => {}} />}
+    >
+      {inline ? (
+        <Celebration key={replay} outcome={mode === "Interview" ? "observer" : "success"} inline />
       ) : (
         <CompletionDialog
           key={replay}
           open={open}
           onOpenChange={setOpen}
+          competitive={competitive}
+          headerActions={
+            competitive ? (
+              <>
+                <MatchDurationRing durationMinutes={30} elapsedSeconds={522} />
+                {inLobby && (
+                  <LeaveLobbyButton
+                    disabled={false}
+                    onClick={() => {
+                      setInLobby(false);
+                      setReady(false);
+                    }}
+                  />
+                )}
+              </>
+            ) : undefined
+          }
           outcome={lost ? "loss" : "success"}
           title={
             competitive
               ? lost
                 ? "Opponent won"
-                : "You won"
-              : finale
+                : "Victory"
+              : mode === "Odyssey finale"
                 ? "Odyssey complete"
                 : "Problem solved"
           }
-          description={
-            competitive
-              ? "The first correct submission decided this match."
-              : finale
-                ? "Every level cleared. Nicely done."
-                : "Your solution passed every test case."
-          }
-          descriptionHidden={!competitive}
+          description={competitive ? "Two Sum" : "Your solution passed every test case."}
           context={
             competitive ? (
-              <MatchSummaryMetadata mode="showdown" durationMinutes={30} difficulty="medium" />
+              <MatchSummaryMetadata mode="showdown" difficulty="easy" />
             ) : (
-              <div className="completion-problem">
-                <span>{finale ? "Balance Ledger" : "Two Sum"}</span>
-                <DifficultyLabel difficulty={finale ? "hard" : "easy"} />
-              </div>
+              <span>Two Sum · Easy</span>
             )
           }
-          competitive={competitive}
-          stats={
-            competitive
-              ? undefined
-              : [
-                  {
-                    label: finale ? "Levels cleared" : "Cases passed",
-                    value: finale ? "4 / 4" : "24 / 24",
-                    numeric: true,
-                  },
-                  {
-                    label: "Language",
-                    value: <LanguageLogo language="python" tooltip="Python" />,
-                    hideLabel: true,
-                  },
-                ]
-          }
           actions={
-            <>
-              {competitive ? (
-                <>
-                  <button className="button button-secondary" onClick={() => setOpen(false)}>
-                    Review results
-                  </button>
-                  <button className="button button-primary" onClick={() => setOpen(false)}>
-                    New match
-                    <ArrowRight size={16} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button className="quiet-button" onClick={() => setOpen(false)}>
-                    More problems
-                  </button>
-                  <button className="button button-primary" onClick={() => setOpen(false)}>
-                    Back to editor
-                  </button>
-                </>
-              )}
-            </>
+            competitive ? (
+              <MatchCompletionActions
+                review={{
+                  disabled: false,
+                  onClick: () => {
+                    setOpen(false);
+                    setReview(true);
+                  },
+                }}
+                lobby={inLobby ? "return" : "create"}
+                readiness={
+                  inLobby
+                    ? {
+                        ready,
+                        disabled: false,
+                        retry: false,
+                        onClick: () => setReady(!ready),
+                      }
+                    : undefined
+                }
+              />
+            ) : (
+              <button className="button button-secondary" onClick={() => setOpen(false)}>
+                Back to editor
+              </button>
+            )
           }
         >
           {competitive && (
@@ -159,33 +328,59 @@ export function CompletionDemo() {
               <ol className="match-result-players" aria-label="Match results">
                 <li data-you="true">
                   <span>
-                    <strong>{lost ? "Alex" : "You"}</strong>
-                    <small>Winner</small>
+                    <strong>
+                      <ParticipantName
+                        participant={demoReview.participants[lost ? 1 : 0]!}
+                        self={!lost}
+                      />
+                    </strong>
+                    <MatchWinnerMetadata />
                   </span>
-                  <span>24 / 24</span>
+                  <span className="match-result-score">
+                    {inLobby && (
+                      <PartyReadinessIndicator
+                        member={{ ready: lost ? true : ready, online: true }}
+                      />
+                    )}
+                    <ScoreProgress
+                      score={{ passed: 24, total: 24 }}
+                      color={participantColor(lost ? "alex" : "you", lost ? 5 : 18)}
+                    />
+                  </span>
                 </li>
                 <li>
                   <span>
-                    <strong>{lost ? "You" : "Alex"}</strong>
+                    <strong>
+                      <ParticipantName
+                        participant={demoReview.participants[lost ? 0 : 1]!}
+                        self={lost}
+                      />
+                    </strong>
                   </span>
-                  <span>18 / 24</span>
+                  <span className="match-result-score">
+                    {inLobby && (
+                      <PartyReadinessIndicator
+                        member={{ ready: lost ? ready : true, online: true }}
+                      />
+                    )}
+                    <ScoreProgress
+                      score={{ passed: 18, total: 24 }}
+                      color={participantColor(lost ? "you" : "alex", lost ? 18 : 5)}
+                    />
+                  </span>
                 </li>
               </ol>
-              <div className="completion-next">
-                <strong>Same lobby · Upcoming</strong>
-              </div>
-              <div className="completion-actions" aria-label="Upcoming lobby features">
-                <button className="button button-secondary" disabled>
-                  <Users size={16} /> Return to lobby
-                </button>
-                <button className="button button-secondary" disabled>
-                  <RotateCcw size={16} /> Quick requeue
-                </button>
-              </div>
+              {inLobby && (
+                <MatchLobbyReadiness
+                  ownUserId="you"
+                  members={lobbyMembers}
+                  participantIds={["you", "alex"]}
+                />
+              )}
             </>
           )}
         </CompletionDialog>
       )}
-    </main>
+    </WorkspaceLayout>
   );
 }
