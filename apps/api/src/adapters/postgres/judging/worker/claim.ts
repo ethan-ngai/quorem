@@ -175,8 +175,9 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
       scopeValid(job.sandboxScope);
       return run((scopeDb) =>
         scopeDb.transaction(options, async (tx) => {
+          // Read-only control ticks must not exclude concurrent frame persistence.
           const locked = await tx.execute(
-            sql`SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid FOR UPDATE OF j,s`,
+            sql`SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid FOR ${heartbeat ? sql`UPDATE` : sql`SHARE`} OF j,s`,
           );
           if (!locked.rows.length) return false;
           const row = (
