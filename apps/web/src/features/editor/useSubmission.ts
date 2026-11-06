@@ -11,7 +11,7 @@ import { forgetMissingSubmission } from "./submissionRecovery";
 import {
   parseCustomCases,
   parseProblemDrafts,
-  caseSnapshotValue,
+  createRunSnapshot,
   type CustomCaseDraft,
   type RunSnapshot,
 } from "./customCases";
@@ -219,16 +219,13 @@ export function useSubmission({
           return false;
         }
       }
-      const snapshot: RunSnapshot | undefined =
+      const snapshot =
         kind === "run"
-          ? {
-              problemVersionId: problem.id,
-              custom: customMode,
-              cases: (customCases ?? runExamples ?? problem.examples).map((value, index) => ({
-                id: customMode ? drafts[index]!.id : String(index),
-                value: caseSnapshotValue(value),
-              })),
-            }
+          ? createRunSnapshot(
+              problem.id,
+              customCases ?? runExamples ?? problem.examples,
+              customMode ? drafts : undefined,
+            )
           : undefined;
       const source = editorRef.current?.getSource() ?? sourceRef.current;
       admissionLock.current = true;

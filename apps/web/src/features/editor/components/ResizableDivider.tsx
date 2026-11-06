@@ -1,5 +1,5 @@
 /** @file ResizableDivider.tsx @description Keyboard and pointer splitter for workspace panes. @module editor */
-import type { CSSProperties, KeyboardEvent, PointerEvent } from "react";
+import { useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 
 /** Exposes a named splitter whose value can be changed by pointer or arrow keys. */
 export function ResizableDivider({
@@ -16,25 +16,25 @@ export function ResizableDivider({
   onChange: (value: number) => void;
 }) {
   const isVertical = axis === "x";
+  const drag = useRef<{ pointerId: number; rect: DOMRect } | undefined>(undefined);
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const splitter = event.currentTarget;
-    const grid = splitter.parentElement;
+    if (drag.current || !event.isPrimary) return;
+    const grid = event.currentTarget.parentElement;
     if (!grid) return;
-    splitter.setPointerCapture(event.pointerId);
-    const rect = grid.getBoundingClientRect();
-    const update = (pointerEvent: globalThis.PointerEvent) => {
-      const next = isVertical
-        ? ((pointerEvent.clientX - rect.left) / rect.width) * 100
-        : rect.bottom - pointerEvent.clientY;
-      onChange(Math.min(maximum, Math.max(minimum, next)));
-    };
-    const finish = () => {
-      window.removeEventListener("pointermove", update);
-      window.removeEventListener("pointerup", finish);
-    };
-    window.addEventListener("pointermove", update);
-    window.addEventListener("pointerup", finish, { once: true });
+    event.preventDefault();
+    drag.current = { pointerId: event.pointerId, rect: grid.getBoundingClientRect() };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.pointerId !== event.pointerId) return;
+    const { rect } = drag.current;
+    const next = isVertical
+      ? ((event.clientX - rect.left) / rect.width) * 100
+      : rect.bottom - event.clientY;
+    onChange(Math.min(maximum, Math.max(minimum, next)));
+  };
+  const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = undefined;
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const direction = isVertical
@@ -68,6 +68,10 @@ export function ResizableDivider({
           : `${Math.round(value)} pixels results pane`
       }
       onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
       onKeyDown={onKeyDown}
       style={{ "--split-value": `${value}${isVertical ? "%" : "px"}` } as CSSProperties}
     />

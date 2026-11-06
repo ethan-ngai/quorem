@@ -1,4 +1,5 @@
 /** @file WorkspaceLayout.tsx @description Shared practice, competition and interview pane composition. @module editor */
+import { workspaceLayout } from "@quorem/ui/tokens";
 import { QuestionLanguage } from "../QuestionLanguage";
 import type { EditorLanguage } from "../editorLanguages";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -34,8 +35,12 @@ export function WorkspaceLayout({
   pending?: boolean;
   children?: ReactNode;
 }) {
-  const [ratio, setRatio] = useState(() => readPreference("quorem.pane-ratio.v1", 40));
-  const [height, setHeight] = useState(() => readPreference("quorem.results-height.v1", 260));
+  const [ratio, setRatio] = useState(() =>
+    readPreference<number>("quorem.pane-ratio.v1", workspaceLayout.problemPane),
+  );
+  const [height, setHeight] = useState(() =>
+    readPreference<number>("quorem.results-height.v1", workspaceLayout.resultsHeight),
+  );
   useEffect(() => writePreference("quorem.pane-ratio.v1", ratio), [ratio]);
   useEffect(() => writePreference("quorem.results-height.v1", height), [height]);
   const style = {

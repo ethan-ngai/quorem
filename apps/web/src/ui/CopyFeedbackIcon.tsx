@@ -1,3 +1,4 @@
+import { motion } from "@quorem/ui/tokens";
 import { useEffect, useRef } from "react";
 
 const copy = "M9 9 L21 9 L21 21 L9 21 L9 9";
@@ -14,7 +15,7 @@ export function CopyFeedbackIcon({ copied }: { copied: boolean }) {
     element.setAttribute("to", copied ? check : copy);
     element.setAttribute(
       "dur",
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "0.001s" : "0.18s",
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "0.001s" : motion.standard,
     );
     element.beginElement();
     previous.current = copied;

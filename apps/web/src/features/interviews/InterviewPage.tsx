@@ -41,9 +41,9 @@ import { SolutionToolbar } from "../editor/components/SolutionToolbar";
 import { InterviewTests } from "./InterviewTests";
 import {
   readCustomDrafts,
-  customDraftStorageKey,
+  writeCustomDrafts,
   parseProblemDrafts,
-  caseSnapshotValue,
+  createRunSnapshot,
   type CustomCaseDraft,
   type RunSnapshot,
 } from "../editor/customCases";
@@ -196,11 +196,7 @@ function InterviewPad({
   const [runSnapshot, setRunSnapshot] = useState<{ id: string; value: RunSnapshot }>();
   function changeCustomDrafts(value: CustomCaseDraft[]) {
     setCustomDrafts(value);
-    try {
-      localStorage.setItem(customDraftStorageKey(customScope), JSON.stringify(value));
-    } catch {
-      /* Storage is optional. */
-    }
+    writeCustomDrafts(customScope, value);
   }
   const changed = snapshot.document.epoch !== initial.document.epoch;
   useEffect(() => {
@@ -286,18 +282,13 @@ function InterviewPad({
         kind === "run"
           ? {
               id: submission.id,
-              value: {
-                problemVersionId: initial.question.problem.id,
-                custom: !!customCases,
-                cases: (
-                  customCases ??
+              value: createRunSnapshot(
+                initial.question.problem.id,
+                customCases ??
                   snapshot.question.progress?.levels.flatMap((level) => level.examples) ??
-                  snapshot.question.problem.examples
-                ).map((value, index) => ({
-                  id: customCases ? customDrafts[index]!.id : String(index),
-                  value: caseSnapshotValue(value),
-                })),
-              },
+                  snapshot.question.problem.examples,
+                customCases ? customDrafts : undefined,
+              ),
             }
           : undefined,
       );

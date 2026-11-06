@@ -2,6 +2,7 @@ import type { CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import {
   associatedResultIndex,
+  createRunSnapshot,
   parseCustomCases,
   createCustomDraft,
   parseCustomDrafts,
@@ -220,4 +221,14 @@ describe("typed custom cases", () => {
     expect(associatedResultIndex(snapshot, false, "first", value)).toBe(-1);
     expect(associatedResultIndex(undefined, true, "first", value)).toBe(-1);
   });
+});
+
+it("associates admitted case values with stable draft IDs", () => {
+  const input: CustomCase[] = [{ args: [[1, 2]], expected: 3 }];
+  const snapshot = createRunSnapshot("version", input, [draft]);
+  expect(snapshot.custom).toBe(true);
+  expect(snapshot.cases[0]?.id).toBe("first");
+  expect(associatedResultIndex(snapshot, true, "first", input[0])).toBe(0);
+  expect(associatedResultIndex(snapshot, true, "first", { args: [[2, 1]], expected: 3 })).toBe(-1);
+  expect(createRunSnapshot("version", input).cases[0]?.id).toBe("0");
 });
