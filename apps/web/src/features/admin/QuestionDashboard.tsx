@@ -14,11 +14,13 @@ import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
-import { SessionDialog } from "../../ui/SessionDialog";
+import { runQuestionBatches } from "./runQuestionBatches";
+import { verifyWithPasskey } from "../auth/capabilities";
+import { BulkQuestionConfirmation } from "./BulkQuestionConfirmation";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { mutateQuestionBatch, listPublications } from "./api";
@@ -76,8 +78,10 @@ export function QuestionDashboard({
   const action = confirmation?.action;
   const confirmed = confirmation?.rows ?? [];
   const [visibility, setVisibility] = useState<"private" | "global">("private");
+  const cancellation = useRef(false);
+  const [stopping, setStopping] = useState(false);
+  const [operationError, setOperationError] = useState<string>();
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
   const [errorsOpen, setErrorsOpen] = useState(false);
   const notification = useId();
@@ -122,6 +126,9 @@ export function QuestionDashboard({
 
   async function apply() {
     if (!action || disabled || !confirmed.length) return;
+    cancellation.current = false;
+    setStopping(false);
+    setOperationError(undefined);
     setRunning(true);
     onRunning(true);
     setErrors([]);
@@ -132,13 +139,24 @@ export function QuestionDashboard({
     );
     const failures: typeof errors = [];
     const succeeded: string[] = [];
+    let stoppedByError = false;
     try {
-      for (let offset = 0; offset < confirmed.length; offset += 16) {
-        const rows = confirmed.slice(offset, offset + 16);
-        setProgress(`Completed ${offset} of ${confirmed.length}…`);
-        try {
+      await runQuestionBatches({
+        rows: confirmed,
+        cancelled: () => cancellation.current,
+        verify: verifyWithPasskey,
+        onProgress: (completed, verifying) =>
+          toast.loading(
+            cancellation.current
+              ? "Stopping after the current request…"
+              : verifying
+                ? "Verify with your passkey to continue…"
+                : `${action === "publish" ? "Publishing" : "Deleting"} ${completed} of ${confirmed.length}…`,
+            { id: notification },
+          ),
+        send: async (rows) => {
           const draftRows = rows.filter((row): row is QuestionDraftSummary => "revision" in row);
-          const result = await mutateQuestionBatch(
+          return mutateQuestionBatch(
             action === "publish"
               ? {
                   action: "publish",
@@ -160,40 +178,51 @@ export function QuestionDashboard({
                       .map(({ id, current }) => ({ id, current })),
                   },
           );
-          for (const item of result.items) {
+        },
+        onResults: (items) => {
+          for (const item of items) {
             if (item.status === "succeeded") succeeded.push(item.id);
             else
               failures.push({
                 id: item.id,
-                title: rows.find((row) => row.id === item.id)?.title || "Untitled question",
+                title: confirmed.find((row) => row.id === item.id)?.title || "Untitled question",
                 message: item.message || "The change could not be completed.",
               });
           }
-        } catch (cause) {
-          for (const row of rows)
-            failures.push({
-              id: row.id,
-              title: row.title || "Untitled question",
-              message: userFacingErrorMessage(cause, "The change could not be completed."),
-            });
-        }
-      }
+          setErrors([...failures]);
+        },
+      });
+    } catch (cause) {
+      stoppedByError = true;
+      const message = userFacingErrorMessage(
+        cause,
+        "The request failed. Remaining questions were not sent. Refresh before retrying.",
+      );
+      setOperationError(message);
+      toast.error(message, { id: notification });
+    } finally {
       toggle(succeeded, false);
       setErrors(failures);
-      setProgress("");
-      notifyBatchResult({
-        id: notification,
-        verb: action === "publish" ? "Published" : "Deleted",
-        noun: "question",
-        succeeded: succeeded.length,
-        failed: failures.length,
-        onDetails: () => setErrorsOpen(true),
-      });
+      if (!cancellation.current && !stoppedByError)
+        notifyBatchResult({
+          id: notification,
+          verb: action === "publish" ? "Published" : "Deleted",
+          noun: "question",
+          succeeded: succeeded.length,
+          failed: failures.length,
+          onDetails: () => setErrorsOpen(true),
+        });
+      if (cancellation.current)
+        toast.info("Stopped. Unfinished questions remain selected.", {
+          id: notification,
+          description: succeeded.length ? `${succeeded.length} questions completed.` : undefined,
+        });
       setConfirmation(undefined);
-      await onChanged();
-    } finally {
       setRunning(false);
       onRunning(false);
+      await onChanged().catch(() => {
+        setOperationError("Could not refresh questions. Refresh before retrying.");
+      });
     }
   }
 
@@ -291,19 +320,24 @@ export function QuestionDashboard({
       </fieldset>
       <div
         className="admin-bulk-disclosure"
-        data-open={chosen.length > 0 || errors.length > 0}
-        aria-hidden={chosen.length === 0 && errors.length === 0}
-        inert={chosen.length === 0 && errors.length === 0}
+        data-open={chosen.length > 0 || errors.length > 0 || !!operationError}
+        aria-hidden={chosen.length === 0 && errors.length === 0 && !operationError}
+        inert={chosen.length === 0 && errors.length === 0 && !operationError}
       >
         <div>
           <div className="admin-toolbar admin-bulk-bar">
-            {chosen.length > 0 && <span>{chosen.length} selected</span>}
-            <PersistentNotice
-              label="Some bulk actions failed"
-              message={errors.map((error) => `${error.title}: ${error.message}`)}
-              open={errorsOpen}
-              onOpenChange={setErrorsOpen}
-            />
+            <div className="admin-toolbar admin-bulk-selection">
+              {chosen.length > 0 && <span>{chosen.length} selected</span>}
+              <PersistentNotice
+                label="Bulk action needs attention"
+                message={[
+                  ...(operationError ? [operationError] : []),
+                  ...errors.map((error) => `${error.title}: ${error.message}`),
+                ]}
+                open={errorsOpen}
+                onOpenChange={setErrorsOpen}
+              />
+            </div>
             {chosen.length > 0 && (
               <div className="admin-toolbar">
                 {tab === "drafts" && (
@@ -396,9 +430,7 @@ export function QuestionDashboard({
                 <th scope="row">
                   <div className="admin-question-heading">
                     {disabled ? (
-                      <span className="table-title">
-                        {row.title || "Untitled question"}
-                      </span>
+                      <span className="table-title">{row.title || "Untitled question"}</span>
                     ) : (
                       <Link
                         to="/admin/questions"
@@ -471,68 +503,23 @@ export function QuestionDashboard({
         </div>
       )}
       {!loading && !failed && <TablePagination table={table} disabled={disabled} />}
-      <SessionDialog
-        open={!!action}
-        pending={running}
-        onOpenChange={(open) => {
-          if (!open && !running) setConfirmation(undefined);
+      <BulkQuestionConfirmation
+        action={action}
+        questions={confirmed}
+        scope={tab}
+        admin={admin}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        running={running}
+        stopping={stopping}
+        onCancel={() => {
+          cancellation.current = true;
+          setStopping(true);
+          toast.loading("Stopping after the current request…", { id: notification });
         }}
-        title={
-          action === "publish"
-            ? `Publish ${confirmed.length} drafts?`
-            : `Delete ${confirmed.length} ${tab === "drafts" ? "drafts" : "versions"}?`
-        }
-        description={
-          action === "publish"
-            ? "Each draft is validated before publishing. Update drafts apply to their existing global publication."
-            : tab === "drafts"
-              ? "Selected drafts and their imported content will be removed."
-              : "Only the listed versions will be deleted. Deleting a current version unpublishes its question. Older versions remain available in the editor."
-        }
-      >
-        <ul className="admin-bulk-selection" aria-label="Selected questions">
-          {confirmed.map((row) => (
-            <li key={row.id}>
-              {row.title || "Untitled question"}
-              {"version" in row ? ` · Version ${row.version}` : ""}
-            </li>
-          ))}
-        </ul>
-        {action === "publish" &&
-          admin &&
-          confirmed.some((row) => "revision" in row && !row.editVersionId) && (
-            <label className="admin-bulk-visibility">
-              New publication visibility
-              <select
-                value={visibility}
-                disabled={running}
-                onChange={(event) =>
-                  setVisibility(event.target.value === "global" ? "global" : "private")
-                }
-              >
-                <option value="private">Private library</option>
-                <option value="global">Global catalog</option>
-              </select>
-            </label>
-          )}
-        {running && <p role="status">{progress}</p>}
-        <footer className="competitive-dialog-actions">
-          <button
-            className="button button-secondary"
-            disabled={running}
-            onClick={() => setConfirmation(undefined)}
-          >
-            Cancel
-          </button>
-          <button
-            className="button button-primary"
-            disabled={running || !confirmed.length}
-            onClick={() => void apply()}
-          >
-            {action === "publish" ? "Publish drafts" : "Delete selected"}
-          </button>
-        </footer>
-      </SessionDialog>
+        onClose={() => setConfirmation(undefined)}
+        onConfirm={() => void apply()}
+      />
     </section>
   );
 }

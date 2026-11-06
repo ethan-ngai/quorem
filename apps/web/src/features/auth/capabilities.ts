@@ -1,5 +1,5 @@
 import { AuthError, passkeyError, registrationError } from "./errors";
-import { resetToken, signInDestination } from "./session";
+import { fetchSession, resetToken, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
 import { invalidateAvatarHints } from "./avatarCache";
 export const socialProviderLabels = { google: "Google", github: "GitHub" } as const;
@@ -61,12 +61,24 @@ async function passkeyRequest<T>(action: () => Promise<T>): Promise<T> {
     throw passkeyError(error);
   }
 }
-export async function signInWithPasskey(search?: string) {
+/** Verifies in place so protected actions retain their selection and progress. */
+export async function verifyWithPasskey() {
+  const before = await fetchSession();
+  if (!before) throw new AuthError("Sign in again to continue.");
+  await authenticateWithPasskey();
+  const after = await fetchSession();
+  if (!after || before.user.id !== after.user.id)
+    throw new AuthError("Account changed. Reload before continuing.");
+}
+async function authenticateWithPasskey() {
   if (!supportsPasskeys()) throw new AuthError("Passkeys are unavailable in this browser.");
   const result = await passkeyRequest(async () => (await authClient()).signIn.passkey());
   if (result.error) throw passkeyError(result.error);
   resetToken();
   invalidateAvatarHints();
+}
+export async function signInWithPasskey(search?: string) {
+  await authenticateWithPasskey();
   location.assign(signInDestination(search));
 }
 export async function addPasskey(name = "My passkey") {
