@@ -13,6 +13,7 @@ import "../matches/review.css";
 import { RotateCcw } from "lucide-react";
 import { CompletionDialog } from "./CompletionDialog";
 import { Celebration } from "../../ui/Celebration";
+import { MatchDurationRing } from "../matches/MatchDurationRing";
 import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
 import { MatchCompletionActions } from "../matches/MatchCompletionActions";
 import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
@@ -260,14 +261,19 @@ export function CompletionDemo() {
           onOpenChange={setOpen}
           competitive={competitive}
           headerActions={
-            competitive && inLobby ? (
-              <LeaveLobbyButton
-                disabled={false}
-                onClick={() => {
-                  setInLobby(false);
-                  setReady(false);
-                }}
-              />
+            competitive ? (
+              <>
+                <MatchDurationRing durationMinutes={30} elapsedSeconds={522} />
+                {inLobby && (
+                  <LeaveLobbyButton
+                    disabled={false}
+                    onClick={() => {
+                      setInLobby(false);
+                      setReady(false);
+                    }}
+                  />
+                )}
+              </>
             ) : undefined
           }
           outcome={lost ? "loss" : "success"}
@@ -283,7 +289,7 @@ export function CompletionDemo() {
           description={competitive ? "Two Sum" : "Your solution passed every test case."}
           context={
             competitive ? (
-              <MatchSummaryMetadata mode="showdown" durationMinutes={30} difficulty="easy" />
+              <MatchSummaryMetadata mode="showdown" difficulty="easy" />
             ) : (
               <span>Two Sum · Easy</span>
             )
@@ -328,7 +334,7 @@ export function CompletionDemo() {
                         self={!lost}
                       />
                     </strong>
-                    <MatchWinnerMetadata elapsed="8:42" />
+                    <MatchWinnerMetadata />
                   </span>
                   <span className="match-result-score">
                     {inLobby && (

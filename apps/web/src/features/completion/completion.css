@@ -9,6 +9,25 @@
 .completion-dialog .competitive-dialog-heading {
   margin-bottom: var(--space-4);
 }
+.completion-dialog--competitive {
+  --completion-heading-height: calc(var(--control-height) + 2px);
+}
+.completion-dialog--competitive .competitive-dialog-heading h2 {
+  min-height: var(--completion-heading-height);
+  gap: var(--space-2);
+}
+.completion-title-text {
+  line-height: 1;
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+.completion-dialog--competitive .competitive-dialog-heading {
+  gap: var(--space-1);
+}
+.completion-dialog--competitive .lobby-heading-actions {
+  min-height: var(--completion-heading-height);
+  gap: var(--space-1);
+}
 .completion-leave {
   color: var(--color-error-button);
 }
@@ -69,8 +88,7 @@
   grid-column: 1 / -1;
 }
 .match-winner-metadata,
-.match-winner-crown,
-.match-winner-time {
+.match-winner-crown {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -88,9 +106,6 @@
 .match-winner-crown:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: var(--space-1);
-}
-.match-winner-time {
-  font-family: var(--font-code);
 }
 .completion-dialog .match-result-players {
   margin: var(--space-4) 0 0;

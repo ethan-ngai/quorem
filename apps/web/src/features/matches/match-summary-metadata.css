@@ -17,7 +17,3 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 4px;
 }
-.match-summary-duration > span {
-  font-family: var(--font-code);
-  font-size: var(--text-label);
-}

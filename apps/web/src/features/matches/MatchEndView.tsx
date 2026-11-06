@@ -5,6 +5,8 @@ import { participantColor } from "../collaboration/participantColor";
 import { MatchCompletionActions } from "./MatchCompletionActions";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
+import { MatchDurationRing } from "./MatchDurationRing";
+import { elapsedRoundSeconds } from "./matchTime";
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -39,17 +41,6 @@ export function matchEndDescription(snapshot: MatchSnapshot, identity: Developme
   if (snapshot.outcome?.kind === "draw") return "The match ended with equal scores.";
   if (snapshot.state === "cancelled") return "This lobby closed before the match finished.";
   return "Judging is complete. These are the final results.";
-}
-export function elapsedRoundTime(startedAt?: string, completedAt?: string) {
-  if (!startedAt || !completedAt) return undefined;
-  const seconds = Math.floor((Date.parse(completedAt) - Date.parse(startedAt)) / 1000);
-  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainder = String(seconds % 60).padStart(2, "0");
-  return hours
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}`
-    : `${minutes}:${remainder}`;
 }
 
 export function MatchEndView({
@@ -192,11 +183,7 @@ export function MatchEndView({
                 self={player.userId === participantUserId(identity)}
               />
             </strong>
-            {player.userId === snapshot.outcome?.winnerUserId && (
-              <MatchWinnerMetadata
-                elapsed={elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt)}
-              />
-            )}
+            {player.userId === snapshot.outcome?.winnerUserId && <MatchWinnerMetadata />}
           </span>
           <span className="match-result-score">
             {party && (
@@ -228,21 +215,25 @@ export function MatchEndView({
         celebrate={celebrate}
         title={title}
         description={problemTitle ?? description}
-        context={
-          <MatchSummaryMetadata
-            mode={snapshot.mode}
-            durationMinutes={snapshot.durationMinutes}
-            difficulty={snapshot.difficulty}
-          />
-        }
+        context={<MatchSummaryMetadata mode={snapshot.mode} difficulty={snapshot.difficulty} />}
         competitive
         outcome={outcome}
         pending={pending}
         headerActions={
-          party && !partyQuery.isError && member ? (
-            <LeaveLobbyButton disabled={pending} onClick={() => void leaveLobby()} />
-          ) : undefined
+          <>
+            <MatchDurationRing
+              durationMinutes={snapshot.durationMinutes}
+              elapsedSeconds={elapsedRoundSeconds(
+                snapshot.startedAt,
+                snapshot.outcome?.completedAt,
+              )}
+            />
+            {party && !partyQuery.isError && member && (
+              <LeaveLobbyButton disabled={pending} onClick={() => void leaveLobby()} />
+            )}
+          </>
         }
+
         actions={actions}
       >
         {standings}

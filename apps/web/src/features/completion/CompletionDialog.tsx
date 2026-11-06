@@ -50,12 +50,12 @@ export function CompletionDialog({
               competitive ? <Trophy size={20} className="completion-trophy" /> : undefined
             }
           />
-          {title}
+          <span className="completion-title-text">{title}</span>
         </>
       }
       description={description}
       descriptionHidden={descriptionHidden}
-      className="completion-dialog"
+      className={`completion-dialog${competitive ? " completion-dialog--competitive" : ""}`}
       closeLabel="Close summary"
       actions={headerActions}
       pending={pending}
