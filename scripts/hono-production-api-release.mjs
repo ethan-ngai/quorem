@@ -118,15 +118,16 @@ async function release(env) {
       })),
       ...(config.r2_buckets ?? []).map(({ binding: name }) => ({ name, type: "r2_bucket" })),
     ];
-    const judgingServices = [...config.services];
+    const judgingServices = config.services;
+    const knownJudgingServices = [...judgingServices];
     // Permit the controlled removal of a premature binding during a staged rollout.
-    if (!judgingServices.some(({ binding }) => binding === "RESULT_VERIFIER"))
-      judgingServices.push({
+    if (!knownJudgingServices.some(({ binding }) => binding === "RESULT_VERIFIER"))
+      knownJudgingServices.push({
         binding: "RESULT_VERIFIER",
         service: "quorem-hono-services-production-verifier",
       });
-    const judgingNames = new Set(judgingServices.map(({ binding }) => binding));
-    for (const { binding, service } of judgingServices) {
+    const judgingNames = new Set(knownJudgingServices.map(({ binding }) => binding));
+    for (const { binding, service } of knownJudgingServices) {
       const existing = before.find(({ name }) => name === binding);
       if (existing && (existing.type !== "service" || existing.service !== service))
         throw new Error("Unexpected judging service binding");
