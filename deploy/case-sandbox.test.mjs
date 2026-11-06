@@ -56,6 +56,9 @@ function fixture({ failure = false, streamFailure = false } = {}) {
         this.running = true;
         context.options = options;
       },
+      async inspect() {
+        return this.running ? { image: "image", labels: {} } : null;
+      },
       async destroy() {
         if (failure) throw new Error("unconfirmed");
         this.running = false;
@@ -156,6 +159,82 @@ void test("direct case forwards current input and confirms teardown before its t
   assert.equal(context.container.running, false);
   assert.equal(values.has("started"), false);
   assert.equal(context.alarm, undefined);
+});
+
+void test("waits for the configured VM image before issuing exec", async () => {
+  const { context, pending } = fixture();
+  let inspections = 0;
+  context.container.inspect = async () => ({ image: ++inspections < 3 ? "" : "image", labels: {} });
+  const exec = context.container.exec.bind(context.container);
+  context.container.exec = async (...args) => {
+    assert.equal(inspections, 3);
+    return exec(...args);
+  };
+  const response = await newSandbox(context).fetch(request());
+  await response.arrayBuffer();
+  await Promise.all(pending);
+  assert.equal(inspections, 3);
+  assert.equal(context.container.running, false);
+});
+
+void test("cancellation during boot prevents a later exec", async () => {
+  const { context, pending } = fixture();
+  let inspected;
+  const booting = new Promise((resolve) => {
+    inspected = resolve;
+  });
+  context.container.inspect = async () => {
+    inspected();
+    return { image: "", labels: {} };
+  };
+  const sandbox = newSandbox(context);
+  const response = await sandbox.fetch(request());
+  const reader = response.body.getReader();
+  await reader.read();
+  await booting;
+  assert.equal((await sandbox.fetch(request("DELETE"))).status, 204);
+  await assert.rejects(reader.read(), /Case cancelled/);
+  await Promise.all(pending);
+  assert.equal(context.command, undefined);
+  assert.equal(context.container.running, false);
+});
+
+void test("a late exec response cannot receive input after cancellation", async () => {
+  const { context, pending, input } = fixture();
+  let started, release;
+  const executing = new Promise((resolve) => {
+    started = resolve;
+  });
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const exec = context.container.exec.bind(context.container);
+  context.container.exec = async (...args) => {
+    started();
+    await gate;
+    return exec(...args);
+  };
+  const sandbox = newSandbox(context);
+  const response = await sandbox.fetch(request());
+  const reader = response.body.getReader();
+  await reader.read();
+  await executing;
+  assert.equal((await sandbox.fetch(request("DELETE"))).status, 204);
+  release();
+  await assert.rejects(reader.read(), /Case cancelled/);
+  await Promise.all(pending);
+  assert.equal(input().length, 0);
+  assert.equal(context.container.running, false);
+});
+
+void test("image changes during startup fail closed and destroy the VM", async () => {
+  const { context, pending } = fixture();
+  context.container.inspect = async () => ({ image: "other-image", labels: {} });
+  const response = await newSandbox(context).fetch(request());
+  await assert.rejects(response.arrayBuffer(), /Case image changed/);
+  await Promise.all(pending);
+  assert.equal(context.command, undefined);
+  assert.equal(context.container.running, false);
 });
 
 void test("invalid limits do not start a case and uncertain teardown remains fenced", async () => {
