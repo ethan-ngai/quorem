@@ -288,7 +288,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
           const publication = fk.name === "current_publication_identity";
           const deferred = publication || fk.name === "submission_interview_execution_fkey";
           const replaceablePublication = [
-            "workspace_problem_language_fkey",
+            "workspace_problem_version_fkey",
             "matches_problem_version_id_fkey",
             "matches_selected_problem_version_id_fkey",
             "question_drafts_published_version_id_fkey",
