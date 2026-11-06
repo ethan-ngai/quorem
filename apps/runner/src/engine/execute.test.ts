@@ -746,8 +746,13 @@ void test("idle native workers advance the final window while an earlier case re
   const { setTimeout: delay } = await import("node:timers/promises");
   const { fixture, job } = fastFixture();
   fixture.port.finalizeCompletion = async () => {};
-  const busy = Promise.withResolvers<void>();
-  const advanced = Promise.withResolvers<void>();
+  let release!: () => void, nextStarted!: () => void;
+  const busy = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const advanced = new Promise<void>((resolve) => {
+    nextStarted = resolve;
+  });
   let firstStopped = false,
     active = 0,
     peak = 0;
@@ -761,10 +766,10 @@ void test("idle native workers advance the final window while an earlier case re
         peak = Math.max(peak, active);
         try {
           if (request.ordinal === 0) {
-            await busy.promise;
+            await busy;
             firstStopped = true;
           }
-          if (request.ordinal === 10) advanced.resolve();
+          if (request.ordinal === 10) nextStarted();
           return confirmCaseOutput(request, {
             stdout: Buffer.from('\0{"status":"executed","actual":7}'),
             stderr: Buffer.alloc(0),
@@ -782,14 +787,14 @@ void test("idle native workers advance the final window while an earlier case re
   );
   try {
     await Promise.race([
-      advanced.promise,
+      advanced,
       delay(1000).then(() => {
         throw new Error("idle worker remained blocked");
       }),
     ]);
     assert.equal(firstStopped, false);
   } finally {
-    busy.resolve();
+    release();
   }
   await execution;
   assert.ok(peak >= 2 && peak <= 10);
