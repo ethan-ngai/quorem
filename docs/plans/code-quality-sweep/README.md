@@ -1,39 +1,51 @@
 # Code quality sweep
 
-Tracking: [#560](https://github.com/ethan-ngai/quorem/issues/560). Baseline: `67a5051b` (`origin/dev`).
+Ledger: [#560](https://github.com/ethan-ngai/quorem/issues/560). Baseline `67a5051b`; review and implementation by Terra 6.1 agents, integrated by the orchestrator.
 
-## Coordination
+## Coverage
 
-Review first, implementation second. Review all source areas; inventory generated/vendor/fixture areas separately. Findings require source evidence, affected consumers, canonical owner, remedy, risk and verification. Prefer deletion/composition and maintained existing dependencies over new frameworks or wrappers. Preserve behavior, authorization and private data boundaries.
-
-| Reviewer | Coverage | Findings document | State |
+| Owner | Scope | Evidence | Disposition |
 | --- | --- | --- | --- |
-| Terra frontend | apps/web, apps/marketing, packages/ui, DESIGN.md | frontend.md | Reviewed |
-| Terra backend | apps/api, apps/auth, packages/database, packages/contracts | backend.md | Reviewed |
-| Terra platform | apps/runner, apps/language, apps/realtime-cloudflare, packages/questions, packages/execution, deploy, infra, scripts, workflows, tools | platform.md | Reviewed |
-| Orchestrator | Cross-area synthesis, dependencies, implementation sequencing and validation | README.md | Reviewed |
+| Frontend | Web feature groups, marketing, shared UI and DESIGN.md | [Frontend review](frontend.md), [design token inventory](design-tokens.md) | Implemented |
+| Backend | API, auth, database and public contracts | [Backend review](backend.md) | Implemented |
+| Platform | Runner, language/realtime, question/execution packages, deployment, Terraform, scripts, workflows and probes | [Platform review](platform.md) | Implemented; retirement candidate separately tracked |
+| Orchestrator | Cross-area ownership, result streaming, integration, browser and CI | [Result streaming](results.md) | Implemented |
 
-## Protected pre-existing edits
+All source roots inventoried. Reviewers traced high-risk owners and consumers; reports record what was inspected, sampled and excluded. This is a structural audit, not line-by-line certification or proof that every visual state is correct. Generated sources, binaries, fixtures and migration history were classified separately.
 
-Do not stage, overwrite or commit existing edits: API interview lifecycle integration, problem repository tests, application list-query and tests; web admin/practice search tests, catalogSearch, TableControls, table.css, useServerTable tests; tables docs; contracts generated envelopes/OpenAPI/package.json/new pagination.ts; scripts/dev.py. Check current git status before implementation: other active chats may add changes.
+## Landed changes
 
-## Implementation rules
+| Change | PR |
+| --- | --- |
+| Catalog visibility predicate; cohesive authoring query owner; exact PostgreSQL keyset readiness scans; pure pagination boundary; shared auth fixture secret | [#565](https://github.com/ethan-ngai/quorem/pull/565) |
+| Canonical type rendering; direct starter composition; shared projection validation and execution decoders | [#567](https://github.com/ethan-ngai/quorem/pull/567) |
+| Shared tabs, draft controller/storage/snapshots, pointer cancellation, tooltip/layout/motion tokens; draft restore/unmount race fixes | [#569](https://github.com/ethan-ngai/quorem/pull/569) |
+| Canonical active grants and explicit read/share locking, preserving user-first authoring locks | [#574](https://github.com/ethan-ngai/quorem/pull/574) |
+| Forward-only result arrays with live guards; canonical authorization; CI coverage for results, authoring, grants and stacked PRs | [#570](https://github.com/ethan-ngai/quorem/pull/570) |
+| Full static visual-token inventory; standard elevations/motion; orphan menu/dialog style removal | [#580](https://github.com/ethan-ngai/quorem/pull/580) |
 
-Orchestrator assigns exact worktree/branch/file ownership after synthesis. Independent branches start at origin/dev, dependent branches at predecessor. Feature PRs target dev; merge after checks. No production deployment or main promotion. Update findings with disposition and validation. Record explicitly any unverified hosted/browser/database states.
+Existing Radix, TanStack, AJV and ws owners remain appropriate. No speculative runtime dependency migration was justified. `happy-dom` supplies missing React-effect/race test coverage as a development dependency. Shared behavior moved to focused owners; feature-specific protocols, authorization and private-test boundaries remain explicit.
 
-## Review synthesis and implementation order
+The initial local table/API/contract edits and concurrently landed input constraints were preserved. Only task-owned files were committed. Unrelated `scripts/dev.py` remains outside this work. Feature work used assigned branches/worktrees; merged branches and inactive task worktrees are removed. Child PRs were retargeted before parent merges because the repository automatically deletes merged branches.
 
-All source roots inventoried; reviewers performed risk-focused structural inspection, not line-by-line certification. Reports explicitly record unreviewed areas.
+## Validation
 
-1. Frontend: repair splitter lifecycle, centralize custom-case storage/snapshots, enforce tooltip tokens, then isolate workspace draft lifecycle with race-focused tests.
-2. Backend: unify catalog visibility predicates; decompose authoring repository along query/import boundaries while preserving transactions and locks. Improve readiness scan only where correctness remains unchanged; persisted projections require an explicit invalidation model.
-3. Platform: canonical type rendering and direct starter composition, then canonical execution transport decoding and projection compatibility.
-4. Re-review integrated changes; validate relevant Node/worker/database/browser consumers. Keep package choices evidence-driven: existing Radix/TanStack/AJV/ws remain preferred; no verified replacement yet justifies migration.
+- Combined primary checkout: web typecheck; 630 tests passed, 2 skipped. Lint/type check: zero errors, 18 existing warnings. API/runner typechecks, API boundaries and contract reproducibility passed.
+- Questions: 74 Node and 12 workerd tests. Execution: 21 Node and 18 workerd tests. Runner: 18 HTTP/verifier tests. Relevant package typechecks passed.
+- Catalog, authoring, grants and results passed focused Node/workerd checks against separate disposable PostgreSQL. Result conformance: four primitive, 27 Node and six workerd tests, including large bounded streams, revocation, lossless values, mutation and retention. Authoring checks preserve exact sort/timestamp ties across multiple readiness batches. The separately gated canonical-migration fixture is exercised by its existing CI owner.
+- Auth: reproduced order-dependent encrypted-JWKS fixture failure; shared test-only secret fixes service-to-social execution without deleting keys or changing production secrets. Isolated full auth suite: 151 passed, six skipped; CI also validates SMTP-dependent cases.
+- Full CI passed on backend, platform and result-stream branches. Relevant authoring/grant/result CI steps passed before integration. CI run links and validated commit identities are recorded on #560; formatting remains advisory under the existing workflow policy.
 
-Deferred pending evidence/design: relay/probe retirement requires deployed-reference evidence; persisted readiness needs runtime invalidation design; protected pagination changes belong #559. Security-sensitive result stream batching requires bounded window and revocation conformance before acceptance.
+Live Vite/HMR: primary checkout `/Users/engai/CS/Projects/quorem`, **http://127.0.0.1:5187**. Initial branch validation used `http://127.0.0.1:5186`. Verified practice editor in dark/light, desktop/narrow layouts, keyboard tabs, pointer/keyboard resizing, settings focus restoration and draft reload. Final settings elevation verified in both themes: exact 0/8/24 medium shadow in light, none in dark. Tooltip verified dark-none with 120ms entry; focus returns to its trigger. Authenticated account-menu elevation remains a browser limitation. No rebuild/preview iteration used.
 
-## Baseline validation
+Manual limits: authenticated admin/interviewer flows, touch hardware, live reduced-motion settings and exhaustive failure/scale states were not exercised in the browser. DOM tests and existing role/private-data conformance cover affected contracts. No hosted isolation, deployment, production latency or capacity claim follows from these checks.
 
-- Web typecheck passed; 112 test files passed, 1 skipped: 601 tests passed, 2 skipped.
-- API boundary check initially fails on pre-existing #559 import `application/list-query.ts -> @quorem/contracts/pagination`; preserve that owner's changes.
-- Existing Vite servers on 127.0.0.1:5173 and :5175 both use this checkout (`apps/web` cwd). Browser validation must confirm intended source checkout for the final integrated state.
+## Remaining evidence/design work
+
+- [#571](https://github.com/ethan-ngai/quorem/issues/571): prove deployed/operator references before retiring legacy relay/probes; preserve deployment CLI ownership.
+- [#572](https://github.com/ethan-ngai/quorem/issues/572): design revision/runtime invalidation before persisting readiness; exact totals still validate all matching drafts.
+- [#575](https://github.com/ethan-ngai/quorem/issues/575): measure bounded response/validation budgets while preserving arbitrary user-selected page sizes.
+
+Further private-result batching requires equivalent per-entry revocation/version conformance. A proposed cached plan failed cross-review and was removed; only the proven forward scan remains.
+
+Browser artifacts: [workspace](/Users/engai/.codex/visualizations/2026/11/06/01a1aee2-3c70-7721-a744-1ea6aa837a3e/quality-workspace.jpg), [light settings](/Users/engai/.codex/visualizations/2026/11/06/01a1aee2-3c70-7721-a744-1ea6aa837a3e/settings-light.jpg), [dark settings](/Users/engai/.codex/visualizations/2026/11/06/01a1aee2-3c70-7721-a744-1ea6aa837a3e/settings-dark.jpg).
