@@ -153,6 +153,17 @@ void test(
       entered = resolve;
     });
     const claim = f.repository.claimAfterTeardown.bind(f.repository);
+    const readState = f.queue.state.bind(f.queue);
+    let emptyReads = 0,
+      settled!: () => void;
+    const quiet = new Promise<void>((resolve) => {
+      settled = resolve;
+    });
+    f.queue.state = async (signal) => {
+      const state = await readState(signal);
+      if (state.queued === 0 && ++emptyReads === 2) settled();
+      return state;
+    };
     f.repository.claimAfterTeardown = async (...args) => {
       calls++;
       return claim(...args);
@@ -181,8 +192,11 @@ void test(
     const result = d.drain(AbortSignal.timeout(1800));
     try {
       await started;
+      // A winning claim may race one stale snapshot; measure after fresh empty reads.
+      await quiet;
+      const baseline = calls;
       await sleep(450);
-      assert.ok(calls <= 8, `idle claim amplification: ${calls}`);
+      assert.equal(calls, baseline, `idle claim amplification: ${calls - baseline}`);
     } finally {
       release();
     }
