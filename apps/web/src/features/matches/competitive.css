@@ -677,11 +677,6 @@
     transition: none;
   }
 }
-.match-dialog-close {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-}
 .match-result-icon {
   display: grid;
   place-items: center;
@@ -692,45 +687,20 @@
   color: var(--color-text-secondary);
   margin-bottom: 20px;
 }
-.match-result-icon.is-winner {
-  color: var(--color-success);
-}
 .forfeit-icon {
   color: var(--color-error);
 }
-.forfeit-dialog h2,
-.match-end-dialog h2 {
+.forfeit-dialog h2 {
   margin: 0 0 8px;
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-.match-end-dialog > p,
 .match-results-heading p {
   color: var(--color-text-secondary);
   font-size: 14px;
   line-height: 1.6;
   margin: 0;
-}
-.match-end-score {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin: 24px 0 8px;
-}
-.match-end-score > strong {
-  font-size: 32px;
-  letter-spacing: -0.03em;
-  font-weight: 550;
-}
-.match-end-score strong > span {
-  font-size: 20px;
-  color: var(--color-text-secondary);
-  font-weight: 400;
-}
-.match-end-score > span {
-  font-size: 13px;
-  color: var(--color-text-secondary);
 }
 .match-results-page {
   max-width: 520px;
@@ -789,21 +759,15 @@
   }
 }
 @media (max-width: 480px) {
-  .match-end-dialog .competitive-dialog-actions,
   .forfeit-dialog .competitive-dialog-actions {
     gap: 8px;
   }
-  .match-end-dialog .competitive-dialog-actions > *,
   .forfeit-dialog .competitive-dialog-actions > * {
     flex: 1;
     justify-content: center;
   }
 }
 @media (max-width: 380px) {
-  .match-end-dialog .competitive-dialog-actions {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
   .forfeit-dialog .competitive-dialog-actions {
     flex-direction: column;
     align-items: stretch;

@@ -11,7 +11,7 @@ import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
 import { Tooltip } from "../../ui/Tooltip";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
-import { ModeIcon } from "../matches/MatchControls";
+import { ModeIcon } from "../matches/ModeIcon";
 import { ModeText } from "../matches/ModeText";
 import { useActiveMatch } from "../matches/useActiveMatch";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";

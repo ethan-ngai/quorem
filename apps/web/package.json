@@ -45,6 +45,7 @@
     "@valtown/codemirror-ts": "^2.3.1",
     "@xyflow/react": "^12.12.1",
     "better-auth": "catalog:",
+    "canvas-confetti": "^1.9.4",
     "comlink": "^4.4.2",
     "d3-flextree": "^2.1.2",
     "dompurify": "3.4.17",
@@ -62,6 +63,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/d3-flextree": "^2.1.4",
     "@types/katex": "^0.16.8",
     "@types/mdast": "^4.0.4",

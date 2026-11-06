@@ -1,0 +1,14 @@
+.celebration-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Appended above the backdrop (60), behind the dialog (61). */
+  z-index: 60;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebration-canvas {
+    display: none;
+  }
+}

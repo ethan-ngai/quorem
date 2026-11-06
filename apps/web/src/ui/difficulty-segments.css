@@ -1,3 +1,5 @@
+@import "./difficulty.css";
+
 .difficulty-segments {
   display: inline-flex;
   align-items: center;
@@ -37,16 +39,6 @@
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
 }
-.difficulty-segments .difficulty-easy {
-  color: var(--color-success);
-}
-.difficulty-segments .difficulty-medium {
-  color: var(--color-warning);
-}
-.difficulty-segments .difficulty-hard {
-  color: var(--color-error);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .difficulty-segments button {
     transition: none;

@@ -1,9 +1,11 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
-import * as Dialog from "@radix-ui/react-dialog";
-import { ArrowRight, Flag, Trophy, Minus, X } from "lucide-react";
+import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
+import { CompletionDialog } from "../completion/CompletionDialog";
+import { CompletionOutcomeIcon } from "../../ui/CompletionOutcomeIcon";
+import { ArrowRight, Trophy } from "lucide-react";
 import { useState } from "react";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
-import { outcomeLabel, ownParticipant } from "./matchState";
+import { outcomeLabel, ownParticipant, matchCompletionOutcome } from "./matchState";
 
 /** Human explanations avoid exposing persistence reason codes. */
 export function matchEndDescription(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
@@ -40,47 +42,49 @@ export function MatchEndView({
   const [open, setOpen] = useState(true);
   const own = ownParticipant(snapshot, identity);
   const forfeited = !!own?.forfeited;
-  const won = snapshot.outcome?.winnerUserId === participantUserId(identity);
+  const outcome = matchCompletionOutcome(snapshot, identity);
   const title = forfeited ? "You forfeited" : outcomeLabel(snapshot, identity);
   const description = matchEndDescription(snapshot, identity);
-  const ResultIcon = forfeited ? Flag : won ? Trophy : Minus;
   const players = [...snapshot.participants].sort(
     (a, b) =>
       Number(a.forfeited) - Number(b.forfeited) ||
       (b.bestScore?.passed ?? 0) - (a.bestScore?.passed ?? 0),
   );
+  const standings = (
+    <ol className="match-result-players" aria-label="Match results">
+      {players.map((player) => (
+        <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
+          <span>
+            <strong>{player.displayName}</strong>
+            {player.userId === participantUserId(identity) && <small>You</small>}
+          </span>
+          <span>
+            {player.forfeited ? (
+              "Forfeited"
+            ) : player.bestScore ? (
+              <>
+                <strong>{player.bestScore.passed}</strong>
+                <span className="result-score-total"> / {player.bestScore.total}</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
+  );
   return (
     <>
       <section className="match-page-content match-results-page">
         <header className="match-results-heading">
-          <span className={`match-result-icon ${won ? "is-winner" : ""}`}>
-            <ResultIcon size={24} />
+          <span className="match-result-icon">
+            <CompletionOutcomeIcon outcome={outcome} size={24} successIcon={<Trophy size={24} />} />
           </span>
           <h1>{title}</h1>
           <p>{description}</p>
         </header>
-        <ol className="match-result-players" aria-label="Match results">
-          {players.map((player) => (
-            <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
-              <span>
-                <strong>{player.displayName}</strong>
-                {player.userId === participantUserId(identity) && <small>You</small>}
-              </span>
-              <span>
-                {player.forfeited ? (
-                  "Forfeited"
-                ) : player.bestScore ? (
-                  <>
-                    <strong>{player.bestScore.passed}</strong>
-                    <span className="result-score-total"> / {player.bestScore.total}</span>
-                  </>
-                ) : (
-                  "—"
-                )}
-              </span>
-            </li>
-          ))}
-        </ol>
+        {standings}
         {guest && (
           <p className="match-guest-finished">
             Your guest session has ended. Sign in or continue browsing.
@@ -96,41 +100,40 @@ export function MatchEndView({
           </a>
         </footer>
       </section>
-      <Dialog.Root open={open} onOpenChange={setOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="settings-backdrop" />
-          <Dialog.Content className="competitive-dialog match-end-dialog">
-            <Dialog.Close asChild>
-              <button className="icon-button match-dialog-close" aria-label="Close match summary">
-                <X size={18} />
-              </button>
-            </Dialog.Close>
-            <span className={`match-result-icon ${won ? "is-winner" : ""}`}>
-              <ResultIcon size={24} />
-            </span>
-            <Dialog.Title>{title}</Dialog.Title>
-            <Dialog.Description>{description}</Dialog.Description>
-            {own?.bestScore && (
-              <div className="match-end-score">
-                <strong>
-                  {own.bestScore.passed}
-                  <span> / {own.bestScore.total}</span>
-                </strong>
-                <span>cases passed</span>
-              </div>
-            )}
-            <div className="competitive-dialog-actions">
-              <Dialog.Close asChild>
-                <button className="button button-secondary">Review results</button>
-              </Dialog.Close>
-              <a className="button button-primary" href="/practice">
-                Back to practice
-                <ArrowRight size={16} />
-              </a>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <CompletionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        description={description}
+        context={
+          <MatchSummaryMetadata
+            mode={snapshot.mode}
+            durationMinutes={snapshot.durationMinutes}
+            difficulty={snapshot.difficulty}
+          />
+        }
+        competitive
+        outcome={outcome}
+        actions={
+          <>
+            <button className="button button-secondary" onClick={() => setOpen(false)}>
+              Review results
+            </button>
+            <a
+              className="button button-primary"
+              href={guest ? "/practice" : "/practice?create=match"}
+            >
+              {guest ? "Back to practice" : "New match"}
+              <ArrowRight size={16} />
+            </a>
+          </>
+        }
+      >
+        {standings}
+        {guest && (
+          <p className="completion-next">Your guest session has ended. Sign in to play again.</p>
+        )}
+      </CompletionDialog>
     </>
   );
 }

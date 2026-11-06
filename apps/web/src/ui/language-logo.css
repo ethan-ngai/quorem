@@ -1,0 +1,16 @@
+.language-logo {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+.language-logo-hint {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.language-logo-hint:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}

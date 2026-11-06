@@ -1,6 +1,8 @@
+import { matchCompletionOutcome } from "../matches/matchState";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import { WorkspaceCompletion } from "../completion/WorkspaceCompletion";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -256,6 +258,7 @@ export function WorkspacePage({
         loaded: !loading,
       }),
   });
+  const [settledOdysseySubmission, setSettledOdysseySubmission] = useState<string>();
   const completedWorkspace = execution.submission?.workspaceId;
   const completedSubmission = execution.submission?.id;
   const submissionState = execution.submission?.state;
@@ -267,7 +270,13 @@ export function WorkspacePage({
       submissionState !== "completed"
     )
       return;
-    void queryClient.invalidateQueries({ queryKey: ["odyssey", workspace.id] });
+    let current = true;
+    void queryClient.invalidateQueries({ queryKey: ["odyssey", workspace.id] }).then(() => {
+      if (current) setSettledOdysseySubmission(completedSubmission);
+    });
+    return () => {
+      current = false;
+    };
   }, [
     completedSubmission,
     completedWorkspace,
@@ -627,6 +636,21 @@ export function WorkspacePage({
           />
         }
       >
+        <WorkspaceCompletion
+          key={workspace.id}
+          submission={submission}
+          workspaceId={workspace.id}
+          title={problem.title}
+          difficulty={problem.difficulty}
+          language={documentLanguage}
+          odyssey={problem.odyssey ? displayedOdyssey : undefined}
+          odysseyReady={
+            !problem.odyssey ||
+            (!!odyssey.data && !odyssey.isError && settledOdysseySubmission === submission?.id)
+          }
+          competitive={!!match}
+          outcome={match ? matchCompletionOutcome(match, identity) : "success"}
+        />
         <SessionDialog
           open={signInPrompt}
           onOpenChange={setSignInPrompt}

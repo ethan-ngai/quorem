@@ -242,7 +242,27 @@ const interviewInviteRoute = createRoute({
     );
   },
 });
+const CompletionDemo = lazy(() =>
+  import("./features/completion/CompletionDemo").then((module) => ({
+    default: module.CompletionDemo,
+  })),
+);
+const completionDemoRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/dev/completion",
+        component: () => (
+          <Suspense fallback={<LoadingScreen label="Opening demo…" />}>
+            <CompletionDemo />
+          </Suspense>
+        ),
+      }),
+    ]
+  : [];
+
 const routeTree = rootRoute.addChildren([
+  ...completionDemoRoutes,
   privacyRoute,
   termsRoute,
   interviewsRoute,

@@ -1,3 +1,4 @@
+import { ModeIcon } from "./ModeIcon";
 import { RoomAlerts } from "../rooms/RoomAlerts";
 import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SessionBar } from "../../ui/SessionBar";
@@ -32,7 +33,7 @@ import {
   rotateInvite,
   removeGuest,
 } from "./api";
-import { MatchSettings, ModeIcon, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
+import { MatchSettings, defaultMatchSettings, useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { ShareActions } from "../../ui/ShareActions";
 import { ReadinessIcon } from "./ReadinessIcon";
