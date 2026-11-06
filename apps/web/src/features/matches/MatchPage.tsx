@@ -89,7 +89,20 @@ function MatchLedger({
                   ?.displayName ?? "Player",
               kind: event.kind === "clipboard" ? "paste" : "focus",
               description:
-                event.kind === "clipboard" ? "used copy / paste" : "left the match window",
+                {
+                  clipboard: "pasted",
+                  copy: "copied",
+                  focus: "left the match window",
+                  topics: "revealed topics",
+                  complexity: "revealed complexity",
+                  hiddenCase: "revealed a failed case",
+                  submission: "submitted",
+                }[event.kind] +
+                (event.seconds
+                  ? ` (+${event.seconds}s)`
+                  : event.points
+                    ? ` (−${event.points} points)`
+                    : ""),
             }))}
           />
           {status !== "live" && snapshot.state === "active" && !own?.forfeited && (
@@ -139,6 +152,22 @@ function MatchLedger({
               score={player?.bestScore}
               color={participantColor(player?.userId ?? "opponent", player?.color)}
             />
+            {snapshot.rules.victory === "high_score" && (
+              <span className="score-judging">
+                {Math.round((player?.adjustedScore ?? 0) * 100) / 100} points
+              </span>
+            )}
+            {!!player?.penaltySeconds && (
+              <span className="score-judging">+{player.penaltySeconds}s</span>
+            )}
+            {!!player?.penaltyPoints && (
+              <span className="score-judging">−{player.penaltyPoints} points</span>
+            )}
+            {player?.eligibleFinishAt && snapshot.state === "active" && (
+              <span className="score-judging">
+                Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
+              </span>
+            )}
             {(player?.submissionState === "running" || player?.submissionState === "queued") && (
               <span className="score-judging motion-reveal">Judging…</span>
             )}

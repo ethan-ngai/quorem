@@ -1,0 +1,79 @@
+.match-rule-settings {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  width: 100%;
+}
+.match-rule-description {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.match-rule-policy-list,
+.match-rule-advanced {
+  display: grid;
+  gap: var(--space-3);
+}
+.match-rule-settings .match-option {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.match-rule-settings .segmented-control {
+  max-width: 100%;
+}
+.match-rule-advanced summary {
+  cursor: pointer;
+  padding-block: var(--space-2);
+}
+.match-rule-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+}
+.match-rule-amount {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-label);
+  color: var(--color-text-secondary);
+}
+.match-rule-amount input {
+  width: 10ch;
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-field);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+.match-assistance {
+  display: grid;
+  gap: var(--space-2);
+  padding-block: var(--space-3);
+}
+.match-assistance-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.match-assistance pre {
+  overflow: auto;
+  max-height: 240px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.match-rule-cost:has(> span) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+}
+@media (max-width: 560px) {
+  .match-rule-cost:has(> span) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .match-rule-cost > span {
+    grid-column: 1 / -1;
+  }
+}

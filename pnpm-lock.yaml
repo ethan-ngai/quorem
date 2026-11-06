@@ -697,6 +697,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@quorem/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.4(@cloudflare/workers-types@5.20261104.1)(@types/pg@8.23.1)(kysely@0.29.8)(pg@8.23.1)

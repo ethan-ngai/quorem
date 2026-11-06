@@ -13,6 +13,7 @@ import {
 import { ApplicationError } from "../../../application/error.ts";
 
 export interface WorkspaceCommand {
+  matchApproval?: import("@quorem/contracts/match-rules").RuleApproval;
   workspaceId: string;
   kind: "run" | "submit";
   source: string;
@@ -66,7 +67,7 @@ export async function parseWorkspaceCommand(raw: string, key: string): Promise<W
   let c: Record<string, JsonValue>;
   try {
     c = object(parseLosslessJson(raw));
-    keys(c, ["level", "workspaceId", "kind", "source", "customCases"]);
+    keys(c, ["level", "workspaceId", "kind", "source", "customCases", "matchApproval"]);
   } catch {
     throw invalid();
   }
@@ -106,7 +107,33 @@ export async function parseWorkspaceCommand(raw: string, key: string): Promise<W
     )
       throw invalid();
   }
+  let matchApproval: WorkspaceCommand["matchApproval"];
+  if (c.matchApproval !== undefined) {
+    const a = object(c.matchApproval);
+    keys(a, ["ruleVersion", "seconds", "points"]);
+    if (
+      typeof a.ruleVersion !== "string" ||
+      !/^[0-9a-f]{64}$/.test(a.ruleVersion) ||
+      !(a.seconds instanceof JsonNumber) ||
+      !(a.points instanceof JsonNumber)
+    )
+      throw invalid();
+    const seconds = Number(a.seconds.lexeme),
+      points = Number(a.points.lexeme);
+    if (
+      !Number.isSafeInteger(seconds) ||
+      seconds < 0 ||
+      seconds > 3600 ||
+      !Number.isSafeInteger(points) ||
+      points < 0 ||
+      points > 100 ||
+      kind !== "submit"
+    )
+      throw invalid();
+    matchApproval = { ruleVersion: a.ruleVersion, seconds, points };
+  }
   return {
+    ...(matchApproval ? { matchApproval } : {}),
     workspaceId,
     kind,
     source,

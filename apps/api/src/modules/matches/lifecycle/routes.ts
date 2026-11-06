@@ -54,13 +54,59 @@ export function matchLifecycleRoutes(deps: {
   app.get("/v1/matches/:id", async (c) =>
     c.json(await deps.lifecycle.read(await actor(c.req.raw), c.req.param("id"))),
   );
+  app.post("/v1/matches/:id/rule-actions", async (c) => {
+    const who = await actor(c.req.raw),
+      operation = key(c.req.raw),
+      input = await body(c.req.raw, 2048);
+    if (
+      Object.keys(input).some(
+        (k) => !["kind", "submissionId", "caseIndex", "approval"].includes(k),
+      ) ||
+      !["topics", "complexity", "hiddenCase", "submission"].includes(String(input.kind))
+    )
+      throw new ApplicationError("invalid_input", "Invalid rule action", 400);
+    if (
+      input.kind === "hiddenCase" &&
+      (typeof input.submissionId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          input.submissionId,
+        ) ||
+        (input.caseIndex !== undefined &&
+          (!Number.isSafeInteger(input.caseIndex) ||
+            Number(input.caseIndex) < 0 ||
+            Number(input.caseIndex) > 2147483646)))
+    )
+      throw new ApplicationError("invalid_input", "Invalid case selection", 400);
+    if (input.approval !== undefined) {
+      const a = input.approval as Record<string, unknown>;
+      if (
+        !a ||
+        typeof a !== "object" ||
+        Object.keys(a).some((k) => !["ruleVersion", "seconds", "points"].includes(k)) ||
+        typeof a.ruleVersion !== "string" ||
+        !Number.isSafeInteger(a.seconds) ||
+        !Number.isSafeInteger(a.points) ||
+        Number(a.seconds) < 0 ||
+        Number(a.points) < 0
+      )
+        throw new ApplicationError("invalid_input", "Invalid action approval", 400);
+    }
+    return c.json(
+      await deps.lifecycle.ruleAction(
+        who,
+        c.req.param("id"),
+        operation,
+        input as unknown as import("@quorem/contracts/match-rules").RuleActionRequest,
+      ),
+    );
+  });
   app.post("/v1/matches/:id/rule-events", async (c) => {
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
       input = await body(c.req.raw, 1024);
     if (
       Object.keys(input).some((k) => k !== "kind") ||
-      (input.kind !== "clipboard" && input.kind !== "focus")
+      (input.kind !== "clipboard" && input.kind !== "copy" && input.kind !== "focus")
     )
       throw new ApplicationError("invalid_input", "Invalid rule event", 400);
     return c.json(

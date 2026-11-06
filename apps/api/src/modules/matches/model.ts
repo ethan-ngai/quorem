@@ -1,9 +1,12 @@
 /** @file model.ts @description Provider-free match reconciliation values. @module matches */
 export interface Progress {
+  bestPercentage: number;
+  eligibleFinishAt: bigint | null;
   state: string;
   bestPassed: number;
 }
 export interface SubmissionProgress {
+  eligibleAt?: bigint;
   owner: string;
   state: string;
   verdict: string;
