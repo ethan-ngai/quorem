@@ -26,7 +26,8 @@ function fixture({
     messages = [],
     closed = 0,
     resultReads = 0,
-    resultTimes = [];
+    resultTimes = [],
+    leaves = [];
   class Socket extends EventEmitter {
     readyState = 0;
     constructor(url, protocols, options) {
@@ -85,15 +86,15 @@ function fixture({
       const path = new URL(url).pathname;
       if (path === "/api/auth/token")
         return Response.json({ token: badToken ? "bad token" : `fixture-token-${++requests}` });
-      if (path === "/v1/matches")
-        return Response.json({ id: room, inviteUrl: "/invite/example" }, { status: 201 });
+      if (path === "/v1/parties")
+        return Response.json({ party: { id: room }, inviteUrl: "/invite/example" }, { status: 201 });
       if (path === `/v1/matches/${room}`)
         return Response.json({
           participants: [
             { workspaceId: `33333333-3333-4333-8333-${String(++requests).padStart(12, "0")}` },
           ],
         });
-      if (path.endsWith("/ready")) return Response.json({ state: "active" });
+      if (path.endsWith("/start")) return Response.json({ currentMatchId: room });
       if (path === "/v1/submissions") {
         admissions.push({ at: clock, body: JSON.parse(init.body) });
         return failAdmission
@@ -116,12 +117,22 @@ function fixture({
           lostNotice && resultReads === 1 ? { state: "running" } : { verdict: "accepted" },
         );
       }
-      return Response.json({});
+      if (path === "/v1/parties/join") {
+        assert.deepEqual(JSON.parse(init.body), { token: "example" });
+        return Response.json({ id: room });
+      }
+      if (path === "/v1/presence/heartbeat" || path === `/v1/parties/${room}/ready`)
+        return Response.json({});
+      if (path === `/v1/parties/${room}/leave`) {
+        leaves.push(init.headers.authorization);
+        return Response.json({});
+      }
+      throw new Error(`Unexpected workload route: ${path}`);
     },
   };
   return {
     deps,
-    state: () => ({ actors, disposed, admissions, messages, closed, resultReads, resultTimes }),
+    state: () => ({ actors, disposed, admissions, messages, closed, resultReads, resultTimes, leaves }),
   };
 }
 void test("drives public match, receipt acknowledgements, paced runs and cleanup", async () => {
@@ -138,6 +149,7 @@ void test("drives public match, receipt acknowledgements, paced runs and cleanup
   assert.deepEqual(state.messages[0], { type: "receipt", id: receipt });
   assert.equal(state.disposed, 2);
   assert.equal(state.closed, 2);
+  assert.equal(new Set(state.leaves).size, 2);
 });
 void test("partial admission failure still closes sockets and revokes sessions", async () => {
   const f = fixture({ failAdmission: true });
