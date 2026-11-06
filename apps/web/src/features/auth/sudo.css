@@ -1,0 +1,8 @@
+.sudo-form,
+.sudo-field {
+  display: grid;
+  gap: var(--space-3);
+}
+.sudo-field {
+  gap: var(--space-2);
+}

@@ -6,6 +6,8 @@ import type { ImageProcessor } from "./image-processing.ts";
 import type { ConnectionScope } from "@quorem/database/core";
 import type { configuration } from "./config.ts";
 import type { VerificationSender } from "./email-delivery.ts";
+import { accountEmails } from "./emails/content.ts";
+import { createSudoHandler } from "./sudo.ts";
 import { createAuth } from "./auth.ts";
 import { createAuthApp } from "./http.ts";
 import { socialEmail } from "./social-email.ts";
@@ -49,12 +51,29 @@ export function composeAuth(options: {
       rateLimit: (scope, subject, policy) => repository.rateLimit(scope, subject, policy),
       profile: (id) => repository.profile(id),
       recordAssurance: (id) => repository.recordAssurance(id),
+      checkAssurance: (id, subject) => repository.sessionAuthority(id, subject),
     });
   const auth = makeAuth();
   const registration =
     config.registration && mail
       ? createRegistrationHandler({ repository: mailRepository, mail, origin: config.origin })
       : undefined;
+  const sudo = createSudoHandler({
+    auth,
+    repository,
+    origin: config.origin,
+    secret: config.secret,
+    passkey: config.passkey,
+    send: mail
+      ? (email, code) =>
+          accountMailer(mail)(
+            email,
+            code,
+            accountEmails.sudo.subject,
+            accountEmails.sudo.instruction,
+          )
+      : undefined,
+  });
   const profile = createProfileHandler({
     origin: config.origin,
     session: (headers) => auth.api.getSession({ headers }),
@@ -68,6 +87,6 @@ export function composeAuth(options: {
     makeAuth,
     repository,
     registration,
-    app: createAuthApp({ config, auth, registration, profile }),
+    app: createAuthApp({ config, auth, registration, profile, sudo }),
   };
 }

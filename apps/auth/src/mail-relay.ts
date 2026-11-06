@@ -11,7 +11,8 @@ function message(value: unknown, from: string): EmailMessage {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
   const row = value as Record<string, unknown>;
   if (
-    Object.keys(row).sort().join() !== "from,subject,text,to" ||
+    Object.keys(row).sort().join() !==
+      (row.html === undefined ? "from,subject,text,to" : "from,html,subject,text,to") ||
     row.from !== from ||
     typeof row.to !== "string" ||
     row.to.length < 3 ||
@@ -23,10 +24,17 @@ function message(value: unknown, from: string): EmailMessage {
     /[\r\n]/.test(row.subject) ||
     typeof row.text !== "string" ||
     row.text.length < 1 ||
-    row.text.length > 60000
+    row.text.length > 60000 ||
+    (row.html !== undefined &&
+      (typeof row.html !== "string" || row.html.length < 1 || row.html.length > 60000))
   )
     throw new Error();
-  return { to: row.to, subject: row.subject, text: row.text };
+  return {
+    to: row.to,
+    subject: row.subject,
+    text: row.text,
+    ...(typeof row.html === "string" ? { html: row.html } : {}),
+  };
 }
 
 /** SMTP credentials remain confined to this process; no ambiguous delivery is retried. */

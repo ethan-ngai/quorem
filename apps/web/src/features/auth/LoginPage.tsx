@@ -17,6 +17,7 @@ import { signIn, signInDestination, signInWithPassword, useSession } from "./ses
 import { signInReferral } from "./signInReferral";
 import {
   fetchAuthCapabilities,
+  lastLoginMethod,
   beginRegistration,
   registrationStatus,
   completeRegistration,
@@ -62,6 +63,7 @@ function LoginForm() {
     queryFn: fetchAuthCapabilities,
     retry: false,
   });
+  const lastMethod = useQuery({ queryKey: ["last-login-method"], queryFn: lastLoginMethod });
   useEffect(() => {
     const origin = capabilities.data?.preferredOrigin;
     if (!origin) return;
@@ -337,6 +339,9 @@ function LoginForm() {
                         >
                           <SocialProviderIcon provider={provider} size={18} />
                           {socialProviderLabels[provider]}
+                          {!creating && lastMethod.data === provider ? (
+                            <span className="auth-last-used">Last used</span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -466,6 +471,11 @@ function LoginForm() {
                       : capabilities.data?.method === "password"
                         ? "Sign in"
                         : "Continue to sign in"}
+                  {!creating &&
+                  capabilities.data?.method === "password" &&
+                  lastMethod.data === "email" ? (
+                    <span className="auth-last-used">Last used</span>
+                  ) : null}
                 </button>
               </form>
               {!creating && capabilities.data?.registration && (
@@ -486,6 +496,9 @@ function LoginForm() {
                 >
                   <Fingerprint size={18} />
                   Sign in with a passkey
+                  {lastMethod.data === "passkey" ? (
+                    <span className="auth-last-used">Last used</span>
+                  ) : null}
                 </button>
               ) : null}
               {!creating && capabilities.data?.passkey && !passkeySupported ? (

@@ -13,7 +13,8 @@ import { createInfrastructure } from "./infrastructure.ts";
 
 void test("SMTP relay preserves accepted, rejected and uncertain outcomes", async () => {
   let outcome: "accepted" | "rejected" | "uncertain" = "accepted",
-    sends = 0;
+    sends = 0,
+    lastData = "";
   const smtp = createServer((socket) => {
     socket.write("220 localhost ESMTP\r\n");
     let pending = "",
@@ -24,6 +25,7 @@ void test("SMTP relay preserves accepted, rejected and uncertain outcomes", asyn
         if (data) {
           const end = pending.indexOf("\r\n.\r\n");
           if (end < 0) break;
+          lastData = pending.slice(0, end);
           pending = pending.slice(end + 5);
           data = false;
           sends++;
@@ -69,7 +71,7 @@ void test("SMTP relay preserves accepted, rejected and uncertain outcomes", asyn
   });
   const origin = `http://127.0.0.1:${port}`,
     mail = relayEmail({ origin, token, from }),
-    msg = { to: "user@example.test", subject: "Verify", text: "fixture" };
+    msg = { to: "user@example.test", subject: "Verify", text: "fixture", html: "<p>fixture</p>" };
   try {
     assert.equal((await fetch(`${origin}/health`)).status, 204);
     assert.equal(
@@ -106,6 +108,15 @@ void test("SMTP relay preserves accepted, rejected and uncertain outcomes", asyn
       400,
     );
     await mail.send(msg);
+    assert.equal(sends, 1);
+    assert.match(lastData, /multipart\/alternative/);
+    assert.match(lastData, /<p>fixture<\/p>/);
+    const invalidHTML = await fetch(`${origin}/internal/mail/send`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ from, ...msg, html: { invalid: true } }),
+    });
+    assert.equal(invalidHTML.status, 400);
     assert.equal(sends, 1);
     const node = await createInfrastructure(
       configuration({

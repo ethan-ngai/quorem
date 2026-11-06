@@ -18,7 +18,11 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       SMTP_HOST: "127.0.0.1",
       SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
     });
-    const { database, auth } = await (await import("./node-auth")).createNodeRuntime(process.env);
+    const {
+      database,
+      auth,
+      repository: authRepository,
+    } = await (await import("./node-auth")).createNodeRuntime(process.env);
     await migrateAuth(database);
     let requestNumber = 0;
     const prefix = randomUUID();
@@ -85,6 +89,8 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       expect(signed.status).toBe(302);
       expect(signed.headers.get("location")).toBe(`${origin}/practice`);
       const cookie = cookieFrom(signed);
+      const session = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
+      await authRepository.recordAssurance(session!.session.id);
       const user = (await database.query('SELECT * FROM "user" WHERE email=$1', [profile.email]))
         .rows[0];
       expect(user.emailVerified).toBe(true);
@@ -183,6 +189,10 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
         password: "SocialFirst1!",
       });
       const ownerCookie = cookieFrom(loggedIn);
+      const ownerSession = await auth.api.getSession({
+        headers: new Headers({ Cookie: ownerCookie }),
+      });
+      await authRepository.recordAssurance(ownerSession!.session.id);
       profile = { id: `${prefix}-missing-link`, email: "", login: "MissingLink" };
       const missingLink = await oauth("link-social", ownerCookie);
       expect(missingLink.headers.get("location")).toBe(`${origin}/login?socialEmail=1`);

@@ -1,6 +1,6 @@
 import type { QuestionSearch } from "./questionSearch";
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
-import { verifyWithPasskey } from "../auth/capabilities";
+import { requireSudo } from "../auth/sudo";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { ApiError, api, requireData } from "../../api/client";
 
@@ -40,20 +40,11 @@ export async function publishDraft(
   draft: Pick<QuestionDraft, "id" | "revision">,
   visibility: "private" | "global",
 ) {
-  const send = async () => {
-    const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
-      params: { path: { id: draft.id } },
-      body: { revision: draft.revision, visibility },
-    });
-    return requireData(data, error);
-  };
-  try {
-    return await send();
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.code !== "step_up_required") throw error;
-    await verifyWithPasskey();
-    return send();
-  }
+  const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
+    params: { path: { id: draft.id } },
+    body: { revision: draft.revision, visibility },
+  });
+  return requireData(data, error);
 }
 
 /** @returns The protected draft, fetched only when opened. */
@@ -85,11 +76,20 @@ export async function deleteQuestionPublication(
   draft: QuestionDraft,
   replacementVersionId?: string | null,
 ) {
-  const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}/publication", {
-    params: { path: { id: draft.id } },
-    body: { revision: draft.revision, replacementVersionId },
-  });
-  return requireData(data, error);
+  const send = async () => {
+    const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}/publication", {
+      params: { path: { id: draft.id } },
+      body: { revision: draft.revision, replacementVersionId },
+    });
+    return requireData(data, error);
+  };
+  try {
+    return await send();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== "step_up_required") throw error;
+    await requireSudo();
+    return send();
+  }
 }
 
 export async function listPublications(

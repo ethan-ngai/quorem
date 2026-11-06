@@ -8,7 +8,12 @@ import { smtpEmail } from "./smtp-email";
 import { cloudflareEmail } from "./cloudflare-email";
 import { verificationMailer } from "../mailer";
 import { MailRejected } from "../email-delivery.ts";
-const message = { to: "person@example.com", subject: "Verify", text: "A link" };
+const message = {
+  to: "person@example.com",
+  subject: "Verify",
+  text: "A link",
+  html: "<p>A link</p>",
+};
 describe("email adapters", () => {
   it("verifies SMTP authentication without sending a message or exposing provider failures", async () => {
     const verify = vi.fn().mockResolvedValue(true);
@@ -184,15 +189,18 @@ describe("email adapters", () => {
     release();
     await Promise.all(jobs);
     send.mockRejectedValueOnce(new Error("delivery failed"));
-    await expect(deliver(message.to, "retry")).rejects.toThrow("delivery failed");
-    await deliver(message.to, "next", {
+    await expect(deliver(message.to, "https://quorem.example/retry")).rejects.toThrow(
+      "delivery failed",
+    );
+    await deliver(message.to, "https://quorem.example/next", {
       subject: "Reset password",
       instruction: "Choose a password:",
     });
     expect(send).toHaveBeenLastCalledWith({
       to: message.to,
       subject: "Reset password",
-      text: expect.stringContaining("Choose a password:\n\nnext"),
+      text: expect.stringContaining("https://quorem.example/next"),
+      html: expect.stringContaining("Choose a password:"),
     });
   });
 });

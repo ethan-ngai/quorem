@@ -10,6 +10,7 @@ export type AuthoringFilters = Omit<CatalogFilter, "sort" | "cursor"> & {
 export interface AuthorActor {
   readonly userId: string;
   readonly admin: boolean;
+  /** Recent verification for destructive global changes; never grants an administrator role. */
   readonly globalAllowed?: boolean;
 }
 export type DraftMutation = { id: string; revision: string };

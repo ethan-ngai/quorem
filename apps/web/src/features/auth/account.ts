@@ -1,3 +1,4 @@
+import { requireSudo } from "./sudo";
 import type { SocialProvider } from "./capabilities";
 import { AuthError } from "./errors";
 import {
@@ -17,13 +18,21 @@ export class AccountRateLimitError extends AuthError {
 }
 
 export async function accountRequest(path: string, body: object) {
-  const response = await fetch(`/api/auth/${path}`, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = (await response.json().catch(() => ({}))) as { code?: string };
+  const send = async () => {
+    const response = await fetch(`/api/auth/${path}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = (await response.json().catch(() => ({}))) as { code?: string };
+    return { response, data };
+  };
+  let { response, data } = await send();
+  if (response.status === 403 && data.code === "STEP_UP_REQUIRED") {
+    await requireSudo();
+    ({ response, data } = await send());
+  }
   if (response.status === 429)
     throw new AccountRateLimitError(
       "Too many attempts. Try again shortly.",

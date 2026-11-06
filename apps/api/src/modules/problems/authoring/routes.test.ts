@@ -12,7 +12,7 @@ const principal: Principal = {
   sessionId: "session",
   strongUntil: 0,
 };
-it("requires identity, validates input and enforces global step-up through shared HTTP errors", async () => {
+it("requires identity and validates input without elevating routine publishing", async () => {
   let called = 0;
   const service: QuestionAuthoring = {
     mutateBatch: async () => '{"items":[]}',
@@ -53,11 +53,8 @@ it("requires identity, validates input and enforces global step-up through share
     method: "POST",
     body: '{"revision":"1","visibility":"global"}',
   });
-  expect(response.status).toBe(403);
-  expect(await response.json()).toMatchObject({
-    error: { code: "step_up_required", requestId: "req" },
-  });
-  expect(called).toBe(0);
+  expect(response.status).toBe(200);
+  expect(called).toBe(1);
   response = await app.request("/v1/admin/question-drafts", {
     method: "POST",
     headers: { "X-Admin": "true", "X-Quorem-Owner": "victim" },

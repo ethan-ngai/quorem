@@ -46,3 +46,6 @@ peerDependencyRules:
     vite: "1.5.0"
     # Contract generation and reproducibility checks validate this compiler API.
     "openapi-typescript@7.13.0>typescript": "6.0.3"
+minimumReleaseAgeExclude:
+  - react-email@6.11.7
+  - "@react-email/ui@6.11.7"

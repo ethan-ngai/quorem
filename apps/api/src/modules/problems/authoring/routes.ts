@@ -212,12 +212,7 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     if (req.content === undefined || req.content === null) invalid("Content required");
     return json(
       c,
-      await deps.authoring.update(
-        { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
-        id,
-        text(req.revision),
-        stringifyLosslessJson(req.content),
-      ),
+      await deps.authoring.update(p, id, text(req.revision), stringifyLosslessJson(req.content)),
     );
   });
   app.delete("/v1/admin/question-drafts/:id", async (c) => {
@@ -266,26 +261,7 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const visibility = text(req.visibility);
     if (visibility !== "" && visibility !== "private" && visibility !== "global")
       invalid("Choose private or global publication");
-    if (
-      visibility !== "private" &&
-      p.admin &&
-      !deps.allowLocalStrongBypass &&
-      p.strongUntil <= deps.now()
-    )
-      throw new ApplicationError(
-        "step_up_required",
-        "Sign in with a verified passkey again before publishing globally",
-        403,
-      );
-    return json(
-      c,
-      await deps.authoring.publish(
-        { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
-        id,
-        text(req.revision),
-        visibility,
-      ),
-    );
+    return json(c, await deps.authoring.publish(p, id, text(req.revision), visibility));
   });
   return app;
 }

@@ -46,6 +46,8 @@ try {
   await pool.query('UPDATE quorem_auth."user" SET "emailVerified"=true WHERE id=$1',[subject]);
   const login=await call('/api/auth/sign-in/email','POST',{email,password:'fixture password'});
   assert.equal(login.status,200,await login.clone().text());
+  const session=await node.auth.api.getSession({headers:new Headers({cookie:cookie()})});
+  await node.repository.recordAssurance(session.session.id);
   const registration=await options('generate-register-options');
   const client=clientData('webauthn.create',registration.challenge);
   const authData=bytes(rpHash,Buffer.from([0x45]),Buffer.alloc(4),Buffer.alloc(16),Buffer.from([0,credential.length]),credential,cose);

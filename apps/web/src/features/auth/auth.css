@@ -370,3 +370,9 @@
 .passkey-list:empty {
   display: none;
 }
+
+.auth-last-used {
+  font-size: var(--text-label);
+  font-weight: 400;
+  margin-inline-start: var(--space-2);
+}
