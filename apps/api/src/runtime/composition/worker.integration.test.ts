@@ -313,7 +313,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     }),
   );
   const matchRequest = () =>
-    new Request("http://127.0.0.1:8765/v1/matches", {
+    new Request("http://127.0.0.1:8765/v1/parties", {
       method: "POST",
       headers: { ...headers, "idempotency-key": crypto.randomUUID() },
       body: JSON.stringify({ difficulty: "easy", accessMode: "guests_allowed" }),

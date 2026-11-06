@@ -175,7 +175,7 @@ it.skipIf(!url)(
         [crypto.randomUUID(), user],
       );
       const createMatch = (origin: string) =>
-        fetch(`${origin}/v1/matches`, {
+        fetch(`${origin}/v1/parties`, {
           method: "POST",
           headers: { ...headers, "idempotency-key": `node-match-${crypto.randomUUID()}` },
           body: JSON.stringify({ difficulty: "easy", accessMode: "guests_allowed" }),
@@ -184,8 +184,17 @@ it.skipIf(!url)(
       expect(paused.status, await paused.clone().text()).toBe(409);
       const allowed = await createMatch(peerBase.replace("ws:", "http:"));
       expect(allowed.status, await allowed.clone().text()).toBe(201);
+      const matchId = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties) SELECT $1,b.user_id,$2,now()+interval '1 hour',30,'waiting',ARRAY['easy'] FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=$3",
+        [matchId, crypto.randomUUID(), user],
+      );
+      await pool.query(
+        "INSERT INTO match_participants(match_id,owner_id,seat) SELECT $1,b.user_id,1 FROM identity_bindings b WHERE b.issuer='http://127.0.0.1:8765' AND b.subject=$2",
+        [matchId, user],
+      );
       const socket = new WebSocket(
-        `${peerBase}/v1/matches/${((await allowed.json()) as { id: string }).id}/events`,
+        `${peerBase}/v1/matches/${matchId}/events`,
         ["quorem", `bearer.${bearer}`],
         { headers: { origin: "http://127.0.0.1:5173" } },
       );

@@ -9,6 +9,7 @@ import {
   authenticateGuestRequest,
   guestCookie,
   guestOriginAllowed,
+  guestTokenHash,
   GuestOriginDenied,
   newGuestToken,
   validGuestToken,
@@ -20,7 +21,10 @@ interface Dependencies {
   admissionEnabled: boolean;
   trustedPeer: () => string | undefined;
   budget: GuestRequestBudget;
-  guests: GuestIdentityReader & { endMatch(hash: string): Promise<boolean> };
+  guests: GuestIdentityReader & {
+    endMatch(hash: string): Promise<boolean>;
+    canBootstrap(hash: string): Promise<boolean>;
+  };
   managed(token: string): Promise<ManagedPrincipal | LocalPrincipal>;
 }
 function originAllowed(request: Request, origins: readonly string[]): string {
@@ -63,7 +67,17 @@ export function guestRoutes(deps: Dependencies): Hono {
     const credential = await identity(async () => bearer(c.req.raw.headers));
     if (credential !== undefined) await identity(() => deps.managed(credential));
     const existing = await identity(async () => guestCookie(c.req.raw.headers, "match"));
-    if (existing !== undefined && validGuestToken(existing)) return c.body(null, 204);
+    if (existing !== undefined && validGuestToken(existing)) {
+      const hash = await guestTokenHash(existing);
+      const reusable = await identity(async () => {
+        try {
+          return await deps.guests.canBootstrap(hash);
+        } catch (error) {
+          throw new IdentityError("unavailable", error);
+        }
+      });
+      if (reusable) return c.body(null, 204);
+    }
     c.header("Set-Cookie", guestSetCookie("match", newGuestToken(), origin, 86400));
     return c.body(null, 204);
   });

@@ -14,6 +14,7 @@ import { ApplicationError } from "../../../application/error.ts";
 import { validGuestToken, guestTokenHash } from "../../../modules/identity/guest/credentials.ts";
 import { consumePrearm } from "../events/scheduling/prearm.ts";
 import { capabilitiesInTransaction } from "../access/repository.ts";
+import { guestMayAccessParty } from "../identity/guest.ts";
 import type { Principal } from "../../../modules/identity/model.ts";
 import {
   normalizePartySettings,
@@ -109,13 +110,20 @@ export function partyRepository(
     async current(who) {
       return transact(async (tx) => {
         await lockMatchOwner(tx, who);
-        await validateGuest(tx, who);
+        if (
+          who.kind === "guest" &&
+          (who.scope.kind !== "party" || !(await guestMayAccessParty(tx, who, who.scope.partyId)))
+        )
+          throw missing();
         const row = (
           await tx.execute<{ id: string }>(
             sql`SELECT party_id::text AS id FROM party_members WHERE owner_id=${who.userId}`,
           )
         ).rows[0];
-        if (row) await reconcileParty(tx, row.id);
+        if (row) {
+          await validateGuest(tx, who);
+          await reconcileParty(tx, row.id);
+        }
         return {
           party:
             row &&

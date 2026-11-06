@@ -194,7 +194,7 @@ assert(!submissionCommand({ ...fixtures.createSubmission, ownerId: "alice" }));
 assert(!submissionCommand({ ...fixtures.createSubmission, workspaceId: undefined }));
 // Numeric bounds belong to the question-specific case codec, not the shared wire shape.
 assert(submissionCommand({ ...fixtures.createSubmission, customCases: [{ args: [2147483648] }] }));
-const validateMatchRequest = ajv.compile({ $ref: `${document.$id}#/$defs/CreateMatchRequest` });
+const validatePartySettings = ajv.compile({ $ref: `${document.$id}#/$defs/PartySettings` });
 const problemId = fixtures.submission.id;
 for (const request of [
   { difficulty: "easy", durationMinutes: 30 },
@@ -205,7 +205,7 @@ for (const request of [
     rules: { clipboard: "warning", focus: "announce" },
   },
 ])
-  assert(validateMatchRequest(request), JSON.stringify(validateMatchRequest.errors));
+  assert(validatePartySettings(request), JSON.stringify(validatePartySettings.errors));
 for (const request of [
   { durationMinutes: 30 },
   { difficulties: [], durationMinutes: 30 },
@@ -219,7 +219,7 @@ for (const request of [
   { difficulty: "easy", durationMinutes: 30, rules: { focus: "cooldown" } },
   { difficulty: "easy", durationMinutes: 30, rules: { clipboard: "off", contents: "private" } },
 ])
-  assert(!validateMatchRequest(request), JSON.stringify(request));
+  assert(!validatePartySettings(request), JSON.stringify(request));
 const match = {
   id: problemId,
   version: "1",

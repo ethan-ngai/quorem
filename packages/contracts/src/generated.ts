@@ -152,38 +152,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/matches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["createMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/join": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["joinMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/matches/{id}": {
         parameters: {
             query?: never;
@@ -216,22 +184,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/matches/{id}/ready": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["readyMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/matches/{id}/forfeit": {
         parameters: {
             query?: never;
@@ -258,38 +210,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["leaveMatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put: operations["updateMatchSettings"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startMatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -504,22 +424,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/match-invites/{token}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["previewMatchInvite"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/capabilities": {
         parameters: {
             query?: never;
@@ -546,54 +450,6 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["bootstrapGuest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/match-invites/{token}/guest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["joinAsGuest"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/rotate-invite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["rotateInvite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/matches/{id}/guests/{guest}/remove": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["removeGuest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1515,41 +1371,6 @@ export interface components {
             topic?: string;
             company?: string;
         };
-        CreateMatchRequest: {
-            difficulty?: components["schemas"]["Difficulty"];
-            /** @enum {integer} */
-            durationMinutes: 15 | 30 | 45 | 60;
-            mode?: components["schemas"]["MatchMode"];
-            difficulties?: components["schemas"]["Difficulty"][];
-            questionFilters?: components["schemas"]["MatchQuestionFilters"];
-            /** Format: uuid */
-            selectedProblemVersionId?: string;
-            rules?: {
-                clipboard?: components["schemas"]["MatchRuleAction"];
-                focus?: components["schemas"]["MatchRuleAction"];
-                hints?: components["schemas"]["QuestionHints"];
-            };
-            /** @enum {string} */
-            accessMode?: "accounts_only" | "guests_allowed";
-            admissionLocked?: boolean;
-        } & ({
-            difficulty: components["schemas"]["Difficulty"];
-        } | {
-            difficulties: components["schemas"]["Difficulty"][];
-        } | {
-            /** Format: uuid */
-            selectedProblemVersionId: string;
-        });
-        MatchInvite: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uri */
-            inviteUrl: string;
-            state: components["schemas"]["MatchState"];
-        };
-        JoinMatchRequest: {
-            inviteToken: string;
-        };
         ReadyMatchRequest: {
             ready: boolean;
         };
@@ -1814,21 +1635,6 @@ export interface components {
              * @enum {string}
              */
             visibility?: "private" | "global";
-        };
-        InvitePreview: {
-            mode: components["schemas"]["MatchMode"];
-            difficulties: components["schemas"]["Difficulty"][];
-            /** @enum {integer} */
-            durationMinutes: 15 | 30 | 45 | 60;
-            rules: components["schemas"]["MatchRules"];
-            participantCount: number;
-            /** @enum {integer} */
-            capacity: 2 | 8;
-            /** @enum {string} */
-            accessMode?: "accounts_only" | "guests_allowed";
-            admissionLocked?: boolean;
-            /** Format: uuid */
-            id?: string;
         };
         Capabilities: {
             hostGuests: boolean;
@@ -2455,76 +2261,6 @@ export interface operations {
             };
         };
     };
-    createMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchInvite"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    joinMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JoinMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getMatch: {
         parameters: {
             query?: never;
@@ -2595,43 +2331,6 @@ export interface operations {
             };
         };
     };
-    readyMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReadyMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     forfeitMatch: {
         parameters: {
             query?: never;
@@ -2666,76 +2365,6 @@ export interface operations {
         };
     };
     leaveMatch: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    updateMatchSettings: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateMatchRequest"];
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    startMatch: {
         parameters: {
             query?: never;
             header: {
@@ -3407,37 +3036,6 @@ export interface operations {
             };
         };
     };
-    previewMatchInvite: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Read-only lobby settings; grants no membership or execution access */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InvitePreview"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     getCapabilities: {
         parameters: {
             query?: never;
@@ -3482,110 +3080,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    joinAsGuest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                token: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    name: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    rotateInvite: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchInvite"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    removeGuest: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-                guest: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MatchSnapshot"];
-                };
             };
             /** @description Safe application error */
             default: {
