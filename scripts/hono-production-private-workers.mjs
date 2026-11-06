@@ -167,7 +167,7 @@ async function rollout(env, benchmarkOnly) {
     if (inputBounds.bounded !== true)
       throw new Error("Retained runner input exceeds validated size");
     const images = env.HONO_JUDGE_VALIDATION_RUN
-      ? validatedJudgeImages(env, env.HONO_JUDGE_VALIDATION_RUN)
+      ? await validatedJudgeImages(env, env.HONO_JUDGE_VALIDATION_RUN, priorOutput.SERVICES_RELEASE)
       : productionImages(env, { reuseMail: true });
     const secretNames = [
       "RECOVERY_CONTROL_SECRET",

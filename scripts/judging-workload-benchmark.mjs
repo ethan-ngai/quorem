@@ -112,7 +112,10 @@ export async function benchmarkJudgingWorkload(
                 stage = "execution";
                 throw new Error("Benchmark execution failed");
               }
-              if (!result.verdict) return;
+              if (!result.verdict) {
+                stage = "events";
+                return;
+              }
               if (result.verdict !== "accepted" || result.publicCases?.length !== cases.length)
                 throw new Error("Unexpected benchmark verdict");
               sample = {
