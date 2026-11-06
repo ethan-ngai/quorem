@@ -342,7 +342,7 @@
 }
 [data-theme="light"] .nav-profile,
 [data-theme="light"] .account-dialog {
-  box-shadow: 0 8px 24px oklch(0.2 0 0 / 0.08);
+  box-shadow: var(--shadow-md);
 }
 
 @media (pointer: coarse) {
