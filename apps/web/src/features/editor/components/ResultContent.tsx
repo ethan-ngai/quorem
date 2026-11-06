@@ -3,6 +3,7 @@ import "./results.css";
 import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
+import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { CaseOutput, verdictTone } from "./CaseOutput";
 
 /** Shows safe compiler or public-case diagnostics with useful source positions. */
@@ -67,19 +68,7 @@ function RunCaseResults({
   );
 }
 
-/** Renders a single result summary without exposing hidden suite inputs or stale admission results. */
-export function ResultContent({
-  submission,
-  busy,
-  error,
-  showCases = true,
-  detailsVisible = false,
-  customMode,
-  runWasCustom = false,
-  showVerdict = true,
-  sql,
-  returnType,
-}: {
+type ResultContentProps = {
   submission?: Submission;
   busy: boolean;
   error?: string;
@@ -90,7 +79,11 @@ export function ResultContent({
   showVerdict?: boolean;
   sql?: ProblemVersion["sql"];
   returnType?: string;
-}) {
+};
+
+/** Renders admitted results with a stable, shared recovery notice. */
+export function ResultContent(props: ResultContentProps) {
+  const { submission, customMode, runWasCustom = false, error, busy } = props;
   // Results belong to their admitted collection, regardless of the currently selected tab.
   if (
     submission &&
@@ -99,6 +92,32 @@ export function ResultContent({
   )
     return null;
   if (error) return null;
+  const failed = !busy && submission?.state === "failed";
+  const action = submission?.kind === "submit" ? "Submit" : "Run";
+  return (
+    <NoticeRegion
+      label={`${action} failed`}
+      message={
+        failed
+          ? `This execution could not be judged. Your source is safe. ${action} again to retry.`
+          : undefined
+      }
+    >
+      <ResultSummary {...props} />
+    </NoticeRegion>
+  );
+}
+
+/** Shows safe compiler and case feedback; infrastructure details stay private. */
+function ResultSummary({
+  submission,
+  busy,
+  showCases = true,
+  detailsVisible = false,
+  showVerdict = true,
+  sql,
+  returnType,
+}: ResultContentProps) {
   if (busy)
     return (
       <p className="result-message" role="status">
@@ -114,12 +133,7 @@ export function ResultContent({
         <strong>{submission.state === "queued" ? "Queued" : "Running"}</strong>
       </div>
     );
-  if (submission.state === "failed")
-    return (
-      <p className="result-message result-error">
-        Judge unavailable. Your source is safe. {submission.infrastructureError}
-      </p>
-    );
+  if (submission.state === "failed") return null;
   if (submission.state === "cancelled") return <p className="result-message">Run cancelled</p>;
   if (
     !showVerdict &&

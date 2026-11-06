@@ -64,6 +64,8 @@ Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs
 
 Application and marketing product previews consume the same components and styles. Preview containers own scale and composition, not substitute button/editor/test styling. A preview must work without an application page ancestor. Label illustrative data and keep previews separate from real judging, sessions and persistence.
 
+List tables share the UI table surface, sort headers and pagination controls. Servers filter and order the full authorized result before paging; users can choose rows per page. Page-size, sort and filter changes reset pagination. Embedded SQL and document tables retain their compact reading/editing semantics.
+
 ## Workspace and interaction
 
 Problem left, solution right, results below the editor; panes resize with pointer and keyboard. Keep source, undo, selection, focus and scroll stable through theme, pane and result changes. Controls align through shared insets. Narrow layouts preserve usable actions and content access without horizontal page overflow.
@@ -73,6 +75,8 @@ The desktop navigation rail expands in place. Mobile navigation uses a dismissib
 Share typed input/output rendering, case navigation and execution controls across practice, competition, interviews and authoring. Render results against their admitted source/input snapshot. Authorization, hidden tests and domain-specific rules remain enforced by the server.
 
 Transient failures and room events use shared toasts; room alerts retain accessible history. Field validation, execution diagnostics and blocking failures stay beside their recovery controls. Deduplicate reconnect/repeated background notifications. Keep recovery available after a toast expires. Routine successful autosave stays silent; save failures remain recoverable.
+
+Report completed user actions through concise toasts. Include only nonzero outcome counts; disclose recoverable details through a named action or local notice. Reveal bulk controls when items are selected, and keep active progress beside the operation.
 
 Recoverable persistent errors use `PersistentNotice` in an always-mounted status slot, or `NoticeRegion` beside existing content. Keep the slot geometry stable when healthy; full details and recovery actions open in a shared popover. Closing details does not dismiss the underlying issue. Features own error state; primitives own presentation and accessibility. Avoid conditional error paragraphs that move surrounding controls.
 

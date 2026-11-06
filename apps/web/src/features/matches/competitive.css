@@ -902,13 +902,6 @@
   max-width: none;
 }
 
-.picker-pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-2);
-}
-
 .problem-picker-trigger > span.problem-picker-labels {
   display: grid;
   min-width: 0;

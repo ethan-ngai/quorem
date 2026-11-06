@@ -15,6 +15,7 @@ const principal: Principal = {
 it("requires identity, validates input and enforces global step-up through shared HTTP errors", async () => {
   let called = 0;
   const service: QuestionAuthoring = {
+    mutateBatch: async () => '{"items":[]}',
     publications: async () => '{"items":[]}',
     list: async () => '{"items":[]}',
     get: async () => '{"id":"draft"}',
@@ -76,4 +77,57 @@ it("requires identity, validates input and enforces global step-up through share
   response = await app.request("/v1/admin/question-drafts");
   expect(response.status).toBe(401);
   expect(response.headers.get("Cache-Control")).toBe("no-store");
+});
+
+it("validates bounded mutation batches and forwards server-owned step-up state", async () => {
+  const calls: unknown[] = [];
+  let identity: Principal | undefined = principal;
+  const app = createApp({ allowedOrigins: [], requestId: () => "batch" }).route(
+    "/",
+    authoringRoutes({
+      identify: async () => identity,
+      authoring: {
+        mutateBatch: async (actor, batch) => {
+          calls.push({ actor, batch });
+          return JSON.stringify({
+            items: batch.items.map(({ id }) => ({ id, status: "succeeded" })),
+          });
+        },
+      } as QuestionAuthoring,
+      allowLocalStrongBypass: false,
+      now: () => 100,
+    }),
+  );
+  const id = "00000000-0000-4000-8000-000000000001";
+  const post = (path: string, items: unknown[]) =>
+    app.request(`/v1/admin/${path}`, {
+      method: "POST",
+      body: JSON.stringify({ items }),
+    });
+  for (const [path, item] of [
+    ["question-drafts/publish-batch", { id, revision: "1", visibility: "global" }],
+    ["question-drafts/delete-batch", { id, revision: "1" }],
+    ["question-publications/delete-batch", { id, current: true }],
+  ] as const) {
+    expect((await post(path, [item])).status).toBe(200);
+    expect((await post(path, [])).status).toBe(400);
+    expect((await post(path, Array(17).fill(item))).status).toBe(400);
+    expect((await post(path, [item, item])).status).toBe(400);
+    expect((await post(path, [{ ...item, id: "invalid" }])).status).toBe(400);
+    expect((await post(path, [{ ...item, ownerId: "victim" }])).status).toBe(400);
+  }
+  expect(calls).toHaveLength(3);
+  expect(calls[0]).toMatchObject({
+    actor: { userId: "owner", globalAllowed: false },
+    batch: { action: "publish" },
+  });
+  expect((await post("question-publications/delete-batch", [{ id }])).status).toBe(400);
+  expect(
+    (await post("question-drafts/publish-batch", [{ id, revision: "1", visibility: "any" }]))
+      .status,
+  ).toBe(400);
+  expect((await post("question-drafts/delete-batch", [{ id, revision: "0" }])).status).toBe(400);
+  identity = undefined;
+  expect((await post("question-drafts/delete-batch", [{ id, revision: "1" }])).status).toBe(401);
+  expect(calls).toHaveLength(3);
 });

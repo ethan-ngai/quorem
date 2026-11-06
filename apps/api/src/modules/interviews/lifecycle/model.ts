@@ -1,4 +1,6 @@
 /** @file model.ts @description Interview lifecycle boundaries. @module interviews */
+import type { ListQuery } from "../../../application/list-query.ts";
+export type InterviewListQuery = ListQuery<"title" | "role" | "updatedAt">;
 import type { Principal } from "../../identity/model.ts";
 export type InterviewRole = "interviewer" | "interviewee";
 export interface InvitePreview {
@@ -20,7 +22,10 @@ export interface JoinResult {
 }
 export interface InterviewLifecycle {
   create(actor: Principal, key: string, command: InterviewCreate): Promise<string>;
-  list(actor: Principal): Promise<string[]>;
+  list(
+    actor: Principal,
+    query?: InterviewListQuery,
+  ): Promise<{ items: string[]; total: number; hosting: number; page: number; limit: number }>;
   read(actor: Principal, id: string): Promise<ReadableStream<Uint8Array>>;
   preview(token: string): Promise<InvitePreview>;
   join(

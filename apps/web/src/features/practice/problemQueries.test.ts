@@ -263,3 +263,17 @@ it("uses the credential-free catalog transport only with an explicit global filt
       expect(new URL(request.url).searchParams.get("library")).toBe("global");
   }
 });
+
+it("keys and requests catalog pages by the selected page size", async () => {
+  const cache = client();
+  await cache.fetchQuery(catalogQueryOptions(cache, "anonymous", { page: 2, limit: 10 }));
+  await cache.fetchQuery(catalogQueryOptions(cache, "anonymous", { page: 2, limit: 50 }));
+  expect(requests.map((request) => new URL(request.url).searchParams.get("limit"))).toEqual([
+    "10",
+    "50",
+  ]);
+  expect(requests.map((request) => new URL(request.url).searchParams.get("page"))).toEqual([
+    "2",
+    "2",
+  ]);
+});

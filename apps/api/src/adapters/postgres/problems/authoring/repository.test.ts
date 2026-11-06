@@ -109,7 +109,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const actor = { userId: owner, admin: false, globalAllowed: false };
       const draft = JSON.parse(await repository.create(actor, raw, undefined));
       expect(draft.revision).toBe("1");
-      expect(JSON.parse(await repository.list(actor, "")).items).toEqual(
+      expect(JSON.parse(await repository.list(actor)).items).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: empty.id, ready: false }),
           expect.objectContaining({ id: draft.id, ready: true, isSql: false, fromLeetCode: false }),
@@ -123,6 +123,25 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect((await readyDrafts.json()).items.map((item: { id: string }) => item.id)).toEqual([
         draft.id,
       ]);
+      const firstPage = await (
+        await http.request("/v1/admin/question-drafts?limit=1&sort=title&order=asc")
+      ).json();
+      const secondPage = await (
+        await http.request("/v1/admin/question-drafts?limit=1&page=2&sort=title&order=asc")
+      ).json();
+      expect(firstPage).toMatchObject({ total: 2, page: 1, limit: 1 });
+      expect(secondPage).toMatchObject({ total: 2, page: 2, limit: 1 });
+      expect(firstPage.items[0].id).not.toBe(secondPage.items[0].id);
+      const readyPage = await (
+        await http.request(
+          "/v1/admin/question-drafts?readiness=ready&limit=1&sort=difficulty&order=desc",
+        )
+      ).json();
+      expect(readyPage).toMatchObject({ total: 1, items: [{ id: draft.id }] });
+      expect((await http.request("/v1/admin/question-drafts?limit=101")).status).toBe(400);
+      expect((await http.request("/v1/admin/question-publications?sort=updatedAt")).status).toBe(
+        400,
+      );
       const unmatched = await http.request("/v1/admin/question-drafts?sql=true");
       expect((await unmatched.json()).items).toEqual([]);
       const updated = JSON.parse(await repository.update(actor, draft.id, "1", raw));
@@ -142,6 +161,12 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           }),
         ]),
       );
+      const publicationsPage = await (
+        await http.request(
+          "/v1/admin/question-publications?limit=1&sort=difficulty&order=desc&page=2",
+        )
+      ).json();
+      expect(publicationsPage).toMatchObject({ items: [], total: 1, page: 2, limit: 1 });
       expect(await catalog.byVersion({ userId: owner }, published.publishedVersionId)).toContain(
         "class Solution",
       );
@@ -292,6 +317,87 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const osp = JSON.parse(await repository.publish(actor, osd.id, "1", "private"));
       const sqlFork = JSON.parse(await repository.create(actor, undefined, osp.publishedVersionId));
       expect(sqlFork.content.odysseyHiddenCases).toHaveLength(1);
+      const batchDrafts = await Promise.all(
+        Array.from({ length: 3 }, () => repository.create(actor, raw, undefined).then(JSON.parse)),
+      );
+      const batchPublish = await http.request("/v1/admin/question-drafts/publish-batch", {
+        method: "POST",
+        body: JSON.stringify({
+          items: batchDrafts.map((d, i) => ({
+            id: d.id,
+            revision: i === 1 ? "999" : d.revision,
+            visibility: "private",
+          })),
+        }),
+      });
+      expect(batchPublish.status).toBe(200);
+      expect((await batchPublish.json()).items.map((i: { status: string }) => i.status)).toEqual([
+        "succeeded",
+        "failed",
+        "succeeded",
+      ]);
+      expect(JSON.parse(await repository.get(actor, batchDrafts[1].id)).revision).toBe("1");
+      const publishedBatch = await Promise.all(
+        [batchDrafts[0], batchDrafts[2]].map((d) => repository.get(actor, d.id).then(JSON.parse)),
+      );
+      const currentVersion = publishedBatch[1].publishedVersionId;
+      const deleteBatch = (user: typeof actor, items: { id: string; current: boolean }[]) =>
+        repository.mutateBatch(user, { action: "delete-publications", items }).then(JSON.parse);
+      expect(
+        (await deleteBatch({ ...actor, userId: other }, [{ id: currentVersion, current: true }]))
+          .items[0],
+      ).toMatchObject({ status: "failed", code: "not_found" });
+      expect(
+        (await deleteBatch(actor, [{ id: currentVersion, current: false }])).items[0],
+      ).toMatchObject({ status: "failed", code: "revision_conflict" });
+      const batchWorkspace = crypto.randomUUID();
+      const batchSubmission = crypto.randomUUID();
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        [batchWorkspace, owner, currentVersion],
+      );
+      await pool.query(
+        "INSERT INTO submissions(id,workspace_id,owner_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','pass','hash','queued','[]')",
+        [batchSubmission, batchWorkspace, owner],
+      );
+      expect(
+        (await deleteBatch(actor, [{ id: currentVersion, current: true }])).items[0],
+      ).toMatchObject({ status: "failed", code: "revision_conflict" });
+      await pool.query("DELETE FROM submissions WHERE id=$1", [batchSubmission]);
+      const deletedBatch = await deleteBatch(actor, [
+        { id: crypto.randomUUID(), current: false },
+        { id: publishedBatch[0].publishedVersionId, current: false },
+        { id: currentVersion, current: true },
+      ]);
+      expect(deletedBatch.items.map((i: { status: string }) => i.status)).toEqual([
+        "failed",
+        "succeeded",
+        "succeeded",
+      ]);
+      expect(
+        (
+          await pool.query("SELECT problem_version_id FROM workspaces WHERE id=$1", [
+            batchWorkspace,
+          ])
+        ).rows[0].problem_version_id,
+      ).toBeNull();
+      const draftDeletes = JSON.parse(
+        await repository.mutateBatch(actor, {
+          action: "delete-drafts",
+          items: [
+            { id: batchDrafts[1].id, revision: "999" },
+            { id: batchDrafts[0].id, revision: "2" },
+          ],
+        }),
+      );
+      expect(draftDeletes.items.every((i: { status: string }) => i.status === "failed")).toBe(true);
+      const draftDeleted = JSON.parse(
+        await repository.mutateBatch(actor, {
+          action: "delete-drafts",
+          items: [{ id: batchDrafts[1].id, revision: "1" }],
+        }),
+      );
+      expect(draftDeleted.items[0].status).toBe("succeeded");
       const global = { userId: admin, admin: true, globalAllowed: true };
       const draftA = JSON.parse(await repository.create(global, raw, undefined));
       const draftB = JSON.parse(await repository.create(global, raw, undefined));
@@ -332,6 +438,58 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const applied = JSON.parse(await repository.publish(global, imported.draftId, "1", "global"));
       expect(applied.publishedVersionId).toBe(first.publishedVersionId);
       expect(applied.content.problem.title).toBe("Refreshed question");
+      const stepUpBatch = JSON.parse(
+        await repository.mutateBatch(
+          { ...global, globalAllowed: false },
+          {
+            action: "delete-publications",
+            items: [{ id: first.publishedVersionId, current: true }],
+          },
+        ),
+      );
+      expect(stepUpBatch.items[0]).toMatchObject({ status: "failed", code: "step_up_required" });
+      const duplicateBatch = JSON.parse(
+        await repository.create(
+          global,
+          JSON.stringify({
+            ...duplicate,
+            problem: {
+              ...duplicate.problem,
+              slug: `batch-duplicate-${crypto.randomUUID().slice(0, 8)}`,
+            },
+          }),
+          undefined,
+        ),
+      );
+      const validBatch = JSON.parse(
+        await repository.create(
+          global,
+          JSON.stringify({
+            ...duplicate,
+            problem: {
+              ...duplicate.problem,
+              leetcodeId: undefined,
+              slug: `batch-valid-${crypto.randomUUID().slice(0, 8)}`,
+            },
+          }),
+          undefined,
+        ),
+      );
+      const mixedBatch = JSON.parse(
+        await repository.mutateBatch(global, {
+          action: "publish",
+          items: [duplicateBatch, validBatch].map((d) => ({
+            id: d.id,
+            revision: d.revision,
+            visibility: "global",
+          })),
+        }),
+      );
+      expect(mixedBatch.items.map((i: { status: string }) => i.status)).toEqual([
+        "failed",
+        "succeeded",
+      ]);
+      expect(JSON.parse(await repository.get(global, duplicateBatch.id)).revision).toBe("1");
       const workspace = crypto.randomUUID();
       await pool.query(
         "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",

@@ -338,11 +338,6 @@
   color: var(--color-text);
   background: var(--color-overlay);
 }
-.auth-content .auth-success {
-  color: var(--color-success);
-  margin-bottom: 24px;
-  font-size: 14px;
-}
 .auth-mode-toggle {
   display: flex;
   align-items: center;

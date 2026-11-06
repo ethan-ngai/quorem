@@ -5,6 +5,7 @@ export function forgetMissingSubmission(cause: unknown, key: string, id: string)
   if (!(cause instanceof SubmissionReadError) || cause.status !== 404) return false;
   try {
     if (localStorage.getItem(key) === id) localStorage.removeItem(key);
+    localStorage.removeItem(`${key}:snapshot:${id}`);
   } catch {
     /* Recovery can proceed without browser storage. */
   }

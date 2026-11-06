@@ -1,5 +1,8 @@
 /** @file BulkQuestionImport.tsx @description Review and resume a batch of question drafts. @module admin */
-import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { notifyBatchResult, notificationAction } from "../../ui/Notifications";
+import { PersistentNotice } from "../../ui/PersistentNotice";
+import { useId, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
@@ -101,10 +104,17 @@ export function BulkQuestionImport({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
   const [notice, setNotice] = useState("");
+  const [resultsOpen, setResultsOpen] = useState(false);
+  const notification = useId();
+  function reportSelectionError(message: string) {
+    setNotice(message);
+    toast.error(message, { id: notification });
+  }
   async function select(files: File[]) {
     setBusy(true);
     setRows([]);
     setNotice("");
+    setResultsOpen(false);
     try {
       if (files.length > 1001)
         throw new Error("Choose at most 1,000 question files and a manifest.");
@@ -141,9 +151,11 @@ export function BulkQuestionImport({
         }
       }
       setRows(next);
-      if (!next.length) setNotice("Choose at least one question JSON file.");
+      if (!next.length) reportSelectionError("Choose at least one question JSON file.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not read the selection.");
+      reportSelectionError(
+        error instanceof Error ? error.message : "Could not read the selection.",
+      );
     } finally {
       setBusy(false);
     }
@@ -166,14 +178,19 @@ export function BulkQuestionImport({
       }
     }
 
+    const completed = new Map<Row, Partial<Row>>();
+    setResultsOpen(false);
+    toast.loading(preview ? "Checking files…" : "Importing files…", { id: notification });
     let created = false;
     let processed = 0;
     let next = 0;
     let paused = false;
+    let pausedMessage = "";
     const label = preview ? "Checking" : "Importing";
     setProgress(`${label} 0 of ${selected.length}`);
 
     function record(updates: Map<Row, Partial<Row>>) {
+      for (const [row, update] of updates) completed.set(row, update);
       processed += updates.size;
       setProgress(`${label} ${processed} of ${selected.length}`);
       setRows((current) =>
@@ -213,11 +230,11 @@ export function BulkQuestionImport({
           if (response.status === 401 || response.status === 403 || response.status === 429) {
             if (!paused) {
               paused = true;
-              setNotice(
+              pausedMessage =
                 response.status === 429
                   ? "Import paused. Wait briefly, then retry the remaining files."
-                  : "Import paused. Check your session and authoring access, then retry.",
-              );
+                  : "Import paused. Check your session and authoring access, then retry.";
+              setNotice(pausedMessage);
             }
             return;
           }
@@ -242,6 +259,24 @@ export function BulkQuestionImport({
     try {
       await Promise.all(Array.from({ length: Math.min(4, batches.length) }, worker));
     } finally {
+      const outcomes = [...completed.values()];
+      const failed = outcomes.filter(
+        (row) => row.status === "failed" || row.status === "invalid" || row.status === "conflict",
+      ).length;
+      if (pausedMessage)
+        toast.warning(pausedMessage, {
+          id: notification,
+          action: notificationAction("Details", () => setResultsOpen(true)),
+        });
+      else
+        notifyBatchResult({
+          id: notification,
+          verb: preview ? "Checked" : "Processed",
+          noun: "file",
+          succeeded: outcomes.length - failed,
+          failed,
+          onDetails: () => setResultsOpen(true),
+        });
       if (created) onCreated();
       setProgress("");
       setBusy(false);
@@ -278,7 +313,7 @@ export function BulkQuestionImport({
         >
           Choose files
         </button>
-        {rows.length > 0 && (
+        {rows.some((row) => row.status !== "pending") && (
           <button
             className="button button-secondary"
             disabled={busy}
@@ -287,14 +322,22 @@ export function BulkQuestionImport({
             Download results
           </button>
         )}
+        <PersistentNotice
+          label="Check import"
+          message={[
+            notice,
+            ...rows
+              .filter(
+                (row) =>
+                  row.status === "failed" || row.status === "invalid" || row.status === "conflict",
+              )
+              .map((row) => `${row.name}: ${row.message ?? "Import failed."}`),
+          ]}
+          open={resultsOpen}
+          onOpenChange={setResultsOpen}
+        />
       </div>
-      <p role="status">
-        {progress ||
-          notice ||
-          (rows.length
-            ? `${rows.length} files · ${rows.filter((r) => r.status === "created" || r.status === "existing").length} drafts`
-            : "")}
-      </p>
+      {busy && progress && <p role="status">{progress}</p>}
       {rows.length > 0 && (
         <ul className="question-import-rows" aria-label="Import files">
           {rows.map((row, index) => (
@@ -314,15 +357,23 @@ export function BulkQuestionImport({
               <div>
                 <strong>{row.content?.problem.title ?? row.name}</strong>
                 {row.content && (
-                  <small>
+                  <small className="mono-text">
                     {row.name} · {row.content.problem.slug}
                     {row.content.problem.leetcodeId != null
                       ? ` · #${row.content.problem.leetcodeId}`
                       : ""}
                   </small>
                 )}
-                {row.message && <small>{row.message}</small>}
               </div>
+              <PersistentNotice
+                label={`${row.name}: import details`}
+                message={row.message}
+                severity={
+                  row.status === "failed" || row.status === "invalid" || row.status === "conflict"
+                    ? "error"
+                    : "warning"
+                }
+              />
               {row.draftId ? (
                 <button
                   className="button button-secondary"
@@ -338,22 +389,24 @@ export function BulkQuestionImport({
           ))}
         </ul>
       )}
-      <footer className="competitive-dialog-actions">
-        <button
-          className="button button-secondary"
-          disabled={busy || !selectedCount}
-          onClick={() => void run(true)}
-        >
-          Check files
-        </button>
-        <button
-          className="button button-primary"
-          disabled={busy || !selectedCount}
-          onClick={() => void run(false)}
-        >
-          Create {selectedCount || ""} drafts
-        </button>
-      </footer>
+      {(busy || selectedCount > 0) && (
+        <footer className="competitive-dialog-actions">
+          <button
+            className="button button-secondary"
+            disabled={busy || !selectedCount}
+            onClick={() => void run(true)}
+          >
+            Check files
+          </button>
+          <button
+            className="button button-primary"
+            disabled={busy || !selectedCount}
+            onClick={() => void run(false)}
+          >
+            Create {selectedCount || ""} drafts
+          </button>
+        </footer>
+      )}
     </SessionDialog>
   );
 }

@@ -1,3 +1,5 @@
+import { useServerTable } from "../../ui/useServerTable";
+import { TablePagination } from "../../ui/TableControls";
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
 import * as Popover from "../../ui/Popover";
 import { useId, useRef, useState } from "react";
@@ -13,6 +15,8 @@ import { SearchField } from "../../ui/SearchField";
 import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
+
+const pickerColumns = [{ accessorKey: "title" }];
 
 export function ProblemPicker({
   items,
@@ -45,13 +49,14 @@ export function ProblemPicker({
   const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
   const filters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(100);
   const allowed = difficulties?.join(",");
   const selectedDifficulties = filters.difficulty
     ?.split(",")
     .filter((value) => !difficulties || difficulties.includes(value));
   const noAllowedDifficulty = !!filters.difficulty && selectedDifficulties?.length === 0;
   const catalog = useQuery({
-    queryKey: ["picker-catalog", identity, library, search, filters, allowed, page],
+    queryKey: ["picker-catalog", identity, library, search, filters, allowed, page, limit],
     enabled: open && !noAllowedDifficulty,
     queryFn: async () => {
       const { data, error } = await api(identity).GET("/v1/problems", {
@@ -63,7 +68,7 @@ export function ProblemPicker({
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
             page,
-            limit: 100,
+            limit,
           },
         },
       });
@@ -119,6 +124,17 @@ export function ProblemPicker({
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
   const filtered = noAllowedDifficulty ? [] : (catalog.data?.items ?? []);
+  const table = useServerTable({
+    data: filtered,
+    columns: pickerColumns,
+    total: noAllowedDifficulty ? 0 : catalog.data?.total,
+    loading: catalog.isFetching,
+    state: { page, limit, sort: "title", order: "asc" },
+    onChange: (next) => {
+      setPage(next.page);
+      setLimit(next.limit);
+    },
+  });
   function choose(id: string | undefined) {
     setChosen(filtered.find((item) => item.id === id) ?? items.find((item) => item.id === id));
     onChange(
@@ -232,21 +248,7 @@ export function ProblemPicker({
                 !filtered.length && <p role="status">No matching problems</p>
               )}
             </div>
-            {(page > 1 || (catalog.data?.total ?? 0) > 100) && (
-              <div className="picker-pagination">
-                <button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                  Previous
-                </button>
-                <span>Page {page}</span>
-                <button
-                  type="button"
-                  disabled={page * 100 >= (catalog.data?.total ?? 0)}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            )}
+            <TablePagination table={table} disabled={catalog.isPending || noAllowedDifficulty} />
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

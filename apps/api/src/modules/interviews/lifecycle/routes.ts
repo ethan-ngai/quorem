@@ -1,4 +1,5 @@
 /** @file routes.ts @description Interview lifecycle HTTP transport. @module interviews */
+import { parseListQuery } from "../../../application/list-query.ts";
 import { Hono, type Context } from "hono";
 import { parseLosslessJson, JsonNumber } from "@quorem/questions";
 import { ApplicationError } from "../../../application/error.ts";
@@ -83,9 +84,16 @@ export function interviewLifecycleRoutes(deps: Dependencies): Hono {
       throw error;
     }
   };
-  app.get("/v1/interviews", async (c) =>
-    json(c, `[${(await deps.lifecycle.list(await actor(c.req.raw))).join(",")}]`),
-  );
+  app.get("/v1/interviews", async (c) => {
+    const query = parseListQuery(new URL(c.req.url).searchParams, ["title", "role", "updatedAt"], {
+      page: 1,
+      limit: 50,
+      sort: "updatedAt",
+      order: "desc",
+    });
+    const { items, ...page } = await deps.lifecycle.list(await actor(c.req.raw), query);
+    return json(c, `{${JSON.stringify(page).slice(1, -1)},"items":[${items.join(",")}]}`);
+  });
   app.post("/v1/interviews", async (c) => {
     let rawBody = "";
     const who = await actor(c.req.raw),
