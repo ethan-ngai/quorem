@@ -176,8 +176,9 @@ function makeSecurity(env: Env, signal?: AbortSignal) {
         issuer: origin,
         audience: "quorem-api",
         jwksURL: new URL("/api/auth/jwks", origin).href,
-        fetch: async (input, init) =>
-          workerRuntime(env, init?.signal ?? undefined).app.fetch(new Request(input, init)),
+        // Internal key discovery must not consume the public endpoint's shared IP budget.
+        fetch: async (_input, init) =>
+          workerRuntime(env, init?.signal ?? undefined).auth.api.getJwks({ asResponse: true }),
       }),
     };
   }
