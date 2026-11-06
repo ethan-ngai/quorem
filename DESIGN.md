@@ -86,6 +86,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Animate language/content switches, disclosures, overlays, selections and row changes through shared owners. Use short, reversible transitions and shared motion tokens.
 - Apply state immediately. Retain old asynchronous content until its replacement is ready; transition content and dimensions smoothly.
 - Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
+- Links remain un-underlined, including hover. Use short color/background transitions for feedback and retain visible keyboard focus; respect reduced motion.
 - Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.
 - Preserve disabled/pending geometry, prevent duplicate actions and use shared destructive-action treatment.
 

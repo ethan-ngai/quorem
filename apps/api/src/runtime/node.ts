@@ -254,6 +254,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
               )
           : identity.identify;
       const composed = composeHttp({
+        authIssuer: origin,
         run: db,
         ...identity,
         identify,

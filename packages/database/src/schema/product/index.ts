@@ -1297,6 +1297,7 @@ export const identity_bindings = pgTable(
       foreignColumns: [users.id],
       name: "identity_bindings_user_id_fkey",
     }),
+    index("identity_bindings_user_issuer").on(table.user_id, table.issuer),
     primaryKey({ columns: [table.issuer, table.subject], name: "identity_bindings_pkey" }),
   ],
 );
@@ -1760,6 +1761,7 @@ export const match_participants = pgTable(
       foreignColumns: [workspaces.id, workspaces.owner_id],
       name: "match_participant_workspace_owner_fkey",
     }),
+    index("match_participants_owner_match").on(table.owner_id, table.match_id),
     primaryKey({ columns: [table.match_id, table.owner_id], name: "match_participants_pkey" }),
     unique("match_participants_match_id_seat_key").on(table.match_id, table.seat),
     check(

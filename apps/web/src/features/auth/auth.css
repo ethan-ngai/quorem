@@ -12,9 +12,7 @@
   line-height: 1.5;
 }
 .auth-content .auth-terms-notice a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--color-primary);
 }
 .auth-terms-notice a:hover {
   color: var(--color-primary);

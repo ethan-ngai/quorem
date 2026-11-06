@@ -85,7 +85,9 @@ const specificMessages: Record<string, Record<string, string>> = {
     "Invalid match settings": "Check the match settings and try again.",
     "Problem not found": "That question is no longer available. Choose another.",
   },
+  forbidden: { "Account required": "Sign in with an active account to continue." },
   not_found: {
+    "Player unavailable": "This player is no longer available.",
     "Match not found": "This match is no longer available.",
     "Invitation unavailable": "This invitation is no longer available.",
     "Invite not found": "This invitation is no longer available.",

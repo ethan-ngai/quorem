@@ -88,3 +88,10 @@ export type PartyCreated = components["schemas"]["PartyCreated"];
 export type PartyInvitation = components["schemas"]["PartyInvitation"];
 
 export type MatchReview = components["schemas"]["MatchReview"];
+
+export type PlayerIdentity = components["schemas"]["PlayerIdentity"];
+export type ShowdownRecord = components["schemas"]["ShowdownRecord"];
+export type Rival = components["schemas"]["Rival"];
+export type SocialOverview = components["schemas"]["SocialOverview"];
+export type PlayerProfile = components["schemas"]["PlayerProfile"];
+export type PlayerPage = components["schemas"]["PlayerPage"];

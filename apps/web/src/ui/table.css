@@ -132,3 +132,7 @@
 .data-table .table-title:not(:disabled):hover {
   color: var(--color-brand-accent);
 }
+
+.data-table[data-density="compact"] :is(th, td) {
+  padding: var(--space-2) var(--space-3);
+}

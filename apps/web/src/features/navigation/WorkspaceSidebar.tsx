@@ -146,6 +146,12 @@ function SidebarLinks({
           icon: BookOpen,
           active: pathname.startsWith("/practice"),
         },
+        {
+          href: "/social",
+          label: "Social",
+          icon: Users,
+          active: pathname === "/social" || pathname.startsWith("/players/"),
+        },
         ...(interviews
           ? [
               {

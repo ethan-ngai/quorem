@@ -7,6 +7,7 @@ import "./participant-name.css";
 export type ParticipantIdentity = {
   userId: string;
   displayName: string;
+  username?: string | null;
   image?: string;
   color?: number;
 };
@@ -28,9 +29,14 @@ export function ParticipantName({
         color={participantColor(participant.userId, participant.color)}
         outline
       />
-      <span className="participant-name-text">
-        <span>{label ?? participant.displayName}</span>
-        {self && <SelfIndicator />}
+      <span className="participant-name-details">
+        <span className="participant-name-text">
+          <span>{label ?? participant.displayName}</span>
+          {self && <SelfIndicator />}
+        </span>
+        {participant.username && (
+          <span className="participant-name-username">@{participant.username}</span>
+        )}
       </span>
     </span>
   );

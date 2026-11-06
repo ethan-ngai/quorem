@@ -14,3 +14,15 @@
 .participant-name-text > span:first-child {
   overflow-wrap: anywhere;
 }
+
+.participant-name-details {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.participant-name-username {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

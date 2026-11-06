@@ -3136,6 +3136,133 @@
       },
       "required": ["name"],
       "additionalProperties": false
+    },
+    "PlayerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "image", "color", "username"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "username": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "ShowdownRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["played", "wins", "draws", "losses"],
+      "properties": {
+        "played": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wins": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "draws": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "losses": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Rival": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player", "record", "lastPlayedAt"],
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/PlayerIdentity"
+        },
+        "record": {
+          "$ref": "#/$defs/ShowdownRecord"
+        },
+        "lastPlayedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "SocialOverview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewer", "windowDays", "minimumMatches", "rivals"],
+      "properties": {
+        "viewer": {
+          "$ref": "#/$defs/PlayerIdentity"
+        },
+        "windowDays": {
+          "type": "integer"
+        },
+        "minimumMatches": {
+          "type": "integer"
+        },
+        "rivals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Rival"
+          },
+          "maxItems": 20
+        }
+      }
+    },
+    "PlayerProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player", "record", "headToHead", "isSelf", "windowDays"],
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/PlayerIdentity"
+        },
+        "record": {
+          "$ref": "#/$defs/ShowdownRecord"
+        },
+        "headToHead": {
+          "$ref": "#/$defs/ShowdownRecord"
+        },
+        "isSelf": {
+          "type": "boolean"
+        },
+        "windowDays": {
+          "type": "integer"
+        }
+      }
+    },
+    "PlayerPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["items", "total"],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlayerIdentity"
+          },
+          "maxItems": 20
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"

@@ -26,7 +26,7 @@ export function boundaryViolations(root: string, sources: ReadonlyMap<string, st
       if (!ts.isStringLiteral(specifier)) { violations.push(`${file}: nonliteral import`); return; }
       const name = specifier.text;
       const pure = purePackages.some((pkg) => name === pkg || name.startsWith(`${pkg}/`)) ||
-        name === '@quorem/contracts/auth-policy' || name === '@quorem/contracts/pagination' ||
+        name === '@quorem/contracts/social-policy' || name === '@quorem/contracts/auth-policy' || name === '@quorem/contracts/pagination' ||
         (relative(root, file).split(sep).join('/') === 'modules/interviews/document/changes.ts' && name === '@codemirror/state');
       const relativeBusiness = name.startsWith('.') && !/[?#]/.test(name) && protectedPath(root, resolve(dirname(file), name));
       if (!pure && !relativeBusiness) violations.push(`${file}: ${name}`);
