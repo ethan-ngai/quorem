@@ -429,6 +429,11 @@ test("guest identity locks do not block party reads or durable round start", asy
     expect(party.queue_error).toBeNull();
     expect(party.all_ready).toBe(true);
     await blocker.query("ROLLBACK");
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+        reconcileParty(tx, id),
+      ),
+    );
     expect(
       ((await repo.read(guest, id)) as { currentMatchId: string | null }).currentMatchId,
     ).toBeTruthy();
