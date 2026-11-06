@@ -216,6 +216,12 @@ export const guest_sessions = pgTable(
       foreignColumns: [users.id],
       name: "guest_sessions_owner_id_fkey",
     }),
+    foreignKey({
+      columns: [table.party_id],
+      foreignColumns: [parties.id],
+      name: "guest_sessions_party_id_fkey",
+    }),
+    check("guest_sessions_scope_check", sql`(match_id IS NOT NULL) <> (party_id IS NOT NULL)`),
     unique("guest_sessions_owner_id_key").on(table.owner_id),
   ],
 );
@@ -726,6 +732,11 @@ export const matches = pgTable(
       columns: [table.selected_problem_version_id],
       foreignColumns: [problem_versions.id],
       name: "matches_selected_problem_version_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.party_id],
+      foreignColumns: [parties.id],
+      name: "matches_party_id_fkey",
     }),
     unique("matches_invite_hash_key").on(table.invite_hash),
     check(
@@ -2225,34 +2236,52 @@ export * from "./runner-inputs.ts";
 
 export * from "./verification.ts";
 
-export const parties = pgTable("parties", {
-  id: uuid().primaryKey().notNull(),
-  host_owner_id: text()
-    .notNull()
-    .references(() => users.id),
-  invite_hash: text().notNull().unique(),
-  settings: jsonb().notNull(),
-  guest_joins: integer().default(0).notNull(),
-  version: bigint({ mode: "bigint" }).default(0n).notNull(),
-  current_match_id: uuid().references(() => matches.id),
-  latest_match_id: uuid().references(() => matches.id),
-  queue_error: text(),
-  countdown_ends_at: timestamp({ withTimezone: true, mode: "string" }),
-  created_at: timestamp({ withTimezone: true, mode: "string" })
-    .default(sql`clock_timestamp()`)
-    .notNull(),
-  disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
-});
+export const parties = pgTable(
+  "parties",
+  {
+    id: uuid().primaryKey().notNull(),
+    host_owner_id: text().notNull(),
+    invite_hash: text().notNull(),
+    settings: jsonb().notNull(),
+    guest_joins: integer().default(0).notNull(),
+    version: bigint({ mode: "bigint" }).default(0n).notNull(),
+    current_match_id: uuid(),
+    latest_match_id: uuid(),
+    queue_error: text(),
+    countdown_ends_at: timestamp({ withTimezone: true, mode: "string" }),
+    created_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.host_owner_id],
+      foreignColumns: [users.id],
+      name: "parties_host_owner_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.current_match_id],
+      foreignColumns: [matches.id],
+      name: "parties_current_match_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.latest_match_id],
+      foreignColumns: [matches.id],
+      name: "parties_latest_match_id_fkey",
+    }),
+    unique("parties_invite_hash_key").on(t.invite_hash),
+    check("parties_guest_joins_check", sql`guest_joins >= 0`),
+    index("parties_countdown")
+      .on(t.countdown_ends_at)
+      .where(sql`countdown_ends_at IS NOT NULL`),
+  ],
+);
 export const party_members = pgTable(
   "party_members",
   {
-    party_id: uuid()
-      .notNull()
-      .references(() => parties.id),
-    owner_id: text()
-      .notNull()
-      .references(() => users.id)
-      .unique(),
+    party_id: uuid().notNull(),
+    owner_id: text().notNull(),
     seat: integer().notNull(),
     ready: boolean().default(false).notNull(),
     joined_at: timestamp({ withTimezone: true, mode: "string" })
@@ -2263,8 +2292,19 @@ export const party_members = pgTable(
       .notNull(),
   },
   (t) => [
+    foreignKey({
+      columns: [t.party_id],
+      foreignColumns: [parties.id],
+      name: "party_members_party_id_fkey",
+    }),
+    foreignKey({
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+      name: "party_members_owner_id_fkey",
+    }),
     primaryKey({ columns: [t.party_id, t.owner_id] }),
-    unique().on(t.party_id, t.seat),
+    unique("party_members_owner_id_key").on(t.owner_id),
+    unique("party_members_party_id_seat_key").on(t.party_id, t.seat),
     check("party_members_seat_check", sql`seat BETWEEN 1 AND 8`),
     index("party_members_last_seen").on(t.last_seen_at),
   ],
@@ -2272,13 +2312,16 @@ export const party_members = pgTable(
 export const platform_presence_leases = pgTable(
   "platform_presence_leases",
   {
-    owner_id: text()
-      .notNull()
-      .references(() => users.id),
+    owner_id: text().notNull(),
     window_id: uuid().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
   (t) => [
+    foreignKey({
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+      name: "platform_presence_leases_owner_id_fkey",
+    }),
     primaryKey({ columns: [t.owner_id, t.window_id] }),
     index("platform_presence_expiry").on(t.expires_at),
   ],
