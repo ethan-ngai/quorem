@@ -354,7 +354,7 @@ export class CaseSandbox extends DurableObject {
       timing.inputMs = Math.round(started - admitted);
       container.start({
         image: container.images[language],
-        instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
+        instance: language === "python" ? "basic" : { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
         enableInternet: false,
       });
       this.phase = "started";
