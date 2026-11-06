@@ -69,6 +69,16 @@ it("skips library loading and particles under reduced motion", async () => {
   await vi.advanceTimersByTimeAsync(500);
   expect(mocks.create).not.toHaveBeenCalled();
 });
+it("launches popup-free celebrations inward from beyond both viewport edges", async () => {
+  await act(async () => root.render(<Celebration outcome="success" inline />));
+  await act(async () => vi.advanceTimersByTimeAsync(180));
+  expect(mocks.fire).toHaveBeenCalledWith(
+    expect.objectContaining({ angle: 55, origin: { x: -24 / innerWidth, y: 0.55 } }),
+  );
+  expect(mocks.fire).toHaveBeenCalledWith(
+    expect.objectContaining({ angle: 125, origin: { x: 1 + 24 / innerWidth, y: 0.55 } }),
+  );
+});
 it("cancels a pending burst before the dialog settles", async () => {
   await act(async () => {
     root.render(<Celebration outcome="success" />);
