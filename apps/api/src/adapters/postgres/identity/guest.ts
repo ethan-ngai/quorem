@@ -48,10 +48,19 @@ export async function lookupGuestInTransaction(
   };
 }
 /** Rechecks a party credential; caller must separately authorize current membership. */
-export async function guestMayAccessParty(tx: Transaction, who: GuestPrincipal, partyId: string): Promise<boolean> {
+export async function guestMayAccessParty(
+  tx: Transaction,
+  who: GuestPrincipal,
+  partyId: string,
+): Promise<boolean> {
   if (who.scope.kind !== "party" || who.scope.partyId !== partyId) return false;
   const current = await lookupGuestInTransaction(tx, "match", who.sessionId);
-  return !!current && current.userId === who.userId && current.scope.kind === "party" && current.scope.partyId === partyId;
+  return (
+    !!current &&
+    current.userId === who.userId &&
+    current.scope.kind === "party" &&
+    current.scope.partyId === partyId
+  );
 }
 /** Rechecks credential and round participation, independent of current party membership. */
 export async function guestMayReadMatch(
@@ -95,6 +104,13 @@ export function guestRepository(scope: ConnectionScope) {
   return {
     async lookup(kind: GuestKind, hash: string): Promise<GuestPrincipal | null> {
       return scope.transaction(options, (tx) => lookupGuestInTransaction(tx, kind, hash));
+    },
+    async canBootstrap(hash: string): Promise<boolean> {
+      return scope.transaction(options, async (tx) => {
+        if (await lookupGuestInTransaction(tx, "match", hash)) return true;
+        return !(await tx.execute(sql`SELECT 1 FROM guest_sessions WHERE token_hash=${hash}`)).rows
+          .length;
+      });
     },
     async endMatch(hash: string): Promise<boolean> {
       return scope.transaction(options, async (tx) => {

@@ -54,7 +54,10 @@ export interface HttpPorts {
   identify: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
   managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>;
-  guests: GuestIdentityReader & { endMatch(hash: string): Promise<boolean> };
+  guests: GuestIdentityReader & {
+    endMatch(hash: string): Promise<boolean>;
+    canBootstrap(hash: string): Promise<boolean>;
+  };
   trustedPeer: () => string | undefined;
   deadline: Coordinator;
   execution: Coordinator;

@@ -10,6 +10,7 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { migrate } from "@quorem/database/migrations";
 import { newGuestToken, guestTokenHash } from "../../../modules/identity/guest/credentials.ts";
 import { guestRepository } from "../identity/guest.ts";
+import { normalizePartySettings } from "../../../modules/parties/model.ts";
 import { partyRepository, reconcileParty } from "./repository.ts";
 import { prearmReceipts } from "../events/scheduling/prearm.ts";
 import { postgresDeadlines } from "../events/scheduling/deadlines.ts";
@@ -441,4 +442,39 @@ test("guest identity locks do not block party reads or durable round start", asy
     await blocker.query("ROLLBACK");
     blocker.release();
   }
+});
+
+test("disbanded guest has no current party but retains the live credential", async () => {
+  const owner = `party-disband-${crypto.randomUUID()}`;
+  await pool.query(
+    "INSERT INTO users(id,participant_id,display_name,kind) VALUES($1,gen_random_uuid(),'Owner','account')",
+    [owner],
+  );
+  await pool.query(
+    "INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason) VALUES($1,$2,'matches.host_guests','manual',$3,'fixture','test')",
+    [crypto.randomUUID(), owner, crypto.randomUUID()],
+  );
+  const created = (await repo.create(
+    user(owner),
+    "create",
+    normalizePartySettings({
+      difficulty: "easy",
+      durationMinutes: 30,
+      accessMode: "guests_allowed",
+    }),
+  )) as { party: { id: string }; inviteUrl: string };
+  const token = created.inviteUrl.split("/").at(-1)!;
+  const credential = newGuestToken();
+  await repo.joinGuest(token, credential, "Guest");
+  const hash = await guestTokenHash(credential);
+  const guest = await run((scope) => guestRepository(scope).lookup("match", hash));
+  if (!guest) throw new Error("guest missing");
+  await repo.mutate(user(owner), created.party.id, "disband", "disband", null);
+  expect(((await repo.current(guest)) as { party: unknown }).party).toBeNull();
+  await expect(repo.read(guest, created.party.id)).rejects.toMatchObject({ status: 404 });
+  expect(await run((scope) => guestRepository(scope).lookup("match", hash))).not.toBeNull();
+  await pool.query("UPDATE guest_sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1", [
+    hash,
+  ]);
+  await expect(repo.current(guest)).rejects.toMatchObject({ status: 404 });
 });
