@@ -1,0 +1,39 @@
+.settings-disclosure {
+  min-width: 0;
+}
+.settings-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding-block: var(--space-2);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-label);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-sm);
+}
+.settings-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-disclosure > summary:hover {
+  color: var(--color-text);
+}
+.settings-disclosure > summary:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.settings-disclosure > summary > svg {
+  flex-shrink: 0;
+}
+.settings-disclosure > summary small {
+  margin-left: auto;
+  font: inherit;
+  text-align: right;
+}
+.settings-disclosure-content {
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  min-width: 0;
+}

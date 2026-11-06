@@ -16,6 +16,7 @@ export function TeamOrganizer({ party, identity }: { party: PartySnapshot; ident
     refetchInterval: 2000,
   });
   const [busy, setBusy] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
   const [error, setError] = useState<string>();
   const host = party.hostUserId === identity;
   async function change(body: Record<string, unknown>) {
@@ -47,7 +48,15 @@ export function TeamOrganizer({ party, identity }: { party: PartySnapshot; ident
       <NoticeRegion message={error}>
         <div className="faction-toolbar">
           <h2>Teams</h2>
-          {host && (
+          <button
+            type="button"
+            className="quiet-button"
+            aria-expanded={organizing}
+            onClick={() => setOrganizing((open) => !open)}
+          >
+            {organizing ? "Done" : host ? "Organize teams" : "Change team"}
+          </button>
+          {host && organizing && (
             <>
               <SelectField
                 label="Team count"
@@ -88,28 +97,31 @@ export function TeamOrganizer({ party, identity }: { party: PartySnapshot; ident
                     members={members}
                     hostUserId={party.hostUserId}
                     ownUserId={identity}
-                    actions={(member) =>
-                      host || member.userId === identity ? (
-                        <SelectField
-                          label={`Team for ${member.displayName}`}
-                          value={String(team)}
-                          disabled={busy}
-                          onChange={(value) =>
-                            void change({
-                              action: "assign",
-                              userId: member.userId,
-                              team: Number(value) || null,
-                            })
-                          }
-                          options={[
-                            { value: "0", label: "Unassigned" },
-                            ...Array.from({ length: teamCount }, (_, i) => ({
-                              value: String(i + 1),
-                              label: `Team ${i + 1}`,
-                            })),
-                          ]}
-                        />
-                      ) : null
+                    actions={
+                      organizing
+                        ? (member) =>
+                            host || member.userId === identity ? (
+                              <SelectField
+                                label={`Team for ${member.displayName}`}
+                                value={String(team)}
+                                disabled={busy}
+                                onChange={(value) =>
+                                  void change({
+                                    action: "assign",
+                                    userId: member.userId,
+                                    team: Number(value) || null,
+                                  })
+                                }
+                                options={[
+                                  { value: "0", label: "Unassigned" },
+                                  ...Array.from({ length: teamCount }, (_, i) => ({
+                                    value: String(i + 1),
+                                    label: `Team ${i + 1}`,
+                                  })),
+                                ]}
+                              />
+                            ) : null
+                        : undefined
                     }
                   />
                 )}

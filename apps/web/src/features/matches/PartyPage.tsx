@@ -12,7 +12,6 @@ import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { readPendingCommand } from "./commandRecovery";
 import { SessionDialog } from "../../ui/SessionDialog";
-import { ToggleSwitch } from "../../ui/ToggleSwitch";
 
 export function PartyPage() {
   const { identity, account } = useAccountIdentity();
@@ -107,10 +106,10 @@ export function PartyPage() {
   return (
     <main className="match-page">
       {nav}
-      <section className="match-page-content">
+      <section className="match-page-content party-lobby">
         <div className="competitive-lobby-heading">
           <h1>Lobby</h1>
-          <p>Your party stays together between rounds.</p>
+          <p>{party.members.length} players</p>
         </div>
         {error && <p role="alert">{error}</p>}
         {recovery && (
@@ -177,46 +176,10 @@ export function PartyPage() {
             )}
           </p>
         )}
-        <MatchSettings
-          value={party.settings}
-          identity={identity}
-          participantCount={party.members.length}
-          disabled={
-            (!host && party.settings.rules?.settingsEditors !== "everyone") ||
-            pending ||
-            !!recovery ||
-            !!party.currentMatchId
-          }
-          onChange={(settings) =>
-            void run(
-              "settings",
-              {
-                ...settings,
-                shareCodeAfterMatch: party.settings.shareCodeAfterMatch,
-              } satisfies PartySettings,
-              "PUT",
-            )
-          }
-          canEditPermissions={host}
-        />
-        <div className="match-option">
-          <span>Share code after match</span>
-          <ToggleSwitch
-            label="Share code after match"
-            checked={party.settings.shareCodeAfterMatch}
-            disabled={
-              (!host && party.settings.rules?.settingsEditors !== "everyone") ||
-              pending ||
-              !!recovery ||
-              !!party.currentMatchId
-            }
-            onChange={(shareCodeAfterMatch) =>
-              void run("settings", { ...party.settings, shareCodeAfterMatch }, "PUT")
-            }
-          />
-        </div>
         <footer className="competitive-lobby-footer">
-          <span>Changing settings clears readiness.</span>
+          <span>
+            {party.members.filter((member) => member.ready).length} of {party.members.length} ready
+          </span>
           <div className="lobby-ready-actions">
             <button
               className="button button-secondary"
@@ -243,7 +206,7 @@ export function PartyPage() {
                 {own?.ready ? "Unready" : "Ready up"}
               </button>
             )}
-            {host && !party.currentMatchId && !party.latestMatchId && (
+            {host && own?.ready && !party.currentMatchId && !party.latestMatchId && (
               <button
                 className="button button-primary"
                 disabled={
@@ -258,6 +221,27 @@ export function PartyPage() {
             )}
           </div>
         </footer>
+        <div className="lobby-setup-heading">
+          <h2>Match setup</h2>
+          <span>
+            {host || party.settings.rules?.settingsEditors === "everyone"
+              ? "Edits reset readiness"
+              : "Host controls setup"}
+          </span>
+        </div>
+        <MatchSettings
+          value={party.settings}
+          identity={identity}
+          participantCount={party.members.length}
+          disabled={
+            (!host && party.settings.rules?.settingsEditors !== "everyone") ||
+            pending ||
+            !!recovery ||
+            !!party.currentMatchId
+          }
+          onChange={(settings) => void run("settings", settings satisfies PartySettings, "PUT")}
+          canEditPermissions={host}
+        />
         <SessionDialog
           open={disbanding}
           onOpenChange={setDisbanding}
