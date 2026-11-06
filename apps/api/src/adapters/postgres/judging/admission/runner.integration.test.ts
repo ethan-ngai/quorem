@@ -33,7 +33,7 @@ import { createRunnerCommandHandler } from "../worker/http.ts";
 import { dockerSandbox } from "../../../../../../runner/src/sandbox/docker.ts";
 import { remoteSandbox } from "../../../../../../runner/src/sandbox/remote.ts";
 import { accessFetch } from "@quorem/execution/transport/access";
-import { CASE_LANES } from "@quorem/execution";
+import { JUDGING_DEFAULTS } from "@quorem/execution";
 import { localFenceRoot } from "../../../../../../runner/src/sandbox/fence.ts";
 import { privateRunnerCommands } from "../../../../../../runner/src/queue/http.ts";
 import { drainer } from "../../../../../../runner/src/drains/drain.ts";
@@ -1781,7 +1781,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         commands,
         sandbox,
         2000,
-        CASE_LANES,
+        JUDGING_DEFAULTS.caseLanes,
         async () => (await commands.queueState()).queued > 0,
       ),
       slots: 8,
@@ -1832,7 +1832,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         await writeFile(process.env.QUOREM_BENCHMARK_REPORT, JSON.stringify(measurement));
       expect(result.samples).toHaveLength(8);
       if (!native) {
-        expect(peak).toBe(8 * CASE_LANES);
+        expect(peak).toBe(8 * JUDGING_DEFAULTS.caseLanes);
         expect(result.meetsTarget).toBe(true);
       }
       expect(subscribers.size).toBe(0);
