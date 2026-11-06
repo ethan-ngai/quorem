@@ -51,3 +51,10 @@ it("preserves known question types and rejects unknown types", () => {
   for (const type of ["classic", "odyssey"]) expect(catalogSearch({ type })).toEqual({ type });
   expect(catalogSearch({ type: "other" })).not.toHaveProperty("type");
 });
+
+it("preserves supported page sizes and discards invalid values", () => {
+  for (const limit of [10, 20, 50, 100])
+    expect(catalogSearch({ limit: String(limit), page: 2 })).toMatchObject({ limit, page: 2 });
+  for (const limit of [0, -1, 101, 2.5, "all"])
+    expect(catalogSearch({ limit })).not.toHaveProperty("limit");
+});

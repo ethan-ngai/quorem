@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import {
   updateAuthoringIssues,
   authoringMessages,
@@ -17,7 +18,7 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useEffect, useState } from "react";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
@@ -165,14 +166,12 @@ function AuthoringWorkspace({
   const search = useSearch({ from: "/admin/questions" });
   const navigate = useNavigate({ from: "/admin/questions" });
   const { section, readiness, draft: draftId, publication, ...filters } = search;
-  const drafts = useInfiniteQuery({
+  const drafts = useQuery({
     queryKey: ["admin-drafts", admin, filters, readiness],
     enabled: !initialDraft && section !== "publications",
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => listDrafts({ ...filters, readiness }, pageParam, signal),
-    getNextPageParam: (page) => page.nextCursor,
+    queryFn: ({ signal }) => listDrafts({ ...filters, readiness }, signal),
   });
-  const draftItems = drafts.data?.pages.flatMap((page) => page.items) ?? [];
+  const draftItems = drafts.data?.items ?? [];
   const problems = useQuery({
     queryKey: ["admin-problems", admin, filters],
     enabled: !initialDraft && section === "publications",
@@ -189,7 +188,6 @@ function AuthoringWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(draft ? undefined : error);
-  const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [previewLanguage, setPreviewLanguage] =
     useState<Exclude<EditorLanguage, "postgresql">>("python");
@@ -259,7 +257,6 @@ function AuthoringWorkspace({
     setDirty(false);
     setPreview(false);
     setError("");
-    setNotice("");
     setInvalidFields(new Map());
   }
   function closeEditor() {
@@ -270,7 +267,6 @@ function AuthoringWorkspace({
   async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       const next = await action();
       const nextPublication = next.publishedVersionId;
@@ -283,8 +279,8 @@ function AuthoringWorkspace({
         });
       } else {
         open(next);
-        setNotice(message);
       }
+      toast.success(message);
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
       await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
@@ -421,11 +417,12 @@ function AuthoringWorkspace({
           drafts={draftItems}
           publications={problems.data?.items ?? []}
           search={search}
-          facets={
-            section === "publications" ? problems.data?.facets : drafts.data?.pages[0]?.facets
-          }
+          facets={section === "publications" ? problems.data?.facets : drafts.data?.facets}
           onSearch={(change, replace) =>
-            void navigate({ search: (previous) => ({ ...previous, ...change }), replace })
+            void navigate({
+              search: (previous) => ({ ...previous, page: undefined, ...change }),
+              replace,
+            })
           }
           draftLoading={drafts.isPending}
           publicationLoading={problems.isPending}
@@ -433,8 +430,7 @@ function AuthoringWorkspace({
           publicationFailed={problems.isError}
           busy={busy}
           onRunning={setBulkRunning}
-          loadMore={drafts.hasNextPage ? () => void drafts.fetchNextPage() : undefined}
-          loadingMore={drafts.isFetchingNextPage}
+          total={section === "drafts" ? drafts.data?.total : problems.data?.total}
           onOpen={(row) =>
             void navigate({
               search: (previous) => ({
@@ -671,16 +667,10 @@ function AuthoringWorkspace({
               onChange={(next) => {
                 setContent(next);
                 setDirty(true);
-                setNotice("");
               }}
             />
           )}
         </section>
-      )}
-      {notice && (
-        <p className="admin-notice" role="status">
-          {notice}
-        </p>
       )}
     </main>
   );

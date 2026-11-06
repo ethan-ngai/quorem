@@ -161,8 +161,16 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         return JSON.stringify({ id });
       });
     },
-    async list(actor) {
+    async list(actor, query = { page: 1, limit: 50, sort: "updatedAt", order: "desc" }) {
       return transact(async (tx) => {
+        const membership = sql`FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN interview_question_public q ON q.session_id=i.id AND q.question_epoch=i.question_epoch WHERE i.deleted_at IS NULL`;
+        const direction = query.order === "desc" ? sql`DESC` : sql`ASC`;
+        const key =
+          query.sort === "title"
+            ? sql`lower(i.title)`
+            : query.sort === "role"
+              ? sql`m.role`
+              : sql`i.updated_at`;
         const rows = (
           await tx.execute<{
             id: string;
@@ -173,7 +181,7 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
             problemTitle: string;
             memberCount: number;
           }>(
-            sql`SELECT i.id::text,i.title,i.state,i.host_id AS "hostId",m.role,COALESCE(q.metadata->'problem'->>'title','') AS "problemTitle",(SELECT count(*)::int FROM interview_members p WHERE p.session_id=i.id AND p.removed_at IS NULL) AS "memberCount" FROM interviews i JOIN interview_members m ON m.session_id=i.id AND m.user_id=${actor.userId} AND m.removed_at IS NULL JOIN interview_question_public q ON q.session_id=i.id AND q.question_epoch=i.question_epoch WHERE i.deleted_at IS NULL ORDER BY i.updated_at DESC LIMIT 50`,
+            sql`SELECT i.id::text,i.title,i.state,i.host_id AS "hostId",m.role,COALESCE(q.metadata->'problem'->>'title','') AS "problemTitle",(SELECT count(*)::int FROM interview_members p WHERE p.session_id=i.id AND p.removed_at IS NULL) AS "memberCount" ${membership} ORDER BY ${key} ${direction},i.id ${direction} LIMIT ${query.limit} OFFSET ${(query.page - 1) * query.limit}`,
           )
         ).rows;
         const result: string[] = [];
@@ -181,7 +189,10 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
           await lockInterview(tx, actor, row.id, capabilitiesInTransaction);
           result.push(JSON.stringify(row));
         }
-        return result;
+        const counts = await tx.execute<{ total: number; hosting: number }>(
+          sql`SELECT count(*)::int AS total,count(*) FILTER (WHERE i.host_id=${actor.userId} AND i.state='active')::int AS hosting ${membership}`,
+        );
+        return { items: result, ...counts.rows[0], page: query.page, limit: query.limit };
       });
     },
     async read(actor, id) {

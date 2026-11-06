@@ -58,7 +58,7 @@ export function catalogQueryOptions(
     sql: search.sql ?? ("false" as const),
     library: context.library,
     page: search.page ?? 1,
-    limit: catalogPageSize,
+    limit: search.limit ?? catalogPageSize,
   };
   return queryOptions<CatalogPage>({
     queryKey: ["public-problems", context.scope, filters] as const,

@@ -1,3 +1,5 @@
+import { useServerTable } from "../../ui/useServerTable";
+import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { Link } from "@tanstack/react-router";
 import type { QuestionSearch } from "./questionSearch";
@@ -7,27 +9,27 @@ import { CatalogFilters } from "../practice/CatalogFilters";
 import { addFilter } from "../practice/catalogSearch";
 import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
-import { CatalogRow, CatalogTable } from "../practice/CatalogLayout";
+import { TableRow, Table } from "../../ui/Table";
 import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { toast } from "sonner";
+import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
-import {
-  createDraft,
-  deleteDraft,
-  deleteQuestionPublication,
-  fetchDeletionImpact,
-  listPublications,
-  publishDraft,
-} from "./api";
+import { userFacingErrorMessage } from "../../ui/errors";
+import { mutateQuestionBatch, listPublications } from "./api";
 
 type Publication = Awaited<ReturnType<typeof listPublications>>["items"][number];
 type Row = QuestionDraftSummary | Publication;
+const dashboardColumns = [
+  { accessorKey: "title" },
+  { accessorKey: "difficulty" },
+  { accessorKey: "updatedAt", sortDescFirst: true },
+];
 type Action = "publish" | "delete";
 
 export function QuestionDashboard({
@@ -43,8 +45,7 @@ export function QuestionDashboard({
   publicationFailed,
   onRunning,
   busy,
-  loadMore,
-  loadingMore,
+  total,
   onOpen,
   onChanged,
 }: {
@@ -60,8 +61,7 @@ export function QuestionDashboard({
   publicationFailed: boolean;
   onRunning: (running: boolean) => void;
   busy: boolean;
-  loadMore?: () => void;
-  loadingMore: boolean;
+  total?: number;
   onOpen: (row: Row) => void;
   onChanged: () => Promise<unknown>;
 }) {
@@ -79,6 +79,8 @@ export function QuestionDashboard({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
+  const [errorsOpen, setErrorsOpen] = useState(false);
+  const notification = useId();
   const rows: Row[] = tab === "drafts" ? drafts : publications;
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = rows.length > 0 && rows.every((row) => selected.has(row.id));
@@ -86,6 +88,27 @@ export function QuestionDashboard({
   const loading = tab === "drafts" ? draftLoading : publicationLoading;
   const failed = tab === "drafts" ? draftFailed : publicationFailed;
 
+  const page = search.page ?? 1;
+  const limit = search.limit ?? 50;
+  const table = useServerTable({
+    data: rows,
+    columns: dashboardColumns,
+    total,
+    loading: loading || failed,
+    state: {
+      page,
+      limit,
+      sort: search.sort ?? (tab === "drafts" ? "updatedAt" : "title"),
+      order: search.order ?? (tab === "drafts" ? "desc" : "asc"),
+    },
+    onChange: (next) =>
+      onSearch({
+        page: next.page === 1 ? undefined : next.page,
+        limit: next.limit,
+        sort: next.sort,
+        order: next.order,
+      }),
+  });
   function toggle(ids: string[], checked: boolean) {
     setSelection((current) => {
       const next = new Set(current?.scope === selectionScope ? current.ids : undefined);
@@ -102,40 +125,70 @@ export function QuestionDashboard({
     setRunning(true);
     onRunning(true);
     setErrors([]);
+    setErrorsOpen(false);
+    toast.loading(
+      `${action === "publish" ? "Publishing" : "Deleting"} ${confirmed.length} questions…`,
+      { id: notification },
+    );
     const failures: typeof errors = [];
     const succeeded: string[] = [];
     try {
-      // Serialize mutations so drafts sharing a slug follow the table order.
-      for (const [index, row] of confirmed.entries()) {
-        setProgress(`Working on ${index + 1} of ${confirmed.length}…`);
+      for (let offset = 0; offset < confirmed.length; offset += 16) {
+        const rows = confirmed.slice(offset, offset + 16);
+        setProgress(`Completed ${offset} of ${confirmed.length}…`);
         try {
-          if ("revision" in row) {
-            if (action === "publish")
-              await publishDraft(row, row.editVersionId ? "global" : visibility);
-            else await deleteDraft(row);
-          } else {
-            const draft = await createDraft({ problemVersionId: row.id, edit: true });
-            const impact = await fetchDeletionImpact(draft.id);
-            if (impact.current !== row.current)
-              throw new UserFacingError(
-                "The current version changed. Refresh and review this selection.",
-              );
-            await deleteQuestionPublication(draft, row.current ? null : undefined);
+          const draftRows = rows.filter((row): row is QuestionDraftSummary => "revision" in row);
+          const result = await mutateQuestionBatch(
+            action === "publish"
+              ? {
+                  action: "publish",
+                  items: draftRows.map((row) => ({
+                    id: row.id,
+                    revision: row.revision,
+                    visibility: row.editVersionId ? "global" : visibility,
+                  })),
+                }
+              : draftRows.length
+                ? {
+                    action: "delete-drafts",
+                    items: draftRows.map(({ id, revision }) => ({ id, revision })),
+                  }
+                : {
+                    action: "delete-publications",
+                    items: rows
+                      .filter((row): row is Publication => !("revision" in row))
+                      .map(({ id, current }) => ({ id, current })),
+                  },
+          );
+          for (const item of result.items) {
+            if (item.status === "succeeded") succeeded.push(item.id);
+            else
+              failures.push({
+                id: item.id,
+                title: rows.find((row) => row.id === item.id)?.title || "Untitled question",
+                message: item.message || "The change could not be completed.",
+              });
           }
-          succeeded.push(row.id);
         } catch (cause) {
-          failures.push({
-            id: row.id,
-            title: row.title || "Untitled question",
-            message: userFacingErrorMessage(cause, "The change could not be completed."),
-          });
+          for (const row of rows)
+            failures.push({
+              id: row.id,
+              title: row.title || "Untitled question",
+              message: userFacingErrorMessage(cause, "The change could not be completed."),
+            });
         }
       }
       toggle(succeeded, false);
       setErrors(failures);
-      setProgress(
-        `${succeeded.length} ${action === "publish" ? "published" : "deleted"} · ${failures.length} failed`,
-      );
+      setProgress("");
+      notifyBatchResult({
+        id: notification,
+        verb: action === "publish" ? "Published" : "Deleted",
+        noun: "question",
+        succeeded: succeeded.length,
+        failed: failures.length,
+        onDetails: () => setErrorsOpen(true),
+      });
       setConfirmation(undefined);
       await onChanged();
     } finally {
@@ -154,7 +207,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "drafts"}
             disabled={disabled}
             onClick={() => {
-              onSearch({ section: "drafts" });
+              onSearch({ sort: undefined, order: undefined, section: "drafts" });
             }}
           >
             <Icon name="problem" />
@@ -166,7 +219,7 @@ export function QuestionDashboard({
             aria-pressed={tab === "publications"}
             disabled={disabled}
             onClick={() => {
-              onSearch({ section: "publications" });
+              onSearch({ sort: undefined, order: undefined, section: "publications" });
             }}
           >
             <Globe size={18} strokeWidth={1.5} aria-hidden="true" />
@@ -236,48 +289,56 @@ export function QuestionDashboard({
           />
         )}
       </fieldset>
-      <div className="admin-toolbar admin-bulk-bar">
-        <span>{chosen.length} selected</span>
-        <PersistentNotice
-          label="Some bulk actions failed"
-          message={errors.map((error) => `${error.title}: ${error.message}`)}
-        />
-        <div className="admin-toolbar">
-          {tab === "drafts" && (
-            <button
-              className="button button-primary admin-bulk-action"
-              data-visible={chosen.length > 0}
-              aria-hidden={chosen.length === 0}
-              disabled={disabled || !chosen.length}
-              onClick={() => {
-                setVisibility("private");
-                setConfirmation({ action: "publish", rows: chosen });
-              }}
-            >
-              <Icon name="submit" />
-              Publish selected
-            </button>
-          )}
-          <button
-            className="button button-secondary admin-delete-action admin-bulk-action"
-            data-visible={chosen.length > 0}
-            aria-hidden={chosen.length === 0}
-            disabled={disabled || !chosen.length}
-            onClick={() => setConfirmation({ action: "delete", rows: chosen })}
-          >
-            <Icon name="trash" />
-            Delete selected
-          </button>
+      <div
+        className="admin-bulk-disclosure"
+        data-open={chosen.length > 0 || errors.length > 0}
+        aria-hidden={chosen.length === 0 && errors.length === 0}
+        inert={chosen.length === 0 && errors.length === 0}
+      >
+        <div>
+          <div className="admin-toolbar admin-bulk-bar">
+            {chosen.length > 0 && <span>{chosen.length} selected</span>}
+            <PersistentNotice
+              label="Some bulk actions failed"
+              message={errors.map((error) => `${error.title}: ${error.message}`)}
+              open={errorsOpen}
+              onOpenChange={setErrorsOpen}
+            />
+            {chosen.length > 0 && (
+              <div className="admin-toolbar">
+                {tab === "drafts" && (
+                  <button
+                    className="button button-primary"
+                    disabled={disabled || !chosen.length}
+                    onClick={() => {
+                      setVisibility("private");
+                      setConfirmation({ action: "publish", rows: chosen });
+                    }}
+                  >
+                    <Icon name="submit" />
+                    Publish selected
+                  </button>
+                )}
+                <button
+                  className="button button-secondary admin-delete-action"
+                  disabled={disabled || !chosen.length}
+                  onClick={() => setConfirmation({ action: "delete", rows: chosen })}
+                >
+                  <Icon name="trash" />
+                  Delete selected
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <p role="status">{progress}</p>
       {loading ? (
         <LoadingScreen inline label="Loading questions…" />
       ) : failed ? (
         <p role="alert">Questions could not be loaded. Refresh to try again.</p>
       ) : (
         <div className="admin-table-scroll">
-          <CatalogTable
+          <Table
             className="admin-question-table"
             label={tab === "drafts" ? "Draft questions" : "Question publications"}
             heading={
@@ -301,10 +362,16 @@ export function QuestionDashboard({
                     }
                   />
                 </th>
-                <th scope="col">Question</th>
-                <th scope="col">Difficulty</th>
+                <TableSortHeader column={table.getColumn("title")!} disabled={disabled}>
+                  Question
+                </TableSortHeader>
+                <TableSortHeader column={table.getColumn("difficulty")!} disabled={disabled}>
+                  Difficulty
+                </TableSortHeader>
                 {tab === "drafts" ? (
-                  <th scope="col">Last edited</th>
+                  <TableSortHeader column={table.getColumn("updatedAt")!} disabled={disabled}>
+                    Last edited
+                  </TableSortHeader>
                 ) : (
                   <th aria-label="Visibility" />
                 )}
@@ -312,7 +379,7 @@ export function QuestionDashboard({
             }
           >
             {rows.map((row) => (
-              <CatalogRow
+              <TableRow
                 key={row.id}
                 data-selected={selected.has(row.id)}
                 onOpen={disabled ? undefined : () => onOpen(row)}
@@ -329,7 +396,7 @@ export function QuestionDashboard({
                 <th scope="row">
                   <div className="admin-question-heading">
                     {disabled ? (
-                      <span className="catalog-question-title">
+                      <span className="table-title">
                         {row.title || "Untitled question"}
                       </span>
                     ) : (
@@ -340,7 +407,7 @@ export function QuestionDashboard({
                           draft: "revision" in row ? row.id : undefined,
                           publication: "revision" in row ? undefined : row.id,
                         }}
-                        className="catalog-question-title"
+                        className="table-title"
                       >
                         {row.title || "Untitled question"}
                       </Link>
@@ -393,25 +460,17 @@ export function QuestionDashboard({
                     {row.isPrivate && <QuestionIndicators privateQuestion odyssey={false} />}
                   </td>
                 )}
-              </CatalogRow>
+              </TableRow>
             ))}
             {!rows.length && (
               <tr>
                 <td colSpan={4}>No matching questions.</td>
               </tr>
             )}
-          </CatalogTable>
+          </Table>
         </div>
       )}
-      {tab === "drafts" && loadMore && (
-        <button
-          className="button button-secondary"
-          disabled={disabled || loadingMore}
-          onClick={loadMore}
-        >
-          {loadingMore ? "Loading…" : "Load more drafts"}
-        </button>
-      )}
+      {!loading && !failed && <TablePagination table={table} disabled={disabled} />}
       <SessionDialog
         open={!!action}
         pending={running}

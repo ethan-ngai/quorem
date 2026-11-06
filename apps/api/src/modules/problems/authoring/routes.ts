@@ -1,5 +1,6 @@
-import { parseCatalogFilter } from "../queries.ts";
 /** @file routes.ts @description Question authoring HTTP transport. @module problems */
+import { parseListQuery } from "../../../application/list-query.ts";
+import { parseCatalogFilter } from "../queries.ts";
 import { Hono, type Context } from "hono";
 import {
   JsonNumber,
@@ -10,7 +11,7 @@ import {
 import { ApplicationError } from "../../../application/error.ts";
 import type { Principal } from "../../identity/model.ts";
 import { identifyRequest } from "../../identity/routes.ts";
-import type { QuestionAuthoring } from "./ports.ts";
+import type { AuthoringBatch, QuestionAuthoring } from "./ports.ts";
 export interface AuthoringDependencies {
   readonly identify: (request: Request) => Promise<Principal | undefined>;
   readonly authoring: QuestionAuthoring;
@@ -88,18 +89,25 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       (readiness !== undefined && !["ready", "needs-fixes"].includes(readiness))
     )
       invalid("Invalid question filters");
-    const catalog = parseCatalogFilter(query);
-    return { ...catalog, sql: catalog.sql || ("false" as const), source, readiness };
+    if (query.has("cursor")) invalid("Cursor pagination is unsupported");
+    const drafts = new URL(url).pathname.endsWith("question-drafts");
+    const pagination = parseListQuery(
+      query,
+      drafts ? (["title", "difficulty", "updatedAt"] as const) : (["title", "difficulty"] as const),
+      { page: 1, limit: 50, sort: drafts ? "updatedAt" : "title", order: drafts ? "desc" : "asc" },
+    );
+    const catalogQuery = new URLSearchParams(query);
+    catalogQuery.set("sort", pagination.sort === "updatedAt" ? "title" : pagination.sort);
+    const catalog = parseCatalogFilter(catalogQuery);
+    return { ...catalog, ...pagination, sql: catalog.sql || ("false" as const), source, readiness };
   }
   app.get("/v1/admin/question-publications", async (c) => {
     const p = await principal(c.req.raw);
     return json(c, await deps.authoring.publications(p, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts", async (c) => {
-    const p = await principal(c.req.raw),
-      cursor = c.req.query("cursor") ?? "";
-    if (cursor && !uuid.test(cursor)) invalid("Invalid cursor");
-    return json(c, await deps.authoring.list(p, cursor, filters(c.req.url)));
+    const p = await principal(c.req.raw);
+    return json(c, await deps.authoring.list(p, filters(c.req.url)));
   });
   app.get("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),
@@ -149,6 +157,52 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       throw new ApplicationError("payload_too_large", "Question batch exceeds 2 MiB", 413);
     return json(c, await deps.authoring.importDraftBatch(p, items, preview === "1"));
   });
+  for (const [path, action] of [
+    ["/v1/admin/question-drafts/publish-batch", "publish"],
+    ["/v1/admin/question-drafts/delete-batch", "delete-drafts"],
+    ["/v1/admin/question-publications/delete-batch", "delete-publications"],
+  ] as const) {
+    app.post(path, async (c) => {
+      const p = await principal(c.req.raw);
+      const req = await body(c.req.raw, 16 << 10);
+      fields(req, ["items"]);
+      if (!Array.isArray(req.items) || req.items.length < 1 || req.items.length > 16)
+        invalid("Choose 1 to 16 questions per request");
+      const items = req.items.map((value) => {
+        const item = object(value);
+        fields(
+          item,
+          action === "publish"
+            ? ["id", "revision", "visibility"]
+            : action === "delete-drafts"
+              ? ["id", "revision"]
+              : ["id", "current"],
+        );
+        const id = text(item.id);
+        draftId(id);
+        if (action === "delete-publications") {
+          if (typeof item.current !== "boolean") invalid("Expected current version selection");
+          return { id, current: item.current };
+        }
+        const revision = text(item.revision);
+        if (!/^[1-9][0-9]{0,18}$/.test(revision)) invalid("Invalid revision");
+        if (action === "delete-drafts") return { id, revision };
+        const visibility = text(item.visibility);
+        if (visibility !== "private" && visibility !== "global")
+          invalid("Choose private or global publication");
+        return { id, revision, visibility };
+      });
+      if (new Set(items.map((item) => item.id)).size !== items.length)
+        invalid("Choose each question only once");
+      return json(
+        c,
+        await deps.authoring.mutateBatch(
+          { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
+          { action, items } as AuthoringBatch,
+        ),
+      );
+    });
+  }
   app.put("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw),
       id = c.req.param("id");

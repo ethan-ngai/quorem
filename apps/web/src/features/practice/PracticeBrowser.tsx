@@ -1,22 +1,16 @@
+import { useServerTable } from "../../ui/useServerTable";
+import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { CatalogFilters } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { CatalogLayout, CatalogRow, CatalogTable } from "./CatalogLayout";
+import { CatalogLayout } from "./CatalogLayout";
+import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Layers,
-  Globe,
-  LockKeyhole,
-} from "lucide-react";
+import { X, Layers, Globe, LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
-import { catalogQueryOptions, catalogFacets, catalogPageSize as pageSize } from "./problemQueries";
+import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
@@ -28,6 +22,8 @@ import { addFilter, filterValues } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
+
+const practiceColumns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
 
 export function PracticeBrowser() {
   const { identity, account: session } = useAccountIdentity();
@@ -75,13 +71,6 @@ export function PracticeBrowser() {
     search.type ||
     search.sql,
   );
-  const sort = search.sort ?? "title";
-  const SortIcon = search.order === "desc" ? ArrowDown : ArrowUp;
-  const sortBy = (next: "title" | "difficulty") =>
-    update({
-      sort: next === "title" ? undefined : next,
-      order: sort === next && !search.order ? "desc" : undefined,
-    });
   const clear = () => {
     setQuery("");
     setEditing(false);
@@ -95,18 +84,23 @@ export function PracticeBrowser() {
       sql: undefined,
     });
   };
+  const pageSize = search.limit ?? catalogPageSize;
   const page = search.page ?? 1;
+  const table = useServerTable({
+    data: catalog.data?.items ?? [],
+    columns: practiceColumns,
+    total: catalog.data?.total,
+    loading: catalog.isFetching || (actor === undefined && library !== "global"),
+    state: { page, limit: pageSize, sort: search.sort ?? "title", order: search.order ?? "asc" },
+    onChange: (next) =>
+      update({
+        page: next.page === 1 ? undefined : next.page,
+        limit: next.limit,
+        sort: next.sort === "title" ? undefined : next.sort,
+        order: next.order === "asc" ? undefined : next.order,
+      }),
+  });
   const total = catalog.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / pageSize));
-  useEffect(() => {
-    if (
-      (actor !== undefined || library === "global") &&
-      catalog.data &&
-      !catalog.isFetching &&
-      page > pages
-    )
-      update({ page: pages === 1 ? undefined : pages }, true);
-  }, [actor, library, catalog.data, catalog.isFetching, page, pages]);
   return (
     <div className="practice-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -190,44 +184,20 @@ export function PracticeBrowser() {
             <LoadingScreen inline label="Loading questions…" />
           ) : (
             <>
-              <CatalogTable
+              <Table
                 label="Practice questions"
                 heading={
                   <tr>
-                    <th
-                      scope="col"
-                      aria-sort={
-                        sort === "title"
-                          ? search.order === "desc"
-                            ? "descending"
-                            : "ascending"
-                          : "none"
-                      }
-                    >
-                      <button onClick={() => sortBy("title")}>
-                        Question {sort === "title" && <SortIcon size={13} />}
-                      </button>
-                    </th>
-                    <th
-                      scope="col"
-                      aria-sort={
-                        sort === "difficulty"
-                          ? search.order === "desc"
-                            ? "descending"
-                            : "ascending"
-                          : "none"
-                      }
-                    >
-                      <button onClick={() => sortBy("difficulty")}>
-                        Difficulty {sort === "difficulty" && <SortIcon size={13} />}
-                      </button>
-                    </th>
+                    <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
+                    <TableSortHeader column={table.getColumn("difficulty")!}>
+                      Difficulty
+                    </TableSortHeader>
                     <th aria-label="Question format" />
                   </tr>
                 }
               >
                 {catalog.data.items.map((problem) => (
-                  <CatalogRow
+                  <TableRow
                     key={problem.id}
                     onPointerEnter={warmWorkspacePage}
                     onFocusCapture={warmWorkspacePage}
@@ -260,9 +230,9 @@ export function PracticeBrowser() {
                         odyssey={!!problem.odyssey}
                       />
                     </td>
-                  </CatalogRow>
+                  </TableRow>
                 ))}
-              </CatalogTable>
+              </Table>
               {catalog.data.items.length === 0 && (
                 <div className="practice-state">
                   <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
@@ -286,34 +256,7 @@ export function PracticeBrowser() {
                   )}
                 </div>
               )}
-              <footer className="practice-pagination">
-                <span role="status">
-                  {total
-                    ? `${Math.min((page - 1) * pageSize + 1, total)}–${Math.min(page * pageSize, total)} of ${total}`
-                    : "0 questions"}
-                </span>
-                <div>
-                  <button
-                    className="practice-page-button"
-                    aria-label="Previous page"
-                    disabled={page <= 1}
-                    onClick={() => update({ page: page - 1 === 1 ? undefined : page - 1 })}
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span>
-                    Page {page} of {pages}
-                  </span>
-                  <button
-                    className="practice-page-button"
-                    aria-label="Next page"
-                    disabled={page >= pages}
-                    onClick={() => update({ page: page + 1 })}
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </footer>
+              <TablePagination table={table} />
             </>
           )}
         </section>

@@ -17,6 +17,7 @@ export function QuestionTopics({
     <div className="practice-topic-list">
       {topics.map((topic) => (
         <button
+          data-table-filter
           key={topic}
           className="topic-chip"
           type="button"
@@ -42,6 +43,7 @@ export function QuestionDifficulty({
 }) {
   return (
     <button
+      data-table-filter
       type="button"
       className={`practice-difficulty ${difficulty}`}
       disabled={disabled}

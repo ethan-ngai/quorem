@@ -38,7 +38,7 @@ export function ProfileEditor({
   const [email, setEmail] = useState(profile.email);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [instructions, setInstructions] = useState("");
   const emailCooldown = useCooldown();
   const client = useQueryClient();
   const capabilities = useQuery({
@@ -54,16 +54,17 @@ export function ProfileEditor({
   async function run(
     action: () => Promise<void>,
     success: string,
-    limited?: (seconds: number) => void,
+    options?: { onRateLimit?: (seconds: number) => void; instructions?: string },
   ) {
     setBusy(true);
     setError("");
-    setMessage("");
+    setInstructions("");
     try {
       await action();
-      setMessage(success);
+      toast.success(success);
+      setInstructions(options?.instructions ?? "");
     } catch (cause) {
-      if (cause instanceof AccountRateLimitError) limited?.(cause.retryAfter);
+      if (cause instanceof AccountRateLimitError) options?.onRateLimit?.(cause.retryAfter);
       toast.error(authErrorMessage(cause, "Account update unavailable."));
     } finally {
       setBusy(false);
@@ -74,7 +75,7 @@ export function ProfileEditor({
     setUsername(profile.username ?? "");
     setEmail(profile.email);
     setError("");
-    setMessage("");
+    setInstructions("");
     setEditing(field);
   }
   function save(event: FormEvent) {
@@ -193,8 +194,12 @@ export function ProfileEditor({
                       emailCooldown.start(60);
                       setEditing(null);
                     },
-                    "Check your current inbox to approve the change, then verify the new address.",
-                    (seconds) => emailCooldown.start(seconds),
+                    "Verification email sent.",
+                    {
+                      onRateLimit: (seconds) => emailCooldown.start(seconds),
+                      instructions:
+                        "Check your current inbox to approve the change, then verify the new address.",
+                    },
                   );
                 }}
               >
@@ -242,9 +247,9 @@ export function ProfileEditor({
             )}
           </>
         )}
-        {message && (
+        {instructions && (
           <p className="settings-feedback" role="status">
-            {message}
+            {instructions}
           </p>
         )}
       </div>

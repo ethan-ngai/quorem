@@ -142,7 +142,29 @@ void test("creation serializes host capacity and preserves retry identity", asyn
   invite = created.invites.interviewee;
   interviewer = created.invites.interviewer;
   assert.equal(JSON.parse(await repo.create(host, `create-${index}`, input)).id, id);
-  const list = await repo.list(host);
+  const { items: list } = await repo.list(host);
+  const paged = await repo.list(host, { page: 2, limit: 1, sort: "title", order: "asc" });
+  assert.deepEqual(paged, { items: [], total: 1, hosting: 1, page: 2, limit: 1 });
+  const invisible = await repo.list(other, { page: 1, limit: 10, sort: "role", order: "desc" });
+  assert.deepEqual(invisible, { items: [], total: 0, hosting: 0, page: 1, limit: 10 });
+  const { createApp } = await import("../../../../app.ts");
+  const { interviewLifecycleRoutes } =
+    await import("../../../../modules/interviews/lifecycle/routes.ts");
+  const app = createApp({ allowedOrigins: [], requestId: () => "list" }).route(
+    "/",
+    interviewLifecycleRoutes({
+      lifecycle: repo,
+      identify: async () => host,
+      allowedOrigins: [],
+      trustedPeer: () => undefined,
+      budget: { allow: async () => true },
+    }),
+  );
+  const response = await app.request("/v1/interviews?page=2&limit=1&sort=role&order=desc");
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { items: [], total: 1, hosting: 1, page: 2, limit: 1 });
+  assert.equal((await app.request("/v1/interviews?limit=101")).status, 400);
+  assert.equal((await app.request("/v1/interviews?sort=source")).status, 400);
   assert.equal(list.length, 1);
   assert.deepEqual(Object.keys(JSON.parse(list[0])).sort(), [
     "hostId",
@@ -220,7 +242,7 @@ void test("grant revocation freezes joins but still permits close/delete and pre
       .rows[0].n,
     3,
   );
-  assert.equal((await repo.list(host)).length, 0);
+  assert.equal((await repo.list(host)).items.length, 0);
 });
 
 void test("admission locking serializes close and concurrent joins", async () => {

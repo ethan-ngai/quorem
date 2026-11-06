@@ -1,3 +1,4 @@
+import { catalogSearch } from "../practice/catalogSearch";
 /** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
@@ -106,7 +107,7 @@ export function GlobalNav({
       to: "/practice",
       search: (previous) => {
         const { create: _create, ...filters } = previous;
-        return filters;
+        return catalogSearch(filters);
       },
       replace: true,
     });

@@ -9,6 +9,7 @@ export type CatalogSearch = {
   sort?: "difficulty";
   order?: "desc";
   page?: number;
+  limit?: number;
 };
 
 /** Normalize bookmark state to the API's bounded query contract. */
@@ -35,6 +36,8 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   if (search.order === "desc") result.order = "desc";
   const page = Number(search.page);
   if (Number.isInteger(page) && page > 1 && page <= 10000) result.page = page;
+  const limit = Number(search.limit);
+  if ([10, 20, 50, 100].includes(limit)) result.limit = limit;
   return result;
 }
 

@@ -951,6 +951,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-drafts/publish-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["publishQuestionDraftBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-drafts/delete-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deleteQuestionDraftBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/question-publications/delete-batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["deleteQuestionPublicationBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1487,8 +1535,9 @@ export interface components {
                 companies: string[];
             };
             items: components["schemas"]["QuestionDraftSummary"][];
-            /** Format: uuid */
-            nextCursor?: string;
+            total: number;
+            page: number;
+            limit: number;
         };
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
@@ -2460,6 +2509,10 @@ export interface operations {
                 company?: string;
                 source?: string;
                 readiness?: string;
+                page?: number;
+                limit?: number;
+                sort?: "title" | "difficulty";
+                order?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -2493,6 +2546,9 @@ export interface operations {
                             fromLeetCode: boolean;
                             current: boolean;
                         }[];
+                        total: number;
+                        page: number;
+                        limit: number;
                     };
                 };
             };
@@ -2518,7 +2574,10 @@ export interface operations {
                 company?: string;
                 source?: string;
                 readiness?: string;
-                cursor?: string;
+                page?: number;
+                limit?: number;
+                sort?: "title" | "difficulty" | "updatedAt";
+                order?: "asc" | "desc";
             };
             header?: never;
             path?: never;
@@ -3201,7 +3260,12 @@ export interface operations {
     };
     listInterviews: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                limit?: number;
+                sort?: "title" | "role" | "updatedAt";
+                order?: "asc" | "desc";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3214,7 +3278,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["InterviewSummary"][];
+                    "application/json": {
+                        items: components["schemas"]["InterviewSummary"][];
+                        total: number;
+                        page: number;
+                        limit: number;
+                        hosting: number;
+                    };
                 };
             };
             /** @description Safe application error */
@@ -4054,6 +4124,152 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InterviewCommandAck"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    publishQuestionDraftBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    items: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: string;
+                        /** @enum {string} */
+                        visibility: "private" | "global";
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Per-question outcomes, in request order. Expected failures roll back only that item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "succeeded" | "failed";
+                            code?: string;
+                            message?: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteQuestionDraftBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    items: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Per-question outcomes, in request order. Expected failures roll back only that item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "succeeded" | "failed";
+                            code?: string;
+                            message?: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteQuestionPublicationBatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    items: {
+                        /** Format: uuid */
+                        id: string;
+                        current: boolean;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description Per-question outcomes, in request order. Expected failures roll back only that item. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            status: "succeeded" | "failed";
+                            code?: string;
+                            message?: string;
+                        }[];
+                    };
                 };
             };
             /** @description Safe application error */
