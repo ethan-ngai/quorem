@@ -1,10 +1,12 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { InterviewMonitoringControls } from "./InterviewMonitoringControls";
 import type { InterviewMonitoring } from "@quorem/contracts";
 import "../../ui/result-tabs.css";
 import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import type { QuestionHints } from "@quorem/contracts";
-import { QuestionBasics } from "../../ui/QuestionBasics";
+import { QuestionBasics, questionTitleConstraint } from "../../ui/QuestionBasics";
 /** @file QuestionSetup.tsx @description Existing or custom interview questions with typed tests. @module interviews */
 import { useId, useRef, useState, type FormEvent } from "react";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
@@ -37,6 +39,8 @@ function newCase(signature: Signature): CustomCaseDraft {
 }
 
 /** Keeps input drafts intact until explicit, validated submission. */
+const nameConstraint = withMaxCharacters(inputConstraints.name, 120);
+
 export function QuestionSetup({
   onSubmit,
   busy,
@@ -117,6 +121,15 @@ export function QuestionSetup({
   function submit(event: FormEvent) {
     event.preventDefault();
     setError(undefined);
+    if (
+      (title.trim() && !validateInput(title.trim(), nameConstraint).success) ||
+      (mode !== "catalog" &&
+        customTitle.trim() &&
+        !validateInput(customTitle.trim(), questionTitleConstraint).success)
+    ) {
+      setError("Check the title length and spacing.");
+      return;
+    }
     if (mode === "catalog") {
       if (!selected) {
         setError("Choose a question.");
@@ -142,13 +155,13 @@ export function QuestionSetup({
           {
             language,
             custom: {
-              title: customTitle,
+              title: customTitle.trim(),
               statementMarkdown: statement,
               signature: stages[0]!.methods[0]!.signature,
               ...staged,
             },
           },
-          title.trim() || customTitle,
+          title.trim() || customTitle.trim(),
         );
         return;
       }
@@ -169,7 +182,7 @@ export function QuestionSetup({
         {
           language,
           custom: {
-            title: customTitle,
+            title: customTitle.trim(),
             statementMarkdown: statement,
             signature,
             publicCases: parseCustomDrafts(publicCases, signature),
@@ -178,7 +191,7 @@ export function QuestionSetup({
               : {}),
           },
         },
-        title.trim() || customTitle,
+        title.trim() || customTitle.trim(),
       );
     } catch (cause) {
       setError(
@@ -192,9 +205,10 @@ export function QuestionSetup({
         {showTitle && (
           <label className="admin-field">
             <span>Interview title</span>
-            <input
+            <TextInput
+              unstyled
+              constraint={nameConstraint}
               value={title}
-              maxLength={120}
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>

@@ -61,7 +61,8 @@
   color: var(--color-text-secondary);
   font-size: var(--text-label);
 }
-.table-pagination > div {
+.table-pagination > div,
+.table-page-navigation {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -93,7 +94,8 @@
     gap: var(--space-2);
     flex-wrap: wrap;
   }
-  .table-pagination > div {
+  .table-pagination > div,
+  .table-page-navigation {
     gap: var(--space-2);
     flex-wrap: wrap;
   }

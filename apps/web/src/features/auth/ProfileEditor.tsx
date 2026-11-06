@@ -1,3 +1,6 @@
+import { TextInput } from "../../ui/TextControl";
+import { authInputConstraints } from "./inputConstraints";
+import { inputConstraints } from "../../ui/input-constraints";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { toast } from "sonner";
 
@@ -8,13 +11,7 @@ import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { type ReactNode, useState, useEffect, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  emailInputSchema,
-  emailSchema,
-  optionalNameSchema,
-  usernameInputSchema,
-  usernameSchema,
-} from "@quorem/contracts/auth";
+import { emailSchema, optionalNameSchema, usernameSchema } from "@quorem/contracts/auth";
 import { fetchAuthCapabilities } from "./capabilities";
 import { AccountRateLimitError, updateAccount, requestEmailChange, listAccounts } from "./account";
 import { fetchProfile, type AccountProfile } from "./profile";
@@ -118,7 +115,9 @@ export function ProfileEditor({
               disabled={busy}
             >
               <form className="account-form" onSubmit={save}>
-                <input
+                <TextInput
+                  unstyled
+                  constraint={inputConstraints.name}
                   aria-label="Name (optional)"
                   autoFocus
                   autoComplete="name"
@@ -145,7 +144,9 @@ export function ProfileEditor({
                 disabled={busy}
               >
                 <form className="account-form" onSubmit={save}>
-                  <input
+                  <TextInput
+                    unstyled
+                    constraint={authInputConstraints.username}
                     aria-label="Username"
                     autoFocus
                     autoComplete="username"
@@ -154,10 +155,7 @@ export function ProfileEditor({
                     maxLength={30}
                     aria-describedby="profile-username-rules"
                     value={username}
-                    onChange={(event) => {
-                      const value = event.target.value.toLowerCase().replace(/[^a-z0-9]/g, "");
-                      if (usernameInputSchema.safeParse(value).success) setUsername(value);
-                    }}
+                    onChange={(event) => setUsername(event.target.value)}
                     disabled={busy}
                   />
                   <div className="profile-edit-actions">
@@ -203,7 +201,9 @@ export function ProfileEditor({
                   );
                 }}
               >
-                <input
+                <TextInput
+                  unstyled
+                  constraint={authInputConstraints.email}
                   aria-label="Email"
                   autoFocus
                   type="email"
@@ -211,10 +211,7 @@ export function ProfileEditor({
                   required
                   maxLength={254}
                   value={email}
-                  onChange={(event) => {
-                    if (emailInputSchema.safeParse(event.target.value).success)
-                      setEmail(event.target.value);
-                  }}
+                  onChange={(event) => setEmail(event.target.value)}
                   disabled={busy}
                 />
                 <div className="profile-edit-actions">

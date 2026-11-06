@@ -1,3 +1,5 @@
+import { isLongValue } from "@quorem/contracts/long";
+import { z } from "zod";
 import { parseNodeLiteral, formatNodeLiteral, type NodeContext } from "./nodeLiterals";
 import type { Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
@@ -53,7 +55,9 @@ export abstract class InputPreset {
 export class NumberPreset extends InputPreset {
   readonly kind = "number";
   accepts(source: string) {
-    return this.type === "long" ? /^-?\d*$/.test(source) : acceptsNumericExpression(source);
+    return this.type === "long"
+      ? source === "" || source === "-" || isLongValue(source)
+      : acceptsNumericExpression(source);
   }
   protected parseValue(source: string) {
     return this.type === "long" ? source.trim() : parseNumericExpression(source);
@@ -65,8 +69,26 @@ export class NumberPreset extends InputPreset {
 export class TextPreset extends InputPreset {
   override readonly delimiters = ['"', '"'] as const;
   readonly kind = "text";
-  accepts(_source: string) {
-    return true;
+  accepts(source: string) {
+    if (this.type !== "datetime") return true;
+    const template = "0000-00-00T00:00:00";
+    if (source.length > template.length) return false;
+    for (let index = 0; index < source.length; index++)
+      if (template[index] === "0" ? !/\d/.test(source[index]!) : source[index] !== template[index])
+        return false;
+    if (source.length >= 4 && source.slice(0, 4) === "0000") return false;
+    for (const [start, min, max] of [
+      [5, 1, 12],
+      [8, 1, 31],
+      [11, 0, 23],
+      [14, 0, 59],
+      [17, 0, 59],
+    ])
+      if (source.length >= start + 2) {
+        const part = Number(source.slice(start, start + 2));
+        if (part < min || part > max) return false;
+      }
+    return source.length < 10 || z.iso.date().safeParse(source.slice(0, 10)).success;
   }
   protected parseValue(source: string) {
     return source;
@@ -148,27 +170,34 @@ function splitEntries(source: string): string[] {
   return entries;
 }
 
+/** Inspect literal punctuation while preserving arbitrary quoted payloads. */
+function unquotedSource(source: string, allowStrings: boolean): string | undefined {
+  let quoted = false,
+    escaped = false,
+    outside = "";
+  for (const character of source) {
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') quoted = false;
+    } else if (character === '"') {
+      if (!allowStrings) return undefined;
+      quoted = true;
+    } else outside += character;
+  }
+  return outside;
+}
+
 export class SequencePreset extends InputPreset {
   override readonly delimiters = ["[", "]"] as const;
   readonly kind: InputKind = "sequence";
   accepts(source: string) {
     if (source.length > MAX_CUSTOM_CASE_BYTES) return false;
-    let quoted = false,
-      escaped = false;
     const allowStrings = /(?:^|<)(?:str|long|datetime)(?:>|$)/.test(this.type);
     const allowBoolean = /(?:^|<)bool(?:>|$)/.test(this.type);
     const allowNull = /(?:optional|NaryTreeNode|TreeNode|ListNode)(?:<|>|$)/.test(this.type);
-    let outside = "";
-    for (const character of source) {
-      if (quoted) {
-        if (escaped) escaped = false;
-        else if (character === "\\") escaped = true;
-        else if (character === '"') quoted = false;
-      } else if (character === '"') {
-        if (!allowStrings) return false;
-        quoted = true;
-      } else outside += character;
-    }
+    const outside = unquotedSource(source, allowStrings);
+    if (outside === undefined) return false;
     let child = innerType(this.type, "list");
     while (child && innerType(child, "optional")) child = innerType(child, "optional");
     const allowBrackets =
@@ -196,8 +225,16 @@ export class MatrixPreset extends SequencePreset {
 export class TreePreset extends InputPreset {
   readonly kind: InputKind = "tree";
   override readonly autoformat = true;
-  accepts(_source: string) {
-    return true;
+  accepts(source: string) {
+    if (source.length > MAX_CUSTOM_CASE_BYTES) return false;
+    if (this.config?.nodeReference) return true;
+    const payload = nodeType(this.type)?.payload;
+    const quotedValues = payload === "str" || payload === "datetime" || payload === "long";
+    const outside = unquotedSource(source, quotedValues);
+    if (outside === undefined) return false;
+    return payload === "bool"
+      ? /^[0-9\s.eE+*/%\-()[\],_nultrfas]*$/.test(outside)
+      : /^[0-9\s.eE+*/%\-()[\],_nul]*$/.test(outside);
   }
   protected parseValue(source: string) {
     if (!this.config?.nodeReference && source.trimStart().startsWith("["))
@@ -313,4 +350,21 @@ export function resolveInputPreset(type: string, config?: InputConfig): InputPre
   const factory = registry.get(requested);
   if (!factory) throw new Error(`Unsupported input preset ${requested}.`);
   return factory(type, config);
+}
+
+/** Zod wraps the type-owned parser, so entry and submission share one contract. */
+export function inputPresetSchemas(preset: InputPreset) {
+  return {
+    edit: z.string().refine((source) => preset.accepts(source)),
+    value: z.string().superRefine((source, context) => {
+      try {
+        preset.parse(source);
+      } catch (cause) {
+        context.addIssue({
+          code: "custom",
+          message: cause instanceof Error ? cause.message : "Check the input format.",
+        });
+      }
+    }),
+  };
 }

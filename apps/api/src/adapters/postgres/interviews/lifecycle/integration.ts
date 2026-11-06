@@ -163,7 +163,7 @@ void test("creation serializes host capacity and preserves retry identity", asyn
   const response = await app.request("/v1/interviews?page=2&limit=1&sort=role&order=desc");
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { items: [], total: 1, hosting: 1, page: 2, limit: 1 });
-  assert.equal((await app.request("/v1/interviews?limit=101")).status, 400);
+  assert.equal((await app.request("/v1/interviews?limit=0")).status, 400);
   assert.equal((await app.request("/v1/interviews?sort=source")).status, 400);
   assert.equal(list.length, 1);
   assert.deepEqual(Object.keys(JSON.parse(list[0])).sort(), [

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProblemVersion } from "@quorem/contracts";
-import { normalizeSqlDraft } from "./sqlDraft";
+import { normalizeSqlDraft, sqlCellInputConstraint } from "./sqlDraft";
 
 const problem = {
   sql: {
@@ -102,4 +102,24 @@ it("rejects NUL in SQL input and expected text", () => {
     normalizeSqlDraft(textProblem, setup("valid"), JSON.stringify({ rows: [["a\0b"]] })),
   ).toThrow("NUL");
   expect(() => normalizeSqlDraft(textProblem, setup("\\0"))).not.toThrow();
+});
+
+it("guards SQL machine values without constraining text or losing bigint precision", () => {
+  const integer = sqlCellInputConstraint("bigint")!;
+  for (const source of ["", "-", "9223372036854775807", "-9223372036854775808"])
+    expect(integer.edit(source)).toBe(true);
+  for (const source of ["1.2", "abc", "9223372036854775808", "-9223372036854775809"])
+    expect(integer.edit(source)).toBe(false);
+  expect(integer.schema.safeParse("-").success).toBe(false);
+  const number = sqlCellInputConstraint("numeric")!;
+  for (const source of ["-", ".", "1e", "1e-", "1e-3", "12345678901234567890.1200"])
+    expect(number.edit(source)).toBe(true);
+  for (const source of ["e", "1e--2", "1.2.3", "NaN"]) expect(number.edit(source)).toBe(false);
+  const date = sqlCellInputConstraint("date")!;
+  expect(date.edit("2026-1")).toBe(true);
+  expect(date.edit("2026-13")).toBe(false);
+  expect(date.edit("2026-02-29")).toBe(false);
+  expect(date.edit("2024-02-29")).toBe(true);
+  expect(date.schema.safeParse("2026-11-05").success).toBe(true);
+  expect(sqlCellInputConstraint("text")).toBeUndefined();
 });

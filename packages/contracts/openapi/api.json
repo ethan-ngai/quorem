@@ -992,7 +992,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
               "default": 20
             }
           },
@@ -1207,7 +1206,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
               "default": 50
             }
           },
@@ -1332,8 +1330,7 @@
                     },
                     "limit": {
                       "type": "integer",
-                      "minimum": 1,
-                      "maximum": 100
+                      "minimum": 1
                     }
                   }
                 }
@@ -1429,7 +1426,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
               "default": 50
             }
           },
@@ -2405,7 +2401,6 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
               "default": 50
             }
           },
@@ -2453,8 +2448,7 @@
                     },
                     "limit": {
                       "type": "integer",
-                      "minimum": 1,
-                      "maximum": 100
+                      "minimum": 1
                     },
                     "hosting": {
                       "type": "integer",
@@ -5878,8 +5872,7 @@
           },
           "limit": {
             "type": "integer",
-            "minimum": 1,
-            "maximum": 100
+            "minimum": 1
           }
         },
         "required": ["items", "total", "page", "limit"]

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./pagination": "./src/pagination.ts",
     "./submission-events": "./src/submission-events.ts",
     ".": "./src/index.ts",
     "./schema": "./src/generated.ts",
