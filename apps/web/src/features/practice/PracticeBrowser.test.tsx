@@ -16,7 +16,11 @@ vi.mock("../editor/useTheme", () => ({
   useTheme: () => ({ preference: "dark", theme: "dark", setPreference: () => {} }),
 }));
 
-async function renderPractice(session: Session | null) {
+async function renderPractice(
+  session: Session | null,
+  initialUrl = "/practice",
+  client = new QueryClient(),
+) {
   const root = createRootRoute();
   const route = createRoute({
     getParentRoute: () => root,
@@ -26,10 +30,9 @@ async function renderPractice(session: Session | null) {
   });
   const router = createRouter({
     routeTree: root.addChildren([route]),
-    history: createMemoryHistory({ initialEntries: ["/practice"] }),
+    history: createMemoryHistory({ initialEntries: [initialUrl] }),
   });
   await router.load();
-  const client = new QueryClient();
   client.setQueryData(["auth-session"], session);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
@@ -74,4 +77,19 @@ it("shows the library selector for admins and custom question authors", async ()
     expect(html).toContain('role="radio"');
     expect(html).not.toContain('class="quiet-button" href="/questions"');
   }
+});
+
+it("keeps the catalog unranked when opening an old recommendation bookmark", async () => {
+  const client = new QueryClient();
+  const html = await renderPractice(account, "/practice?sort=recommended", client);
+  expect(html).not.toContain("Question discovery");
+  expect(
+    client.getQueriesData({ queryKey: ["public-problems"] }).map(([key]) => key.at(-1)),
+  ).toEqual([expect.objectContaining({ limit: 20 })]);
+  expect(client.getQueriesData({ queryKey: ["public-problems"] })[0][0].at(-1)).not.toHaveProperty(
+    "sort",
+  );
+  expect(
+    client.getQueriesData({ queryKey: ["recommended-problems"] }).map(([key]) => key.at(-1)),
+  ).toEqual([expect.objectContaining({ sort: "recommended", limit: 5 })]);
 });

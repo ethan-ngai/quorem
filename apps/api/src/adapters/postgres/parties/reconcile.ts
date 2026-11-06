@@ -56,7 +56,7 @@ async function startRound(
   const match = id.slice(0, 8) + crypto.randomUUID().slice(8),
     s = p.settings;
   await tx.execute(
-    sql`INSERT INTO matches(id,party_id,share_code_after_match,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters) VALUES(${match}::uuid,${id}::uuid,${s.shareCodeAfterMatch},${p.host},${await digest(token())},clock_timestamp()+interval '24 hours',${s.durationMinutes},'waiting',${s.mode},ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(s.difficulties)}::jsonb)),NULLIF(${s.selectedProblemVersionId ?? ""},'')::uuid,${JSON.stringify(s.rules)}::jsonb,${s.accessMode},${s.admissionLocked},${JSON.stringify(s.questionFilters)}::jsonb)`,
+    sql`INSERT INTO matches(id,party_id,share_code_after_match,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,selected_problem_version_id,rules,access_mode,admission_locked,question_filters,question_selection) VALUES(${match}::uuid,${id}::uuid,${s.shareCodeAfterMatch},${p.host},${await digest(token())},clock_timestamp()+interval '24 hours',${s.durationMinutes},'waiting',${s.mode},ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(s.difficulties)}::jsonb)),NULLIF(${s.selectedProblemVersionId ?? ""},'')::uuid,${JSON.stringify(s.rules)}::jsonb,${s.accessMode},${s.admissionLocked},${JSON.stringify(s.questionFilters)}::jsonb,${s.questionSelection ?? "random"})`,
   );
   for (const member of members) {
     await tx.execute(

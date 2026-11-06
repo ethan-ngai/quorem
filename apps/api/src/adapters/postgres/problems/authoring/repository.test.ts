@@ -525,6 +525,25 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
         [workspace, owner, first.publishedVersionId],
       );
+      const stableQuestionId = first.publishedVersionId;
+      await pool.query(
+        "INSERT INTO question_learning_events(submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at) VALUES(gen_random_uuid(),$1,$2,'easy','{}',true,'practice',now())",
+        [owner, stableQuestionId],
+      );
+      await pool.query(
+        "INSERT INTO recommendation_impressions(owner_id,version_id,variant,position) VALUES($1,$2,'control',1)",
+        [owner, stableQuestionId],
+      );
+      const recommendationCounts = async () =>
+        (
+          await pool.query(
+            `SELECT
+          (SELECT count(*)::int FROM question_learning_events WHERE version_id=$1) AS events,
+          (SELECT count(*)::int FROM question_exposure WHERE version_id=$1) AS exposures,
+          (SELECT count(*)::int FROM recommendation_impressions WHERE version_id=$1) AS impressions`,
+            [stableQuestionId],
+          )
+        ).rows[0];
       const changed = structuredClone(applied.content);
       changed.problem.title = "Edited in place";
       const edited = JSON.parse(
@@ -532,6 +551,11 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       );
       expect(edited.publishedVersionId).toBe(first.publishedVersionId);
       expect(edited.content.problem.title).toBe("Edited in place");
+      expect(await recommendationCounts()).toEqual({
+        events: 1,
+        exposures: 1,
+        impressions: 1,
+      });
       expect(JSON.parse(await repository.deletionImpact(global, edited.id))).toMatchObject({
         current: true,
         workspaces: 1,
@@ -569,6 +593,11 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         repository.deleteDraft(global, afterDrain.id, afterDrain.revision),
       ).rejects.toMatchObject({ code: "revision_conflict" });
       await repository.deletePublication(global, afterDrain.id, afterDrain.revision, null);
+      expect(await recommendationCounts()).toEqual({
+        events: 0,
+        exposures: 0,
+        impressions: 0,
+      });
       expect(
         (await pool.query("SELECT 1 FROM execution_jobs WHERE id=$1", [finishedJob])).rowCount,
       ).toBe(0);

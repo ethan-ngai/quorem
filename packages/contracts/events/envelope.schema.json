@@ -509,6 +509,11 @@
             "type": "integer",
             "minimum": 0
           }
+        },
+        "recommendationReason": {
+          "type": "string",
+          "enum": ["review", "weak_topic", "new_topic", "challenge", "practice"],
+          "description": "Practice ranking explanation; contains no other player history."
         }
       },
       "required": [
@@ -996,6 +1001,10 @@
           "minItems": 1,
           "maxItems": 3,
           "uniqueItems": true
+        },
+        "questionSelection": {
+          "type": "string",
+          "enum": ["random", "recommended"]
         },
         "questionFilters": {
           "$ref": "#/$defs/MatchQuestionFilters"
@@ -2976,6 +2985,10 @@
           "minItems": 1,
           "maxItems": 3,
           "uniqueItems": true
+        },
+        "questionSelection": {
+          "type": "string",
+          "enum": ["random", "recommended"]
         },
         "questionFilters": {
           "$ref": "#/$defs/MatchQuestionFilters"

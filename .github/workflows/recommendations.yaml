@@ -1,0 +1,39 @@
+name: Refresh learned recommendations
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [evaluate, measure, train, activate]
+        default: evaluate
+      model_id:
+        description: Validated model UUID or prior for rollback
+        type: string
+        default: ""
+  schedule:
+    - cron: "23 5 * * *"
+permissions:
+  contents: read
+concurrency:
+  group: recommendation-maintenance
+  cancel-in-progress: false
+jobs:
+  maintain:
+    if: github.ref == 'refs/heads/main' && vars.QUOREM_LEARNED_RECOMMENDATIONS == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
+      - name: Run requested recommendation maintenance
+        env:
+          DATABASE_URL: ${{ secrets.QUOREM_RECOMMENDATION_DATABASE_URL }}
+          RECOMMENDATION_ACTION: ${{ inputs.action || 'train' }}
+          RECOMMENDATION_MODEL: ${{ inputs.model_id }}
+        run: vp -C apps/api exec node src/cli/recommendations.ts "$RECOMMENDATION_ACTION" "$RECOMMENDATION_MODEL"

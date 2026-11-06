@@ -8,26 +8,32 @@ export function QuestionTopics({
   disabled,
 }: {
   tags: readonly string[];
-  onFilter: (topic: string) => void;
+  onFilter?: (topic: string) => void;
   disabled?: boolean;
 }) {
   const topics = tags.filter((tag) => tag.toLowerCase() !== "sql");
   if (!topics.length) return null;
   return (
     <div className="practice-topic-list">
-      {topics.map((topic) => (
-        <button
-          data-table-filter
-          key={topic}
-          className="topic-chip"
-          type="button"
-          disabled={disabled}
-          onClick={() => onFilter(topic)}
-          aria-label={`Filter by ${formatLabel(topic)}`}
-        >
-          {formatLabel(topic)}
-        </button>
-      ))}
+      {topics.map((topic) =>
+        onFilter ? (
+          <button
+            data-table-filter
+            key={topic}
+            className="topic-chip"
+            type="button"
+            disabled={disabled}
+            onClick={() => onFilter(topic)}
+            aria-label={`Filter by ${formatLabel(topic)}`}
+          >
+            {formatLabel(topic)}
+          </button>
+        ) : (
+          <span key={topic} className="topic-chip">
+            {formatLabel(topic)}
+          </span>
+        ),
+      )}
     </div>
   );
 }

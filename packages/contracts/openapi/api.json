@@ -669,6 +669,10 @@
                         "type": "string"
                       }
                     },
+                    "recommendationImpressions": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string", "format": "uuid" }
+                    },
                     "nextCursor": {
                       "type": "string",
                       "description": "Opaque continuation for the same filters and ordering."
@@ -760,7 +764,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": ["title", "difficulty"],
+              "enum": ["title", "difficulty", "recommended"],
               "default": "title"
             }
           },
@@ -826,6 +830,40 @@
             }
           }
         ]
+      }
+    },
+    "/v1/recommendation-feedback": {
+      "post": {
+        "operationId": "recordRecommendationFeedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action", "ids"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["view", "dismiss"] },
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": { "type": "string", "format": "uuid" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Feedback recorded." },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
       }
     },
     "/v1/problem-versions/{id}/solutions": {
@@ -4882,6 +4920,11 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          "recommendationReason": {
+            "type": "string",
+            "enum": ["review", "weak_topic", "new_topic", "challenge", "practice"],
+            "description": "Practice ranking explanation; contains no other player history."
           }
         },
         "required": [
@@ -5369,6 +5412,10 @@
             "minItems": 1,
             "maxItems": 3,
             "uniqueItems": true
+          },
+          "questionSelection": {
+            "type": "string",
+            "enum": ["random", "recommended"]
           },
           "questionFilters": {
             "$ref": "#/components/schemas/MatchQuestionFilters"
@@ -7344,6 +7391,10 @@
             "minItems": 1,
             "maxItems": 3,
             "uniqueItems": true
+          },
+          "questionSelection": {
+            "type": "string",
+            "enum": ["random", "recommended"]
           },
           "questionFilters": {
             "$ref": "#/components/schemas/MatchQuestionFilters"

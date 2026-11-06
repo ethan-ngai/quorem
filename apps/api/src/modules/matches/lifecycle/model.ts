@@ -7,7 +7,7 @@ import {
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
-import type { FilterMatch } from "@quorem/contracts";
+import type { FilterMatch } from "../../problems/model.ts";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
   questionFilters: {
@@ -23,6 +23,7 @@ export interface Settings {
   mode: string;
   difficulties: string[];
   selectedProblemVersionId?: string;
+  questionSelection?: "random" | "recommended";
   rules: MatchRuleSettings;
   difficulty: string;
   durationMinutes: number;
@@ -51,6 +52,7 @@ export function normalizeSettings(value: unknown): Settings {
           "mode",
           "difficulties",
           "selectedProblemVersionId",
+          "questionSelection",
           "rules",
           "difficulty",
           "durationMinutes",
@@ -84,6 +86,9 @@ export function normalizeSettings(value: unknown): Settings {
     ds.length > 3 ||
     new Set(ds).size !== ds.length ||
     ds.some((x) => typeof x !== "string" || !["easy", "medium", "hard"].includes(x)) ||
+    (v.questionSelection !== undefined &&
+      v.questionSelection !== "random" &&
+      v.questionSelection !== "recommended") ||
     (v.admissionLocked != null && typeof v.admissionLocked !== "boolean")
   )
     throw invalid();
@@ -98,6 +103,7 @@ export function normalizeSettings(value: unknown): Settings {
     durationMinutes: duration,
   };
   if (selected) out.selectedProblemVersionId = selected;
+  else if (v.questionSelection === "recommended") out.questionSelection = v.questionSelection;
   for (const k of ["topicMatch", "companyMatch"] as const) {
     const input = filters[k];
     if (input === "all") out.questionFilters[k] = input;
