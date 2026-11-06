@@ -210,3 +210,42 @@ void test("checkpoint replay consumes its declared prefix and cancels an open pr
   assert.deepEqual(received, [65]);
   assert.equal(cancelled, true);
 });
+
+void test("invalid manifest is unavailable at the private transport boundary", async () => {
+  const client = privateRunnerCommands({
+    origin: "https://private.invalid",
+    secret,
+    scope: "s",
+    resumable: true,
+    timeoutMs: 500,
+    fetch: async () =>
+      Response.json({
+        kind: "run",
+        level: null,
+        caseCount: 1,
+        sampleCount: 1,
+        privateDetails: true,
+        submitCasesAreSamples: true,
+        suiteHash: "a".repeat(64),
+        source: { hash: "b".repeat(64), size: 0 },
+        metadata: { hash: "c".repeat(64), size: 0 },
+      }),
+  });
+  const job = {
+    jobId: "j",
+    submissionId: "s",
+    attemptId: "a",
+    sandboxScope: "s",
+    problemVersionId: "p",
+    runtimeRevision: "python-3.12-v1",
+    harnessRevision: "quorem-harness-v2",
+    sourceRef: "s",
+    suiteRef: "p",
+    language: "python",
+    limits: defaultLimits(),
+  };
+  await assert.rejects(client.inputManifest(job), {
+    outcome: "unavailable",
+    diagnostic: { operation: "manifest", status: 200, failure: "decode" },
+  });
+});

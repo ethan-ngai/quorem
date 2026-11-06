@@ -10,6 +10,7 @@
     "./schema": "./src/generated.ts",
     "./auth": "./src/auth.ts",
     "./auth-policy": "./src/auth-policy.ts",
+    "./question-type": "./src/question-type.ts",
     "./java-type": "./src/java-type.ts",
     "./node-type": "./src/node-type.ts",
     "./long": "./src/long.ts",

@@ -1,6 +1,8 @@
 /** @file http.ts @description Private runner client with no database credentials. @module runner */
 import {
   decodeJob,
+  decodeInputManifest,
+  decodeInputCaseRef,
   encodeCheckpointCase,
   encodeJob,
   type AttemptFence,
@@ -159,57 +161,22 @@ export function privateRunnerCommands(options: {
   };
   return {
     async inputManifest(job, signal) {
-      const value = (await json(
-        "manifest",
-        { job: j(job) },
-        signal,
-      )) as import("@quorem/execution").InputManifest;
-      const validRef = (ref: { hash: string; size: number }) =>
-        ref &&
-        /^[a-f0-9]{64}$/.test(ref.hash) &&
-        Number.isSafeInteger(ref.size) &&
-        ref.size >= 0 &&
-        ref.size <= 1073741823;
-      if (
-        !value ||
-        (value.kind !== "run" && value.kind !== "submit") ||
-        (value.level !== null && (!Number.isSafeInteger(value.level) || value.level < 1)) ||
-        !Number.isInteger(value.caseCount) ||
-        value.caseCount < 0 ||
-        value.caseCount > 2147483647 ||
-        !Number.isInteger(value.sampleCount) ||
-        value.sampleCount < 0 ||
-        value.sampleCount > 2147483647 ||
-        typeof value.privateDetails !== "boolean" ||
-        typeof value.submitCasesAreSamples !== "boolean" ||
-        (value.submitCasesAreSamples &&
-          (!value.privateDetails || value.caseCount !== value.sampleCount)) ||
-        value.caseCount + (value.submitCasesAreSamples ? 0 : value.sampleCount) > 2147483647 ||
-        !/^[a-f0-9]{64}$/.test(value.suiteHash) ||
-        !validRef(value.source) ||
-        !validRef(value.metadata)
-      )
+      const value = await json("manifest", { job: j(job) }, signal);
+      try {
+        return decodeInputManifest(value);
+      } catch {
         throw malformedResponse("manifest");
-      return value;
+      }
     },
     async inputCaseRef(job, ordinal, signal) {
       if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal > 2147483646)
         throw new Error("Invalid input ordinal");
-      const value = (await json(
-        "caseref",
-        { job: j(job), ordinal },
-        signal,
-      )) as import("@quorem/execution").InputCaseRef;
-      if (
-        !value ||
-        !/^[a-f0-9]{64}$/.test(value.hash) ||
-        !Number.isSafeInteger(value.size) ||
-        value.size < 0 ||
-        value.size > 1073741823 ||
-        !["public", "sample", "private"].includes(value.channel)
-      )
+      const value = await json("caseref", { job: j(job), ordinal }, signal);
+      try {
+        return decodeInputCaseRef(value);
+      } catch {
         throw malformedResponse("caseref");
-      return value;
+      }
     },
     async inputPage(job, kind, ordinal, offset, signal) {
       if (
