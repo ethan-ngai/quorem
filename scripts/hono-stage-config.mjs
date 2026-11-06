@@ -189,7 +189,12 @@ export function workerConfig(input, outputs, output, scope) {
     vars: { ...vars, EXECUTION_WAKE_PROVIDER: "cloudflare-binding" },
     hyperdrive: [{ binding: "DB", id: hyperdriveId }],
     ...(runnerWakeService
-      ? { services: [{ binding: "RUNNER_WAKE", service: runnerWakeService }] }
+      ? {
+          services: ["RUNNER_WAKE", "CASE_EXECUTION"].map((binding) => ({
+            binding,
+            service: runnerWakeService,
+          })),
+        }
       : {}),
     queues: { producers: [{ binding: "EXECUTION_QUEUE", queue: queueName }] },
     durable_objects: {
