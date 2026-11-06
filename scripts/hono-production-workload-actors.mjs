@@ -9,12 +9,16 @@ export async function createProductionBenchmarkActors({
   databaseURL,
   authSecret,
   mode = "production",
+  count = 8,
 }) {
   const url = new URL(databaseURL);
   const production = mode === "production";
   const expectedDatabase = production ? "neondb" : "quorem_hono_benchmark_test";
   if (
     !["production", "local-test"].includes(mode) ||
+    !Number.isInteger(count) ||
+    count < 1 ||
+    count > 8 ||
     !!url.hash ||
     [...url.searchParams.keys()].some((key) => key.toLowerCase() !== "sslmode") ||
     !["postgres:", "postgresql:"].includes(url.protocol) ||
@@ -57,7 +61,7 @@ export async function createProductionBenchmarkActors({
     );
     if (existing.rows[0]?.valid !== true)
       throw new Error("Production benchmark identity unavailable");
-    for (let index = 0; index < 8; index++) {
+    for (let index = 0; index < count; index++) {
       const subject = `judge-benchmark-${randomUUID()}`,
         token = randomBytes(32).toString("base64url");
       subjects.push(subject);
