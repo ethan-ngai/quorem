@@ -18,7 +18,7 @@ import { useId, useState } from "react";
 import { toast } from "sonner";
 import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
-import { SessionDialog } from "../../ui/SessionDialog";
+import { BulkQuestionConfirmation } from "./BulkQuestionConfirmation";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { mutateQuestionBatch, listPublications } from "./api";
@@ -471,68 +471,23 @@ export function QuestionDashboard({
         </div>
       )}
       {!loading && !failed && <TablePagination table={table} disabled={disabled} />}
-      <SessionDialog
-        open={!!action}
-        pending={running}
-        onOpenChange={(open) => {
-          if (!open && !running) setConfirmation(undefined);
+      <BulkQuestionConfirmation
+        action={action}
+        questions={confirmed}
+        scope={tab}
+        admin={admin}
+        visibility={visibility}
+        onVisibilityChange={setVisibility}
+        running={running}
+        progress={progress}
+        stopping={stopping}
+        onCancel={() => {
+          cancellation.current = true;
+          setStopping(true);
         }}
-        title={
-          action === "publish"
-            ? `Publish ${confirmed.length} drafts?`
-            : `Delete ${confirmed.length} ${tab === "drafts" ? "drafts" : "versions"}?`
-        }
-        description={
-          action === "publish"
-            ? "Each draft is validated before publishing. Update drafts apply to their existing global publication."
-            : tab === "drafts"
-              ? "Selected drafts and their imported content will be removed."
-              : "Only the listed versions will be deleted. Deleting a current version unpublishes its question. Older versions remain available in the editor."
-        }
-      >
-        <ul className="admin-bulk-selection" aria-label="Selected questions">
-          {confirmed.map((row) => (
-            <li key={row.id}>
-              {row.title || "Untitled question"}
-              {"version" in row ? ` · Version ${row.version}` : ""}
-            </li>
-          ))}
-        </ul>
-        {action === "publish" &&
-          admin &&
-          confirmed.some((row) => "revision" in row && !row.editVersionId) && (
-            <label className="admin-bulk-visibility">
-              New publication visibility
-              <select
-                value={visibility}
-                disabled={running}
-                onChange={(event) =>
-                  setVisibility(event.target.value === "global" ? "global" : "private")
-                }
-              >
-                <option value="private">Private library</option>
-                <option value="global">Global catalog</option>
-              </select>
-            </label>
-          )}
-        {running && <p role="status">{progress}</p>}
-        <footer className="competitive-dialog-actions">
-          <button
-            className="button button-secondary"
-            disabled={running}
-            onClick={() => setConfirmation(undefined)}
-          >
-            Cancel
-          </button>
-          <button
-            className="button button-primary"
-            disabled={running || !confirmed.length}
-            onClick={() => void apply()}
-          >
-            {action === "publish" ? "Publish drafts" : "Delete selected"}
-          </button>
-        </footer>
-      </SessionDialog>
+        onClose={() => setConfirmation(undefined)}
+        onConfirm={() => void apply()}
+      />
     </section>
   );
 }
