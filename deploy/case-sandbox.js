@@ -39,13 +39,20 @@ async function usedLanes(storage) {
 
 /** One trusted launcher and one disposable container per execution case. */
 export class CaseSandbox extends DurableObject {
+  destroyContainer() {
+    this.destroying ??= this.ctx.container.destroy().finally(() => {
+      this.destroying = undefined;
+    });
+    return this.destroying;
+  }
+
   stop() {
     this.stopping ??= (async () => {
       this.phase = "stop-begin";
       console.log("case-lifecycle stop-begin");
       const started = await this.ctx.storage.get("started");
       this.phase = "destroy-begin";
-      if (started || this.ctx.container.running) await this.ctx.container.destroy();
+      if (started || this.ctx.container.running) await this.destroyContainer();
       this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
       await this.ctx.storage.delete(["started", "deadline"]);
@@ -352,21 +359,34 @@ export class CaseSandbox extends DurableObject {
       if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
       const started = performance.now();
       timing.inputMs = Math.round(started - admitted);
-      container.start({
-        image: container.images[language],
-        instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
-        enableInternet: false,
-      });
+      const startContainer = () =>
+        container.start({
+          image: container.images[language],
+          instance: { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
+          enableInternet: false,
+        });
+      startContainer();
       this.phase = "started";
       // Wait for VM readiness before issuing exec; its startup wait is opaque to callers.
       this.phase = "boot-wait";
       let pauseMs = 10;
+      timing.bootRetries = 0;
       for (;;) {
         if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
         if (performance.now() - started >= 60000) throw new Error("Case startup timeout");
         const info = await container.inspect();
         if (info?.image === container.images[language]) break;
         if (info?.image) throw new Error("Case image changed");
+        if (!timing.bootRetries && performance.now() - started >= 750) {
+          // No contestant input has entered the VM. Replace one slow allocation only after
+          // confirmed destruction, retaining the durable deadline and cancellation fence.
+          await this.destroyContainer();
+          if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
+          timing.bootRetries = 1;
+          console.log("case-lifecycle boot-retry");
+          startContainer();
+          pauseMs = 10;
+        }
         await new Promise((resolve) => setTimeout(resolve, pauseMs));
         pauseMs = Math.min(100, pauseMs * 2);
       }
