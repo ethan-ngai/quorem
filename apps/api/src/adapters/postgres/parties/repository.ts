@@ -308,17 +308,28 @@ export function partyRepository(
           await reconcileParty(tx, id);
           const p = await lockParty(tx, id, who.userId);
           if (action === "settings") {
-            if (p.host !== who.userId)
-              throw new ApplicationError("forbidden", "Only the host can change settings", 403);
             const s = normalizePartySettings(body);
+            if (p.current) throw conflict("Match settings are fixed during a round");
+            if (
+              p.host !== who.userId &&
+              (p.settings.rules.settingsEditors !== "everyone" ||
+                s.rules.settingsEditors !== p.settings.rules.settingsEditors ||
+                s.accessMode !== p.settings.accessMode ||
+                s.admissionLocked !== p.settings.admissionLocked)
+            )
+              throw new ApplicationError(
+                "forbidden",
+                "Only the host can change lobby permissions",
+                403,
+              );
             if (s.accessMode === "guests_allowed" && !guestCreation)
               throw new ApplicationError(
                 "guest_hosting_paused",
                 "Guest hosting is temporarily paused",
                 409,
               );
-            await hosting(tx, who.userId, s.accessMode);
-            await validateSelectedMatchProblem(tx, who.userId, s);
+            await hosting(tx, p.host, s.accessMode);
+            await validateSelectedMatchProblem(tx, p.host, s);
             const count = (
               await tx.execute<{ n: number }>(
                 sql`SELECT count(*)::int AS n FROM party_members WHERE party_id=${id}::uuid`,

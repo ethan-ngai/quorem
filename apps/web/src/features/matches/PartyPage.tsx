@@ -175,7 +175,12 @@ export function PartyPage() {
           value={party.settings}
           identity={identity}
           participantCount={party.members.length}
-          disabled={!host || pending || !!recovery || !!party.currentMatchId}
+          disabled={
+            (!host && party.settings.rules?.settingsEditors !== "everyone") ||
+            pending ||
+            !!recovery ||
+            !!party.currentMatchId
+          }
           onChange={(settings) =>
             void run(
               "settings",
@@ -186,6 +191,7 @@ export function PartyPage() {
               "PUT",
             )
           }
+          canEditPermissions={host}
           showHostRules
         />
         <div className="match-option">
@@ -193,7 +199,12 @@ export function PartyPage() {
           <ToggleSwitch
             label="Share code after match"
             checked={party.settings.shareCodeAfterMatch}
-            disabled={!host || pending || !!recovery || !!party.currentMatchId}
+            disabled={
+              (!host && party.settings.rules?.settingsEditors !== "everyone") ||
+              pending ||
+              !!recovery ||
+              !!party.currentMatchId
+            }
             onChange={(shareCodeAfterMatch) =>
               void run("settings", { ...party.settings, shareCodeAfterMatch }, "PUT")
             }

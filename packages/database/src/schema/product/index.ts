@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 /** @file schema/product/index.ts @description PostgreSQL schema and migration ownership. @module database */
 import {
   pgTable,
@@ -425,11 +426,23 @@ export const match_rule_events = pgTable(
     match_id: uuid().notNull(),
     owner_id: text().notNull(),
     kind: text().notNull(),
+    competitor_id: text().notNull(),
+    action: text().default("announce").notNull(),
+    seconds: integer().default(0).notNull(),
+    points: integer().default(0).notNull(),
+    resource_key: text(),
+    submission_id: uuid(),
     occurred_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("match_rule_reveal_once")
+      .on(table.match_id, table.competitor_id, table.kind, table.resource_key)
+      .where(sql`resource_key IS NOT NULL`),
+    index("match_rule_competitor").on(table.match_id, table.competitor_id, table.occurred_at),
+    check("match_rule_events_seconds_check", sql`seconds>=0`),
+    check("match_rule_events_points_check", sql`points>=0`),
     index("match_rule_events_match").using(
       "btree",
       table.match_id.asc().nullsLast().op("timestamptz_ops"),
@@ -447,7 +460,7 @@ export const match_rule_events = pgTable(
     }),
     check(
       "match_rule_events_kind_check",
-      sql`kind = ANY (ARRAY['clipboard'::text, 'focus'::text])`,
+      sql`kind = ANY (ARRAY['clipboard','copy','focus','topics','complexity','hiddenCase','submission'])`,
     ),
   ],
 );
@@ -709,6 +722,7 @@ export const matches = pgTable(
     problem_version_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
+    rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),
     outcome: jsonb(),
@@ -718,7 +732,7 @@ export const matches = pgTable(
     mode: text().default("showdown").notNull(),
     difficulties: text().array().notNull(),
     selected_problem_version_id: uuid(),
-    rules: jsonb().default({ focus: "off", clipboard: "off" }).notNull(),
+    rules: jsonb().default(matchPreset()).notNull(),
     access_mode: text().default("accounts_only").notNull(),
     guest_joins: integer().default(0).notNull(),
     admission_locked: boolean().default(false).notNull(),
@@ -1736,6 +1750,9 @@ export const match_participants = pgTable(
     match_id: uuid().notNull(),
     owner_id: text().notNull(),
     seat: integer().notNull(),
+    competitor_id: text(),
+    eligible_finish_at: timestamp({ withTimezone: true, mode: "string" }),
+    best_percentage: doublePrecision().default(0).notNull(),
     ready: boolean().default(false).notNull(),
     presence: text().default("offline").notNull(),
     workspace_id: uuid(),
@@ -2346,5 +2363,21 @@ export const platform_presence_leases = pgTable(
     }),
     primaryKey({ columns: [t.owner_id, t.window_id] }),
     index("platform_presence_expiry").on(t.expires_at),
+  ],
+);
+
+export const match_private_result_cases = pgTable(
+  "match_private_result_cases",
+  {
+    submission_id: uuid().notNull(),
+    ordinal: integer().notNull(),
+    result_data: bytea().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.submission_id, t.ordinal] }),
+    foreignKey({ columns: [t.submission_id], foreignColumns: [submissions.id] }).onDelete(
+      "cascade",
+    ),
+    check("match_private_result_cases_ordinal_check", sql`ordinal>=0`),
   ],
 );

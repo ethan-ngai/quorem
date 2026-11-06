@@ -1,78 +1,111 @@
-/** @file reconcile.ts @description Ordered match progress and deadline decisions. @module matches */
+/** @file reconcile.ts @description Penalty-adjusted race and full-duration score decisions. @module matches */
 import type { Reconciliation, SubmissionProgress } from "./model.ts";
-/** Times are PostgreSQL epoch microseconds; submissions are in admission order. */
+
+/** Times are server epoch microseconds; equal eligible finish times remain tied. */
 export function reconcile(
   now: bigint,
   deadline: bigint,
   finalizingAt: bigint | null,
   owners: readonly string[],
   submissions: readonly SubmissionProgress[],
+  rules: { victory: "race" | "high_score"; penalties: ReadonlyMap<string, number> } = {
+    victory: "race",
+    penalties: new Map(),
+  },
 ): Reconciliation {
-  const progress = new Map(owners.map((owner) => [owner, { state: "", bestPassed: 0 }]));
-  let candidate = "",
-    blocked = false;
-  const earlierUncertain = new Set<string>();
-  for (const submission of submissions) {
-    const p = progress.get(submission.owner);
-    if (!p) continue;
-    p.state = submission.state;
-    if (submission.state === "completed" && submission.score !== null) {
-      p.bestPassed = Math.max(p.bestPassed, submission.score.passed);
-      if (
-        !submission.intermediate &&
-        submission.verdict === "accepted" &&
-        submission.score.passed === submission.score.total &&
-        !candidate
-      )
-        candidate = submission.owner;
-    } else {
-      const failed =
-        submission.cannotPass && submission.maxPossible !== null && submission.maxPossible >= 0;
-      if (!candidate && !submission.intermediate && !failed) {
-        earlierUncertain.add(submission.owner);
-        blocked = true;
-      }
+  const progress = new Map(
+    owners.map((owner) => [
+      owner,
+      { state: "", bestPassed: 0, bestPercentage: 0, eligibleFinishAt: null as bigint | null },
+    ]),
+  );
+  const percentages = new Map(owners.map((owner) => [owner, 0]));
+  const eligible = submissions.filter(
+    (s) => progress.has(s.owner) && (s.eligibleAt ?? 0n) <= deadline,
+  );
+  for (const s of eligible) {
+    const p = progress.get(s.owner)!;
+    p.state = s.state;
+    if (
+      s.state === "completed" &&
+      !s.intermediate &&
+      s.verdict === "accepted" &&
+      s.score &&
+      s.score.passed === s.score.total
+    ) {
+      const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
+      if (p.eligibleFinishAt === null || time < p.eligibleFinishAt) p.eligibleFinishAt = time;
     }
+  }
+  const due = eligible.filter((s) => (s.eligibleAt ?? 0n) <= now);
+  let candidateTime: bigint | null = null;
+  const candidates = new Set<string>();
+  for (const s of due) {
+    const p = progress.get(s.owner)!;
+    p.state = s.state;
+    if (s.state !== "completed" || s.score === null) continue;
+    p.bestPassed = Math.max(p.bestPassed, s.score.passed);
+    p.bestPercentage = Math.max(
+      p.bestPercentage,
+      s.score.total ? (100 * s.score.passed) / s.score.total : 0,
+    );
+    percentages.set(s.owner, p.bestPercentage);
+    if (
+      rules.victory !== "race" ||
+      s.intermediate ||
+      s.verdict !== "accepted" ||
+      s.score.passed !== s.score.total
+    )
+      continue;
+    const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
+    if (candidateTime === null || time < candidateTime) {
+      candidateTime = time;
+      candidates.clear();
+    }
+    if (time === candidateTime) candidates.add(s.owner);
   }
   let winner = "",
-    high = -1,
+    high = -Infinity,
     draw = false;
   for (const [owner, p] of progress) {
-    if (p.bestPassed > high) {
+    const score =
+      rules.victory === "high_score"
+        ? percentages.get(owner)! - (rules.penalties.get(owner) ?? 0)
+        : p.bestPassed;
+    if (score > high) {
       winner = owner;
-      high = p.bestPassed;
+      high = score;
       draw = false;
-    } else if (p.bestPassed === high) draw = true;
+    } else if (score === high) draw = true;
   }
-  if (!candidate && now >= deadline) {
-    blocked = false;
-    for (const submission of submissions) {
-      if (
-        !progress.has(submission.owner) ||
-        (submission.state === "completed" && submission.score !== null)
-      )
-        continue;
-      if (!draw && submission.owner === winner) continue;
-      const failed =
-        submission.cannotPass && submission.maxPossible !== null && submission.maxPossible >= 0;
-      if (!submission.intermediate && !failed) {
+  let blocked = false;
+  for (const s of due) {
+    if (
+      s.state === "failed" ||
+      s.state === "cancelled" ||
+      (s.state === "completed" && s.score !== null)
+    )
+      continue;
+    const cannotPass = s.cannotPass && s.maxPossible !== null && s.maxPossible >= 0;
+    if (candidateTime !== null) {
+      const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
+      if (time <= candidateTime && !s.intermediate && !cannotPass && !candidates.has(s.owner))
         blocked = true;
-        continue;
-      }
-      if (
-        !failed ||
-        (draw && submission.maxPossible! > high) ||
-        (!draw && submission.maxPossible! >= high)
-      )
-        blocked = true;
+    } else if (now >= deadline) {
+      if (!draw && s.owner === winner) continue;
+      const upper =
+        rules.victory === "high_score" ? 100 - (rules.penalties.get(s.owner) ?? 0) : s.maxPossible;
+      if (!cannotPass || upper === null || (draw ? upper > high : upper >= high)) blocked = true;
     }
   }
-  if (candidate) blocked = [...earlierUncertain].some((owner) => owner !== candidate);
   let outcome: Reconciliation["outcome"] = null;
-  if (candidate && !blocked)
-    outcome = { kind: "win", winnerUserId: candidate, reason: "first_correct" };
-  else if (now >= deadline || candidate || finalizingAt !== null) {
-    if (finalizingAt === null) finalizingAt = now >= deadline ? deadline : now;
+  if (candidateTime !== null && !blocked) {
+    outcome =
+      candidates.size === 1
+        ? { kind: "win", winnerUserId: [...candidates][0], reason: "first_correct" }
+        : { kind: "draw", reason: "first_correct" };
+  } else if (now >= deadline || candidateTime !== null || finalizingAt !== null) {
+    finalizingAt ??= now >= deadline ? deadline : now;
     if (blocked) {
       if (now >= finalizingAt + 120_000_000n)
         outcome = { kind: "no_contest", reason: "unresolved_eligible_work" };

@@ -1,10 +1,11 @@
+import { matchRulesSchema } from "@quorem/contracts/match-rules";
 /** @file matchSync.ts @description Runtime guards and version helpers for match synchronization. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set(["waiting", "ready", "active", "finalizing", "completed", "cancelled"]);
 const difficulties = new Set(["easy", "medium", "hard"]);
-const ruleActions = new Set(["off", "warning", "announce"]);
+
 const submissionStates = new Set(["queued", "running", "completed", "cancelled", "failed"]);
 const outcomeKinds = new Set(["win", "draw", "no_contest", "cancelled"]);
 
@@ -88,22 +89,18 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     return false;
 
   return (
-    (value.mode === "showdown" || value.mode === "free-for-all") &&
+    (value.mode === "showdown" || value.mode === "free-for-all" || value.mode === "factions") &&
     Array.isArray(value.difficulties) &&
     value.difficulties.length >= 1 &&
     value.difficulties.length <= 3 &&
     value.difficulties.every((pool) => typeof pool === "string" && difficulties.has(pool)) &&
     new Set(value.difficulties).size === value.difficulties.length &&
-    record(value.rules) &&
-    typeof value.rules.clipboard === "string" &&
-    ruleActions.has(value.rules.clipboard) &&
-    typeof value.rules.focus === "string" &&
-    ruleActions.has(value.rules.focus) &&
+    matchRulesSchema.safeParse(value.rules).success &&
     (value.selectedProblemVersionId === undefined ||
       (typeof value.selectedProblemVersionId === "string" &&
         uuidPattern.test(value.selectedProblemVersionId))) &&
     Array.isArray(value.ruleEvents) &&
-    value.ruleEvents.length <= 20 &&
+    value.ruleEvents.length <= 100 &&
     value.ruleEvents.every(
       (event) =>
         record(event) &&
@@ -111,8 +108,10 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
         uuidPattern.test(event.id) &&
         typeof event.userId === "string" &&
         participantIds.has(event.userId) &&
-        (event.kind === "focus" || event.kind === "clipboard") &&
-        event.action === "announce" &&
+        ["focus", "clipboard", "copy", "topics", "complexity", "hiddenCase", "submission"].includes(
+          String(event.kind),
+        ) &&
+        (event.action === "announce" || event.action === "penalty") &&
         validDate(event.occurredAt),
     ) &&
     typeof value.id === "string" &&

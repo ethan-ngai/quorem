@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -18,14 +19,13 @@ describe("server-rendered match settings", () => {
             selectedProblemVersionId: "example",
             durationMinutes: 30,
             shareCodeAfterMatch: true,
-            rules: { clipboard: "warning", focus: "announce" },
+            rules: { ...matchPreset("casual"), clipboard: "warning", focus: "announce" },
           }}
           onChange={() => {}}
         />
       </QueryClientProvider>,
     );
-    for (const label of ["Two Sum", "30 minutes", "Warn", "Announce to lobby"])
-      expect(html).toContain(label);
+    for (const label of ["Two Sum", "30 minutes", "Warn", "Notify"]) expect(html).toContain(label);
     expect(html.match(/aria-label="Difficulty filter"/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Question filters"');
     expect(html).toContain('aria-label="SQL questions"');

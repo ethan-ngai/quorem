@@ -1,12 +1,13 @@
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { DifficultySegments } from "../../ui/DifficultySegments";
-import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
+import { matchPreset } from "@quorem/contracts/match-rules";
+import { MatchRuleSettingsControls } from "./MatchRuleSettings";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState } from "react";
-import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
+import { Gauge, Swords, BookOpen } from "lucide-react";
 import { api, requireData } from "../../api/client";
 import { Tooltip } from "../../ui/Tooltip";
 import { ModeIcon } from "./ModeIcon";
@@ -23,7 +24,7 @@ export const defaultMatchSettings: PartySettings = {
   difficulties: ["easy"],
   durationMinutes: 30,
   shareCodeAfterMatch: true,
-  rules: { clipboard: "off", focus: "off" },
+  rules: matchPreset(),
 };
 
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
@@ -33,7 +34,8 @@ export function MatchSettings({
   disabled = false,
   identity,
   participantCount = 0,
-  showHostRules = false,
+  showHostRules: _showHostRules = false,
+  canEditPermissions = true,
   catalog,
 }: {
   value: PartySettings;
@@ -42,6 +44,7 @@ export function MatchSettings({
   identity: DevelopmentIdentity;
   participantCount?: number;
   showHostRules?: boolean;
+  canEditPermissions?: boolean;
   catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
 }) {
   const [problems, setProblems] = useState<
@@ -87,7 +90,7 @@ export function MatchSettings({
           : value.selectedProblemVersionId,
     });
   };
-  const rules = value.rules ?? { clipboard: "off", focus: "off" };
+  const rules = value.rules ?? matchPreset();
   return (
     <div className="match-options">
       <div className="match-option">
@@ -178,53 +181,12 @@ export function MatchSettings({
           }))}
         />
       </div>
-      <QuestionHintsControls
-        complexityAvailable={
-          selectedProblem
-            ? !!selectedProblem.hasComplexity
-            : problems.some(
-                (problem) =>
-                  pools.includes(problem.difficulty as (typeof pools)[number]) &&
-                  !!problem.hasComplexity,
-              )
-        }
-        value={rules.hints ?? {}}
+      <MatchRuleSettingsControls
+        value={rules}
         disabled={disabled}
-        onChange={(hints) => onChange({ ...value, rules: { ...rules, hints } })}
+        canEditPermissions={canEditPermissions}
+        onChange={(rules) => onChange({ ...value, rules })}
       />
-      {showHostRules && (
-        <>
-          <div className="match-rules-heading">
-            <Shield size={16} />
-            <span>Host rules</span>
-            <Tooltip content="Browser-observed activity; these rules are not tamper-proof.">
-              <button type="button" className="icon-button" aria-label="About host rules">
-                <Info size={16} />
-              </button>
-            </Tooltip>
-          </div>
-          {(["clipboard", "focus"] as const).map((rule) => (
-            <div className="match-option" key={rule}>
-              <span>
-                {rule === "clipboard" ? <Clipboard /> : <Focus />}
-                {rule === "clipboard" ? "Copy / paste" : "Leaving the window"}
-              </span>
-              <SelectField
-                className="match-choice"
-                label={rule === "clipboard" ? "Copy and paste rule" : "Window focus rule"}
-                value={rules[rule] ?? "off"}
-                disabled={disabled}
-                onChange={(action) => onChange({ ...value, rules: { ...rules, [rule]: action } })}
-                options={[
-                  { value: "off", label: "Allow" },
-                  { value: "warning", label: "Warn" },
-                  { value: "announce", label: "Announce to lobby" },
-                ]}
-              />
-            </div>
-          ))}
-        </>
-      )}
     </div>
   );
 }

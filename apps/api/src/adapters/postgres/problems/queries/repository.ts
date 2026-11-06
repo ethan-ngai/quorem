@@ -74,6 +74,24 @@ function projected(row: Projected): JsonValue {
   projectQuestionRuntime(value);
   return value;
 }
+async function redactMatchTopics(
+  tx: Transaction,
+  actor: ProblemActor | undefined,
+  values: JsonValue[],
+) {
+  if (!actor?.userId) return values;
+  const restricted = (
+    await tx.execute<{ id: string }>(
+      sql`SELECT m.problem_version_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${actor.userId} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`,
+    )
+  ).rows;
+  const ids = new Set(restricted.map((r) => r.id));
+  for (const value of values) {
+    const problem = object(value);
+    if (ids.has(String(problem.id))) problem.tags = [];
+  }
+  return values;
+}
 type Cursor = { title: string; slug: string; rank: number; filter: string };
 function filterKey(f: CatalogFilter): string {
   return JSON.stringify([
@@ -163,7 +181,7 @@ async function readCatalog(
   const n = Number(total);
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
   const result: { [key: string]: JsonValue } = {
-    items: items.map(projected),
+    items: await redactMatchTopics(tx, actor, items.map(projected)),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
@@ -193,19 +211,24 @@ async function byValue(
       sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
     )
   ).rows;
-  return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
+  return rows.length
+    ? stringifyLosslessJson((await redactMatchTopics(tx, actor, [projected(rows[0])]))[0])
+    : null;
 }
 /** Projects a version after the caller has authorized its specific context. */
 export async function projectAuthorizedVersion(
   tx: Transaction,
   id: string,
+  actor?: ProblemActor,
 ): Promise<string | null> {
   const rows = (
     await tx.execute<Projected>(
       sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
     )
   ).rows;
-  return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
+  return rows.length
+    ? stringifyLosslessJson((await redactMatchTopics(tx, actor, [projected(rows[0])]))[0])
+    : null;
 }
 async function readEditorials(
   tx: Transaction,
@@ -222,7 +245,7 @@ async function readEditorials(
     }>(sql`SELECT
  (SELECT v.odyssey IS NOT NULL FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND ${visible(actor, true)} LIMIT 1) AS staged,
  EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND m.problem_version_id::text=${id} AND m.state IN ('active','finalizing')) AS active,
- EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.problem_version_id::text=${id} AND m.state IN ('active','finalizing') AND m.rules->'hints'->>'complexity'='true') AS "allowComplexity"`)
+ EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.problem_version_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity"`)
   ).rows;
   const state = rows[0];
   if (state.active && !(complexityOnly && state.allowComplexity))

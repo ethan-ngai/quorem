@@ -135,7 +135,7 @@ export function canonicalWorkspaceCommand(raw: string): string {
     Array.isArray(c.customCases) && c.customCases.length
       ? elements(fields.get("customCases")!).map(goCase)
       : [];
-  return `{${normalized ? `"level":${normalized},` : ""}"workspaceId":${stringifyLosslessJson(workspaceId)},"kind":${stringifyLosslessJson(kind)},"source":${stringifyLosslessJson(source)}${cases.length ? `,"customCases":[${cases.join(",")}]` : ""}}`;
+  return `{${normalized ? `"level":${normalized},` : ""}"workspaceId":${stringifyLosslessJson(workspaceId)},"kind":${stringifyLosslessJson(kind)},"source":${stringifyLosslessJson(source)}${cases.length ? `,"customCases":[${cases.join(",")}]` : ""}${c.matchApproval === undefined ? "" : `,"matchApproval":${stringifyLosslessJson(c.matchApproval)}`}}`;
 }
 export async function workspaceCommandFingerprint(raw: string): Promise<string> {
   const data = await crypto.subtle.digest(
