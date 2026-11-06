@@ -99,13 +99,14 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
       assertClaimFence(scope, proof);
       return run((scopeDb) =>
         scopeDb.transaction(options, async (tx) => {
+          // Claims share the queue fence; SKIP LOCKED selects distinct jobs concurrently.
           await tx.execute(sql`SELECT
             set_config('quorem.runner_input_protocol','manifest-v1',true),
             CASE WHEN ${cap.resumable} THEN set_config('quorem.checkpoint_claim','v1',true) END,
             CASE WHEN ${cap.losslessCases && cap.losslessResults}
               THEN set_config('quorem.lossless_case_claim','v1',true) END,
             set_config('quorem.sandbox_scope',${scope},true),
-            pg_advisory_xact_lock(740020)`);
+            pg_advisory_xact_lock_shared(740020)`);
           const row = (
             await tx.execute<{
               job: string;

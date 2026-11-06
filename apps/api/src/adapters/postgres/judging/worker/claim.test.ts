@@ -98,9 +98,18 @@ describe.skipIf(!url)("runner claim fences", () => {
     await pool.end();
   });
   it("claims once, rejects wrong scope and requires the exact expired attempt proof", async () => {
-    const results = await Promise.all(
-      Array.from({ length: 8 }, () => claims.claimAfterTeardown(true, "scope-a", null)),
-    );
+    const holder = await pool.connect();
+    let results;
+    try {
+      await holder.query("BEGIN");
+      await holder.query("SELECT pg_advisory_xact_lock_shared(740020)");
+      results = await Promise.all(
+        Array.from({ length: 8 }, () => claims.claimAfterTeardown(true, "scope-a", null)),
+      );
+    } finally {
+      await holder.query("ROLLBACK");
+      holder.release();
+    }
     const won = results.filter(Boolean);
     expect(won).toHaveLength(1);
     const first = won[0]!;
