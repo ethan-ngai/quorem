@@ -1,3 +1,4 @@
+import { reconcileParty } from "../adapters/postgres/parties/repository.ts";
 /** @file node.ts @description Node API, socket and durable dispatch composition. @module api */
 import { serve } from "@hono/node-server";
 import type { Server } from "node:http";
@@ -162,7 +163,9 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         (candidate) =>
           run((scope) =>
             scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-              reconcileScheduledMatch(tx, candidate.id, candidate.generation),
+              candidate.id.startsWith("party:")
+                ? reconcileParty(tx, candidate.id.slice(6))
+                : reconcileScheduledMatch(tx, candidate.id, candidate.generation),
             ),
           ),
         shard,

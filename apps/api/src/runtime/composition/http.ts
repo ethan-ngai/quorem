@@ -1,3 +1,5 @@
+import { partyRoutes } from "../../modules/parties/routes.ts";
+import { partyRepository } from "../../adapters/postgres/parties/repository.ts";
 import { adminRoutes } from "../../modules/admin/routes.ts";
 import { adminOverview } from "../../adapters/postgres/admin/repository.ts";
 import { identityRoutes } from "../../modules/identity/routes.ts";
@@ -129,6 +131,23 @@ export function composeHttp(ports: HttpPorts) {
       identify,
       snapshots: submissionSnapshots(run),
       notices: ports.submissionNotices,
+    }),
+  );
+  app.route(
+    "/",
+    partyRoutes({
+      identify,
+      parties: partyRepository(
+        run,
+        ports.inviteKey,
+        ports.deadline,
+        ports.shards,
+        prearmReceipts(run),
+      ),
+      allowedOrigins: ports.origins,
+      admissionEnabled: ports.guestAdmission,
+      trustedPeer: ports.trustedPeer,
+      budget,
     }),
   );
   app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));

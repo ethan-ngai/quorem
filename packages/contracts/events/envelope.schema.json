@@ -949,6 +949,9 @@
         "partyId": {
           "type": "string",
           "format": "uuid"
+        },
+        "reviewPending": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -3033,6 +3036,9 @@
         "countdownEndsAt": {
           "type": ["string", "null"],
           "format": "date-time"
+        },
+        "queueError": {
+          "type": ["string", "null"]
         }
       },
       "required": [
@@ -3043,7 +3049,8 @@
         "members",
         "currentMatchId",
         "latestMatchId",
-        "countdownEndsAt"
+        "countdownEndsAt",
+        "queueError"
       ],
       "additionalProperties": false
     },
@@ -3115,17 +3122,17 @@
           "type": "string",
           "format": "uuid"
         },
-        "settings": {
-          "$ref": "#/$defs/PartySettings"
-        },
         "participantCount": {
           "type": "integer"
         },
         "capacity": {
           "type": "integer"
+        },
+        "guestAllowed": {
+          "type": "boolean"
         }
       },
-      "required": ["id", "settings", "participantCount", "capacity"],
+      "required": ["id", "participantCount", "capacity", "guestAllowed"],
       "additionalProperties": false
     },
     "MatchReviewWorkspace": {

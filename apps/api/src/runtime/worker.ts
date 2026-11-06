@@ -1,3 +1,4 @@
+import { reconcileParty } from "../adapters/postgres/parties/repository.ts";
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
 import { judgingCapacity, CASE_LANES, JUDGING_DEFAULTS } from "@quorem/execution";
 // @ts-expect-error Workerd supplies this module.
@@ -313,7 +314,9 @@ export class DeadlineCoordinator extends DurableObject {
       reconcile: (candidate) =>
         run((scope) =>
           scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-            reconcileScheduledMatch(tx, candidate.id, candidate.generation),
+            candidate.id.startsWith("party:")
+              ? reconcileParty(tx, candidate.id.slice(6))
+              : reconcileScheduledMatch(tx, candidate.id, candidate.generation),
           ),
         ),
     });
