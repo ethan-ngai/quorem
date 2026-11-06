@@ -7,6 +7,7 @@ const settings = {
   difficulties: ["easy" as const],
   selectedProblemVersionId: "two-sum-preview",
   durationMinutes: 30 as const,
+  shareCodeAfterMatch: true,
   rules: { clipboard: "warning" as const, focus: "announce" as const },
 };
 /** Server-rendered shared controls: no session, hydration or catalog request. */
