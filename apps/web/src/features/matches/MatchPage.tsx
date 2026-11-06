@@ -20,19 +20,30 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
-function MatchClock({ snapshot }: { snapshot: MatchSnapshot }) {
+function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boolean }) {
   const received = useRef({ version: snapshot.serverNow, at: Date.now() });
-  if (received.current.version !== snapshot.serverNow)
+  const frozen = useRef<string | undefined>(undefined);
+  if (active && received.current.version !== snapshot.serverNow)
     received.current = { version: snapshot.serverNow, at: Date.now() };
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
+    if (!active) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [active]);
+  const remaining = active
+    ? remainingTime(snapshot.deadline, snapshot.serverNow, Math.max(0, now - received.current.at))
+    : (frozen.current ??= remainingTime(
+        snapshot.deadline,
+        snapshot.state === "finalizing"
+          ? (snapshot.deadline ?? snapshot.serverNow)
+          : (snapshot.outcome?.completedAt ?? snapshot.serverNow),
+        0,
+      ));
   return (
     <span className="match-clock">
       <Icon name="clock" />
-      {remainingTime(snapshot.deadline, snapshot.serverNow, Math.max(0, now - received.current.at))}
+      {remaining}
     </span>
   );
 }
@@ -70,13 +81,18 @@ function MatchLedger({
                 event.kind === "clipboard" ? "used copy / paste" : "left the match window",
             }))}
           />
-          {status !== "live" && (
+          {status !== "live" && snapshot.state === "active" && !own?.forfeited && (
             <Tooltip content="Connection interrupted; refreshing match state">
               <span className="sync-label">Reconnecting…</span>
             </Tooltip>
           )}
-          {snapshot.state === "active" ? <MatchClock snapshot={snapshot} /> : null}
-          {!own?.forfeited && (snapshot.state === "active" || snapshot.state === "finalizing") && (
+          {snapshot.startedAt && (
+            <MatchClock
+              snapshot={snapshot}
+              active={snapshot.state === "active" && !own?.forfeited}
+            />
+          )}
+          {!own?.forfeited && snapshot.state === "active" && (
             <Tooltip content="Forfeit match">
               <button
                 className="icon-button destructive-icon"
@@ -122,7 +138,13 @@ function MatchLedger({
 }
 
 /** @returns A fully authoritative match route, revealing the problem only after start. */
-export function MatchPage({ matchId }: { matchId: string }) {
+export function MatchPage({
+  matchId,
+  reviewEntry = false,
+}: {
+  matchId: string;
+  reviewEntry?: boolean;
+}) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId, true);
@@ -134,6 +156,8 @@ export function MatchPage({ matchId }: { matchId: string }) {
       ownParticipant(snapshot, identity)?.forfeited)
       ? { snapshot, identity }
       : undefined;
+  const [resultsOpen, setResultsOpen] = useState(!reviewEntry);
+  const [reviewing, setReviewing] = useState(reviewEntry);
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
@@ -183,16 +207,8 @@ export function MatchPage({ matchId }: { matchId: string }) {
         <MatchRecovery failed={!!error} onRetry={refetch} />
       </main>
     );
-  if (finished)
-    return (
-      <main className="match-page">
-        <GlobalNav identity={finished.identity} theme={preference} onThemeChange={setPreference} />
-        <MatchEndView snapshot={finished.snapshot} identity={finished.identity} />
-      </main>
-    );
   const own = ownParticipant(snapshot, identity);
-  const ownWorkspaceId =
-    snapshot.state === "active" || snapshot.state === "finalizing" ? own?.workspaceId : undefined;
+  const ownWorkspaceId = snapshot.startedAt ? own?.workspaceId : undefined;
   const concession = (
     <ConcessionDialog
       open={conceding}
@@ -220,7 +236,12 @@ export function MatchPage({ matchId }: { matchId: string }) {
         status={status}
         onForfeit={() => setConceding(true)}
       />
-      {snapshot.state !== "active" && (
+      {finished && (
+        <button className="button button-secondary" onClick={() => setResultsOpen(true)}>
+          Results
+        </button>
+      )}
+      {snapshot.state === "finalizing" && (
         <div
           className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === participantUserId(identity) ? "is-winner" : ""}`}
           role="status"
@@ -236,6 +257,18 @@ export function MatchPage({ matchId }: { matchId: string }) {
       )}
 
       {concession}
+      {finished && (
+        <MatchEndView
+          snapshot={finished.snapshot}
+          identity={finished.identity}
+          open={resultsOpen}
+          onOpenChange={setResultsOpen}
+          onReview={() => {
+            setResultsOpen(false);
+            setReviewing(true);
+          }}
+        />
+      )}
     </>
   );
   if (ownWorkspaceId && snapshot.problemVersionId)
@@ -245,6 +278,7 @@ export function MatchPage({ matchId }: { matchId: string }) {
         matchWorkspaceId={ownWorkspaceId}
         identity={identity}
         matchHeader={ledger}
+        review={reviewing && !!finished}
       />
     );
   return (

@@ -2,8 +2,6 @@
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
-import { CompletionOutcomeIcon } from "../../ui/CompletionOutcomeIcon";
-import { Trophy } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
 import { PartyReadyStatus } from "./PartyReadyStatus";
@@ -51,11 +49,17 @@ export function elapsedRoundTime(startedAt?: string, completedAt?: string) {
 export function MatchEndView({
   snapshot,
   identity,
+  open,
+  onOpenChange,
+  onReview,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReview: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [celebrate, setCelebrate] = useState(open);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const client = useQueryClient();
@@ -101,9 +105,15 @@ export function MatchEndView({
   const actions = (
     <>
       {settled && !snapshot.reviewPending && (
-        <a className="button button-secondary" href={`/match/${snapshot.id}/review`}>
+        <button
+          className="button button-secondary"
+          onClick={() => {
+            setCelebrate(false);
+            onReview();
+          }}
+        >
           Review code
-        </a>
+        </button>
       )}
       {reviewPending && (
         <button
@@ -190,32 +200,20 @@ export function MatchEndView({
   );
   return (
     <>
-      <section className="match-page-content match-results-page">
-        <header className="match-results-heading">
-          <span className="match-result-icon">
-            <CompletionOutcomeIcon outcome={outcome} size={24} successIcon={<Trophy size={24} />} />
-          </span>
-          <h1>{title}</h1>
-          <p>{description}</p>
-        </header>
-        {standings}
-        {reviewPending && (
-          <p role="status">Code review will be available when the round and judging finish.</p>
-        )}
-        {party && !partyQuery.isError && (
-          <PartyReadyStatus
-            members={party.members}
-            countdownEndsAt={party.countdownEndsAt}
-            queueError={party.queueError}
-          />
-        )}
-        {partyStatus}
-        {error && <p role="alert">{error}</p>}
-        <footer className="match-results-actions">{actions}</footer>
-      </section>
+      {party && !partyQuery.isError && (
+        <PartyReadyStatus
+          members={party.members}
+          countdownEndsAt={party.countdownEndsAt}
+          queueError={party.queueError}
+        />
+      )}
       <CompletionDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          if (!next) setCelebrate(false);
+          onOpenChange(next);
+        }}
+        celebrate={celebrate}
         title={title}
         description={description}
         context={

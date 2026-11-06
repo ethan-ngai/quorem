@@ -33,3 +33,30 @@
 .review-code p {
   padding: 0 16px;
 }
+
+.review-editor-grid {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.review-editor-grid > .editor-frame,
+.review-reference {
+  flex: 1;
+  min-width: 0;
+}
+.review-reference {
+  overflow: auto;
+  border-left: 1px solid var(--color-border);
+}
+.review-reference > strong {
+  display: block;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.review-active-label {
+  padding: 8px 16px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}

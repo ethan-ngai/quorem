@@ -88,7 +88,6 @@ export function useMatchSync(
       }
     },
     enabled: enabled && Boolean(matchId) && readyOwner === ownerKey,
-    refetchInterval: (query) => (query.state.data?.reviewPending ? 3000 : false),
     structuralSharing: (previous, incoming) =>
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
