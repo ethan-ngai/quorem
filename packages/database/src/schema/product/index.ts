@@ -595,9 +595,9 @@ export const workspaces = pgTable(
       name: "workspaces_owner_id_fkey",
     }),
     foreignKey({
-      columns: [table.problem_version_id, table.language],
-      foreignColumns: [problem_languages.version_id, problem_languages.language],
-      name: "workspace_problem_language_fkey",
+      columns: [table.problem_version_id],
+      foreignColumns: [problem_versions.id],
+      name: "workspace_problem_version_fkey",
     }),
     unique("workspace_owner_identity").on(table.id, table.owner_id),
     check("workspace_match_kind", sql`(kind = 'match'::text) = (match_id IS NOT NULL)`),
@@ -969,18 +969,28 @@ export const problem_versions = pgTable(
     title: text().notNull(),
     difficulty: text().notNull(),
     statement_markdown: text().notNull(),
-    signature: jsonb().notNull(),
+    signature: jsonb(),
     constraints: jsonb().notNull(),
     limits: jsonb().notNull(),
     attribution: text().notNull(),
     sealed: boolean().default(false).notNull(),
     sql_config: jsonb(),
     odyssey: jsonb(),
+    fixture_identity_hash: bytea("fixture_identity_hash"),
     lossless_fixture: bytea("lossless_fixture"),
     lossless_public: bytea("lossless_public"),
     lossless_stages: bytea("lossless_stages"),
   },
   (table): PgTableExtraConfigValue[] => [
+    check(
+      "problem_fixture_identity_hash",
+      sql`fixture_identity_hash IS NULL OR octet_length(fixture_identity_hash)=32`,
+    ),
+    check(
+      "problem_signature_owner",
+      sql`((sql_config IS NULL OR sql_config='null'::jsonb) AND odyssey IS NULL AND signature IS NOT NULL) OR ((odyssey IS NOT NULL OR (sql_config IS NOT NULL AND sql_config<>'null'::jsonb)) AND signature IS NULL)`,
+    ),
+
     foreignKey({
       columns: [table.problem_id],
       foreignColumns: [problems.id],
@@ -1544,34 +1554,6 @@ export const match_idempotency = pgTable(
   ],
 );
 
-export const problem_languages = pgTable(
-  "problem_languages",
-  {
-    version_id: uuid().notNull(),
-    language: text().notNull(),
-    starter_source: text().notNull(),
-    runtime_revision: text().notNull(),
-    harness_revision: text().notNull(),
-    // Frozen reference leaf preserves admitted fixture identities after source consolidation.
-    reference_source_hash: bytea("reference_source_hash")
-      .default(sql`sha256(decode('01','hex'))`)
-      .notNull(),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_languages_version_id_fkey",
-    }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.language], name: "problem_languages_pkey" }),
-    check("problem_language_reference_hash", sql`octet_length(reference_source_hash)=32`),
-    check(
-      "problem_languages_language_check",
-      sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,
-    ),
-  ],
-);
-
 export const problem_examples = pgTable(
   "problem_examples",
   {
@@ -1626,7 +1608,7 @@ export const problem_solution_approaches = pgTable(
     ordinal: integer().notNull(),
     title: text().default("").notNull(),
     is_canonical: boolean().default(false).notNull(),
-    default_language: text().notNull(),
+    default_language: text(),
     explanation_markdown: text().notNull(),
     time_complexity: text().notNull(),
     space_complexity: text().notNull(),
@@ -1650,7 +1632,7 @@ export const problem_solution_approaches = pgTable(
     check("problem_solution_approaches_ordinal_check", sql`ordinal>=0`),
     check(
       "problem_solution_approaches_default_language_check",
-      sql`default_language IN ('python','java','typescript','ocaml','postgresql')`,
+      sql`(is_canonical AND default_language IS NULL) OR (NOT is_canonical AND default_language IS NOT NULL AND default_language IN ('python','java','typescript','ocaml','postgresql'))`,
     ),
   ],
 );
@@ -1663,11 +1645,10 @@ export const problem_solutions = pgTable(
     approach_id: text().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.version_id, table.language],
-      foreignColumns: [problem_languages.version_id, problem_languages.language],
-      name: "problem_solutions_version_id_language_fkey",
-    }).onDelete("cascade"),
+    check(
+      "problem_solutions_language_check",
+      sql`language IN ('python','java','typescript','ocaml','postgresql')`,
+    ),
     foreignKey({
       columns: [table.version_id, table.approach_id],
       foreignColumns: [problem_solution_approaches.version_id, problem_solution_approaches.id],

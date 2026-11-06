@@ -1,3 +1,4 @@
+import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -74,14 +75,14 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
             version: string;
             matchId: string | null;
             language: string;
-            revision: string;
-            harness: string;
+            isSql: boolean;
             stages: number;
           }>(
-            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.language,l.runtime_revision AS revision,l.harness_revision AS harness,CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id JOIN problem_languages l ON l.version_id=v.id AND l.language=w.language WHERE w.id=${command.workspaceId}::uuid AND w.owner_id=${principal.userId} AND ((w.match_id IS NULL AND ${visibleProblem({ userId: principal.userId }, false)}) OR (w.match_id IS NOT NULL AND ${visibleProblem({ userId: principal.userId }, true)})) FOR SHARE OF w,p,v`,
+            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND w.owner_id=${principal.userId} AND ((w.match_id IS NULL AND ${visibleProblem({ userId: principal.userId }, false)}) OR (w.match_id IS NOT NULL AND ${visibleProblem({ userId: principal.userId }, true)})) FOR SHARE OF w,p,v`,
           )
         ).rows[0];
         if (!row) throw failure("not_found", "Workspace not found", 404);
+        const runtime = questionRuntime(row.language, row.isSql);
         let matchSequence: string | null = null,
           admissionTime: string | null = null,
           sponsor: string | null = null;
@@ -185,8 +186,8 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
           sourceHash: command.sourceHash,
           customRun: command.customCases !== null,
           language: row.language,
-          runtimeRevision: row.revision,
-          harnessRevision: row.harness,
+          runtimeRevision: runtime.revision,
+          harnessRevision: runtime.harness,
           sponsorId: sponsor,
           context: {
             kind: "workspace",

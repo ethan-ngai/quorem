@@ -51,7 +51,7 @@ it("hides the library selector for anonymous and ordinary accounts", async () =>
     expect(html).toContain('aria-label="Odyssey"');
     expect(html).toContain('aria-label="Classic"');
     expect(html).not.toContain('aria-label="Question library"');
-    expect(html).not.toContain('class="quiet-button" href="/admin/questions"');
+    expect(html).not.toContain('class="quiet-button" href="/questions"');
   }
 });
 it("shows the library selector for admins and custom question authors", async () => {
@@ -72,6 +72,6 @@ it("shows the library selector for admins and custom question authors", async ()
     expect(html).toContain('aria-label="Question library"');
     expect(html).toContain('aria-label="Private library"');
     expect(html).toContain('role="radio"');
-    expect(html).not.toContain('class="quiet-button" href="/admin/questions"');
+    expect(html).not.toContain('class="quiet-button" href="/questions"');
   }
 });

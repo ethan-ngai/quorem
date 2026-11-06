@@ -9,7 +9,7 @@ import { cancelSubmission, createSubmission, fetchSubmission, SubmissionReadErro
 import { submissionStream } from "./submissionStream";
 import { forgetMissingSubmission } from "./submissionRecovery";
 import {
-  parseCustomCases,
+  parseRunSnapshotCases,
   parseProblemDrafts,
   createRunSnapshot,
   type CustomCaseDraft,
@@ -97,16 +97,14 @@ export function useSubmission({
         !Array.isArray(raw.cases)
       )
         return;
-      const values = parseCustomCases(
-        JSON.stringify(
-          raw.cases.map((item: { value: unknown }) =>
-            item.value && typeof item.value === "object"
-              ? { ...item.value, explanation: undefined }
-              : item.value,
-          ),
+      const serialized = JSON.stringify(
+        raw.cases.map((item: { value: unknown }) =>
+          item.value && typeof item.value === "object"
+            ? { ...item.value, explanation: undefined }
+            : item.value,
         ),
-        problem.signature,
       );
+      const values = parseRunSnapshotCases(serialized, problem);
       if (
         !raw.cases.every(
           (item: unknown) =>

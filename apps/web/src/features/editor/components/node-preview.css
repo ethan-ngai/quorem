@@ -1,6 +1,5 @@
 .case-with-preview {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--space-4);
   min-width: 0;
@@ -8,18 +7,18 @@
 .case-preview-values {
   display: grid;
   gap: var(--space-3);
-  flex: 0 1 auto;
+  flex: 1 1 50%;
   width: max-content;
   max-width: 100%;
   min-width: 0;
 }
 .case-with-preview[data-editable="true"] > .case-preview-values {
-  flex: 1 1 280px;
+  flex: 1 1 55%;
   width: auto;
 }
 .case-with-preview > .node-preview {
-  flex: 0 1 auto;
-  max-width: 100%;
+  flex: 0 1 45%;
+  max-width: 45%;
 }
 .node-preview {
   min-width: 0;

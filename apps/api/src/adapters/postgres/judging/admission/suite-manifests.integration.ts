@@ -161,17 +161,7 @@ void test("legacy indexed suites above 320 bind without loading reference arrays
   await pool.query("INSERT INTO problems(id,slug) VALUES($1::uuid,$1::text)", [problem]);
   await pool.query(
     "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Fixture','easy','',$3,'[]',$5,'test',$4)",
-    [
-      version,
-      problem,
-      JSON.stringify(signature),
-      JSON.stringify({ levels }),
-      JSON.stringify(defaultLimits()),
-    ],
-  );
-  await pool.query(
-    "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-    [version],
+    [version, problem, null, JSON.stringify({ levels }), JSON.stringify(defaultLimits())],
   );
   await pool.query(
     "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",

@@ -114,10 +114,11 @@
   overflow: auto;
 }
 .case-result-summary > .result-message,
-.case-result-summary > .result-running {
+.case-result-summary .notice-region-content > .result-message,
+.case-result-summary .notice-region-content > .result-running {
   padding: 8px var(--workspace-control-inset);
 }
-.case-result-summary > .result-complete {
+.case-result-summary .notice-region-content > .result-complete {
   height: auto;
 }
 .case-result-summary .result-summary {

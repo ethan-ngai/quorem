@@ -1,30 +1,7 @@
-/** @file content.ts @description Initial draft and pinned language configuration. @module admin */
+/** @file content.ts @description Initial authored question content. @module admin */
 import type { QuestionContent } from "@quorem/contracts";
-import { blankApproach } from "@quorem/questions";
-export const revisions = {
-  python: ["python-3.12-v1", "quorem-harness-v2"],
-  java: ["java-21.0.9-v1", "quorem-java-v1"],
-  typescript: ["typescript-5.9.3-node-22.21.1-v1", "quorem-typescript-v1"],
-  ocaml: ["ocaml-4.13.1-v1", "quorem-ocaml-v1"],
-  postgresql: ["postgresql-17.6-v1", "quorem-postgresql-v2"],
-} as const;
-export type Language = keyof typeof revisions;
-/** Starter/runtime registration is independent of editorial availability. */
-export function languageImplementation(
-  language: Language,
-): QuestionContent["implementations"][number] {
-  return {
-    language,
-    starterSource: "",
-    runtimeRevision: revisions[language][0],
-    harnessRevision: revisions[language][1],
-  };
-}
-export function questionImplementations(sql = false): QuestionContent["implementations"] {
-  return (Object.keys(revisions) as Language[])
-    .filter((language) => (sql ? language === "postgresql" : language !== "postgresql"))
-    .map(languageImplementation);
-}
+import { blankApproach, blankSignature } from "@quorem/questions";
+export type Language = import("@quorem/questions").StarterLanguage;
 /** @returns An incomplete draft; publication performs authoritative validation. */
 export function blankQuestion(): QuestionContent {
   return {
@@ -38,7 +15,7 @@ export function blankQuestion(): QuestionContent {
       statementMarkdown: "",
       examples: [],
       constraints: [],
-      signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
+      signature: blankSignature(),
       limits: {
         wallTimeMs: 2000,
         memoryBytes: 268435456,
@@ -50,7 +27,6 @@ export function blankQuestion(): QuestionContent {
     },
     hiddenCases: [],
     attribution: "Original Quorem question.",
-    implementations: questionImplementations(),
     canonicalApproachId: "default",
     approaches: [blankApproach()],
   };

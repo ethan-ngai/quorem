@@ -53,13 +53,6 @@ describe.skipIf(!url)("private publication reader", () => {
       fixture.problem.constraints = [];
       fixture.problem.examples = [{ args: ["public\u0000value"], expected: "public\u0000value" }];
       fixture.hiddenCases = [{ args: ["private\u0000value"], expected: "private\u0000value" }];
-      fixture.implementations = fixture.implementations.filter(
-        (v: { language: string }) => v.language === "python",
-      );
-      for (const approach of fixture.approaches)
-        approach.implementations = approach.implementations.filter(
-          (item: { language: string }) => item.language === "python",
-        );
       const raw = JSON.stringify(fixture);
       const draft = JSON.parse(await author.create(actor, raw, undefined));
       const published = JSON.parse(await author.publish(actor, draft.id, "1", "private"));
@@ -73,14 +66,14 @@ describe.skipIf(!url)("private publication reader", () => {
       expect(value?.starterSource).toBeTruthy();
       const content = JSON.parse(value!.content);
       expect(content.hiddenCases[0].args[0]).toBe("private\u0000value");
-      expect(content.implementations).toHaveLength(1);
+      expect(content).not.toHaveProperty("implementations");
       expect(await read(other, published.publishedVersionId, "python")).toBeUndefined();
       expect(await read(owner, published.publishedVersionId, "postgresql")).toBeUndefined();
       const globalDraft = JSON.parse(await author.create(actor, multiRaw, undefined));
       const global = JSON.parse(await author.publish(actor, globalDraft.id, "1", "global"));
       const publicSnapshot = await read(other, global.publishedVersionId, "python");
       expect(publicSnapshot).toBeDefined();
-      expect(JSON.parse(publicSnapshot!.content).implementations).toHaveLength(4);
+      expect(JSON.parse(publicSnapshot!.content)).not.toHaveProperty("implementations");
       const newerDraft = JSON.parse(await author.create(actor, multiRaw, undefined));
       await author.publish(actor, newerDraft.id, "1", "global");
       expect(await read(other, global.publishedVersionId, "python")).toBeUndefined();

@@ -135,6 +135,43 @@ it("replaces a silent established socket even when its close handshake never fin
   connection.stop();
 });
 
+it("acknowledges heartbeats without forwarding them to domain event parsers", async () => {
+  const { connection, onMessage, onError, onDisconnect } = setup();
+  connection.start();
+  await Promise.resolve();
+  const socket = Socket.instances[0]!;
+  socket.onopen?.();
+  const receipt = "12345678-1234-4123-8123-123456789012";
+  socket.onmessage?.({
+    data: JSON.stringify({ receipt, payload: { type: "heartbeat" } }),
+  } as MessageEvent);
+  expect(socket.send).toHaveBeenLastCalledWith(JSON.stringify({ type: "receipt", id: receipt }));
+  expect(onMessage).not.toHaveBeenCalled();
+  expect(onError).not.toHaveBeenCalled();
+  expect(onDisconnect).not.toHaveBeenCalled();
+
+  const update = { type: "match.updated", aggregateVersion: "2" };
+  socket.onmessage?.({ data: JSON.stringify({ receipt, payload: update }) } as MessageEvent);
+  expect(onMessage).toHaveBeenCalledOnce();
+  expect(JSON.parse(onMessage.mock.calls[0]![0].data)).toEqual(update);
+  connection.stop();
+});
+
+it("rejects heartbeats without a valid receipt", async () => {
+  const { connection, onMessage, onDisconnect } = setup();
+  connection.start();
+  await Promise.resolve();
+  const socket = Socket.instances[0]!;
+  socket.onopen?.();
+  socket.onmessage?.({
+    data: JSON.stringify({ receipt: "invalid", payload: { type: "heartbeat" } }),
+  } as MessageEvent);
+  expect(socket.send).not.toHaveBeenCalled();
+  expect(onMessage).not.toHaveBeenCalled();
+  expect(onDisconnect).toHaveBeenCalledOnce();
+  connection.stop();
+});
+
 it("rotates before the authenticated bearer expires and reacquires a fresh token", async () => {
   vi.mocked(tokenExpiresAt).mockReturnValueOnce(Date.now() + 60_000);
   const { connection } = setup();

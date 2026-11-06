@@ -83,12 +83,28 @@ export function displayQuestionType(type: string, language: QuestionLanguage): s
 /** Render source types without display-only normalization. */
 export function sourceQuestionType(
   kind: string,
-  language: "java" | "typescript" | "ocaml",
+  language: "python" | "java" | "typescript" | "ocaml",
 ): string {
   if (language === "java") {
     const type = javaQuestionType(kind);
     if (!type) throw new Error(`unsupported type ${kind} for ${language}`);
     return type;
+  }
+  if (language === "python") {
+    const node = nodeType(kind);
+    if (node) return `${node.kind}[${sourceQuestionType(node.payload, language)}] | None`;
+    const wrapped = wrapper(kind);
+    if (wrapped && kind.endsWith(">")) {
+      const inner = sourceQuestionType(wrapped.inner, language);
+      return wrapped.name === "optional"
+        ? inner.endsWith(" | None")
+          ? inner
+          : `${inner} | None`
+        : `list[${inner}]`;
+    }
+    const value = names.python[kind];
+    if (value === undefined) throw new Error(`unsupported type ${kind} for ${language}`);
+    return value;
   }
   const node = genericNode(kind);
   if (node) {

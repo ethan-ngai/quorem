@@ -10,7 +10,7 @@ export function blankApproach(
   return {
     id,
     title: "",
-    defaultLanguage: language,
+    ...(id === "default" ? {} : { defaultLanguage: language }),
     explanationMarkdown: "",
     timeComplexity: "",
     spaceComplexity: "",
@@ -47,7 +47,7 @@ export function approachCode(
 ): SolutionCode | undefined {
   return (
     approach.implementations.find((item) => item.language === language) ??
-    approach.implementations.find((item) => item.language === approach.defaultLanguage)
+    approach.implementations.find((item) => item.language === approachDefaultLanguage(approach))
   );
 }
 
@@ -70,10 +70,29 @@ export function withCanonicalApproach(content: QuestionContent, id: string): Que
     canonicalApproachId: id,
     approaches: content.approaches.map((item) =>
       item.id === id
-        ? { ...item, defaultLanguage: language }
+        ? withoutCanonicalDefault(item)
         : item.id === content.canonicalApproachId
-          ? { ...item, title: approachTitle(item, content.canonicalApproachId) }
+          ? {
+              ...item,
+              defaultLanguage: approachDefaultLanguage(item),
+              title: approachTitle(item, content.canonicalApproachId),
+            }
           : item,
     ),
   };
+}
+
+/** A canonical fallback is determined by question kind; alternatives choose their own. */
+export function approachDefaultLanguage(approach: SolutionApproach): SolutionCode["language"] {
+  return (
+    approach.defaultLanguage ??
+    (approach.implementations.some((item) => item.language === "postgresql")
+      ? "postgresql"
+      : "python")
+  );
+}
+
+function withoutCanonicalDefault(approach: SolutionApproach): SolutionApproach {
+  const { defaultLanguage: _default, ...value } = approach;
+  return value;
 }

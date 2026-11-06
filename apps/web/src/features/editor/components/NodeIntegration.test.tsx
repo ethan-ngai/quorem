@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 /** @file NodeIntegration.test.tsx @description Question and authoring surfaces share one contextual diagram per case. @module editor */
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -27,7 +28,7 @@ content.problem.examples = [
 content.hiddenCases = [{ args: [[987654321], null], expected: null }];
 const problem = content.problem;
 const draft = { ...createCustomDraft(problem), expectedEnabled: true };
-const method = { id: "method", signature: problem.signature };
+const method = { id: "method", signature: primarySignature(problem) };
 const sequence = { id: "sequence", calls: [{ id: "call", methodId: method.id, values: draft }] };
 
 it.each([
@@ -72,4 +73,24 @@ it("retains one diagram when a question result is shown alongside its inputs", (
   );
   expect(html.match(/aria-label="Test case diagram"/g)).toHaveLength(1);
   expect(html).toContain("wrong answer");
+});
+
+it("keeps inputs and run output inside the same value stack before its diagram", () => {
+  const html = renderToStaticMarkup(
+    <TestCases
+      problem={problem}
+      customMode={false}
+      drafts={[]}
+      onDraftsChange={() => {}}
+      caseResults={[
+        { index: 0, status: "runtime_error", diagnostics: [{ line: 6, message: "Invalid node" }] },
+      ]}
+    />,
+  );
+  expect(html).toMatch(
+    /case-preview-values[\s\S]*case-call-inputs[\s\S]*case-run-output[\s\S]*aria-label="Test case diagram"/,
+  );
+  expect(html.indexOf("Line 6: Invalid node")).toBeLessThan(html.indexOf("case-preview-values"));
+  expect(html.match(/class="case-verdict-group"/g)).toHaveLength(1);
+  expect(html.match(/aria-label="Test case diagram"/g)).toHaveLength(1);
 });

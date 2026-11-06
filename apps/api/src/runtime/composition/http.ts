@@ -1,3 +1,5 @@
+import { adminRoutes } from "../../modules/admin/routes.ts";
+import { adminOverview } from "../../adapters/postgres/admin/repository.ts";
 import { identityRoutes } from "../../modules/identity/routes.ts";
 import { capabilityRepository } from "../../adapters/postgres/access/repository.ts";
 /** @file http.ts @description Compose canonical HTTP domains with selected runtime ports. @module runtime */
@@ -105,6 +107,7 @@ export function composeHttp(ports: HttpPorts) {
       },
     }),
   );
+  app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));
   app.route(
     "/",

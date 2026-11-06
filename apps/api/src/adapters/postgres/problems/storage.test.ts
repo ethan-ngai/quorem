@@ -9,3 +9,13 @@ it("preserves case NUL and numeric lexemes in authoritative sidecars", () => {
   const fixture = '{"problem":{"examples":[{"args":["a\\u0000b"]}]},"hiddenCases":[]}';
   expect(new TextDecoder().decode(storageProjection(fixture).lossless!)).toBe(fixture);
 });
+
+it("preserves private stage lexemes and NUL values through the authored stage owner", () => {
+  const raw = String.raw`{"problem":{"odyssey":{"levels":[{"examples":[],"hiddenCases":[{"args":["a\u0000b",1e+30],"expected":-0}]}]}}}`;
+  const stored = storageProjection(raw);
+  expect(stored.safe).not.toContain("\\u0000");
+  expect(new TextDecoder().decode(stored.lossless!)).toBe(raw);
+  const numeric =
+    '{"problem":{"odyssey":{"levels":[{"examples":[],"hiddenCases":[{"args":[1e309],"expected":-0}]}]}}}';
+  expect(new TextDecoder().decode(storageProjection(numeric).lossless!)).toBe(numeric);
+});

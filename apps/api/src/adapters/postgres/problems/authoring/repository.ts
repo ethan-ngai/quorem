@@ -7,15 +7,15 @@ import {
 } from "@quorem/database/core";
 import {
   normalizeQuestionDraft,
+  questionLanguages,
+  questionPublicationSlug,
+  questionSlugFits,
   parseLosslessJson,
   stringifyLosslessJson,
-  generateStarter,
   validateQuestionPublication,
   validateQuestionSchema,
   type JsonValue,
   type RuntimeResolver,
-  type Signature,
-  type StarterLanguage,
 } from "@quorem/questions";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
@@ -111,7 +111,7 @@ function draftJson(row: DraftRow): string {
   const d: Obj = {
     id: row.id,
     revision: row.revision,
-    content: parseLosslessJson(row.content),
+    content: parseLosslessJson(normal(row.content)),
     updatedAt: row.updatedAt,
   };
   if (row.publishedVersionId) d.publishedVersionId = row.publishedVersionId;
@@ -168,7 +168,7 @@ async function prepareImport(raw: string, admin: boolean) {
   const p = object(content(normalized).problem);
   const slug = str(p.slug);
   const leetcode = sourceId(p);
-  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120)
+  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || !questionSlugFits(slug))
     throw bad("Choose a valid question slug");
   if (leetcode !== null && (!/^[1-9]\d{0,9}$/.test(leetcode) || Number(leetcode) > 2147483647))
     throw bad("Invalid LeetCode ID");
@@ -181,25 +181,18 @@ async function prepareImport(raw: string, admin: boolean) {
   return { normalized, slug, leetcode, digest: await contentDigest(normalized) };
 }
 
-/** Compare authored content without identity fields or generated starter code. */
+/** Compare authored content without publication identity fields. */
 function comparablePublication(raw: string): Obj {
   const value = content(raw);
   const problem = object(value.problem);
   delete problem.id;
   delete problem.version;
   problem.companies = list(problem.companies).map(str).sort();
-  for (const key of ["implementations"] as const) {
-    value[key] = list(value[key])
-      .map(object)
-      .sort((a, b) => str(a.language).localeCompare(str(b.language)));
-  }
-  for (const implementation of list(value.implementations))
-    delete object(implementation).starterSource;
   const stages = list(problem.odyssey ? object(problem.odyssey).levels : undefined);
   const groups = [
     problem.examples,
     value.hiddenCases,
-    ...list(value.odysseyHiddenCases),
+    ...stages.map((level) => object(level).hiddenCases),
     ...stages.map((stage) => object(stage).examples),
   ];
   for (const group of groups)
@@ -208,7 +201,6 @@ function comparablePublication(raw: string): Obj {
       if (!list(test.calls).length) delete test.calls;
       if (test.explanation === "") delete test.explanation;
     }
-  if (!list(value.odysseyHiddenCases).length) delete value.odysseyHiddenCases;
   return value;
 }
 
@@ -279,8 +271,6 @@ async function importItem(
     const sections = [
       ["question", before.problem, after.problem],
       ["hidden tests", before.hiddenCases, after.hiddenCases],
-      ["stage tests", before.odysseyHiddenCases, after.odysseyHiddenCases],
-      ["language implementations", before.implementations, after.implementations],
       ["canonical approach", before.canonicalApproachId, after.canonicalApproachId],
       ["approaches", before.approaches, after.approaches],
       ["attribution", before.attribution, after.attribution],
@@ -325,22 +315,7 @@ async function importItem(
 
 function preparePublication(raw: string, runtime: RuntimeResolver) {
   const c = content(raw),
-    p = object(c.problem),
-    odyssey = p.odyssey ? object(p.odyssey) : undefined,
-    levels = odyssey ? list(odyssey.levels) : [];
-  const methods = levels.length ? list(object(levels[0]).methods) : [p.signature];
-  for (const item of list(c.implementations)) {
-    const impl = object(item);
-    try {
-      impl.starterSource = generateStarter(
-        JSON.parse(stringifyLosslessJson(methods)) as Signature[],
-        str(impl.language) as StarterLanguage,
-        !!odyssey,
-      );
-    } catch (error) {
-      throw bad(error instanceof Error ? error.message : "Invalid starter");
-    }
-  }
+    p = object(c.problem);
   try {
     validateQuestionPublication(stringifyLosslessJson(c), validateQuestionSchema, runtime);
   } catch (error) {
@@ -372,12 +347,12 @@ async function editPublication(
   const missingLanguage = (
     await tx.execute(sql`
     SELECT 1 FROM workspaces WHERE problem_version_id=${versionId}::uuid
-      AND language NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(list(c.implementations).map((item) => str(object(item).language)))}::jsonb))
+      AND language NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(questionLanguages(!!p.sql))}::jsonb))
     LIMIT 1
   `)
   ).rows.length;
   if (missingLanguage) throw bad("Keep languages used by existing workspaces");
-  await tx.execute(sql`SET CONSTRAINTS workspace_problem_language_fkey,
+  await tx.execute(sql`SET CONSTRAINTS workspace_problem_version_fkey,
     matches_problem_version_id_fkey,matches_selected_problem_version_id_fkey,
     question_drafts_published_version_id_fkey,question_drafts_edit_version_fkey,
     runner_job_inputs_version_id_fkey DEFERRED`);
@@ -433,13 +408,11 @@ async function publish(
     privateOwner = null;
   } else if (visibility === "private") privateOwner = actor.userId;
 
-  let slug = str(p.slug);
-  const actorPrefix = `private-${(await contentDigest(privateOwner ?? actor.userId)).slice(0, 16)}-`;
-  if (slug.startsWith(actorPrefix)) slug = slug.slice(actorPrefix.length);
-  if (privateOwner) {
-    if (new TextEncoder().encode(slug).length > 96)
-      throw bad("Private question slug must be 96 characters or fewer");
-    slug = `${actorPrefix}${slug}`;
+  let slug: string;
+  try {
+    slug = await questionPublicationSlug(str(p.slug), privateOwner, privateOwner ?? actor.userId);
+  } catch (error) {
+    throw bad(error instanceof Error ? error.message : "Invalid question slug");
   }
   p.slug = slug;
   if (privateOwner && p.leetcodeId !== undefined && p.leetcodeId !== null)
@@ -748,7 +721,7 @@ function createQuestionAuthoring(
         );
         const [row] = (
           await tx.execute<DraftRow>(
-            sql`UPDATE question_drafts SET content=${data.safe}::jsonb,lossless_content=${data.lossless},revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
+            sql`UPDATE question_drafts SET content=${data.safe}::jsonb,lossless_content=${data.lossless},import_digest=NULL,revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
           )
         ).rows;
         return draftJson(row);

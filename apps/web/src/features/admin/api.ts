@@ -42,7 +42,7 @@ function normalizeContent(content: QuestionContent): QuestionContent {
   };
   const name = (value: string) => field(value, withMaxBytes(inputConstraints.name, 160));
   const identifier = (value: string) => field(value, inputConstraints.identifier);
-  const signature = (value: QuestionContent["problem"]["signature"]) => ({
+  const signature = (value: NonNullable<QuestionContent["problem"]["signature"]>) => ({
     ...value,
     methodName: identifier(value.methodName),
     parameters: value.parameters.map((parameter) => ({
@@ -61,7 +61,7 @@ function normalizeContent(content: QuestionContent): QuestionContent {
       companies: problem.companies?.map((company) =>
         field(company, withMaxBytes(inputConstraints.tag, 80)),
       ),
-      signature: signature(problem.signature),
+      signature: problem.signature && signature(problem.signature),
       sql: problem.sql && {
         ...problem.sql,
         tables: problem.sql.tables?.map((table) => ({
@@ -192,4 +192,10 @@ export async function mutateQuestionBatch(
       "batch_unavailable",
     );
   return requireData(result.data, result.error);
+}
+
+/** @returns Current administrator aggregates; details are bounded by the server. */
+export async function getAdminOverview(signal?: AbortSignal) {
+  const { data, error } = await api().GET("/v1/admin/overview", { signal });
+  return requireData(data, error);
 }

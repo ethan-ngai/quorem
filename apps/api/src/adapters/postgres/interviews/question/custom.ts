@@ -3,15 +3,17 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { defaultLimits, languageRuntime } from "@quorem/execution";
 import {
-  generateStarter,
+  generateQuestionImplementations,
+  publicQuestionProblem,
   parseLosslessJson,
   stringifyLosslessJson,
   validateQuestionDefinition,
   validateQuestionSchema,
   type JsonValue,
-  type Signature,
-  type StarterLanguage,
+  type QuestionProblem,
+  type AuthoredQuestionProblem,
 } from "@quorem/questions";
+import { questionRuntime } from "../../problems/runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import { validateCustomQuestionShape } from "../../../../modules/interviews/question/validation.ts";
@@ -43,38 +45,25 @@ export async function prepareCustomInterviewQuestion(
     throw bad("Custom SQL interviews require a published SQL question");
   if (!(await capabilitiesInTransaction(tx, actor.userId)).authorCustomQuestions)
     throw new ApplicationError("forbidden", "Custom question access required", 403);
-  const runtime = languageRuntime(language);
-  if (!runtime) throw bad("Unsupported language");
+  questionRuntime(language, false);
   const id = crypto.randomUUID(),
     parent = crypto.randomUUID(),
-    sig = { ...object(custom.signature) };
-  if (!sig.className) sig.className = "Solution";
+    sig = custom.odyssey ? undefined : { ...object(custom.signature) };
+  if (sig && !sig.className) sig.className = "Solution";
   const odyssey =
     custom.odyssey === undefined || custom.odyssey === null ? undefined : object(custom.odyssey);
   const publicCases = values(custom.publicCases),
     privateCases = values(custom.privateCases),
-    suites = values(custom.odysseyHiddenCases);
-  if (odyssey && (custom.publicCases != null || custom.privateCases != null))
+    suites = custom.odyssey
+      ? values(object(custom.odyssey).levels).map((level) => object(level).hiddenCases ?? [])
+      : [];
+  if (
+    odyssey &&
+    (custom.signature != null || custom.publicCases != null || custom.privateCases != null)
+  )
     throw bad("Put staged examples and tests in their stages");
   if (!odyssey && (publicCases.length < 1 || publicCases.length > 20 || privateCases.length > 100))
     throw bad("Provide 1-20 public tests and at most 100 private tests");
-  const levels = odyssey ? values(odyssey.levels) : [];
-  const firstMethods = odyssey ? values(object(levels[0]).methods) : [sig];
-  const implementations: JsonValue[] = [];
-  for (const lang of ["python", "java", "typescript", "ocaml"] as const) {
-    const selected = languageRuntime(lang);
-    if (!selected) throw new Error("Missing supported runtime");
-    const methods = JSON.parse(stringifyLosslessJson(firstMethods)) as Signature[];
-    const starter = generateStarter(methods, lang as StarterLanguage, !!odyssey);
-    implementations.push({
-      language: lang,
-      starterSource: starter,
-      runtimeRevision: selected.revision,
-      harnessRevision: selected.harness,
-    });
-  }
-  const selected = implementations.map(object).find((item) => item.language === language);
-  if (!selected) throw bad("Unsupported language");
   const problem: Obj = {
     id,
     slug: `private-${id}`,
@@ -84,18 +73,22 @@ export async function prepareCustomInterviewQuestion(
     tags: [],
     companies: [],
     statementMarkdown: string(custom.statementMarkdown),
-    signature: sig,
+    ...(sig ? { signature: sig } : {}),
     constraints: [],
     limits: parseLosslessJson(JSON.stringify(defaultLimits())),
     examples: odyssey ? [] : publicCases,
     ...(odyssey ? { odyssey } : {}),
   };
+  const implementations = generateQuestionImplementations(
+    JSON.parse(stringifyLosslessJson(problem)) as QuestionProblem,
+    languageRuntime,
+  );
+  const selected = implementations.find((item) => item.language === language);
+  if (!selected) throw bad("Unsupported language");
   const content: Obj = {
     problem,
     hiddenCases: odyssey ? [] : privateCases,
-    odysseyHiddenCases: odyssey ? suites : [],
     attribution: "Private interview",
-    implementations,
     canonicalApproachId: "",
     approaches: [],
   };
@@ -106,23 +99,11 @@ export async function prepareCustomInterviewQuestion(
   }
   const fixture: Obj = {
     problem: {
-      ...problem,
+      ...(publicQuestionProblem(problem as unknown as AuthoredQuestionProblem) as unknown as Obj),
       slug: "interview-private",
-      languages: implementations.map((item) => {
-        const x = object(item);
-        return {
-          language: x.language,
-          starterSource: x.starterSource,
-          runtimeRevision: x.runtimeRevision,
-          harnessRevision: x.harnessRevision,
-        };
-      }),
-      starterSource: selected.starterSource,
-      runtimeRevision: selected.runtimeRevision,
     },
     hiddenCases: content.hiddenCases,
-    odysseyHiddenCases: content.odysseyHiddenCases,
-    harnessRevision: selected.harnessRevision,
+    odysseyHiddenCases: odyssey ? suites : [],
     attribution: "Private interview",
   };
   const stored = storageProjection(stringifyLosslessJson(fixture));

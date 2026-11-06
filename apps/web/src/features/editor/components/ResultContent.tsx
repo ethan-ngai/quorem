@@ -1,4 +1,5 @@
 import "./results.css";
+import { verdictIcon } from "./verdictPresentation";
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
 import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
@@ -92,6 +93,16 @@ export function ResultContent(props: ResultContentProps) {
   )
     return null;
   if (error) return null;
+  // The case browser owns individual errors; this summary reports only run totals.
+  if (
+    !busy &&
+    submission?.kind === "run" &&
+    submission.state === "completed" &&
+    props.showCases === false &&
+    (props.showVerdict === false ||
+      (!submission.score && !submission.publicCases?.some((item) => item.status !== "executed")))
+  )
+    return null;
   const failed = !busy && submission?.state === "failed";
   const action = submission?.kind === "submit" ? "Submit" : "Run";
   return (
@@ -135,11 +146,8 @@ function ResultSummary({
     );
   if (submission.state === "failed") return null;
   if (submission.state === "cancelled") return <p className="result-message">Run cancelled</p>;
-  if (
-    !showVerdict &&
-    !submission.diagnostics?.length &&
-    (!showCases || !submission.publicCases?.length)
-  )
+  const diagnostics = showCases ? submission.diagnostics : undefined;
+  if (!showVerdict && !diagnostics?.length && (!showCases || !submission.publicCases?.length))
     return null;
   const verdict =
     submission.verdict?.replaceAll("_", " ") ??
@@ -148,7 +156,7 @@ function ResultSummary({
   const passed = compared.filter((item) => item.status === "accepted").length;
   return (
     <div className="result-complete">
-      {(showVerdict || !!submission.diagnostics?.length) && (
+      {(showVerdict || !!diagnostics?.length) && (
         <div className="result-summary">
           {showVerdict && (
             <div className={`verdict-line ${verdictTone(submission.verdict)}`}>
@@ -170,11 +178,14 @@ function ResultSummary({
                   </span>
                 </span>
               ) : (
-                <strong>{verdict}</strong>
+                <strong>
+                  <Icon name={verdictIcon(submission.verdict)} />
+                  {verdict}
+                </strong>
               )}
             </div>
           )}
-          <Diagnostics items={submission.diagnostics} />
+          <Diagnostics items={diagnostics} />
         </div>
       )}
       {showCases && submission.publicCases?.length ? (

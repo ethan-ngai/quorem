@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
 import { Tooltip } from "../../ui/Tooltip";
-import { FreeForAllIcon } from "./FreeForAllIcon";
+import { ModeIcon } from "./ModeIcon";
 import { Icon } from "../../ui/Icon";
 
 export function useAccountIdentity() {
@@ -24,14 +24,6 @@ export const defaultMatchSettings: CreateMatchRequest = {
   durationMinutes: 30,
   rules: { clipboard: "off", focus: "off" },
 };
-
-export function ModeIcon({ mode }: { mode: CreateMatchRequest["mode"] }) {
-  return mode === "free-for-all" ? (
-    <FreeForAllIcon />
-  ) : (
-    <Swords size={18} strokeWidth={1.5} aria-hidden="true" />
-  );
-}
 
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
 export function MatchSettings({

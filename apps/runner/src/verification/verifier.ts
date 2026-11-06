@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 /** @file verifier.ts @description Independent one-case result verifier. @module runner */
 import { createHash } from "node:crypto";
 import {
@@ -160,7 +161,13 @@ export function nodeResultVerifier(source: VerificationSource, privateKey: Crypt
             const methods: Signature[] = (problem.odyssey?.levels ?? [])
               .slice(0, manifest.level ?? 0)
               .flatMap((level) => level.methods);
-            result = compareCodingCase(problem.signature, methods, input, "executed", actual);
+            result = compareCodingCase(
+              primarySignature(problem),
+              methods,
+              input,
+              "executed",
+              actual,
+            );
           }
         }
         const fields = (["actual", "expected"] as const).flatMap((field) => {

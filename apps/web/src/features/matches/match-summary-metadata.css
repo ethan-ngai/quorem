@@ -1,0 +1,26 @@
+.match-summary-metadata {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+.match-summary-metadata > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.match-summary-metadata .match-summary-mode {
+  color: var(--color-info);
+}
+.match-summary-metadata > span:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 4px;
+}
+.match-summary-duration > span {
+  font-family: var(--font-code);
+  font-size: var(--text-label);
+}

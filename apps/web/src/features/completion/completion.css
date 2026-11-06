@@ -1,0 +1,96 @@
+.completion-dialog {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overflow-x: clip;
+  background: var(--color-background);
+  box-shadow: var(--shadow-md);
+}
+.completion-dialog .competitive-dialog-heading {
+  margin-bottom: var(--space-4);
+}
+.completion-context {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.completion-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+}
+.completion-stats > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+.completion-stats dt {
+  text-transform: lowercase;
+}
+.completion-stats dd {
+  order: -1;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.completion-count {
+  font-family: var(--font-code);
+  font-size: var(--text-label);
+}
+.completion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+.completion-actions > * {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.completion-next {
+  margin-top: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+.completion-next strong {
+  display: block;
+  color: var(--color-text);
+  font-weight: 500;
+  margin-bottom: var(--space-1);
+}
+.completion-dialog .match-result-players {
+  margin: var(--space-4) 0 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.completion-demo {
+  max-width: 720px;
+  margin: 12vh auto;
+  padding: var(--space-5);
+}
+.completion-demo h1 {
+  font-size: var(--text-h1);
+}
+.completion-demo p {
+  color: var(--color-text-secondary);
+}
+.completion-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.completion-problem {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}

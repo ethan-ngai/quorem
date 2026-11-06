@@ -56,7 +56,10 @@ export function storageProjection(raw: string): { safe: string; lossless: Uint8A
     if (problem.odyssey) {
       const odyssey = object(problem.odyssey);
       if (Array.isArray(odyssey.levels))
-        for (const level of odyssey.levels) replace(object(level), "examples");
+        for (const level of odyssey.levels) {
+          replace(object(level), "examples");
+          replace(object(level), "hiddenCases");
+        }
     }
   }
   if (containsNul(root)) throw new Error("NUL is allowed only in coding case values");

@@ -1,28 +1,22 @@
 import { expect, it } from "vitest";
 import fixture from "../../../../../fixtures/odyssey/balance-ledger.json";
-import type { QuestionContent, OdysseyLevel } from "@quorem/contracts";
+import type { QuestionContent } from "@quorem/contracts";
 import { blankQuestion } from "./content";
 import { hydrateStages } from "./hydrateStages";
 import { parseStages } from "../odyssey/stageDrafts";
 
 it("round-trips saved steps, void calls and earlier methods without losing explanations", () => {
   const content = blankQuestion();
-  const data = fixture as unknown as {
-    problem: { odyssey: { levels: OdysseyLevel[] } };
-    odysseyHiddenCases: QuestionContent["odysseyHiddenCases"];
-  };
-  content.problem.odyssey = data.problem.odyssey;
-  content.odysseyHiddenCases = data.odysseyHiddenCases;
+  content.problem.odyssey = (fixture as unknown as QuestionContent).problem.odyssey;
   const drafts = hydrateStages(content);
   const result = parseStages(drafts);
   expect(result.odyssey).toEqual(content.problem.odyssey);
-  expect(result.odysseyHiddenCases).toEqual(content.odysseyHiddenCases);
 });
 
 it("retains incomplete steps in drafts while publication validation stays strict", () => {
   const content = blankQuestion();
   content.problem.odyssey = {
-    levels: [{ title: "", statementMarkdown: "", methods: [], examples: [] }],
+    levels: [{ title: "", statementMarkdown: "", methods: [], examples: [], hiddenCases: [] }],
   };
   const stages = hydrateStages(content);
   expect(parseStages(stages, { allowIncomplete: true }).odyssey).toEqual(content.problem.odyssey);
@@ -37,6 +31,7 @@ it("opens incomplete saved calls for correction instead of crashing the page", (
         title: "Step",
         statementMarkdown: "Work",
         methods: [],
+        hiddenCases: [],
         examples: [
           { args: [], expected: null, calls: [{ methodName: "missing", args: [3], expected: 4 }] },
         ],

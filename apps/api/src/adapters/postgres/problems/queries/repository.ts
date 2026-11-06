@@ -13,6 +13,7 @@ import {
   restorePublicExamples,
   visibleProblem as visible,
 } from "./public-projection.ts";
+import { projectQuestionRuntime } from "../runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
   CandidateCriteria,
@@ -33,17 +34,13 @@ const options = {
 const projection = sql.raw(`jsonb_build_object(
 'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
 'sql',v.sql_config,'odyssey',CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE NULL END,
-'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,
+'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,
 'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id),
 'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
-'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb),
-'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
-'starterSource',py.starter_source,'runtimeRevision',py.runtime_revision)::text`);
-const from = sql.raw(
-  ` FROM problem_versions v JOIN problems p ON p.id=v.problem_id JOIN problem_languages py ON py.version_id=v.id AND py.language=CASE WHEN v.sql_config IS NOT NULL THEN 'postgresql' ELSE 'python' END `,
-);
+'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))::text`);
+const from = sql.raw(` FROM problem_versions v JOIN problems p ON p.id=v.problem_id `);
 function owner(actor: ProblemActor | undefined): string {
   return actor?.userId ?? "";
 }
@@ -73,6 +70,8 @@ function projected(row: Projected): JsonValue {
     );
   for (const key of ["sql", "odyssey", "leetcodeId"]) if (value[key] === null) delete value[key];
   if (value.isPrivate === false) delete value.isPrivate;
+  if (value.sql) delete value.signature;
+  projectQuestionRuntime(value);
   return value;
 }
 type Cursor = { title: string; slug: string; rank: number; filter: string };
@@ -231,7 +230,7 @@ export async function readCandidates(
   actor: ProblemActor,
   criteria: CandidateCriteria,
 ) {
-  const selection = sql`SELECT v.id::text AS id,EXISTS(SELECT 1 FROM problem_languages l WHERE l.version_id=v.id AND l.language='postgresql') AS sql FROM problem_versions v JOIN problems p ON p.id=v.problem_id`;
+  const selection = sql`SELECT v.id::text AS id,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS sql FROM problem_versions v JOIN problems p ON p.id=v.problem_id`;
   if (criteria.selectedVersionId)
     return (
       await tx.execute<{ id: string; sql: boolean }>(
