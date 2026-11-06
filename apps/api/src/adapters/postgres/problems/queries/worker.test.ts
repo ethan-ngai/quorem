@@ -40,6 +40,11 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
             "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
           problem_examples: "version_id,ordinal,args,expected,explanation,calls",
           problem_tags: "version_id,tag,ordinal",
+          question_exposure: "owner_id,version_id,last_seen_at",
+          question_learning_events:
+            "submission_id,owner_id,version_id,content_key,difficulty,tags,accepted,context,attempted_at,observed_at",
+          question_embeddings: "content_key,encoder,embedding",
+          recommendation_models: "id,model,active,expires_at",
           problem_solution_approaches:
             "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
           problem_solutions: "version_id,approach_id,language,source",
@@ -104,6 +109,13 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     const detail = await SELF.fetch(`http://localhost/v1/problem-versions/${version}`);
     expect(detail.status).toBe(200);
     expect(detail.headers.get("X-Fixture-Queries")).toBe("1");
+    const suggested = await SELF.fetch(`http://localhost/v1/problems?q=${slug}&sort=recommended`);
+    expect(suggested.status).toBe(200);
+    expect(suggested.headers.get("X-Fixture-Queries")).toBe("10");
+    const suggestedText = await suggested.text();
+    expect(suggestedText).toContain('"recommendationReason":"challenge"');
+    expect(suggestedText).toContain("9007199254740993");
+    expect(suggestedText).not.toContain("SECRET");
   });
   it("denies private columns and rejects a revoked live identity before opening the catalog scope", async () => {
     const restricted = new URL(url);

@@ -1,10 +1,17 @@
 /** @file repository.ts @description Authorized match problem selection. @module matches */
+import { matchRecommendationPool } from "../../../../modules/problems/recommendations/ranking.ts";
+import {
+  recommendationContext,
+  learningQuestions,
+} from "../../problems/recommendations/repository.ts";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Settings } from "../../../../modules/matches/lifecycle/model.ts";
 import type { CandidateCriteria } from "../../../../modules/problems/model.ts";
 import { readCandidates } from "../../problems/queries/repository.ts";
+const noMatchingQuestions = () =>
+  new ApplicationError("no_matching_questions", "No questions match the selected filters", 409);
 export async function validateSelectedMatchProblem(tx: Transaction, owner: string, s: Settings) {
   if (!s.selectedProblemVersionId) return;
   if (
@@ -24,7 +31,12 @@ function choice<T>(items: readonly T[]): T {
   return items[n[0] % items.length];
 }
 /** Select and pin the current sealed candidate before activation. */
-export async function selectMatchCandidate(tx: Transaction, owner: string, settings: Settings) {
+export async function selectMatchCandidate(
+  tx: Transaction,
+  owner: string,
+  settings: Settings,
+  participants: readonly string[],
+) {
   await validateSelectedMatchProblem(tx, owner, settings);
   const f = settings.questionFilters;
   const criteria: CandidateCriteria = {
@@ -43,28 +55,27 @@ export async function selectMatchCandidate(tx: Transaction, owner: string, setti
   ).rows;
   const allowed = new Set(permitted.map((x) => x.id));
   const candidates = available.filter((x) => allowed.has(x.id));
-  if (!candidates.length)
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
-  const chosen = choice(candidates);
+  if (!candidates.length) throw noMatchingQuestions();
+  const pool = settings.selectedProblemVersionId
+    ? candidates.map((item) => item.id)
+    : matchRecommendationPool(
+        await learningQuestions(
+          tx,
+          candidates.map((item) => item.id),
+        ),
+        await recommendationContext(tx, participants),
+        participants,
+        Date.now(),
+      );
+  const eligibleIds = new Set(pool);
+  const eligible = candidates.filter((item) => eligibleIds.has(item.id));
+  if (!eligible.length) throw noMatchingQuestions();
+  const chosen = choice(eligible);
   const pinned = await tx.execute(
     sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${chosen.id}::uuid AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${owner}) FOR SHARE OF p,v`,
   );
-  if (!pinned.rows.length)
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
+  if (!pinned.rows.length) throw noMatchingQuestions();
   const latest = await readCandidates(tx, { userId: owner }, criteria);
-  if (!latest.some((item) => item.id === chosen.id))
-    throw new ApplicationError(
-      "no_matching_questions",
-      "No questions match the selected filters",
-      409,
-    );
+  if (!latest.some((item) => item.id === chosen.id)) throw noMatchingQuestions();
   return chosen;
 }

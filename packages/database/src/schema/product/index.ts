@@ -14,6 +14,7 @@ import {
   bigserial,
   bigint,
   doublePrecision,
+  real,
   type PgTableExtraConfigValue,
   uniqueIndex,
   jsonb,
@@ -2346,5 +2347,91 @@ export const platform_presence_leases = pgTable(
     }),
     primaryKey({ columns: [t.owner_id, t.window_id] }),
     index("platform_presence_expiry").on(t.expires_at),
+  ],
+);
+
+export const question_exposure = pgTable(
+  "question_exposure",
+  {
+    owner_id: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id, { onDelete: "cascade" }),
+    last_seen_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.owner_id, t.version_id] })],
+);
+export const question_learning_events = pgTable(
+  "question_learning_events",
+  {
+    submission_id: uuid().primaryKey(),
+    owner_id: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id, { onDelete: "cascade" }),
+    content_key: text().notNull(),
+    difficulty: text().notNull(),
+    tags: text().array().notNull(),
+    accepted: boolean().notNull(),
+    context: text().notNull(),
+    attempted_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    observed_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    index("learning_events_owner_time").on(t.owner_id, t.observed_at, t.submission_id),
+    index("learning_events_retention").on(t.observed_at, t.submission_id),
+    index("learning_events_content").on(t.content_key),
+    check(
+      "question_learning_events_difficulty_check",
+      sql`${t.difficulty} IN ('easy','medium','hard')`,
+    ),
+    check("question_learning_events_context_check", sql`${t.context} IN ('practice','match')`),
+  ],
+);
+export const question_embeddings = pgTable(
+  "question_embeddings",
+  {
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id, { onDelete: "cascade" }),
+    content_key: text().notNull(),
+    encoder: text().notNull(),
+    embedding: real().array().notNull(),
+    created_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    primaryKey({ columns: [t.version_id, t.content_key, t.encoder] }),
+    index("question_embeddings_lookup").on(t.encoder, t.content_key),
+    check("question_embeddings_embedding_check", sql`array_length(${t.embedding},1)=384`),
+  ],
+);
+export const recommendation_models = pgTable(
+  "recommendation_models",
+  {
+    id: uuid().primaryKey(),
+    model: jsonb().notNull(),
+    report: jsonb().notNull(),
+    active: boolean().notNull().default(false),
+    created_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    expires_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()+interval '30 days'`),
+  },
+  (t) => [
+    uniqueIndex("recommendation_active_model")
+      .on(t.active)
+      .where(sql`${t.active}`),
+    check("recommendation_models_model_check", sql`jsonb_typeof(${t.model})='object'`),
+    check("recommendation_models_report_check", sql`jsonb_typeof(${t.report})='object'`),
   ],
 );

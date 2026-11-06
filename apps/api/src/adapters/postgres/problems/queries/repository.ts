@@ -1,5 +1,7 @@
-import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 /** @file repository.ts @description Explicit authorized PostgreSQL catalog projections. @module problems */
+import { rankPractice } from "../../../../modules/problems/recommendations/ranking.ts";
+import { recommendationContext, learningQuestions } from "../recommendations/repository.ts";
+import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -55,6 +57,7 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
 }
 type Projected = {
+  id: string;
   data: string;
   lossless: Uint8Array | null;
   sortTitle: string;
@@ -117,6 +120,7 @@ function decodeCursor(raw: string, f: CatalogFilter): Cursor {
   }
 }
 const rank = sql.raw("CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END");
+const rowProjection = sql`v.id::text AS id,${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank`;
 async function readCatalog(
   tx: Transaction,
   actor: ProblemActor | undefined,
@@ -142,11 +146,36 @@ async function readCatalog(
       : sql`AND (lower(v.title),p.slug) ${comparator} (${cursor.title},${cursor.slug})`
     : sql``;
   const offset = cursor ? 0 : (f.page - 1) * f.limit;
+  const recommendations =
+    f.sort === "recommended"
+      ? await (async () => {
+          const ids = (
+            await tx.execute<{ id: string }>(
+              sql`SELECT v.id::text AS id ${from} WHERE ${where} ORDER BY v.id`,
+            )
+          ).rows.map((row) => row.id);
+          return rankPractice(
+            await learningQuestions(tx, ids),
+            await recommendationContext(tx, actor && !actor.guestScope ? [actor.userId] : []),
+            Date.now(),
+            offset + f.limit,
+          );
+        })()
+      : undefined;
+  const recommendedIds = recommendations
+    ?.slice(offset, offset + f.limit)
+    .map((item) => item.question.id);
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
+      recommendedIds
+        ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
+        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
     )
   ).rows;
+  if (recommendedIds) {
+    const positions = new Map(recommendedIds.map((id, index) => [id, index]));
+    rows.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!);
+  }
   const more = rows.length > f.limit,
     items = rows.slice(0, f.limit);
   const last = items.at(-1);
@@ -162,8 +191,14 @@ async function readCatalog(
   ).rows.map((r) => r.name);
   const n = Number(total);
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
+  const reasons = new Map(recommendations?.map((item) => [item.question.id, item.reason]));
   const result: { [key: string]: JsonValue } = {
-    items: items.map(projected),
+    items: items.map((row) => {
+      const value = object(projected(row));
+      const reason = reasons.get(row.id);
+      if (reason) value.recommendationReason = reason;
+      return value;
+    }),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
@@ -190,7 +225,7 @@ async function byValue(
     : sql`p.slug=${value} AND v.id=p.current_version_id`;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
+      sql`SELECT ${rowProjection} ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
     )
   ).rows;
   return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
@@ -201,9 +236,7 @@ export async function projectAuthorizedVersion(
   id: string,
 ): Promise<string | null> {
   const rows = (
-    await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
-    )
+    await tx.execute<Projected>(sql`SELECT ${rowProjection} ${from} WHERE v.id::text=${id} LIMIT 1`)
   ).rows;
   return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
 }

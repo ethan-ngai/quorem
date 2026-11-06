@@ -1253,6 +1253,11 @@ export interface components {
             odyssey?: components["schemas"]["Odyssey"];
             hasSolutions?: boolean;
             hasComplexity?: boolean;
+            /**
+             * @description Practice ranking explanation; contains no other player history.
+             * @enum {string}
+             */
+            recommendationReason?: "review" | "weak_topic" | "new_topic" | "challenge" | "practice";
         };
         Workspace: {
             /** Format: uuid */
@@ -2488,7 +2493,7 @@ export interface operations {
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 topic?: string;
                 company?: string;
-                sort?: "title" | "difficulty";
+                sort?: "title" | "difficulty" | "recommended";
                 order?: "asc" | "desc";
                 page?: number;
                 /** @description Opaque continuation returned by the preceding page; use with page 1 or omit page. */

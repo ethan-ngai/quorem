@@ -148,7 +148,7 @@ export function MatchSettings({
             onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
             value={value.selectedProblemVersionId}
             disabled={disabled}
-            allowRandom
+            allowAdaptive
             onChange={(selectedProblemVersionId, problem) => {
               setPickedProblem(problem);
               onChange({ ...value, difficulties: pools, selectedProblemVersionId });

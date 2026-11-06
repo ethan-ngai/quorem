@@ -1,6 +1,7 @@
 /** @file retention.ts @description Bounded database retention batches. @module events */
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import { encoder } from "../../../../modules/problems/recommendations/model.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const outboxes = ["interview_outbox", "match_outbox", "submission_outbox"] as const;
 // A late settlement can outlive ordinary admission-based retention.
@@ -21,6 +22,11 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     const table = sql.raw(name);
     return sql`DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE published_at IS NOT NULL AND occurred_at < statement_timestamp()-interval '7 days' ORDER BY occurred_at,sequence FOR UPDATE SKIP LOCKED LIMIT ${limit})`;
   });
+  statements.push(
+    sql`DELETE FROM question_learning_events WHERE submission_id IN (SELECT submission_id FROM question_learning_events WHERE observed_at<statement_timestamp()-interval '180 days' ORDER BY observed_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_models WHERE id IN (SELECT id FROM recommendation_models WHERE expires_at<statement_timestamp()-interval '15 days' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM question_embeddings WHERE ctid IN (SELECT b.ctid FROM question_embeddings b JOIN problem_versions v ON v.id=b.version_id WHERE b.created_at<statement_timestamp()-interval '180 days' AND (b.encoder<>${encoder} OR (b.content_key<>recommendation_content_key(v.id) AND NOT EXISTS(SELECT 1 FROM question_learning_events e WHERE e.content_key=b.content_key))) FOR UPDATE OF b SKIP LOCKED LIMIT ${limit})`,
+  );
   statements.push(
     sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );

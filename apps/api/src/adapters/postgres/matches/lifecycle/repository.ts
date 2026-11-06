@@ -121,15 +121,20 @@ function stable(value: unknown): string {
 }
 export async function start(tx: Transaction, id: string, m: MatchRecord) {
   await hosting(tx, m.host, m.access);
-  const chosen = await selectMatchCandidate(tx, m.host, m.settings);
-  await tx.execute(
-    sql`UPDATE matches SET state='active',problem_version_id=${chosen.id}::uuid,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=${id}::uuid`,
-  );
   const people = (
     await tx.execute<{ owner: string }>(
       sql`SELECT owner_id AS owner FROM match_participants WHERE match_id=${id}::uuid ORDER BY seat`,
     )
   ).rows;
+  const chosen = await selectMatchCandidate(
+    tx,
+    m.host,
+    m.settings,
+    people.map((person) => person.owner),
+  );
+  await tx.execute(
+    sql`UPDATE matches SET state='active',problem_version_id=${chosen.id}::uuid,started_at=clock_timestamp(),deadline=clock_timestamp()+make_interval(mins=>duration_minutes) WHERE id=${id}::uuid`,
+  );
   for (const person of people) {
     const workspace = crypto.randomUUID();
     await tx.execute(

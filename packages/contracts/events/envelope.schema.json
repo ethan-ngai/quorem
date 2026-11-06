@@ -501,6 +501,11 @@
         },
         "hasComplexity": {
           "type": "boolean"
+        },
+        "recommendationReason": {
+          "type": "string",
+          "enum": ["review", "weak_topic", "new_topic", "challenge", "practice"],
+          "description": "Practice ranking explanation; contains no other player history."
         }
       },
       "required": [

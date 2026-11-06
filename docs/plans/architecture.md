@@ -25,6 +25,6 @@ Node uses request/operation-bounded PostgreSQL connections. Workers uses Hyperdr
 
 Product and auth keep separate schemas and checksummed ledgers under the shared migration owner. Retained data normalization uses audited operator commands; migrations never silently replace history. Runtime roles do not own schemas, migration ledgers or recovery records.
 
-Provider configuration is independent per capability; see [platform adapters](../implementation/platform-adapters.md). Cache and semantic retrieval remain future extensions behind focused query/retrieval contracts. No KV cache, embedding pipeline or vector index is implemented by this migration.
+Provider configuration is independent per capability; see [platform adapters](../implementation/platform-adapters.md). Adaptive questions use a provider-neutral learned predictor and a local CPU embedding adapter, with PostgreSQL-owned events, vectors and evaluated model artifacts; see [adaptive questions](../implementation/adaptive-questions.md). No KV cache or external vector index is provisioned.
 
 Local development uses fixtures and requires no cloud credentials. Infrastructure is provisioned with Terraform and deployed through GitHub Actions. Native staging, production traffic cutover and production readiness are separate claims; inspect the actual deployment evidence before asserting release state.

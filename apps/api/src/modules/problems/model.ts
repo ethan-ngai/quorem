@@ -4,7 +4,7 @@ export interface CatalogFilter {
   difficulty: string;
   topic: string;
   company: string;
-  sort: "title" | "difficulty";
+  sort: "title" | "difficulty" | "recommended";
   order: "asc" | "desc";
   library: "" | "global" | "private";
   type: "" | "classic" | "odyssey";

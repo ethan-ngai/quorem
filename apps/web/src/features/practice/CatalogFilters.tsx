@@ -15,7 +15,9 @@ export function CatalogFilters({
   showDifficulty = true,
 }: {
   search: Pick<CatalogSearch, "type" | "sql" | "difficulty" | "topic" | "company">;
-  update: (change: Partial<CatalogSearch>) => void;
+  update: (
+    change: Pick<CatalogSearch, "type" | "sql" | "difficulty" | "topic" | "company">,
+  ) => void;
   topics: string[];
   companies: string[];
   showDifficulty?: boolean;

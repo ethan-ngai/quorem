@@ -10,6 +10,8 @@ overrides:
   vite: npm:@voidzero-dev/vite-plus-core@1.5.0
   vitest: 5.1.0
 allowBuilds:
+  onnxruntime-node: true
+  protobufjs: true
   esbuild: true
   sharp: true
   workerd: true

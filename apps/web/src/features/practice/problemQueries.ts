@@ -52,7 +52,16 @@ export function catalogQueryOptions(
   actor: ProblemActor,
   search: CatalogSearch,
 ) {
-  const context = catalogContext(actor, search.library);
+  const context =
+    search.sort === "recommended"
+      ? {
+          scope:
+            actor === "anonymous" && search.library === "private"
+              ? signedOutPrivateScope
+              : (actor ?? pendingScope),
+          library: search.library,
+        }
+      : catalogContext(actor, search.library);
   const filters = {
     ...search,
     sql: search.sql ?? ("false" as const),
@@ -63,9 +72,9 @@ export function catalogQueryOptions(
   return queryOptions<CatalogPage>({
     queryKey: ["public-problems", context.scope, filters] as const,
     enabled: context.scope !== pendingScope,
-    staleTime,
+    staleTime: search.sort === "recommended" ? 0 : staleTime,
     placeholderData:
-      context.scope !== publicScope && search.library !== "private"
+      search.sort !== "recommended" && context.scope !== publicScope && search.library !== "private"
         ? () =>
             freshState<CatalogPage>(client, [
               "public-problems",
@@ -87,13 +96,15 @@ export function catalogQueryOptions(
         };
       const started = Date.now();
       const transport =
-        context.scope === publicScope ? publicApi() : api(actor as DevelopmentIdentity);
+        context.scope === publicScope || actor === "anonymous"
+          ? publicApi()
+          : api(actor as DevelopmentIdentity);
       const { data, error } = await transport.GET("/v1/problems", {
         params: { query: filters },
         signal,
       });
       const page = requireData(data, error);
-      seedQuestions(client, context.scope, page, started);
+      if (search.sort !== "recommended") seedQuestions(client, context.scope, page, started);
       client.setQueryData(facetsKey(context.scope, context.library), {
         topics: page.topics,
         companies: page.companies,

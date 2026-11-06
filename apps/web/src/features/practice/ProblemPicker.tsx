@@ -23,7 +23,7 @@ export function ProblemPicker({
   value,
   onChange,
   disabled,
-  allowRandom = false,
+  allowAdaptive = false,
   identity,
   library,
   difficulties,
@@ -35,7 +35,7 @@ export function ProblemPicker({
   value?: string;
   onChange: (id: string | undefined, problem?: ProblemVersion) => void;
   disabled?: boolean;
-  allowRandom?: boolean;
+  allowAdaptive?: boolean;
   identity?: DevelopmentIdentity;
   library?: "private" | "global";
   difficulties?: readonly string[];
@@ -75,9 +75,9 @@ export function ProblemPicker({
       return requireData(data, error);
     },
   });
-  const randomPool = useQuery({
-    queryKey: ["random-pool", identity, library, filters, allowed],
-    enabled: allowRandom && !value && !disabled && !noAllowedDifficulty,
+  const adaptivePool = useQuery({
+    queryKey: ["adaptive-pool", identity, library, filters, allowed],
+    enabled: allowAdaptive && !value && !disabled && !noAllowedDifficulty,
     queryFn: async () => {
       const { data, error } = await api(identity).GET("/v1/problems", {
         params: {
@@ -93,12 +93,12 @@ export function ProblemPicker({
       return requireData(data, error);
     },
   });
-  const emptyRandomPool = noAllowedDifficulty || randomPool.data?.total === 0;
-  const randomWarning =
-    allowRandom && !value
-      ? emptyRandomPool
+  const emptyAdaptivePool = noAllowedDifficulty || adaptivePool.data?.total === 0;
+  const adaptiveWarning =
+    allowAdaptive && !value
+      ? emptyAdaptivePool
         ? "No questions match these filters. Choose other filters."
-        : randomPool.isError
+        : adaptivePool.isError
           ? "Could not check matching questions. Try again."
           : undefined
       : undefined;
@@ -155,25 +155,25 @@ export function ProblemPicker({
           }
         }}
       >
-        <Tooltip content={randomWarning} disabled={!randomWarning}>
+        <Tooltip content={adaptiveWarning} disabled={!adaptiveWarning}>
           <Popover.Trigger asChild>
             <button
               type="button"
               className="select-field match-choice problem-picker-trigger"
-              data-warning={!!randomWarning || undefined}
+              data-warning={!!adaptiveWarning || undefined}
               disabled={disabled}
               aria-label={label}
-              aria-describedby={randomWarning ? warningId : undefined}
+              aria-describedby={adaptiveWarning ? warningId : undefined}
             >
-              {allowRandom && !value ? (
+              {allowAdaptive && !value ? (
                 <span className="problem-picker-labels" aria-hidden="true">
                   <span className="problem-picker-label problem-picker-label-default">
                     <Dices size={16} />
-                    Random
+                    Adaptive
                   </span>
                   <span className="problem-picker-label problem-picker-label-warning">
                     <AlertCircle size={16} />
-                    {!emptyRandomPool && randomPool.isError
+                    {!emptyAdaptivePool && adaptivePool.isError
                       ? "Could not check questions"
                       : "No matching questions"}
                   </span>
@@ -214,7 +214,7 @@ export function ProblemPicker({
               }}
             />
             <div className="problem-picker-results" role="group" aria-label="Matching problems">
-              {allowRandom && (
+              {allowAdaptive && (
                 <button
                   type="button"
                   className="problem-picker-item"
@@ -222,7 +222,7 @@ export function ProblemPicker({
                   onClick={() => choose(undefined)}
                 >
                   <Dices size={18} />
-                  <span className="problem-picker-title">Random</span>
+                  <span className="problem-picker-title">Adaptive</span>
                   {!value && <Icon name="submit" />}
                 </button>
               )}
@@ -265,9 +265,9 @@ export function ProblemPicker({
           showDifficulty={!difficulties}
         />
       </fieldset>
-      {allowRandom && (
+      {allowAdaptive && (
         <div className="sr-only" id={warningId} role="status">
-          {randomWarning}
+          {adaptiveWarning}
         </div>
       )}
     </div>

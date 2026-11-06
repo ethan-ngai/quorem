@@ -23,6 +23,13 @@ import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
 
+const recommendationLabels = {
+  review: "Due for review",
+  weak_topic: "Strengthen a topic",
+  new_topic: "Explore a topic",
+  challenge: "Build your skills",
+  practice: "Keep practicing",
+};
 const practiceColumns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
 
 export function PracticeBrowser() {
@@ -114,6 +121,20 @@ export function PracticeBrowser() {
         }
       >
         <div className="practice-toolbar">
+          <SegmentedControl
+            label="Question discovery"
+            value={search.sort === "recommended" ? "recommended" : "browse"}
+            onChange={(value) =>
+              update({
+                sort: value === "recommended" ? "recommended" : undefined,
+                order: undefined,
+              })
+            }
+            options={[
+              { value: "browse", label: "Browse" },
+              { value: "recommended", label: "Suggested" },
+            ]}
+          />
           <SearchField
             className="practice-search"
             aria-label="Search questions"
@@ -211,6 +232,11 @@ export function PracticeBrowser() {
                       <Link to="/practice/$slug" params={{ slug: problem.slug }}>
                         {problem.title}
                       </Link>
+                      {problem.recommendationReason && (
+                        <span className="practice-recommendation">
+                          {recommendationLabels[problem.recommendationReason]}
+                        </span>
+                      )}
                       <QuestionTopics
                         tags={problem.tags}
                         onFilter={(topic) => update({ topic: addFilter(search.topic, topic) })}

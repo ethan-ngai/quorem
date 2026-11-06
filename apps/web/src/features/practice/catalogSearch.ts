@@ -8,7 +8,7 @@ export type CatalogSearch = {
   difficulty?: string;
   topic?: string;
   company?: string;
-  sort?: "difficulty";
+  sort?: "difficulty" | "recommended";
   order?: "desc";
   page?: number;
   limit?: number;
@@ -34,8 +34,8 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     typeof search.company === "string" ? search.company : undefined,
   ).map((value) => Array.from(value).slice(0, 80).join(""));
   if (companies.length) result.company = companies.join(",");
-  if (search.sort === "difficulty") result.sort = "difficulty";
-  if (search.order === "desc") result.order = "desc";
+  if (search.sort === "difficulty" || search.sort === "recommended") result.sort = search.sort;
+  if (search.order === "desc" && result.sort !== "recommended") result.order = "desc";
   const page = Number(search.page);
   if (Number.isInteger(page) && page > 1 && page <= 10000) result.page = page;
   const limit = Number(search.limit);

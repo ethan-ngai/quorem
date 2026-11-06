@@ -42,13 +42,14 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
       )
         throw invalid();
     }
-  const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty"], {
+  const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty", "recommended"], {
     page: 1,
     limit: 20,
     sort: "title",
     order: "asc",
   });
   const cursor = q.get("cursor") ?? undefined;
+  if (sort === "recommended" && (cursor || order !== "asc")) throw invalid();
   if (cursor && (cursor.length > 32768 || page !== 1)) throw invalid();
   return {
     query,

@@ -55,3 +55,16 @@ it("uses injected identity, validates filters and returns contract errors", asyn
     401,
   );
 });
+
+it("rejects cursors and reverse ordering for adaptive ranks", async () => {
+  const { parseCatalogFilter } = await import("./queries.ts");
+  expect(parseCatalogFilter(new URLSearchParams("sort=recommended"))).toMatchObject({
+    sort: "recommended",
+  });
+  for (const query of [
+    "sort=recommended&order=desc",
+    "sort=recommended&cursor=anything",
+    "sort=recommended&sort=title",
+  ])
+    expect(() => parseCatalogFilter(new URLSearchParams(query))).toThrow();
+});
