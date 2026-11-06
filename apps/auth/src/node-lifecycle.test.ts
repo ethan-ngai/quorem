@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { describe, expect, it } from "vitest";
@@ -29,7 +30,7 @@ describe("explicit Node composition", () => {
         AUTH_ORIGIN: "http://localhost:5180",
         AUTH_DATABASE_URL: process.env.AUTH_TEST_DATABASE_URL,
         AUTH_INTERNAL_SECRET: "fixture",
-        BETTER_AUTH_SECRET: "fixture-secret-".repeat(4),
+        BETTER_AUTH_SECRET: testAuthSecret,
         AUTH_PORT: "0",
         AUTH_HOST: "127.0.0.1",
       });
@@ -59,7 +60,7 @@ describe("explicit Node composition", () => {
         AUTH_ORIGIN: "http://localhost:5180",
         AUTH_DATABASE_URL: "postgres://localhost/fixture",
         AUTH_INTERNAL_SECRET: "fixture",
-        BETTER_AUTH_SECRET: "fixture-secret-".repeat(4),
+        BETTER_AUTH_SECRET: testAuthSecret,
         SMTP_HOST: "127.0.0.1",
       }),
     ).rejects.toThrow("AUTH_MAIL_INTENT_KEY must be 32 bytes encoded as hex");

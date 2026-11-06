@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
@@ -117,7 +118,7 @@ describe.skipIf(!url)("auth repository expiry on disposable PostgreSQL", () => {
       AUTH_MODE: "password",
       AUTH_ORIGIN: "http://127.0.0.1:5174",
       AUTH_DATABASE_URL: url,
-      BETTER_AUTH_SECRET: "fixture-internal-keys-secret-".repeat(3),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_INTERNAL_SECRET: "fixture-internal-authority-".repeat(3),
     });
     const id = randomUUID();

@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { createAuthApp } from "./http.ts";
@@ -74,7 +75,7 @@ describe.skipIf(!process.env.AUTH_TEST_DATABASE_URL)("native auth mount with Pos
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: "http://localhost:5189",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: process.env.AUTH_TEST_DATABASE_URL,
       AUTH_INTERNAL_SECRET: "fixture-secret",
     });
