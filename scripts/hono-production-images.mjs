@@ -82,6 +82,11 @@ export function productionImages(env, { reuseMail = false } = {}) {
   } catch {
     /* A changed or absent relay needs a new image. */
   }
+  return { ...images, mail: publishMailImage(env) };
+}
+
+/** Publish only the SMTP relay; native case images retain their independent provenance. */
+function publishMailImage(env) {
   const repository = `registry.cloudflare.com/${env.CLOUDFLARE_ACCOUNT_ID}/quorem-hono-production-mail`;
   const tag = `${repository}:${env.GITHUB_SHA}`;
   runStageCommand(
@@ -97,7 +102,7 @@ export function productionImages(env, { reuseMail = false } = {}) {
     (value) => value.startsWith(`${repository}@sha256:`) && /[a-f0-9]{64}$/.test(value),
   );
   if (match.length !== 1) throw new Error("Mail image digest missing");
-  return { ...images, mail: match[0] };
+  return match[0];
 }
 
 /** A new case image must match the runtime inputs covered by a successful CI run. */
@@ -160,8 +165,28 @@ export async function validatedJudgeImages(env, validationRun, priorRelease) {
       phase: reused ? "reuse-verified-native-images" : "publish-verified-native-images",
     }),
   );
-  const { image, mail } = activeTrustedImages(env);
-  return { ...images, image, mail };
+  const trusted = activeTrustedImages(env);
+  // HTML support changes the relay protocol; activate its image before the API renderer.
+  try {
+    runStageCommand(
+      "git",
+      [
+        "diff",
+        "--exit-code",
+        priorRelease,
+        env.GITHUB_SHA,
+        "--",
+        "apps/auth/src",
+        "apps/auth/package.json",
+        "pnpm-lock.yaml",
+        "deploy/hono/services/Dockerfile.mail",
+      ],
+      env,
+    );
+  } catch {
+    trusted.mail = publishMailImage(env);
+  }
+  return { ...images, ...trusted };
 }
 
 function activeMailImage(env) {

@@ -236,22 +236,33 @@ async function rollout(env, benchmarkOnly) {
       result.QUOREM_CASE_NAMESPACE_ID !== namespace.namespace
     )
       throw new Error("Unexpected deployed services");
-    report("verify-verifier-domain");
-    const verifierDeadline = Date.now() + 120000;
-    for (;;) {
-      let ready = false;
-      try {
-        const probe = await fetch(`https://${hosts.verifier}/internal/results/verify`, {
-          method: "POST",
-          redirect: "error",
-          signal: AbortSignal.timeout(5000),
-        });
-        ready = probe.status === 401;
-        await probe.body?.cancel();
-      } catch {}
-      if (ready) break;
-      if (Date.now() >= verifierDeadline) throw new Error("Verifier domain unavailable");
-      await delay(2000);
+    report("verify-private-ingress");
+    // Both protocols must be ready before enabling the API's HTML mail renderer.
+    for (const [url, expected, headers] of [
+      [`https://${hosts.verifier}/internal/results/verify`, 401, {}],
+      [
+        "https://mail-hono.quorem.app/internal/mail/health",
+        204,
+        { authorization: `Bearer ${keys.MAIL_RELAY_TOKEN}` },
+      ],
+    ]) {
+      const deadline = Date.now() + 120000;
+      for (;;) {
+        let ready = false;
+        try {
+          const probe = await fetch(url, {
+            method: expected === 401 ? "POST" : "GET",
+            headers,
+            redirect: "error",
+            signal: AbortSignal.timeout(5000),
+          });
+          ready = probe.status === expected;
+          await probe.body?.cancel();
+        } catch {}
+        if (ready) break;
+        if (Date.now() >= deadline) throw new Error("Private service ingress unavailable");
+        await delay(2000);
+      }
     }
     report("update-api-with-private-workers-paused");
     runStageCommand("vp", ["exec", "node", "scripts/hono-production-api-release.mjs"], {
