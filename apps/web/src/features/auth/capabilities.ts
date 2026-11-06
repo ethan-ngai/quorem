@@ -18,7 +18,10 @@ let pendingClient:
   | Promise<
       ReturnType<
         typeof import("better-auth/client").createAuthClient<{
-          plugins: [ReturnType<typeof import("@better-auth/passkey/client").passkeyClient>];
+          plugins: [
+            ReturnType<typeof import("@better-auth/passkey/client").passkeyClient>,
+            ReturnType<typeof import("better-auth/client/plugins").lastLoginMethodClient>,
+          ];
         }>
       >
     >
@@ -27,9 +30,14 @@ async function authClient() {
   return (pendingClient ??= Promise.all([
     import("better-auth/client"),
     import("@better-auth/passkey/client"),
-  ]).then(([{ createAuthClient }, { passkeyClient }]) =>
-    createAuthClient({ plugins: [passkeyClient()] }),
+    import("better-auth/client/plugins"),
+  ]).then(([{ createAuthClient }, { passkeyClient }, { lastLoginMethodClient }]) =>
+    createAuthClient({ plugins: [passkeyClient(), lastLoginMethodClient()] }),
   ));
+}
+/** Cookie is a presentation hint, never evidence of identity or assurance. */
+export async function lastLoginMethod() {
+  return (await authClient()).getLastUsedLoginMethod();
 }
 export async function fetchAuthCapabilities(): Promise<AuthCapabilities> {
   const response = await fetch("/api/auth/quorem-config", { credentials: "same-origin" });

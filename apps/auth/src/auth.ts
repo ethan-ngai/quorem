@@ -4,7 +4,8 @@ import type { configuration } from "./config.ts";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { google, apple, github, cognito } from "better-auth/social-providers";
 import type { socialEmail } from "./social-email.ts";
-import { jwt, username } from "better-auth/plugins";
+import { accountEmails } from "./emails/content.ts";
+import { jwt, username, lastLoginMethod } from "better-auth/plugins";
 import {
   emailSchema,
   usernameSchema,
@@ -53,8 +54,8 @@ export function createAuth(options: {
               await sendVerification(
                 user.email,
                 url,
-                "Reset your Quorem password",
-                "Use this link to choose a new password. Completing the reset signs out all sessions:",
+                accountEmails.reset.subject,
+                accountEmails.reset.instruction,
               );
             },
           }
@@ -75,8 +76,8 @@ export function createAuth(options: {
                 await sendVerification(
                   user.email,
                   url,
-                  "Confirm your Quorem email change",
-                  "Approve this request, then verify the new address using the next email. Your current address stays unchanged until both steps finish:",
+                  accountEmails.change.subject,
+                  accountEmails.change.instruction,
                 );
               },
             }
@@ -98,20 +99,22 @@ export function createAuth(options: {
               url: string;
             }) => {
               const verificationURL = new URL(url);
-              if (verificationURL.searchParams.get("callbackURL") === "/")
+              const callback = new URL(
+                verificationURL.searchParams.get("callbackURL") ?? "/",
+                config.origin,
+              );
+              const changingEmail = callback.searchParams.has("emailChangePending");
+              if (changingEmail || callback.pathname === "/")
                 verificationURL.searchParams.set(
                   "callbackURL",
-                  `${config.origin}/login?verified=1`,
+                  `${config.origin}/login?${changingEmail ? "emailChanged" : "verified"}=1`,
                 );
-              verificationURL.searchParams.set(
-                "callbackURL",
-                `${config.origin}/login?emailChanged=1`,
-              );
+              const content = changingEmail ? accountEmails.verify : accountEmails.registration;
               await sendVerification(
                 user.email,
                 verificationURL.toString(),
-                "Verify your new Quorem email",
-                "Verify this new address to finish changing your Quorem email:",
+                content.subject,
+                content.instruction,
               );
             },
           }
@@ -310,6 +313,10 @@ export function createAuth(options: {
       ipAddress: { ipAddressHeaders: ["x-quorem-peer-ip"] },
     },
     plugins: [
+      lastLoginMethod({
+        // Username login is supplied by a separate plugin; classify it with credentials.
+        customResolveMethod: (ctx) => (ctx.path === "/sign-in/username" ? "email" : null),
+      }),
       {
         id: "await-account-delivery",
         // Better Auth normally logs/swallow delivery errors; callers must receive failures.
