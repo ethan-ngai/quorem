@@ -58,7 +58,8 @@
     "monaco-pyright-lsp": "0.1.7",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "sonner": "^2.0.8"
+    "sonner": "^2.0.8",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/d3-flextree": "^2.1.4",
