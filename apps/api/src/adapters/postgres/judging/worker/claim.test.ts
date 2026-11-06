@@ -679,6 +679,8 @@ describe.skipIf(!url)("runner claim fences", () => {
         }),
       );
       await ready;
+      // A control tick can read the live lease while a frame retains shared parent fences.
+      await expect(claims.lease(live!, false)).resolves.toBe(true);
       const chunk = {
         channel: "public" as const,
         ordinal: 1,
