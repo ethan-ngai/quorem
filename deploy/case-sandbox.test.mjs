@@ -148,6 +148,7 @@ void test("direct case forwards current input and confirms teardown before its t
   await Promise.all(pending);
   assert.deepEqual([...input()], [...new TextEncoder().encode("case-input")]);
   assert.equal(context.options.image, "image");
+  assert.equal(context.options.instance, "basic");
   assert.equal(context.options.enableInternet, false);
   assert.equal(context.execOptions.user, "0:0");
   assert.equal(bytes[0], 1);
@@ -636,3 +637,17 @@ void test(
     await Promise.all(f.pending);
   },
 );
+
+void test("compiled and database runtimes retain their full-core VM allocation", async () => {
+  for (const language of ["java", "typescript", "ocaml", "postgresql"]) {
+    const f = fixture();
+    f.context.container.images[language] = `${language}-image`;
+    const response = await newSandbox(f.context).fetch(
+      request("POST", { "x-case-language": language }),
+    );
+    await response.arrayBuffer();
+    await Promise.all(f.pending);
+    assert.equal(f.context.options.image, `${language}-image`);
+    assert.deepEqual(f.context.options.instance, { vcpu: 1, memoryMib: 3072, diskMb: 4000 });
+  }
+});
