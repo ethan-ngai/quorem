@@ -417,11 +417,14 @@ export class CaseSandbox extends DurableObject {
       console.log(`case-lifecycle streams-complete ${language}`);
       const exit = new Uint8Array(4);
       new DataView(exit.buffer).setInt32(0, exitCode);
+      // All native streams and the process have ended; exit delivery can overlap VM destruction.
+      const destroy = performance.now();
+      const stopped = this.stop();
+      void stopped.catch(() => {});
       step = "exit-frame";
       await writer.write(frame(3, exit));
       step = "destroy";
-      const destroy = performance.now();
-      await this.stop();
+      await stopped;
       timing.teardownMs = Math.round(performance.now() - destroy);
       step = "terminal-frame";
       await writer.write(frame(4, new Uint8Array()));

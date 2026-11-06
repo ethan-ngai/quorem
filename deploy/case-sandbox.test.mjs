@@ -599,3 +599,40 @@ void test("a stale shutdown response cannot certify a subsequent launch", async 
   await consuming;
   assert.equal(f.values.get("completed-lanes") ?? 0, 0);
 });
+
+void test(
+  "VM destruction overlaps backpressured exit delivery without early teardown proof",
+  { timeout: 2000 },
+  async () => {
+    const f = fixture();
+    let notify;
+    const destroyed = new Promise((resolve) => {
+      notify = resolve;
+    });
+    const destroy = f.context.container.destroy.bind(f.context.container);
+    f.context.container.destroy = async () => {
+      await destroy();
+      notify();
+    };
+    const response = await newSandbox(f.context).fetch(request());
+    const reader = response.body.getReader();
+    await reader.read(); // Admission frame.
+    await reader.read(); // Native output; leave exit delivery backpressured.
+    let timer;
+    try {
+      await Promise.race([
+        destroyed,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error("destruction waited for exit delivery")), 1000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+    assert.equal(f.context.container.running, false);
+    assert.equal((await reader.read()).value[0], 3);
+    assert.equal((await reader.read()).value[0], 4);
+    assert.equal((await reader.read()).done, true);
+    await Promise.all(f.pending);
+  },
+);
