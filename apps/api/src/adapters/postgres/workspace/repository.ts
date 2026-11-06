@@ -83,6 +83,9 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   return dto(row);
 }
 async function progress(tx: Transaction, owner: string, w: Workspace): Promise<string> {
+  await tx.execute(
+    sql`SELECT 1 FROM odyssey_progress WHERE scope_id=${w.id}::uuid AND problem_version_id=${w.problemVersionId}::uuid FOR SHARE`,
+  );
   const row = (
     await tx.execute<{
       total: number | null;
