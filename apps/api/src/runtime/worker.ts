@@ -38,7 +38,7 @@ import { composeHttp } from "./composition/http.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { localJudgingDrain } from "./composition/judging-drain.ts";
 import { judgingProfile } from "./composition/judging-profile.ts";
-import { withJudgingConnections } from "./composition/judging-connections.ts";
+import { withJudgingConnections, withJudgingResponse } from "./composition/judging-connections.ts";
 import { composePrivate } from "./composition/private.ts";
 import {
   boundedInt,
@@ -162,8 +162,8 @@ function admissionWake(env: Env, deferred: boolean): ReturnType<typeof wake> {
 }
 
 let verifierCache: { origin: string; database: string; verifier: TokenVerifier } | undefined;
-function makeSecurity(env: Env, signal?: AbortSignal) {
-  const auth = workerRuntime(env, signal),
+function makeSecurity(env: Env, signal?: AbortSignal, run?: ReturnType<typeof runFor>) {
+  const auth = workerRuntime(env, signal, undefined, run),
     origin = required(env.AUTH_ORIGIN);
   if (
     !verifierCache ||
@@ -203,9 +203,10 @@ function makeHttp(
   request: Request,
   submissionNotices?: FanoutSubscriber,
   deferExecution?: (work: Promise<unknown>) => void,
+  connection?: ReturnType<typeof runFor>,
 ) {
-  const run = runFor(env, request.signal),
-    security = makeSecurity(env, request.signal),
+  const run = connection ?? runFor(env, request.signal),
+    security = makeSecurity(env, request.signal, connection),
     allowed = origins(env);
   const identity = composeIdentity(run, security.verifier, security.sessions, allowed);
   const result = composeHttp({
@@ -430,14 +431,36 @@ export default {
             return withJudgingConnections(env.DB.connectionString, request.signal, execute);
           return execute(run);
         }
-        const composed = makeHttp(env, request, undefined, defer);
-        const incoming = path.startsWith("/api/auth/")
-          ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
-          : request;
-        const response = await composed.app.fetch(incoming);
-        if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method))
-          await publish(realtimeStreams);
-        return response;
+        const handle = async (publicRun?: ReturnType<typeof runFor>) => {
+          const composed = makeHttp(env, request, undefined, defer, publicRun);
+          const incoming = path.startsWith("/api/auth/")
+            ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
+            : request;
+          const response = await composed.app.fetch(incoming);
+          if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method))
+            await publish(realtimeStreams);
+          return response;
+        };
+        if (
+          (request.method === "POST" && path === "/v1/submissions") ||
+          (request.method === "GET" && /^\/v1\/submissions\/[0-9a-f-]{36}$/.test(path))
+        ) {
+          const profile = judgingProfile();
+          return withJudgingResponse(
+            env.DB.connectionString,
+            request.signal,
+            (scoped) => handle(profile.connection(scoped)),
+            () =>
+              console.log(
+                JSON.stringify({
+                  event: "public-judging-completed",
+                  method: request.method,
+                  ...JSON.parse(profile.header()),
+                }),
+              ),
+          );
+        }
+        return handle();
       });
     } catch (error) {
       console.error(

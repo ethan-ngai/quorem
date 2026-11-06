@@ -25,6 +25,7 @@ export function workerRuntime(
     config: Extract<MailConfiguration, { driver: "cloudflare" | "relay" }>,
   ) => VerificationSender = (config) =>
     verificationMailer(config.driver === "relay" ? relayEmail(config) : cloudflareEmail(config)),
+  connection?: Parameters<typeof composeAuth>[0]["run"],
 ) {
   const values = Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
@@ -33,12 +34,14 @@ export function workerRuntime(
   if (config.mail && config.mail.driver !== "cloudflare" && config.mail.driver !== "relay")
     throw new Error("Worker mail requires the configured HTTPS adapter");
   const transport = config.mail ? transportFactory(config.mail) : undefined;
-  const run = <T>(callback: Parameters<typeof withWorkerConnection<T>>[2]) =>
-    withWorkerConnection(
-      env.DB.connectionString,
-      { connectionTimeoutMs: 5000, lifetimeMs: 15000, signal },
-      callback,
-    );
+  const run =
+    connection ??
+    (<T>(callback: Parameters<typeof withWorkerConnection<T>>[2]) =>
+      withWorkerConnection(
+        env.DB.connectionString,
+        { connectionTimeoutMs: 5000, lifetimeMs: 15000, signal },
+        callback,
+      ));
   if (
     values.PROFILE_MEDIA_ENABLED !== undefined &&
     values.PROFILE_MEDIA_ENABLED !== "true" &&
