@@ -8,12 +8,16 @@ export function CaseBrowserLayout({
   children,
   busy = false,
   selection,
+  status,
+  actions,
 }: {
   rail: ReactNode;
   railLabel: string;
   children: ReactNode;
   busy?: boolean;
   selection?: string;
+  status?: ReactNode;
+  actions?: ReactNode;
 }) {
   const detail = useChangeMotion<HTMLDivElement>(selection);
   return (
@@ -21,8 +25,12 @@ export function CaseBrowserLayout({
       <div className="case-rail" aria-label={railLabel}>
         {rail}
       </div>
-      <div ref={detail} className="case-details">
-        {children}
+      <div className="case-detail-panel">
+        {actions && <div className="case-visibility-action">{actions}</div>}
+        {status}
+        <div ref={detail} className="case-details">
+          {children}
+        </div>
       </div>
     </div>
   );

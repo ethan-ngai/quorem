@@ -1,6 +1,6 @@
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
-import { NodeReferenceScope } from "./NodePreview";
+import { CasePreviewLayout, NodeReferenceScope } from "./NodePreview";
 import { CaseFields } from "./CaseFields";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "../../../ui/Tooltip";
@@ -16,7 +16,7 @@ import {
 } from "../customCases";
 import { Icon } from "../../../ui/Icon";
 import "./customCases.css";
-import { CaseArguments, CaseOutput, CaseValue } from "./CaseOutput";
+import { CaseArguments, CaseOutput, CaseValue, CaseVerdict } from "./CaseOutput";
 import { SequenceCaseValues } from "./SequenceCaseValues";
 import { SqlCaseEditor } from "./SqlCaseEditor";
 
@@ -153,10 +153,25 @@ export function TestCases({
     ? associatedResultIndex(matchingSnapshot, customMode, caseId, currentValue)
     : -1;
   const result =
-    (!pending ? caseResults?.[sampleIndex] : undefined) ??
+    (!pending ? caseResults?.[customMode ? customIndex : sampleIndex] : undefined) ??
     (!pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
       ? submission.publicCases?.[resultIndex]
       : recoveredCases?.[sampleIndex]);
+  const syntaxResult: PublicCaseResult | undefined =
+    !pending &&
+    !result &&
+    submission?.state === "completed" &&
+    submission.verdict === "syntax_error" &&
+    (submission.kind === "run" && snapshot
+      ? resultIndex >= 0
+      : !customMode && !submission.customRun)
+      ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
+      : undefined;
+  const combinedPreview = !showingHidden && !problem.sql && !problem.odyssey;
+  const previewContext = {
+    signature: problem.signature,
+    ...(customMode ? { sources: draft?.args } : { args: currentValue?.args }),
+  };
   const editedAfterRun =
     customMode &&
     matchingSnapshot?.custom &&
@@ -224,6 +239,34 @@ export function TestCases({
     <NodeReferenceScope key={caseId}>
       <CaseBrowserLayout
         busy={pending}
+        actions={
+          !showingHidden && customMode && draft ? (
+            <>
+              {currentError && (
+                <PersistentNotice
+                  label={`Check case ${customIndex + 1}`}
+                  message={currentError.message}
+                />
+              )}
+              <Tooltip content="Remove case">
+                <button
+                  type="button"
+                  className="icon-button destructive-icon"
+                  disabled={drafts.length <= minimumCases}
+                  aria-label={`Remove custom case ${customIndex + 1}`}
+                  onClick={() => {
+                    const remaining = drafts.filter((item) => item.id !== draft.id);
+                    onDraftsChange(remaining);
+                    setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
+                  }}
+                >
+                  <Icon name="trash" />
+                </button>
+              </Tooltip>
+            </>
+          ) : undefined
+        }
+        status={<CaseVerdict result={showingHidden ? undefined : (result ?? syntaxResult)} />}
         selection={showingHidden ? `hidden:${selectedHidden}` : `${customMode}:${caseId}`}
         railLabel={customMode ? "Select custom case" : "Select test case"}
         rail={
@@ -310,101 +353,109 @@ export function TestCases({
           </>
         }
       >
-        {!showingHidden && caseActions?.(sampleIndex)}
-        {showingHidden && hiddenCases ? (
-          <div className="locked-case">
-            <Icon
-              name="lock"
-              className={
-                hiddenCases[selectedHidden]!.status === "accepted"
-                  ? "verdict-success"
-                  : "verdict-error"
-              }
-            />
-            <span>Hidden case {selectedHidden + 1}</span>
-            <span
-              className={
-                hiddenCases[selectedHidden]!.status === "accepted"
-                  ? "verdict-success"
-                  : "verdict-error"
-              }
-            >
-              {hiddenCases[selectedHidden]!.status === "time_limit" ? "Time limit exceeded" : null}
-            </span>
-          </div>
-        ) : customMode && draft ? (
-          <>
-            <div className="custom-case-heading">
-              <span>
-                Case {customIndex + 1}
-                <PersistentNotice
-                  label={`Check case ${customIndex + 1}`}
-                  message={currentError?.message}
-                />
-              </span>
-              <Tooltip content="Remove case">
-                <button
-                  type="button"
-                  className="icon-button destructive-icon"
-                  disabled={drafts.length <= minimumCases}
-                  aria-label={`Remove custom case ${customIndex + 1}`}
-                  onClick={() => {
-                    const remaining = drafts.filter((item) => item.id !== draft.id);
-                    onDraftsChange(remaining);
-                    setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
-                  }}
-                >
-                  <Icon name="trash" />
-                </button>
-              </Tooltip>
-            </div>
-            {problem.sql ? (
-              <SqlCaseEditor
-                problem={problem}
-                input={draft.args[0] ?? ""}
-                expected={draft.expectedEnabled ? draft.expected : undefined}
-                onInputChange={(value) => updateDraft({ args: [value] })}
-                onExpectedChange={(expected) => updateDraft({ expected })}
+        <CasePreviewLayout
+          enabled={combinedPreview}
+          editable={customMode}
+          context={previewContext}
+          expected={result?.expected ?? currentValue?.expected}
+          actual={result?.actual}
+          expectedSource={customMode && draft?.expectedEnabled ? draft.expected : undefined}
+        >
+          {!showingHidden && caseActions?.(sampleIndex)}
+          {showingHidden && hiddenCases ? (
+            <div className="locked-case">
+              <Icon
+                name="lock"
+                className={
+                  hiddenCases[selectedHidden]!.status === "accepted"
+                    ? "verdict-success"
+                    : "verdict-error"
+                }
               />
-            ) : problem.odyssey ? (
-              <div className="typed-case-field">
-                <label htmlFor={`custom-${draft.id}-structured`}>Calls (JSON)</label>
-                <textarea
-                  id={`custom-${draft.id}-structured`}
-                  className="typed-input"
-                  rows={8}
-                  value={draft.args[0] ?? ""}
-                  onChange={(event) => updateDraft({ args: [event.target.value] })}
-                />
-                {problem.odyssey && currentValue?.calls && (
-                  <SequenceCaseValues problem={problem} calls={currentValue.calls} />
-                )}
-              </div>
-            ) : (
-              <CaseFields
-                id={`custom-${draft.id}`}
-                signature={problem.signature}
-                inputErrors={inputErrors}
-                args={draft.args}
-                expected={draft.expectedEnabled ? draft.expected : undefined}
-                onChange={updateDraft}
-                preview={!result}
-                expectedAction={
-                  !requiredExpected && (
-                    <Tooltip content="Remove expected output">
-                      <button
-                        type="button"
-                        className="icon-button destructive-icon"
-                        aria-label="Remove expected output"
-                        onClick={() => updateDraft({ expectedEnabled: false })}
-                      >
-                        <Icon name="trash" />
-                      </button>
-                    </Tooltip>
-                  )
+              <span>Hidden case {selectedHidden + 1}</span>
+              <span
+                className={
+                  hiddenCases[selectedHidden]!.status === "accepted"
+                    ? "verdict-success"
+                    : "verdict-error"
                 }
               >
-                {!draft.expectedEnabled && (
+                {hiddenCases[selectedHidden]!.status === "time_limit"
+                  ? "Time limit exceeded"
+                  : null}
+              </span>
+            </div>
+          ) : customMode && draft ? (
+            <>
+              {problem.sql ? (
+                <SqlCaseEditor
+                  problem={problem}
+                  input={draft.args[0] ?? ""}
+                  expected={draft.expectedEnabled ? draft.expected : undefined}
+                  onInputChange={(value) => updateDraft({ args: [value] })}
+                  onExpectedChange={(expected) => updateDraft({ expected })}
+                />
+              ) : problem.odyssey ? (
+                <div className="typed-case-field">
+                  <label htmlFor={`custom-${draft.id}-structured`}>Calls (JSON)</label>
+                  <textarea
+                    id={`custom-${draft.id}-structured`}
+                    className="typed-input"
+                    rows={8}
+                    value={draft.args[0] ?? ""}
+                    onChange={(event) => updateDraft({ args: [event.target.value] })}
+                  />
+                  {problem.odyssey && currentValue?.calls && (
+                    <SequenceCaseValues problem={problem} calls={currentValue.calls} />
+                  )}
+                </div>
+              ) : (
+                <CaseFields
+                  id={`custom-${draft.id}`}
+                  signature={problem.signature}
+                  inputErrors={inputErrors}
+                  args={draft.args}
+                  expected={draft.expectedEnabled ? draft.expected : undefined}
+                  onChange={updateDraft}
+                  preview={!combinedPreview && !result}
+                  expectedAction={
+                    !requiredExpected && (
+                      <Tooltip content="Remove expected output">
+                        <button
+                          type="button"
+                          className="icon-button destructive-icon"
+                          aria-label="Remove expected output"
+                          onClick={() => updateDraft({ expectedEnabled: false })}
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </Tooltip>
+                    )
+                  }
+                >
+                  {!draft.expectedEnabled && (
+                    <button
+                      type="button"
+                      className="quiet-button add-expected"
+                      onClick={() => updateDraft({ expectedEnabled: true })}
+                    >
+                      <Icon name="target" /> Add expected output
+                    </button>
+                  )}
+                </CaseFields>
+              )}
+              {problem.sql &&
+                (draft.expectedEnabled ? (
+                  <div className="expected-field">
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => updateDraft({ expectedEnabled: false })}
+                    >
+                      Remove expected output
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
                     className="quiet-button add-expected"
@@ -412,113 +463,81 @@ export function TestCases({
                   >
                     <Icon name="target" /> Add expected output
                   </button>
-                )}
-              </CaseFields>
-            )}
-            {problem.sql &&
-              (draft.expectedEnabled ? (
-                <div className="expected-field">
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    onClick={() => updateDraft({ expectedEnabled: false })}
-                  >
-                    Remove expected output
-                  </button>
-                </div>
+                ))}
+              {customCaseDetails?.(customIndex)}
+            </>
+          ) : customMode ? (
+            <p className="result-message">Add a case to get started.</p>
+          ) : recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
+            !result && <SequenceCaseValues problem={problem} calls={example.calls} />
+          ) : example ? (
+            <>
+              {problem.sql ? (
+                <>
+                  <div className="case-call-inputs">
+                    <CaseValue name="Tables" value={example.args[0]} parameter sql={problem.sql} />
+                  </div>
+                  {expectedExample}
+                </>
               ) : (
-                <button
-                  type="button"
-                  className="quiet-button add-expected"
-                  onClick={() => updateDraft({ expectedEnabled: true })}
+                <CaseArguments
+                  signature={problem.signature}
+                  args={example.args}
+                  expected={example.expected}
+                  preview={!combinedPreview && !result}
                 >
-                  <Icon name="target" /> Add expected output
-                </button>
-              ))}
-            {customCaseDetails?.(customIndex)}
-          </>
-        ) : customMode ? (
-          <p className="result-message">Add a case to get started.</p>
-        ) : recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
-          !result && <SequenceCaseValues problem={problem} calls={example.calls} />
-        ) : example ? (
-          <>
-            {problem.sql ? (
-              <>
-                <div className="case-call-inputs">
-                  <CaseValue name="Tables" value={example.args[0]} parameter sql={problem.sql} />
-                </div>
-                {expectedExample}
-              </>
-            ) : (
-              <CaseArguments
-                signature={problem.signature}
-                args={example.args}
-                expected={example.expected}
-                preview={!result}
-              >
-                {expectedExample}
-              </CaseArguments>
-            )}
-          </>
-        ) : (
-          <p className="result-message">
-            {customMode ? "Add a case to get started." : "No sample cases available."}
-          </p>
-        )}
-        {editedAfterRun && (
-          <p className="case-stale">Edited since last run. Run again for this input.</p>
-        )}
-        {pending && (
-          <div className="case-loading" role="status">
-            <span className="case-spinner" aria-hidden="true" />
-            <span>
-              {submission?.state === "running"
-                ? submission.kind === "submit"
-                  ? "Judging hidden cases…"
-                  : "Running cases…"
-                : submission?.state === "queued"
-                  ? "Waiting for judge…"
-                  : "Starting…"}
-            </span>
-          </div>
-        )}
-        {!showingHidden &&
-          !pending &&
-          !result &&
-          submission?.state === "completed" &&
-          submission.verdict === "syntax_error" && (
+                  {expectedExample}
+                </CaseArguments>
+              )}
+            </>
+          ) : (
+            <p className="result-message">
+              {customMode ? "Add a case to get started." : "No sample cases available."}
+            </p>
+          )}
+          {editedAfterRun && (
+            <p className="case-stale">Edited since last run. Run again for this input.</p>
+          )}
+          {pending && (
+            <div className="case-loading" role="status">
+              <span className="case-spinner" aria-hidden="true" />
+              <span>
+                {submission?.state === "running"
+                  ? submission.kind === "submit"
+                    ? "Judging hidden cases…"
+                    : "Running cases…"
+                  : submission?.state === "queued"
+                    ? "Waiting for judge…"
+                    : "Starting…"}
+              </span>
+            </div>
+          )}
+          {!showingHidden && result && (
             <CaseOutput
-              result={{
-                index: sampleIndex,
-                status: "syntax_error",
-                diagnostics: submission.diagnostics,
-              }}
+              result={result}
+              showVerdict={false}
+              preview={!combinedPreview}
+              returnType={problem.signature.returnType}
+              nodeContext={{ signature: problem.signature, args: currentValue?.args }}
+              sql={problem.sql}
+              sequence={
+                example?.calls?.length
+                  ? {
+                      calls: example.calls,
+                      methods: problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
+                        problem.signature,
+                      ],
+                    }
+                  : undefined
+              }
+              showExpected={
+                !!example?.calls?.length ||
+                !!recoveredCases?.length ||
+                (customMode && !draft?.expectedEnabled)
+              }
             />
           )}
-        {!showingHidden && result && (
-          <CaseOutput
-            result={result}
-            returnType={problem.signature.returnType}
-            nodeContext={{ signature: problem.signature, args: currentValue?.args }}
-            sql={problem.sql}
-            sequence={
-              example?.calls?.length
-                ? {
-                    calls: example.calls,
-                    methods: problem.odyssey?.levels.flatMap((level) => level.methods) ?? [
-                      problem.signature,
-                    ],
-                  }
-                : undefined
-            }
-            showExpected={
-              !!example?.calls?.length ||
-              !!recoveredCases?.length ||
-              (customMode && !draft?.expectedEnabled)
-            }
-          />
-        )}
+        </CasePreviewLayout>
       </CaseBrowserLayout>
     </NodeReferenceScope>
   );
