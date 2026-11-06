@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { judgingCapacity } from "./scheduling.ts";
 it("bounds submission slots, case lanes and fairness slices", () => {
-  expect(judgingCapacity({})).toEqual({ slots: 8, caseLanes: 10, sliceMs: 2000 });
+  expect(judgingCapacity({})).toEqual({ slots: 8, caseLanes: 20, sliceMs: 2000 });
   expect(
     judgingCapacity({ JUDGING_SLOTS: "2", JUDGING_CASE_LANES: "1", JUDGING_SLICE_MS: "1000" }),
   ).toEqual({ slots: 2, caseLanes: 1, sliceMs: 1000 });
