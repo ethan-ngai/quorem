@@ -137,7 +137,11 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
   const removed = await tx.execute(
     sql`DELETE FROM party_members pm WHERE pm.party_id=${id}::uuid AND pm.last_seen_at<=clock_timestamp()-interval '5 minutes' AND NOT (${online}) RETURNING owner_id`,
   );
-  if (offline.rows.length || removed.rows.length) await reset(tx, id);
+  if (removed.rows.length) await reset(tx, id);
+  else if (offline.rows.length)
+    await tx.execute(
+      sql`UPDATE parties SET countdown_ends_at=NULL,queue_error=NULL,version=version+1 WHERE id=${id}::uuid`,
+    );
   if (
     !(
       await tx.execute(

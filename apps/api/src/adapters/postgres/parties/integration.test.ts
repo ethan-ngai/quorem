@@ -126,6 +126,7 @@ test("members share presence, readiness, and offline cleanup", async () => {
   await repo.heartbeat(b, secondWindow);
   const snapshot = (await repo.read(a, id)) as { members: { ready: boolean; online: boolean }[] };
   expect(snapshot.members.find((x) => !x.ready)?.online).toBe(true);
+  expect(snapshot.members.filter((x) => x.ready && x.online)).toHaveLength(1);
   await pool.query(
     "UPDATE platform_presence_leases SET expires_at=clock_timestamp()-interval '7 minutes' WHERE owner_id='party-b'",
   );
