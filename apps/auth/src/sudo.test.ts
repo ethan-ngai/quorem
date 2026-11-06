@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 /** @file sudo.test.ts @description Real Better Auth reauthentication, session isolation and single-use email codes. @module auth */
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ describe.skipIf(!url)("sudo on disposable PostgreSQL", () => {
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: origin,
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: url,
       AUTH_INTERNAL_SECRET: "fixture-internal",
     });

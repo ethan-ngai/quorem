@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { withNodeConnection, type Transaction } from "@quorem/database/core";
@@ -37,7 +38,7 @@ describe.skipIf(!databaseURL)("email-first registration with disposable PostgreS
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: "http://localhost:5180",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       SMTP_HOST: "127.0.0.1",
