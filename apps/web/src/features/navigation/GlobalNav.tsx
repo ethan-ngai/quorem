@@ -127,7 +127,8 @@ export function GlobalNav({
         <header className="topbar global-nav">
           <WorkspaceSidebar
             pathname={pathname}
-            admin={
+            admin={session.data?.user.role === "admin"}
+            author={
               session.data?.user.role === "admin" ||
               !!(
                 session.data?.capabilities &&
