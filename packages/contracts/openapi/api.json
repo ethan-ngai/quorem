@@ -5591,6 +5591,9 @@
           "partyId": {
             "type": "string",
             "format": "uuid"
+          },
+          "reviewPending": {
+            "type": "boolean"
           }
         },
         "required": [

@@ -1505,6 +1505,7 @@ export interface components {
             admissionLocked?: boolean;
             /** Format: uuid */
             partyId?: string;
+            reviewPending?: boolean;
         };
         MatchQuestionFilters: {
             /** @enum {string} */
