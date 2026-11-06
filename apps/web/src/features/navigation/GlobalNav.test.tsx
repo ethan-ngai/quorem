@@ -110,7 +110,7 @@ describe("global navigation", () => {
     );
     expect(html).not.toContain("nav-preferences");
   });
-  it.each(["/practice", "/invite/token", "/match/lobby", "/admin/questions"])(
+  it.each(["/practice", "/invite/token", "/match/lobby", "/questions"])(
     "omits the workspace shortcut outside a question workspace: %s",
     async (path) => {
       expect(await renderNavigation(path)).not.toContain('aria-label="Workspace settings"');

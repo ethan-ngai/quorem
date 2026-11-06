@@ -58,38 +58,20 @@ import { BulkQuestionImport } from "./BulkQuestionImport";
 import questionSchema from "@quorem/contracts/questions/schema?url";
 import "./admin.css";
 
-/** Gates navigation as well as operations; API authorization remains authoritative. */
+/** Authoring access is owned by the route boundary and verified again by the API. */
 export function QuestionEditor() {
   const session = useSession();
   const theme = useTheme();
   return (
     <>
       <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
-      {session.isPending ? (
-        <LoadingScreen label="Checking account…" />
-      ) : session.isError ? (
-        <main className="admin-access" role="alert">
-          Account unavailable. Reload to retry.
-        </main>
-      ) : !session.data ? (
-        <main className="admin-access">
-          <h1>Sign in required</h1>
-          <a href="/login">Sign in</a>
-        </main>
-      ) : session.data.user.role !== "admin" &&
-        !session.data.capabilities?.authorCustomQuestions ? (
-        <main className="admin-access">
-          <h1>Question authoring access required</h1>
-          <p>Your account cannot edit questions.</p>
-          <a href="/practice">Return to practice</a>
-        </main>
-      ) : (
+      {session.data ? (
         <QuestionSelection
           admin={session.data.user.role === "admin"}
           userId={session.data.user.id}
           theme={theme.theme}
         />
-      )}
+      ) : null}
     </>
   );
 }
@@ -107,7 +89,7 @@ function QuestionSelection({
   userId: string;
   theme: EditorTheme;
 }) {
-  const search = useSearch({ from: "/admin/questions" });
+  const search = useSearch({ from: "/questions" });
   const { draft, publication } = search;
   const question = useQuery({
     queryKey: questionKey(userId, draft, publication),
@@ -128,10 +110,7 @@ function QuestionSelection({
           <p role="alert">
             {userFacingErrorMessage(question.error, "Could not open the question.")}
           </p>
-          <Link
-            to="/admin/questions"
-            search={{ ...search, draft: undefined, publication: undefined }}
-          >
+          <Link to="/questions" search={{ ...search, draft: undefined, publication: undefined }}>
             Back to questions
           </Link>
         </main>
@@ -163,8 +142,8 @@ function AuthoringWorkspace({
   const preferences = useLocalEditorPreferences();
   const cache = useQueryClient();
   const [importOpen, setImportOpen] = useState(false);
-  const search = useSearch({ from: "/admin/questions" });
-  const navigate = useNavigate({ from: "/admin/questions" });
+  const search = useSearch({ from: "/questions" });
+  const navigate = useNavigate({ from: "/questions" });
   const { section, readiness, draft: draftId, publication, ...filters } = search;
   const drafts = useQuery({
     queryKey: ["admin-drafts", admin, filters, readiness],

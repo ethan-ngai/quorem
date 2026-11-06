@@ -2,6 +2,7 @@ import { catalogSearch } from "../practice/catalogSearch";
 /** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
+import { canAccess } from "../auth/adminAccess";
 import { useSession } from "../auth/session";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Plus, SlidersHorizontal } from "lucide-react";
@@ -127,14 +128,8 @@ export function GlobalNav({
         <header className="topbar global-nav">
           <WorkspaceSidebar
             pathname={pathname}
-            admin={
-              session.data?.user.role === "admin" ||
-              !!(
-                session.data?.capabilities &&
-                "authorCustomQuestions" in session.data.capabilities &&
-                session.data.capabilities.authorCustomQuestions === true
-              )
-            }
+            admin={canAccess(session.data, "admin")}
+            author={canAccess(session.data, "authoring")}
             interviews={!!session.data?.capabilities?.interviews}
           />
           <a className="nav-brand" href="/" aria-label="Quorem home">
