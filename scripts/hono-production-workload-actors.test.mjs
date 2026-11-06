@@ -16,6 +16,17 @@ void test("production benchmark authority rejects local or malformed destination
       /authority/,
     );
 });
+void test("temporary actor counts remain bounded", async () => {
+  for (const count of [0, 9, 1.5])
+    await assert.rejects(
+      createProductionBenchmarkActors({
+        databaseURL: "postgres://fixture.neon.tech/neondb?sslmode=verify-full",
+        authSecret: "a".repeat(40),
+        count,
+      }),
+      /authority/,
+    );
+});
 void test(
   "temporary benchmark actors are ordinary users and all sessions are revoked",
   { skip: !process.env.QUOREM_BENCHMARK_TEST_DATABASE_URL },
