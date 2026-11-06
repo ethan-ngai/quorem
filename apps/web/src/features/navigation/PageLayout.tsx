@@ -7,8 +7,15 @@ import { resolveEditorPalette } from "../editor/editorPalettes";
 import { PageMetadata } from "./PageMetadata";
 import { SiteFooter } from "../../ui/SiteFooter";
 import "./page-layout.css";
+import { useSession } from "../auth/session";
+import { useParty, usePlatformPresence } from "../matches/party";
+import type { DevelopmentIdentity } from "@quorem/contracts";
 
 export function PageLayout() {
+  const session = useSession();
+  const identity = (session.data?.user.id ?? "anonymous") as DevelopmentIdentity;
+  usePlatformPresence(identity, !!session.data);
+  useParty(identity, !!session.data, true);
   const pathname = useLocation({ select: (location) => location.pathname });
   const {
     editorSchemes: { light, dark },

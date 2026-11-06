@@ -1,6 +1,6 @@
-/** @file commandRecovery.ts @description Owner-scoped mutation retry keys and private invitation recovery. @module matches */
+/** @file commandRecovery.ts @description Owner-scoped mutation mutation retry keys. @module matches */
 import { randomUUID } from "../../randomUUID";
-import type { CreateMatchRequest, DevelopmentIdentity, MatchInvite } from "@quorem/contracts";
+import type { DevelopmentIdentity } from "@quorem/contracts";
 import { RejectedMatchCommand } from "./errors";
 
 type PendingCommand<T> = { key: string; payload: T };
@@ -29,37 +29,6 @@ export function readPendingCommand<T>(
     /* Browser storage cannot be required for match access. */
   }
   return volatilePending.get(storageKey(identity, operation)) as PendingCommand<T> | undefined;
-}
-
-/** @returns Create settings frozen for a retry after an uncertain network response. */
-export function pendingCreate(identity: DevelopmentIdentity) {
-  const command = readPendingCommand<CreateMatchRequest>(identity, "create");
-  if (
-    command &&
-    (command.payload?.mode === undefined ||
-      ["showdown", "free-for-all"].includes(command.payload.mode)) &&
-    (!!command.payload?.selectedProblemVersionId ||
-      (Array.isArray(command.payload?.difficulties) &&
-        command.payload.difficulties.length > 0 &&
-        command.payload.difficulties.every((pool) => ["easy", "medium", "hard"].includes(pool))) ||
-      (typeof command.payload?.difficulty === "string" &&
-        ["easy", "medium", "hard"].includes(command.payload.difficulty))) &&
-    [15, 30, 45, 60].includes(command.payload?.durationMinutes)
-  )
-    return command;
-  return undefined;
-}
-
-/** Discard an uncertain create retry after checking for an active match. */
-export function discardPendingCreate(identity: DevelopmentIdentity) {
-  const key = storageKey(identity, "create");
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    return false;
-  }
-  volatilePending.delete(key);
-  return true;
 }
 
 /** @returns A command result, reusing the exact key and payload after an uncertain response. */
@@ -102,27 +71,4 @@ export async function recoverableCommand<TPayload, TResult>(
     /* A retained key safely replays the same command. */
   }
   return result;
-}
-
-/** Retains the private link across reloads and the create-response recovery boundary. */
-export function rememberInvite(identity: DevelopmentIdentity, invite: MatchInvite) {
-  try {
-    localStorage.setItem(`quorem.match-invite.v1:${identity}:${invite.id}`, invite.inviteUrl);
-    localStorage.setItem(`quorem.last-match.v1:${identity}`, invite.id);
-  } catch {
-    /* The caller can still enter the server-issued match. */
-  }
-}
-
-/** @returns The owner's saved invitation resolved against the current app origin. */
-export function readInvite(identity: DevelopmentIdentity, matchId: string) {
-  try {
-    const saved = localStorage.getItem(`quorem.match-invite.v1:${identity}:${matchId}`);
-    if (!saved) return null;
-    // Older API responses stored absolute localhost links; retain only their route.
-    const invite = new URL(saved, window.location.origin);
-    return new URL(`${invite.pathname}${invite.search}${invite.hash}`, window.location.origin).href;
-  } catch {
-    return null;
-  }
 }

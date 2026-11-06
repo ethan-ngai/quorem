@@ -4,7 +4,6 @@ import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
 import {
   activeMatchReturnLabel,
   matchCompletionOutcome,
-  lobbyWaitingLabel,
   outcomeLabel,
   ownParticipant,
   remainingTime,
@@ -16,11 +15,7 @@ describe("active match return link", () => {
     (state) => {
       const match = { ...snapshot, state };
       const expected =
-        state === "waiting" || state === "ready"
-          ? "Return to active lobby"
-          : state === "active" || state === "finalizing"
-            ? "Return to active match"
-            : null;
+        state === "active" || state === "finalizing" ? "Return to active match" : null;
       expect(activeMatchReturnLabel(match, "alice")).toBe(expected);
       expect(activeMatchReturnLabel({ ...match, participants: [] }, "alice")).toBeNull();
       expect(
@@ -31,57 +26,6 @@ describe("active match return link", () => {
       ).toBeNull();
     },
   );
-});
-
-describe("lobby readiness", () => {
-  it("waits for every FFA participant and then an explicit host start", () => {
-    const ffa = {
-      ...snapshot,
-      mode: "free-for-all" as const,
-      participants: [
-        ...snapshot.participants,
-        {
-          userId: developmentUserIds.charlie,
-          displayName: "Charlie",
-          ready: false,
-          presence: "online" as const,
-        },
-      ],
-    };
-    expect(lobbyWaitingLabel(ffa, "alice")).toBe("Waiting for players to ready");
-    expect(
-      lobbyWaitingLabel(
-        { ...ffa, participants: ffa.participants.map((player) => ({ ...player, ready: true })) },
-        "alice",
-      ),
-    ).toBe("Waiting for host to start");
-  });
-  it("keeps join status even when the only player is ready", () => {
-    for (const ready of [false, true]) {
-      const solo = { ...snapshot, participants: [{ ...snapshot.participants[1]!, ready }] };
-      expect(lobbyWaitingLabel(solo, "alice")).toBe("Waiting for opponent to join");
-    }
-  });
-  it("names the participant still needing to ready", () => {
-    for (const ownReady of [false, true]) {
-      for (const opponentReady of [false, true]) {
-        const pair = {
-          ...snapshot,
-          participants: [
-            { ...snapshot.participants[0]!, ready: opponentReady },
-            { ...snapshot.participants[1]!, ready: ownReady },
-          ],
-        };
-        expect(lobbyWaitingLabel(pair, "alice")).toBe(
-          !opponentReady
-            ? "Waiting for opponent to ready"
-            : !ownReady
-              ? "Waiting for you to ready"
-              : "Starting Showdown…",
-        );
-      }
-    }
-  });
 });
 
 const snapshot: MatchSnapshot = {

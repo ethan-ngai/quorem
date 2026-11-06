@@ -14,6 +14,8 @@ import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/ModeIcon";
 import { ModeText } from "../matches/ModeText";
 import { useActiveMatch } from "../matches/useActiveMatch";
+import { readPendingCommand } from "../matches/commandRecovery";
+import { useParty } from "../matches/party";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
 import { AccountMenu } from "./AccountMenu";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
@@ -77,7 +79,9 @@ export function GlobalNav({
   const consumedCreation = useRef(false);
   const inMatch = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
   const activeMatch = useActiveMatch(actor, !!session.data && !inMatch && !mode);
-  const checkingMatch = session.isPending || activeMatch.checking;
+  const party = useParty(actor, !!session.data);
+  const checkingMatch =
+    session.isPending || activeMatch.checking || (!!session.data && party.isPending);
   const [creating, setCreating] = useState(false);
   function signInToCreate() {
     const destination = matchSignInLocation(
@@ -97,6 +101,10 @@ export function GlobalNav({
     consumedCreation.current = true;
     if (!session.data || session.data.kind === "guest") {
       signInToCreate();
+      return;
+    }
+    if (party.data?.party && !readPendingCommand(actor, "party:/v1/parties")) {
+      window.location.assign("/party");
       return;
     }
     if (activeMatch.match) {
@@ -121,11 +129,18 @@ export function GlobalNav({
     activeMatch.checking,
     activeMatch.failed,
     activeMatch.match,
+    party.data?.party,
+    actor,
   ]);
   return (
     <>
       <div className="global-nav-slot">
         <header className="topbar global-nav">
+          {party.data?.party && pathname !== "/party" && (
+            <a className="button button-secondary" href="/party">
+              Return to lobby
+            </a>
+          )}
           <WorkspaceSidebar
             pathname={pathname}
             admin={canAccess(session.data, "admin")}

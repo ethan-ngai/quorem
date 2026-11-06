@@ -1,12 +1,21 @@
 /** @file CompletionDemo.tsx @description Development-only completion fixtures and future rematch preview. @module completion */
 import { useEffect, useState } from "react";
-import { ArrowRight, RotateCcw, Users } from "lucide-react";
+import { RotateCcw, Users } from "lucide-react";
+import { PartyReadyStatus } from "../matches/PartyReadyStatus";
 import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { CompletionDialog } from "./CompletionDialog";
 import { Celebration } from "../../ui/Celebration";
 import { useTheme } from "../editor/useTheme";
+import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import { ReviewDiff } from "../matches/ReviewDiff";
+import { EditorialCode } from "../editor/components/EditorialCode";
+
+const yourCode =
+  "def two_sum(nums, target):\n    seen = {}\n    for i, n in enumerate(nums):\n        if target - n in seen:\n            return [seen[target - n], i]\n        seen[n] = i";
+const opponentCode =
+  "def two_sum(nums, target):\n    for i, a in enumerate(nums):\n        for j in range(i + 1, len(nums)):\n            if a + nums[j] == target:\n                return [i, j]";
 
 export function CompletionDemo() {
   useEffect(() => {
@@ -19,6 +28,32 @@ export function CompletionDemo() {
   const [mode, setMode] = useState("Practice");
   const [open, setOpen] = useState(true);
   const [replay, setReplay] = useState(0);
+  const [ready, setReady] = useState(false);
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [nextRound, setNextRound] = useState(false);
+  const toggleReady = () => {
+    const next = !ready;
+    setReady(next);
+    setNextRound(false);
+    setCountdown(next ? new Date(Date.now() + 5000).toISOString() : null);
+  };
+  useEffect(() => {
+    if (!countdown) return;
+    const timer = window.setTimeout(
+      () => {
+        setCountdown(null);
+        setReady(false);
+        setNextRound(true);
+      },
+      Math.max(0, Date.parse(countdown) - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [countdown]);
+  const [review, setReview] = useState(false);
+  const [lobby, setLobby] = useState(false);
+  const [diff, setDiff] = useState(false);
+  const [compare, setCompare] = useState(false);
+  const { editorSchemes } = useLocalEditorPreferences();
   const { theme, setPreference } = useTheme();
   const competitive = mode.startsWith("Competition");
   const lost = mode === "Competition loss";
@@ -47,6 +82,8 @@ export function CompletionDemo() {
             className="button button-secondary"
             onClick={() => {
               setMode(value);
+              setReview(false);
+              setLobby(false);
               setReplay((value) => value + 1);
               setOpen(true);
             }}
@@ -70,6 +107,100 @@ export function CompletionDemo() {
           Switch theme
         </button>
       </div>
+      {lobby && (
+        <section aria-label="Lobby">
+          <h2>Lobby</h2>
+          <p>You · {ready ? "Ready" : "Not ready"} · Alex · Ready</p>
+          {nextRound ? (
+            <p role="status">Next round started · demo</p>
+          ) : (
+            <PartyReadyStatus
+              members={[
+                { displayName: "You", ready, online: true },
+                { displayName: "Alex", ready: true, online: true },
+              ]}
+              countdownEndsAt={countdown}
+            />
+          )}
+          <button className="button button-secondary" onClick={toggleReady}>
+            {ready ? "Unready" : "Ready up"}
+          </button>
+          <button
+            className="quiet-button"
+            onClick={() => {
+              setLobby(false);
+              setOpen(true);
+            }}
+          >
+            Results
+          </button>
+        </section>
+      )}
+      {review && (
+        <section aria-label="Review code">
+          <h2>Review code</h2>
+          <p>Illustrative completed-round source</p>
+          <button
+            className="button button-secondary"
+            aria-pressed={compare}
+            onClick={() => setCompare(!compare)}
+          >
+            Compare
+          </button>
+          {compare && (
+            <button
+              className="button button-secondary"
+              aria-pressed={diff}
+              onClick={() => setDiff(!diff)}
+            >
+              Diff
+            </button>
+          )}
+          {compare && diff ? (
+            <ReviewDiff
+              original={yourCode}
+              source={opponentCode}
+              language="python"
+              theme={theme}
+              colorScheme={editorSchemes[theme]}
+            />
+          ) : (
+            <div className="review-demo-code">
+              <div>
+                <h3>Your code</h3>
+                <EditorialCode
+                  language="python"
+                  theme={theme}
+                  colorScheme={editorSchemes[theme]}
+                  source={yourCode}
+                  label="Your saved code"
+                />
+              </div>
+              {compare && (
+                <div>
+                  <h3>Alex</h3>
+                  <EditorialCode
+                    language="python"
+                    theme={theme}
+                    colorScheme={editorSchemes[theme]}
+                    source={opponentCode}
+                    label="Alex submitted code"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            className="button button-secondary"
+            onClick={() => {
+              setReview(false);
+              setOpen(true);
+            }}
+          >
+            Back to results
+          </button>
+        </section>
+      )}
       {step || observer ? (
         <>
           <p role="status">
@@ -133,12 +264,29 @@ export function CompletionDemo() {
             <>
               {competitive ? (
                 <>
-                  <button className="button button-secondary" onClick={() => setOpen(false)}>
-                    Review results
+                  <button
+                    className="button button-secondary"
+                    onClick={() => {
+                      setReview(true);
+                      setOpen(false);
+                    }}
+                  >
+                    Review code
                   </button>
-                  <button className="button button-primary" onClick={() => setOpen(false)}>
-                    New match
-                    <ArrowRight size={16} />
+                  <button
+                    className="button button-secondary"
+                    onClick={() => {
+                      setLobby(true);
+                      setOpen(false);
+                    }}
+                  >
+                    <Users size={16} /> Return to lobby
+                  </button>
+                  <button
+                    className={`button ${ready ? "button-secondary" : "button-primary"}`}
+                    onClick={toggleReady}
+                  >
+                    {ready ? "Unready" : "Ready up"}
                   </button>
                 </>
               ) : (
@@ -160,7 +308,7 @@ export function CompletionDemo() {
                 <li data-you="true">
                   <span>
                     <strong>{lost ? "Alex" : "You"}</strong>
-                    <small>Winner</small>
+                    <small>Winner · 8:42</small>
                   </span>
                   <span>24 / 24</span>
                 </li>
@@ -171,17 +319,17 @@ export function CompletionDemo() {
                   <span>18 / 24</span>
                 </li>
               </ol>
-              <div className="completion-next">
-                <strong>Same lobby · Upcoming</strong>
-              </div>
-              <div className="completion-actions" aria-label="Upcoming lobby features">
-                <button className="button button-secondary" disabled>
-                  <Users size={16} /> Return to lobby
-                </button>
-                <button className="button button-secondary" disabled>
-                  <RotateCcw size={16} /> Quick requeue
-                </button>
-              </div>
+              {nextRound ? (
+                <p role="status">Next round started · demo</p>
+              ) : (
+                <PartyReadyStatus
+                  members={[
+                    { displayName: "You", ready, online: true },
+                    { displayName: "Alex", ready: true, online: true },
+                  ]}
+                  countdownEndsAt={countdown}
+                />
+              )}
             </>
           )}
         </CompletionDialog>

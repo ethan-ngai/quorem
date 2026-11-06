@@ -1,9 +1,15 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { CompletionOutcomeIcon } from "../../ui/CompletionOutcomeIcon";
-import { ArrowRight, Trophy } from "lucide-react";
-import { useState } from "react";
+import { Trophy } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { readPendingCommand } from "./commandRecovery";
+import { PartyReadyStatus } from "./PartyReadyStatus";
+import { useActiveMatch } from "./useActiveMatch";
+import { partyCommand, useParty } from "./party";
+import { useEffect, useState } from "react";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { outcomeLabel, ownParticipant, matchCompletionOutcome } from "./matchState";
 
@@ -30,16 +36,105 @@ export function matchEndDescription(snapshot: MatchSnapshot, identity: Developme
   if (snapshot.state === "cancelled") return "This lobby closed before the match finished.";
   return "Judging is complete. These are the final results.";
 }
+export function elapsedRoundTime(startedAt?: string, completedAt?: string) {
+  if (!startedAt || !completedAt) return undefined;
+  const seconds = Math.floor((Date.parse(completedAt) - Date.parse(startedAt)) / 1000);
+  if (!Number.isFinite(seconds) || seconds < 0) return undefined;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = String(seconds % 60).padStart(2, "0");
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${remainder}`
+    : `${minutes}:${remainder}`;
+}
+
 export function MatchEndView({
   snapshot,
   identity,
-  guest,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
-  guest: boolean;
 }) {
   const [open, setOpen] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const client = useQueryClient();
+  const partyQuery = useParty(identity);
+  const candidateParty = partyQuery.data?.party;
+  const party = candidateParty?.id === snapshot.partyId ? candidateParty : null;
+  const activeMatch = useActiveMatch(
+    identity,
+    !!party?.currentMatchId && party.currentMatchId !== snapshot.id,
+  );
+  useEffect(() => {
+    if (
+      party?.currentMatchId &&
+      party.currentMatchId !== snapshot.id &&
+      activeMatch.match?.id === party.currentMatchId
+    )
+      window.location.assign(`/match/${party.currentMatchId}`);
+  }, [party?.currentMatchId, snapshot.id, activeMatch.match?.id]);
+  const member = party?.members.find((person) => person.userId === participantUserId(identity));
+  const recovery =
+    party &&
+    readPendingCommand<{ ready: boolean }>(identity, `party:/v1/parties/${party.id}/ready`);
+  const toggleReady = async () => {
+    if (!party || !member || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await partyCommand(identity, `/v1/parties/${party.id}/ready`, "POST", {
+        ready: recovery?.payload.ready ?? !member.ready,
+      });
+      await client.invalidateQueries({ queryKey: ["current-party", identity] });
+    } catch {
+      setError("Could not update readiness. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
+  const settled =
+    (snapshot.state === "completed" || snapshot.state === "cancelled") &&
+    !!snapshot.outcome &&
+    !!snapshot.startedAt;
+  const reviewPending = !!snapshot.startedAt && (!settled || !!snapshot.reviewPending);
+  const actions = (
+    <>
+      {settled && !snapshot.reviewPending && (
+        <a className="button button-secondary" href={`/match/${snapshot.id}/review`}>
+          Review code
+        </a>
+      )}
+      {reviewPending && (
+        <button
+          className="button button-secondary"
+          disabled
+          title="Review is available after judging finishes."
+        >
+          Review code
+        </button>
+      )}
+      {candidateParty && !partyQuery.isError && (
+        <a className="button button-secondary" href="/party">
+          Return to lobby
+        </a>
+      )}
+      {!partyQuery.isError && !partyQuery.isFetching && partyQuery.data?.party === null && (
+        <a className="button button-primary" href="/practice?create=match">
+          Create lobby
+        </a>
+      )}
+      {party && !partyQuery.isError && member && (
+        <button
+          className={`button ${member.ready ? "button-secondary" : "button-primary"}`}
+          disabled={pending || !member.online || !!party.currentMatchId}
+          onClick={() => void toggleReady()}
+        >
+          {recovery ? "Retry readiness" : member.ready ? "Unready" : "Ready up"}
+        </button>
+      )}
+    </>
+  );
   const own = ownParticipant(snapshot, identity);
   const forfeited = !!own?.forfeited;
   const outcome = matchCompletionOutcome(snapshot, identity);
@@ -50,6 +145,18 @@ export function MatchEndView({
       Number(a.forfeited) - Number(b.forfeited) ||
       (b.bestScore?.passed ?? 0) - (a.bestScore?.passed ?? 0),
   );
+  const partyStatus = (
+    <div className="match-party-status">
+      {(partyQuery.isPending || (partyQuery.isFetching && !candidateParty)) && (
+        <span role="status">Checking lobby…</span>
+      )}
+      <PersistentNotice
+        message={partyQuery.isError ? "Could not check your lobby. Try again." : undefined}
+        label="Lobby unavailable"
+        actions={[{ label: "Try again", onClick: () => void partyQuery.refetch() }]}
+      />
+    </div>
+  );
   const standings = (
     <ol className="match-result-players" aria-label="Match results">
       {players.map((player) => (
@@ -57,6 +164,13 @@ export function MatchEndView({
           <span>
             <strong>{player.displayName}</strong>
             {player.userId === participantUserId(identity) && <small>You</small>}
+            {player.userId === snapshot.outcome?.winnerUserId && (
+              <small>
+                Winner
+                {elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt) &&
+                  ` · ${elapsedRoundTime(snapshot.startedAt, snapshot.outcome?.completedAt)}`}
+              </small>
+            )}
           </span>
           <span>
             {player.forfeited ? (
@@ -85,20 +199,19 @@ export function MatchEndView({
           <p>{description}</p>
         </header>
         {standings}
-        {guest && (
-          <p className="match-guest-finished">
-            Your guest session has ended. Sign in or continue browsing.
-          </p>
+        {reviewPending && (
+          <p role="status">Code review will be available when the round and judging finish.</p>
         )}
-        <footer className="match-results-actions">
-          <button className="quiet-button" onClick={() => setOpen(true)}>
-            Match summary
-          </button>
-          <a className="button button-primary" href="/practice">
-            Back to practice
-            <ArrowRight size={16} />
-          </a>
-        </footer>
+        {party && !partyQuery.isError && (
+          <PartyReadyStatus
+            members={party.members}
+            countdownEndsAt={party.countdownEndsAt}
+            queueError={party.queueError}
+          />
+        )}
+        {partyStatus}
+        {error && <p role="alert">{error}</p>}
+        <footer className="match-results-actions">{actions}</footer>
       </section>
       <CompletionDialog
         open={open}
@@ -114,25 +227,21 @@ export function MatchEndView({
         }
         competitive
         outcome={outcome}
-        actions={
-          <>
-            <button className="button button-secondary" onClick={() => setOpen(false)}>
-              Review results
-            </button>
-            <a
-              className="button button-primary"
-              href={guest ? "/practice" : "/practice?create=match"}
-            >
-              {guest ? "Back to practice" : "New match"}
-              <ArrowRight size={16} />
-            </a>
-          </>
-        }
+        actions={actions}
       >
         {standings}
-        {guest && (
-          <p className="completion-next">Your guest session has ended. Sign in to play again.</p>
+        {reviewPending && (
+          <p role="status">Code review will be available when the round and judging finish.</p>
         )}
+        {party && !partyQuery.isError && (
+          <PartyReadyStatus
+            members={party.members}
+            countdownEndsAt={party.countdownEndsAt}
+            queueError={party.queueError}
+          />
+        )}
+        {partyStatus}
+        {error && <p role="alert">{error}</p>}
       </CompletionDialog>
     </>
   );
