@@ -15,7 +15,7 @@ beforeAll(async () => {
 afterAll(
   () =>
     new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
+      server.close((error?: Error) => (error ? reject(error) : resolve())),
     ),
 );
 contract((path, init) => fetch(`http://127.0.0.1:${port}${path}`, init));
@@ -31,4 +31,16 @@ it("failure diagnostics retain bounded causes without private provider details",
   expect(summary.causes).toHaveLength(2);
   expect(summary.causes[1].code).toBe("55P03");
   expect(JSON.stringify(summary)).not.toContain("private");
+});
+
+it("failure diagnostics classify platform transport errors without exposing their details", () => {
+  const error = Object.assign(
+    new Error("Cannot perform I/O on behalf of a different request: private value"),
+    { code: "XX000" },
+  );
+  expect(failureSummary(error).causes[0]).toMatchObject({ reason: "io_context", code: "XX000" });
+  expect(JSON.stringify(failureSummary(error))).not.toContain("private");
+  expect(
+    failureSummary(Object.assign(new Error("private"), { code: "53300" })).causes[0].code,
+  ).toBe("53300");
 });
