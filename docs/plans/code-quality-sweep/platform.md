@@ -31,3 +31,7 @@ Tracked inventory: runner 72, language 15, realtime 4, questions 42, execution 3
 ## Sequencing and package assessment
 
 Independent implementation slices: (1) question formatter plus starter composition, coordinating web consumers; (2) execution contract decoders, coordinating runner and API consumers; (3) constraint projection owner, coordinating editor changes. Keep the execution slice separate from sandbox or verification topology. Relay removal requires deployment evidence first. Existing AJV handles question schema; `ws` handles gateway sockets. No externally verified maintained package replacement was established that preserves lossless numbers, provider-neutral Workers/Node behavior, streaming bounds, fencing, or sandbox semantics; avoid speculative dependency additions.
+
+## Disposition: PR #567
+
+Implemented focused type rendering, direct staged composition, canonical projection admission reuse, and execution input decoders in PR #567. Source/display formatting intentionally retains distinct nullable and parenthesis output. Decoders reject inconsistent run/fallback manifests earlier and retain attempt, ordinal and channel binding checks. Tests cover Node, workerd, editor and runner transports; hosted isolation and database integration remain unverified. The old relay/probe retirement remains open pending deployed-state evidence. Broader type grammar duplication outside rendering remains a follow-up, not a claim of complete consolidation.

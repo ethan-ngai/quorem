@@ -1,6 +1,7 @@
 /** @file manifest-binding.ts @description Immutable manifest case identity for runner provenance. @module execution */
 import type { AttemptFence, InputCaseRef, InputManifest, Job } from "./contracts.ts";
 import { encodeJob } from "./job.ts";
+import { decodeInputManifest, decodeInputCaseRef } from "./input-contract.ts";
 const hex = /^[0-9a-f]{64}$/;
 const enc = new TextEncoder();
 async function digest(value: string): Promise<string> {
@@ -17,31 +18,8 @@ export async function manifestCaseBinding(
   original: AttemptFence,
 ): Promise<string> {
   encodeJob(job);
-  const validBlob = (blob: { hash: string; size: number }) =>
-    !!blob &&
-    hex.test(blob.hash) &&
-    Number.isSafeInteger(blob.size) &&
-    blob.size >= 0 &&
-    blob.size <= 1073741823;
-  if (
-    (manifest.kind !== "run" && manifest.kind !== "submit") ||
-    (manifest.level !== null && (!Number.isSafeInteger(manifest.level) || manifest.level < 1)) ||
-    !Number.isInteger(manifest.caseCount) ||
-    manifest.caseCount < 0 ||
-    !Number.isInteger(manifest.sampleCount) ||
-    manifest.sampleCount < 0 ||
-    typeof manifest.privateDetails !== "boolean" ||
-    typeof manifest.submitCasesAreSamples !== "boolean" ||
-    (manifest.submitCasesAreSamples &&
-      (manifest.kind !== "submit" ||
-        !manifest.privateDetails ||
-        manifest.caseCount !== manifest.sampleCount)) ||
-    !validBlob(manifest.source) ||
-    !validBlob(manifest.metadata) ||
-    !hex.test(manifest.suiteHash) ||
-    !validBlob(ref)
-  )
-    throw new Error("Invalid input manifest");
+  decodeInputManifest(manifest);
+  decodeInputCaseRef(ref);
   const total = manifest.caseCount + (manifest.submitCasesAreSamples ? 0 : manifest.sampleCount);
   const expected =
     manifest.kind === "run" || manifest.submitCasesAreSamples
@@ -60,8 +38,6 @@ export async function manifestCaseBinding(
       job.runtimeRevision,
       job.harnessRevision,
     ].some((value) => !/^[A-Za-z0-9._:-]{1,128}$/.test(value)) ||
-    total > 2147483647 ||
-    (manifest.kind === "run" && manifest.sampleCount !== 0) ||
     !Number.isInteger(ordinal) ||
     ordinal < 0 ||
     ordinal >= total ||
