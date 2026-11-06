@@ -181,3 +181,37 @@ void test("private rollout permits retiring only runner and verifier container r
     for (const action of ["delete", "update"])
       assert.throws(() => inspectProductionPlan(plan(address, [action]), "private-workers"));
 });
+
+void test("private mail rollout changes only the image digest", () => {
+  const image = `registry.cloudflare.com/${"a".repeat(32)}/quorem-hono-production-mail@sha256:${"b".repeat(64)}`;
+  for (const rollout of [false, true]) {
+    const address = rollout
+      ? 'restapi_object.trusted_rollout["mail"]'
+      : 'restapi_object.trusted["mail"]';
+    const key = rollout ? "target_configuration" : "configuration";
+    const before = {
+      name: "quorem-hono-services-production-mail",
+      [key]: { image: image.replace(/b{64}$/, "c".repeat(64)), vcpu: 1, memory_mib: 3072 },
+    };
+    const after = { ...before, [key]: { ...before[key], image } };
+    const value = (target) => ({
+      resource_changes: [
+        {
+          address,
+          change: {
+            actions: rollout ? ["create", "delete"] : ["update"],
+            before: { data: JSON.stringify(before), update_data: JSON.stringify(before) },
+            after: { data: JSON.stringify(target), update_data: JSON.stringify(target) },
+          },
+        },
+      ],
+    });
+    assert.doesNotThrow(() => inspectProductionPlan(value(after), "private-workers"));
+    for (const target of [
+      { ...after, name: "other-service" },
+      { ...after, [key]: { ...after[key], vcpu: 2 } },
+      { ...after, [key]: { ...after[key], image: "untrusted/image:latest" } },
+    ])
+      assert.throws(() => inspectProductionPlan(value(target), "private-workers"));
+  }
+});
