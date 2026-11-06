@@ -342,6 +342,14 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   });
   expect(admitted.status, await admitted.clone().text()).toBe(202);
   const submission = ((await admitted.json()) as { id: string }).id;
+  const resultSnapshot = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}`, {
+    headers,
+  });
+  expect(resultSnapshot.status).toBe(200);
+  expect(((await resultSnapshot.json()) as { id: string }).id).toBe(submission);
+  const anonymousSnapshot = await SELF.fetch(`http://127.0.0.1:8765/v1/submissions/${submission}`);
+  expect(anonymousSnapshot.status).toBe(401);
+  await anonymousSnapshot.body?.cancel();
   const expiredMatch = crypto.randomUUID();
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
