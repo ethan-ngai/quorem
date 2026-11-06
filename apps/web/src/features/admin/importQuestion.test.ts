@@ -58,6 +58,17 @@ describe("question JSON import", () => {
       /additional properties/,
     );
   });
+  it("rejects obsolete duplicate solution ownership", () => {
+    const content = blankQuestion();
+    expect(() => parseQuestionImport(JSON.stringify({ ...content, solutions: [] }))).toThrow(
+      /additional properties/,
+    );
+    content.implementations[0] = {
+      ...content.implementations[0]!,
+      referenceSource: "duplicated reference",
+    } as (typeof content.implementations)[number];
+    expect(() => parseQuestionImport(JSON.stringify(content))).toThrow(/additional properties/);
+  });
   it("bounds uploaded bytes", () => {
     expect(() => parseQuestionImport(" ".repeat(questionImportLimit + 1))).toThrow(/2 MiB/);
   });
