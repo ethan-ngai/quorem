@@ -316,6 +316,19 @@ export class CaseSandbox extends DurableObject {
       console.log(`case-lifecycle boot-ready duration_ms=${timing.bootMs}`);
       // The live response keeps this invocation active; the durable alarm fences abandoned runs.
       this.phase = "exec-begin";
+      const stdin = new ReadableStream(
+        {
+          pull: (controller) => {
+            if ((this.generation ?? 0) !== generation) {
+              controller.error(new Error("Case cancelled"));
+              return;
+            }
+            controller.enqueue(bytes);
+            controller.close();
+          },
+        },
+        { highWaterMark: 0 },
+      );
       const process = await container.exec(
         [
           "/usr/bin/env",
@@ -326,7 +339,7 @@ export class CaseSandbox extends DurableObject {
           String(memory),
           String(processes),
         ],
-        { user: "0:0", stdin: "pipe", stdout: "pipe", stderr: "pipe" },
+        { user: "0:0", stdin, stdout: "pipe", stderr: "pipe" },
       );
       if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
       this.phase = "exec-ready";
@@ -338,13 +351,7 @@ export class CaseSandbox extends DurableObject {
       console.log(
         `Case started language=${language} duration_ms=${Math.round(performance.now() - started)}`,
       );
-      if (!process.stdin || !process.stdout || !process.stderr)
-        throw new Error("Case streams unavailable");
-      const inputWriter = process.stdin.getWriter();
-      const sendInput = (async () => {
-        await inputWriter.write(bytes);
-        await inputWriter.close();
-      })();
+      if (!process.stdout || !process.stderr) throw new Error("Case streams unavailable");
       const pump = async (readable, channel) => {
         const reader = readable.getReader();
         for (;;) {
@@ -355,8 +362,7 @@ export class CaseSandbox extends DurableObject {
         }
       };
       step = "streams";
-      const [, , , exitCode] = await Promise.all([
-        observe(sendInput, "input"),
+      const [, , exitCode] = await Promise.all([
         observe(pump(process.stdout, 1), "stdout"),
         observe(pump(process.stderr, 2), "stderr"),
         observe(process.exitCode, "exit"),
