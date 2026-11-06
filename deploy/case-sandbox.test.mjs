@@ -159,42 +159,34 @@ void test("direct case forwards current input and confirms teardown before its t
   assert.equal(context.alarm, undefined);
 });
 
-void test("waits for the configured VM image before issuing exec", async () => {
-  const { context, pending } = fixture();
-  let inspections = 0;
-  context.container.inspect = async () => ({ image: ++inspections < 3 ? "" : "image", labels: {} });
-  const exec = context.container.exec.bind(context.container);
-  context.container.exec = async (...args) => {
-    assert.equal(inspections, 3);
+void test("native exec manages readiness without metadata polling or early input", async () => {
+  const f = fixture();
+  let entered, release;
+  const starting = new Promise((resolve) => {
+    entered = resolve;
+  });
+  const ready = new Promise((resolve) => {
+    release = resolve;
+  });
+  f.context.container.inspect = async () => {
+    throw new Error("metadata polling");
+  };
+  const exec = f.context.container.exec.bind(f.context.container);
+  f.context.container.exec = async (...args) => {
+    entered();
+    await ready;
     return exec(...args);
   };
-  const response = await newSandbox(context).fetch(request());
-  await response.arrayBuffer();
-  await Promise.all(pending);
-  assert.equal(inspections, 3);
-  assert.equal(context.container.running, false);
-});
-
-void test("cancellation during boot prevents a later exec", async () => {
-  const { context, pending } = fixture();
-  let inspected;
-  const booting = new Promise((resolve) => {
-    inspected = resolve;
-  });
-  context.container.inspect = async () => {
-    inspected();
-    return { image: "", labels: {} };
-  };
-  const sandbox = newSandbox(context);
-  const response = await sandbox.fetch(request());
-  const reader = response.body.getReader();
-  await reader.read();
-  await booting;
-  assert.equal((await sandbox.fetch(request("DELETE"))).status, 204);
-  await assert.rejects(reader.read(), /Case cancelled/);
-  await Promise.all(pending);
-  assert.equal(context.command, undefined);
-  assert.equal(context.container.running, false);
+  const response = await newSandbox(f.context).fetch(request());
+  const consuming = response.arrayBuffer();
+  await starting;
+  assert.equal(f.input().length, 0);
+  assert.equal(f.context.options.image, "image");
+  release();
+  await consuming;
+  await Promise.all(f.pending);
+  assert.equal(new TextDecoder().decode(f.input()), "case-input");
+  assert.equal(f.context.container.running, false);
 });
 
 void test("a late exec response cannot receive input after cancellation", async () => {
@@ -225,14 +217,17 @@ void test("a late exec response cannot receive input after cancellation", async 
   assert.equal(context.container.running, false);
 });
 
-void test("image changes during startup fail closed and destroy the VM", async () => {
-  const { context, pending } = fixture();
-  context.container.inspect = async () => ({ image: "other-image", labels: {} });
-  const response = await newSandbox(context).fetch(request());
-  await assert.rejects(response.arrayBuffer(), /Case image changed/);
-  await Promise.all(pending);
-  assert.equal(context.command, undefined);
-  assert.equal(context.container.running, false);
+void test("native startup rejection delivers no input and confirms VM destruction", async () => {
+  const f = fixture();
+  f.context.container.exec = async () => {
+    throw new Error("native startup failed");
+  };
+  const response = await newSandbox(f.context).fetch(request());
+  await assert.rejects(response.arrayBuffer(), /native startup failed/);
+  await Promise.all(f.pending);
+  assert.equal(f.input().length, 0);
+  assert.equal(f.context.container.running, false);
+  assert.equal(f.values.has("started"), false);
 });
 
 void test("invalid limits do not start a case and uncertain teardown remains fenced", async () => {

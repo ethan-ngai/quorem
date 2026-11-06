@@ -358,21 +358,7 @@ export class CaseSandbox extends DurableObject {
         enableInternet: false,
       });
       this.phase = "started";
-      // Wait for VM readiness before issuing exec; its startup wait is opaque to callers.
-      this.phase = "boot-wait";
-      let pauseMs = 10;
-      for (;;) {
-        if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
-        if (performance.now() - started >= 60000) throw new Error("Case startup timeout");
-        const info = await container.inspect();
-        if (info?.image === container.images[language]) break;
-        if (info?.image) throw new Error("Case image changed");
-        await new Promise((resolve) => setTimeout(resolve, pauseMs));
-        pauseMs = Math.min(100, pauseMs * 2);
-      }
-      const booted = performance.now();
-      timing.bootMs = Math.round(booted - started);
-      console.log(`case-lifecycle boot-ready duration_ms=${timing.bootMs}`);
+      // exec waits for native readiness; metadata polling adds control-plane calls.
       // The live response keeps this invocation active; the durable alarm fences abandoned runs.
       this.phase = "exec-begin";
       const stdin = new ReadableStream(
@@ -404,7 +390,7 @@ export class CaseSandbox extends DurableObject {
       this.phase = "exec-ready";
       const ready = performance.now();
       timing.startupMs = Math.round(ready - started);
-      timing.execMs = Math.round(ready - booted);
+      timing.execMs = timing.startupMs;
       console.log(`case-lifecycle exec-created duration_ms=${timing.execMs}`);
       console.log(`case-lifecycle exec-ready ${language}`);
       console.log(
