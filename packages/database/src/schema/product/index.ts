@@ -2375,9 +2375,11 @@ export const match_private_result_cases = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.submission_id, t.ordinal] }),
-    foreignKey({ columns: [t.submission_id], foreignColumns: [submissions.id] }).onDelete(
-      "cascade",
-    ),
+    foreignKey({
+      columns: [t.submission_id],
+      foreignColumns: [submissions.id],
+      name: "match_private_result_cases_submission_id_fkey",
+    }).onDelete("cascade"),
     check("match_private_result_cases_ordinal_check", sql`ordinal>=0`),
   ],
 );
