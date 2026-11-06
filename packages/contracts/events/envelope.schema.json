@@ -3127,9 +3127,12 @@
         },
         "capacity": {
           "type": "integer"
+        },
+        "guestAllowed": {
+          "type": "boolean"
         }
       },
-      "required": ["id", "participantCount", "capacity"],
+      "required": ["id", "participantCount", "capacity", "guestAllowed"],
       "additionalProperties": false
     },
     "MatchReviewWorkspace": {

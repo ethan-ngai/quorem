@@ -2118,6 +2118,7 @@ export interface components {
             id: string;
             participantCount: number;
             capacity: number;
+            guestAllowed: boolean;
         };
         MatchReviewWorkspace: {
             /** Format: uuid */
