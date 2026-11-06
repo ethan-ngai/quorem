@@ -694,3 +694,81 @@ void test(
     assert.equal(finalCalls, 1);
   },
 );
+
+void test("twenty-case final windows keep at most ten native VMs live without intermediate checkpoints", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const { fixture, job } = fastFixture();
+  fixture.port.finalizeCompletion = async () => {};
+  fixture.port.saveCheckpoint = async () => {
+    throw new Error("final-window checkpoint");
+  };
+  let active = 0,
+    peak = 0,
+    calls = 0;
+  await executeAndStage(
+    job,
+    fixture.port,
+    {
+      async teardownAttempt() {},
+      async runCase(request: Parameters<typeof confirmCaseOutput>[0]) {
+        calls++;
+        active++;
+        peak = Math.max(peak, active);
+        try {
+          await delay(request.ordinal % 2 ? 5 : 15);
+          return confirmCaseOutput(request, {
+            stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+            stderr: Buffer.alloc(0),
+            exitCode: 0,
+          });
+        } finally {
+          active--;
+        }
+      },
+    },
+    undefined,
+    undefined,
+    () => {
+      assert.equal(active, 0);
+    },
+    10,
+  );
+  assert.equal(peak, 10);
+  assert.equal(calls, 20);
+  assert.equal(fixture.seals.length, 20);
+  assert.equal(fixture.frames.length, 0);
+});
+
+void test("failure in the first native wave prevents queued VM launches", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { fixture, job } = fastFixture();
+  fixture.port.finalizeCompletion = async () => {};
+  const started: number[] = [];
+  await assert.rejects(
+    executeAndStage(
+      job,
+      fixture.port,
+      {
+        async teardownAttempt() {},
+        async runCase(request: Parameters<typeof confirmCaseOutput>[0]) {
+          started.push(request.ordinal);
+          if (request.ordinal === 0) throw new Error("allocation failed");
+          return confirmCaseOutput(request, {
+            stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+            stderr: Buffer.alloc(0),
+            exitCode: 0,
+          });
+        },
+      },
+      undefined,
+      undefined,
+      undefined,
+      10,
+    ),
+    /allocation failed|aborted/,
+  );
+  assert.ok(started.length <= 10);
+  assert.ok(started.every((ordinal) => ordinal < 10));
+  assert.equal(fixture.frames.length, 0);
+});
