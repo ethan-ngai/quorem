@@ -13,6 +13,7 @@ import { Celebration } from "../../ui/Celebration";
 import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
 import { MatchCompletionActions } from "../matches/MatchCompletionActions";
 import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
+import { LeaveLobbyButton } from "../matches/LeaveLobbyButton";
 import { PartyReadyStatus } from "../matches/PartyReadyStatus";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { PythonEditor } from "../editor/PythonEditor";
@@ -71,6 +72,7 @@ export function CompletionDemo() {
   const [mode, setMode] = useState("Competition");
   const [open, setOpen] = useState(true);
   const [ready, setReady] = useState(false);
+  const [inLobby, setInLobby] = useState(true);
   const [replay, setReplay] = useState(0);
   const [panel, setPanel] = useState<WorkspacePanel>("code");
   const { theme, setPreference } = useTheme();
@@ -99,6 +101,8 @@ export function CompletionDemo() {
               onClick={() => {
                 setMode(value);
                 setReview(false);
+                setInLobby(true);
+                setReady(false);
                 setReplay((n) => n + 1);
                 setOpen(true);
               }}
@@ -239,6 +243,17 @@ export function CompletionDemo() {
           open={open}
           onOpenChange={setOpen}
           competitive={competitive}
+          headerActions={
+            competitive && inLobby ? (
+              <LeaveLobbyButton
+                disabled={false}
+                onClick={() => {
+                  setInLobby(false);
+                  setReady(false);
+                }}
+              />
+            ) : undefined
+          }
           outcome={lost ? "loss" : "success"}
           title={
             competitive
@@ -271,13 +286,17 @@ export function CompletionDemo() {
                     setReview(true);
                   },
                 }}
-                lobby="return"
-                readiness={{
-                  ready,
-                  disabled: false,
-                  retry: false,
-                  onClick: () => setReady(!ready),
-                }}
+                lobby={inLobby ? "return" : "create"}
+                readiness={
+                  inLobby
+                    ? {
+                        ready,
+                        disabled: false,
+                        retry: false,
+                        onClick: () => setReady(!ready),
+                      }
+                    : undefined
+                }
               />
             ) : (
               <button className="button button-secondary" onClick={() => setOpen(false)}>
@@ -303,13 +322,15 @@ export function CompletionDemo() {
                   <span>18 / 24</span>
                 </li>
               </ol>
-              <PartyReadyStatus
-                countdownEndsAt={null}
-                members={[
-                  { displayName: "You", ready, online: true },
-                  { displayName: "Alex", ready: true, online: true },
-                ]}
-              />
+              {inLobby && (
+                <PartyReadyStatus
+                  countdownEndsAt={null}
+                  members={[
+                    { displayName: "You", ready, online: true },
+                    { displayName: "Alex", ready: true, online: true },
+                  ]}
+                />
+              )}
             </>
           )}
         </CompletionDialog>

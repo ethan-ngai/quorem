@@ -20,6 +20,8 @@ export function CompletionDialog({
   stats,
   children,
   actions,
+  headerActions,
+  pending = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +35,8 @@ export function CompletionDialog({
   stats?: { label: string; value: ReactNode; hideLabel?: boolean; numeric?: boolean }[];
   children?: ReactNode;
   actions: ReactNode;
+  headerActions?: ReactNode;
+  pending?: boolean;
 }) {
   return (
     <SessionDialog
@@ -51,6 +55,8 @@ export function CompletionDialog({
       descriptionHidden={descriptionHidden}
       className="completion-dialog"
       closeLabel="Close summary"
+      actions={headerActions}
+      pending={pending}
     >
       {open && celebrate && <Celebration outcome={outcome} />}
       <div className="completion-context">{context}</div>

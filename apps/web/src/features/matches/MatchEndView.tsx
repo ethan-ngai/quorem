@@ -1,6 +1,7 @@
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { MatchCompletionActions } from "./MatchCompletionActions";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
+import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -84,6 +85,21 @@ export function MatchEndView({
   const recovery =
     party &&
     readPendingCommand<{ ready: boolean }>(identity, `party:/v1/parties/${party.id}/ready`);
+  const leaveRecovery =
+    party && readPendingCommand(identity, `party:/v1/parties/${party.id}/leave`);
+  const leaveLobby = async () => {
+    if (!party || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      await partyCommand(identity, `/v1/parties/${party.id}/leave`, "POST");
+      await client.invalidateQueries({ queryKey: ["current-party", identity] });
+    } catch {
+      setError("Could not leave the lobby. Try again.");
+    } finally {
+      setPending(false);
+    }
+  };
   const toggleReady = async () => {
     if (!party || !member || pending) return;
     setPending(true);
@@ -130,7 +146,7 @@ export function MatchEndView({
         party && !partyQuery.isError && member
           ? {
               ready: member.ready,
-              disabled: pending || !member.online || !!party.currentMatchId,
+              disabled: pending || !!leaveRecovery || !member.online || !!party.currentMatchId,
               retry: !!recovery,
               onClick: () => void toggleReady(),
             }
@@ -216,6 +232,12 @@ export function MatchEndView({
         }
         competitive
         outcome={outcome}
+        pending={pending}
+        headerActions={
+          party && !partyQuery.isError && member ? (
+            <LeaveLobbyButton disabled={pending} onClick={() => void leaveLobby()} />
+          ) : undefined
+        }
         actions={actions}
       >
         {standings}

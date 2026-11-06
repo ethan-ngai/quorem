@@ -9,6 +9,9 @@
 .completion-dialog .competitive-dialog-heading {
   margin-bottom: var(--space-4);
 }
+.completion-leave {
+  color: var(--color-error-button);
+}
 .completion-context {
   margin: 0;
   font-size: var(--text-body);
