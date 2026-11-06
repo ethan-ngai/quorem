@@ -247,6 +247,16 @@ export class RunnerService extends DurableObject {
       if (!response || response.status === 202) {
         const pending = await this.ctx.storage.getAlarm();
         if (pending === null || pending > Date.now()) await this.ctx.storage.setAlarm(Date.now());
+        const root = `runner:${this.env.SERVICES_RELEASE}:${this.env.SERVICES_GENERATION}`;
+        if (
+          path === "/internal/wake" &&
+          this.ctx.id.toString() === this.env.RUNNERS.idFromName(root).toString()
+        ) {
+          const runner = await activeRunner(this.env);
+          if (runner !== root) throw new Error("Runner wake gate unavailable");
+          // Arm independent slot invocations now; the parent alarm recovers interrupted fanout.
+          await this.wakeChildren(runner);
+        }
       }
       return response ?? new Response(null, { status: 204 });
     } catch {
