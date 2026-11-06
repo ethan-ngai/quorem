@@ -27,6 +27,7 @@ import { persistQuestionVersion, updateQuestionCatalogMetadata } from "../public
 import { readAuthoringQuestion } from "../private-content.ts";
 import { preserveCaseLiterals } from "../case-literals.ts";
 import { authoringQueries } from "./queries.ts";
+import { activeGrants, hasGrant } from "../../access/active-grants.ts";
 import {
   assertPublicationIdle,
   detachPublication,
@@ -83,12 +84,13 @@ async function author(
   ).rows;
   if (!rows.length) throw forbidden();
   if (!rows[0].admin) {
-    const grants = (
-      await tx.execute<{ feature: string }>(
-        sql`SELECT feature FROM entitlement_grants WHERE user_id=${actor.userId} AND feature IN ('internal','questions.custom') AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp()) ${lock ? sql`FOR SHARE` : sql``}`,
-      )
-    ).rows;
-    if (!grants.length) throw forbidden();
+    const grants = await activeGrants(
+      tx,
+      actor.userId,
+      ["questions.custom"],
+      lock ? "share" : "read",
+    );
+    if (!hasGrant(grants, "questions.custom")) throw forbidden();
   }
   return rows[0];
 }
