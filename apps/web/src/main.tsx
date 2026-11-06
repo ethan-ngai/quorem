@@ -150,6 +150,35 @@ const matchRoute = createRoute({
     );
   },
 });
+const reviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/match/$id/review",
+  component: function ReviewRoute() {
+    const { id } = reviewRoute.useParams();
+    return (
+      <Suspense fallback={<LoadingScreen label="Opening review…" />}>
+        <MatchReviewPage matchId={id} />
+      </Suspense>
+    );
+  },
+});
+const MatchReviewPage = lazy(() =>
+  import("./features/matches/MatchReviewPage").then((module) => ({
+    default: module.MatchReviewPage,
+  })),
+);
+const partyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/party",
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening lobby…" />}>
+      <PartyPage />
+    </Suspense>
+  ),
+});
+const PartyPage = lazy(() =>
+  import("./features/matches/PartyPage").then((module) => ({ default: module.PartyPage })),
+);
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
@@ -275,6 +304,8 @@ const routeTree = rootRoute.addChildren([
   practiceRoute,
   problemRoute,
   matchRoute,
+  reviewRoute,
+  partyRoute,
   inviteRoute,
 ]);
 const router = createRouter({

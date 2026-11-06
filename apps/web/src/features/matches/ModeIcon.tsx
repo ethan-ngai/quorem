@@ -1,9 +1,9 @@
 /** @file ModeIcon.tsx @description Shared competitive mode artwork. @module matches */
-import type { CreateMatchRequest } from "@quorem/contracts";
+import type { PartySettings } from "@quorem/contracts";
 import { Swords } from "lucide-react";
 import { FreeForAllIcon } from "./FreeForAllIcon";
 
-export function ModeIcon({ mode }: { mode: CreateMatchRequest["mode"] }) {
+export function ModeIcon({ mode }: { mode: PartySettings["mode"] }) {
   return mode === "free-for-all" ? (
     <FreeForAllIcon />
   ) : (
