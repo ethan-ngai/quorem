@@ -22,7 +22,6 @@ export function BulkQuestionConfirmation({
   visibility,
   onVisibilityChange,
   running,
-  progress,
   stopping = false,
   onCancel,
   onClose,
@@ -35,7 +34,6 @@ export function BulkQuestionConfirmation({
   visibility: "private" | "global";
   onVisibilityChange: (visibility: "private" | "global") => void;
   running: boolean;
-  progress: string;
   stopping?: boolean;
   onCancel?: () => void;
   onClose: () => void;
@@ -121,7 +119,6 @@ export function BulkQuestionConfirmation({
         </ul>
         {!visible.length && <p className="bulk-review-empty">No matching questions.</p>}
       </details>
-      {running && <p role="status">{stopping ? "Stopping after the current request…" : progress}</p>}
       <footer className="competitive-dialog-actions">
         <button
           type="button"

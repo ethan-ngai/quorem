@@ -27,7 +27,6 @@ const props = {
   admin: true,
   visibility: "private" as const,
   running: false,
-  progress: "",
   onVisibilityChange: () => {},
   onClose: () => {},
   onConfirm: () => {},

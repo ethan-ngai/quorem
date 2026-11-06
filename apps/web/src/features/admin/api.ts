@@ -1,7 +1,8 @@
 import type { QuestionSearch } from "./questionSearch";
 /** @file api.ts @description Admin authoring uses the same verified transport as judging. @module admin */
+import { verifyWithPasskey } from "../auth/capabilities";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
-import { api, requireData } from "../../api/client";
+import { ApiError, api, requireData } from "../../api/client";
 
 /** @returns One authorized draft page; backend checks the live server-owned role. */
 export async function listDrafts(
@@ -39,11 +40,20 @@ export async function publishDraft(
   draft: Pick<QuestionDraft, "id" | "revision">,
   visibility: "private" | "global",
 ) {
-  const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
-    params: { path: { id: draft.id } },
-    body: { revision: draft.revision, visibility },
-  });
-  return requireData(data, error);
+  const send = async () => {
+    const { data, error } = await api().POST("/v1/admin/question-drafts/{id}/publish", {
+      params: { path: { id: draft.id } },
+      body: { revision: draft.revision, visibility },
+    });
+    return requireData(data, error);
+  };
+  try {
+    return await send();
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== "step_up_required") throw error;
+    await verifyWithPasskey();
+    return send();
+  }
 }
 
 /** @returns The protected draft, fetched only when opened. */
