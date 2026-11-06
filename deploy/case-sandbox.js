@@ -299,7 +299,7 @@ export class CaseSandbox extends DurableObject {
         enableInternet: false,
       });
       this.phase = "started";
-      await container.setInactivityTimeout(180_000);
+      // The live response keeps this invocation active; the durable alarm fences abandoned runs.
       this.phase = "exec-begin";
       const process = await container.exec(
         [

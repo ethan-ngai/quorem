@@ -130,3 +130,15 @@ void test("production places sequential database work in the production database
   assert.deepEqual(config.placement, { region: "aws:us-east-1" });
   assert.equal(stageConfig(input(), outputs(), "/tmp/wrangler.json").placement, undefined);
 });
+
+void test("private judging uses service bindings for wakes and native cases", () => {
+  const config = stageConfig(
+    { ...input(), runnerWakeService: "quorem-hono-services-stage" },
+    outputs(),
+    "/tmp/wrangler.json",
+  );
+  assert.deepEqual(config.services, [
+    { binding: "RUNNER_WAKE", service: "quorem-hono-services-stage" },
+    { binding: "CASE_EXECUTION", service: "quorem-hono-services-stage" },
+  ]);
+});

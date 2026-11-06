@@ -56,9 +56,6 @@ function fixture({ failure = false, streamFailure = false } = {}) {
         this.running = true;
         context.options = options;
       },
-      async setInactivityTimeout(ms) {
-        context.idle = ms;
-      },
       async destroy() {
         if (failure) throw new Error("unconfirmed");
         this.running = false;

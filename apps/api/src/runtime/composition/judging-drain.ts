@@ -11,10 +11,11 @@ export function localJudgingDrain(
   peer: PrivateConfig["runnerPeers"][number],
   onUpdate: (terminal: boolean) => Promise<void>,
   capacity = judgingCapacity({}),
-  measurement?: ReturnType<typeof judgingProfile>,
+  options: { profile?: ReturnType<typeof judgingProfile>; fetch?: typeof fetch } = {},
 ): RunnerPeer["drain"] {
   return async (request, config, repository) => {
-    const profile = measurement ?? judgingProfile();
+    const profile = options.profile ?? judgingProfile();
+    const send = options.fetch ?? fetch;
     repository = profile.wrap(repository, "repository");
     const { origin, secret, namespaceId, ownerPublicKey } = config;
     if (
@@ -38,7 +39,7 @@ export function localJudgingDrain(
           {
             headers: async (input: RequestInfo | URL, init?: RequestInit) => {
               const sent = Date.now();
-              const response = await fetch(input, init);
+              const response = await send(input, init);
               const received = Number(response.headers.get("x-quorem-case-received-at"));
               const admitted = Number(response.headers.get("x-quorem-case-admitted-at"));
               if (
