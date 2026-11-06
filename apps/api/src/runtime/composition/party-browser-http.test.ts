@@ -2,7 +2,13 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
 import { randomUUID } from "node:crypto";
-import type { PartySnapshot, MatchSnapshot, MatchReview, ProblemVersion } from "@quorem/contracts";
+import type {
+  PartySnapshot,
+  MatchSnapshot,
+  MatchReview,
+  ProblemVersion,
+  Workspace,
+} from "@quorem/contracts";
 import { startBrowserFixture } from "./browser-fixture.ts";
 
 void test(
@@ -153,6 +159,79 @@ void test(
           .filter((person) => !person.own)
           .every((person) => person.workspace === null),
       );
+      const guestOriginal = reviewed.participants.find((person) => person.own)!;
+      const opponent = reviewed.participants.find(
+        (person) => !person.own && person.submission?.verdict === "wrong_answer",
+      )!;
+      assert.ok(guestOriginal.workspace);
+      assert.equal(
+        (await response(`/v1/workspaces/${guestOriginal.workspace.id}`, guest, undefined, "GET"))
+          .status,
+        200,
+      );
+      assert.equal(
+        (
+          await response("/v1/submissions", guest, {
+            workspaceId: guestOriginal.workspace.id,
+            kind: "submit",
+            source: "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+          })
+        ).ok,
+        false,
+      );
+      const experiment = await json<Workspace>(`/v1/matches/${firstId}/review/workspaces`, guest, {
+        participantUserId: opponent.userId,
+        language: "postgresql",
+      });
+      assert.equal(experiment.kind, "review");
+      assert.equal(experiment.reviewMatchId, firstId);
+      assert.equal(experiment.matchId, undefined);
+      const originalScores = first.participants.map((person) => ({
+        userId: person.userId,
+        score: person.bestScore,
+        forfeited: person.forfeited,
+      }));
+      // Review uses the same two-token execution bucket as competitive work.
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      for (const kind of ["run", "submit"] as const) {
+        const admitted = await json<{ id: string }>("/v1/submissions", guest, {
+          workspaceId: experiment.id,
+          kind,
+          source: "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+        });
+        const result = await waitFor(
+          () =>
+            json<{ state: string; verdict?: string }>(
+              `/v1/submissions/${admitted.id}`,
+              guest,
+              undefined,
+              "GET",
+            ),
+          (value) => ["completed", "failed", "cancelled"].includes(value.state),
+        );
+        assert.equal(result.state, "completed");
+        assert.equal(result.verdict, "accepted");
+      }
+      const unchanged = await json<MatchSnapshot>(
+        `/v1/matches/${firstId}`,
+        guest,
+        undefined,
+        "GET",
+      );
+      assert.deepEqual(unchanged.outcome, first.outcome);
+      assert.deepEqual(
+        unchanged.participants.map((person) => ({
+          userId: person.userId,
+          score: person.bestScore,
+          forfeited: person.forfeited,
+        })),
+        originalScores,
+      );
+      assert.deepEqual(
+        (await json<MatchReview>(`/v1/matches/${firstId}/review`, guest, undefined, "GET"))
+          .participants,
+        reviewed.participants,
+      );
       await json(
         `/v1/parties/${id}/settings`,
         alice,
@@ -179,6 +258,20 @@ void test(
         (await response(`/v1/matches/${firstId}/review`, guest, undefined, "GET")).status,
         404,
       );
+      assert.equal(
+        (await response(`/v1/workspaces/${experiment.id}`, guest, undefined, "GET")).status,
+        404,
+      );
+      assert.equal(
+        (
+          await response("/v1/submissions", guest, {
+            workspaceId: experiment.id,
+            kind: "submit",
+            source: "SELECT id FROM items;",
+          })
+        ).status,
+        404,
+      );
       await json(`/v1/matches/${secondId}/forfeit`, bob, {});
       assert.equal(
         (await response(`/v1/matches/${secondId}/review`, bob, undefined, "GET")).status,
@@ -198,6 +291,15 @@ void test(
       assert.equal(privateReview.shareCodeAfterMatch, false);
       assert.equal(privateReview.participants.length, 1);
       assert.equal(privateReview.participants[0]?.own, true);
+      assert.equal(
+        (
+          await response(`/v1/matches/${secondId}/review/workspaces`, guest, {
+            participantUserId: opponent.userId,
+            language: "postgresql",
+          })
+        ).status,
+        404,
+      );
       const guestSession = await json<{ kind: string }>("/v1/session", guest, undefined, "GET");
       assert.equal(guestSession.kind, "guest");
       const bobSession = await json<{ user: { id: string } }>("/v1/session", bob, undefined, "GET");
