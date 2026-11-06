@@ -2,7 +2,7 @@
 import type { Column, Table } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
-import { SelectField } from "./SelectField";
+import { PageSizeControl } from "./PageSizeControl";
 import { Tooltip } from "./Tooltip";
 import "./table.css";
 export function TableSortHeader<T>({
@@ -31,10 +31,6 @@ export function TableSortHeader<T>({
     </th>
   );
 }
-const pageSizes = [10, 20, 50, 100].map((value) => ({
-  value: String(value),
-  label: `${value} per page`,
-}));
 export function TablePagination<T>({
   table,
   disabled = false,
@@ -53,38 +49,38 @@ export function TablePagination<T>({
           : "0 entries"}
       </span>
       <div>
-        <SelectField
-          label="Rows per page"
-          value={String(pageSize)}
-          options={pageSizes}
-          onChange={(value) => table.setPageSize(Number(value))}
+        <PageSizeControl
+          value={pageSize}
+          onChange={(size) => table.setPageSize(size)}
           disabled={disabled}
         />
-        <Tooltip content="Previous page">
-          <button
-            type="button"
-            className="table-page-button"
-            aria-label="Previous page"
-            disabled={disabled || !table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-          >
-            <ChevronLeft size={16} aria-hidden="true" />
-          </button>
-        </Tooltip>
-        <span>
-          Page {pageIndex + 1} of {pages}
-        </span>
-        <Tooltip content="Next page">
-          <button
-            type="button"
-            className="table-page-button"
-            aria-label="Next page"
-            disabled={disabled || !table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-          >
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-        </Tooltip>
+        <div className="table-page-navigation">
+          <Tooltip content="Previous page">
+            <button
+              type="button"
+              className="table-page-button"
+              aria-label="Previous page"
+              disabled={disabled || !table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+            </button>
+          </Tooltip>
+          <span>
+            Page {pageIndex + 1} of {pages}
+          </span>
+          <Tooltip content="Next page">
+            <button
+              type="button"
+              className="table-page-button"
+              aria-label="Next page"
+              disabled={disabled || !table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+            >
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </Tooltip>
+        </div>
       </div>
     </footer>
   );

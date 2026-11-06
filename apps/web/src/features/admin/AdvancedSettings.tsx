@@ -13,6 +13,7 @@ import {
   Workflow,
   ChevronRight,
 } from "lucide-react";
+import { inputConstraints } from "../../ui/input-constraints";
 import { TextInput } from "../../ui/TextControl";
 import { Field } from "./AuthoringFields";
 import { AuthoringNumberField, LeetcodeIDField, TopicField } from "./AuthoringInputs";
@@ -89,6 +90,8 @@ export function AdvancedSettings({
               <TextInput
                 mono
                 aria-label="Slug"
+                constraint={inputConstraints.slug}
+                maxLength={80}
                 readOnly={lockSlug}
                 value={problem.slug}
                 onChange={(event) => setProblem({ slug: event.target.value })}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { InputPreset, registerInputPreset, resolveInputPreset } from "./inputPresets";
+import {
+  inputPresetSchemas,
+  InputPreset,
+  registerInputPreset,
+  resolveInputPreset,
+} from "./inputPresets";
 import type { ProblemVersion } from "@quorem/contracts";
 import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCases";
 
@@ -167,4 +172,35 @@ it("edits generic trees with structural nulls and lossless long payloads", () =>
   ]);
   expect(() => resolveInputPreset("ListNode<bool>").parse("[true,null]")).toThrow();
   expect(resolveInputPreset("TreeNode<datetime>").accepts('"2024-05-01T00:00:00",null')).toBe(true);
+});
+
+it("uses Zod for editable numeric prefixes and complete type validation", () => {
+  const number = inputPresetSchemas(resolveInputPreset("int"));
+  expect(number.edit.safeParse("-").success).toBe(true);
+  expect(number.edit.safeParse("12x").success).toBe(false);
+  expect(number.value.safeParse("-").success).toBe(false);
+  expect(number.value.safeParse("3/2").success).toBe(false);
+  expect(number.value.safeParse("2*3").success).toBe(true);
+  const text = inputPresetSchemas(resolveInputPreset("str"));
+  expect(text.value.safeParse("  keep  spaces  ").success).toBe(true);
+});
+
+it("blocks invalid tree alphabet while keeping string payloads editable", () => {
+  expect(resolveInputPreset("TreeNode").accepts("1 (2, null)")).toBe(true);
+  expect(resolveInputPreset("TreeNode").accepts("1 (2, xyz)")).toBe(false);
+  expect(resolveInputPreset("TreeNode<str>").accepts('"  keep  spaces  " ("你好", "text")')).toBe(
+    true,
+  );
+});
+
+it("guards datetime prefixes and exact long bounds", () => {
+  const datetime = resolveInputPreset("datetime");
+  for (const source of ["", "2026-1", "2026-11-05T12:"])
+    expect(datetime.accepts(source)).toBe(true);
+  for (const source of ["hello", "2026-13", "2026-02-29", "2026-11-05T25"])
+    expect(datetime.accepts(source)).toBe(false);
+  const long = resolveInputPreset("long");
+  expect(long.accepts("-")).toBe(true);
+  expect(long.accepts("9223372036854775807")).toBe(true);
+  expect(long.accepts("9223372036854775808")).toBe(false);
 });

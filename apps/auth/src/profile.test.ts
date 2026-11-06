@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { photoPrefix } from "./profile-object-key.ts";
 import { ImageExecutionUncertain } from "./image-processing.ts";
 import { withNodeConnection } from "@quorem/database/core";
@@ -321,7 +322,7 @@ describe.skipIf(!databaseURL)("profile with real Better Auth session", () => {
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: origin,
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal",
     });

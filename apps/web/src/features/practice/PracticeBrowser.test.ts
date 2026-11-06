@@ -53,8 +53,8 @@ it("preserves known question types and rejects unknown types", () => {
 });
 
 it("preserves supported page sizes and discards invalid values", () => {
-  for (const limit of [10, 20, 50, 100])
+  for (const limit of [1, 10, 20, 37, 50, 100, 137, 1000])
     expect(catalogSearch({ limit: String(limit), page: 2 })).toMatchObject({ limit, page: 2 });
-  for (const limit of [0, -1, 101, 2.5, "all"])
+  for (const limit of [0, -1, Number.MAX_SAFE_INTEGER + 1, 2.5, "all"])
     expect(catalogSearch({ limit })).not.toHaveProperty("limit");
 });

@@ -50,3 +50,11 @@ test('permits CodeMirror only in the document changes owner', () => {
   expect(errors.join('\n')).toContain('@codemirror/view');
   expect(errors.join('\n')).toContain('other.ts: @codemirror/state');
 });
+
+test('permits only the pagination contract leaf', () => {
+  const errors = violations({
+    'application/list-query.ts': "import '@quorem/contracts/pagination'; import '@quorem/contracts/pagination/hidden'; import '@quorem/contracts'; import '@quorem/contracts/auth';",
+  });
+  expect(errors).toHaveLength(3);
+  expect(errors.some((error) => error.endsWith(': @quorem/contracts/pagination'))).toBe(false);
+});

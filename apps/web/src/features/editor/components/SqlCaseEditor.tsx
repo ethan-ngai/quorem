@@ -1,3 +1,4 @@
+import { TextInput } from "../../../ui/TextControl";
 import { useRef } from "react";
 import { AnimatedRows } from "../../../ui/AnimatedRows";
 import type { QuestionProblem } from "@quorem/contracts";
@@ -7,6 +8,7 @@ import {
   parseSqlResult,
   parseSqlSetup,
   sqlCellText,
+  sqlCellInputConstraint,
   sqlDefault,
   sqlOutputColumns,
   sqlTables,
@@ -83,7 +85,9 @@ function EditableTable({
                             <option value="false">false</option>
                           </select>
                         ) : (
-                          <input
+                          <TextInput
+                            unstyled
+                            constraint={sqlCellInputConstraint(column.type)}
                             aria-label={label}
                             value={sqlCellText(value)}
                             onChange={(event) => setCell(rowIndex, columnIndex, event.target.value)}

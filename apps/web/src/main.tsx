@@ -11,6 +11,7 @@ import {
 import { StrictMode, Suspense, lazy } from "react";
 import { initializeTheme } from "./features/editor/useTheme";
 import { LoadingScreen } from "./ui/LoadingScreen";
+import { SudoDialog } from "./features/auth/SudoDialog";
 import { Notifications } from "./ui/Notifications";
 import { RouteError } from "./ui/RouteError";
 import { NotFoundPage } from "./features/public/NotFoundPage";
@@ -239,6 +240,7 @@ root.render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <SudoDialog />
       <Notifications />
     </QueryClientProvider>
   </StrictMode>,

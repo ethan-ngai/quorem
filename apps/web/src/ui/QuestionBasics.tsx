@@ -1,5 +1,8 @@
+import { inputConstraints, withMaxBytes } from "./input-constraints";
 import { TextInput } from "./TextControl";
 import { MarkdownField } from "./MarkdownField";
+export const questionTitleConstraint = withMaxBytes(inputConstraints.name, 160);
+
 /** Shared question copy fields for interview setup and library authoring. */
 export function QuestionBasics({
   title,
@@ -21,6 +24,7 @@ export function QuestionBasics({
       <label className="admin-field">
         <span>Question title</span>
         <TextInput
+          constraint={questionTitleConstraint}
           required={required}
           maxLength={120}
           value={title}

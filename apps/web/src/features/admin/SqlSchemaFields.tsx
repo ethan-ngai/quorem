@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, withMaxBytes, withMaxCharacters } from "../../ui/input-constraints";
 import { useRef } from "react";
 import { Trash2 } from "lucide-react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -9,6 +12,8 @@ import { Field } from "./AuthoringFields";
 
 type SqlSchema = NonNullable<ProblemVersion["sql"]>;
 type Column = NonNullable<SqlSchema["output"]>[number];
+
+const outputNameConstraint = withMaxBytes({ edit: () => true, schema: z.string().min(1) }, 256);
 
 const inputTypes = [
   "integer",
@@ -31,12 +36,14 @@ function SqlColumns({
   columns,
   types,
   disabled,
+  output = false,
   onChange,
 }: {
   label: string;
   columns: Column[];
   types: readonly Column["type"][];
   disabled: boolean;
+  output?: boolean;
   onChange: (columns: Column[]) => void;
 }) {
   const addColumn = useRef<HTMLButtonElement>(null);
@@ -54,7 +61,12 @@ function SqlColumns({
         focusFallback={addColumn}
         renderRow={(column, index) => (
           <div className="admin-sql-column">
-            <input
+            <TextInput
+              unstyled
+              constraint={
+                output ? outputNameConstraint : withMaxCharacters(inputConstraints.identifier, 63)
+              }
+              maxLength={output ? undefined : 63}
               className="admin-code"
               aria-label={`Column ${index + 1} name`}
               placeholder="Column name"
@@ -127,7 +139,10 @@ export function SqlSchemaFields({
             <fieldset className="admin-fields admin-sql-table">
               <legend>Table {index + 1}</legend>
               <Field label="Table name">
-                <input
+                <TextInput
+                  unstyled
+                  constraint={withMaxCharacters(inputConstraints.identifier, 63)}
+                  maxLength={63}
                   value={table.name}
                   onChange={(event) => updateTable(index, { name: event.target.value })}
                 />
@@ -182,6 +197,7 @@ export function SqlSchemaFields({
         </div>
         <SqlColumns
           label="Result columns"
+          output
           columns={value.output ?? []}
           types={outputTypes}
           disabled={disabled}

@@ -1,15 +1,13 @@
+import { TextInput } from "../../ui/TextControl";
+import { authInputConstraints } from "./inputConstraints";
+import { inputConstraints } from "../../ui/input-constraints";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { SocialEmailSetup } from "./SocialEmailSetup";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 /** @file LoginPage.tsx @description Theme-aware credential, passkey and provider sign-in. @module auth */
 import { useErrorNotification, useSuccessNotification } from "../../ui/Notifications";
 import { authErrorMessage, AuthError } from "./errors";
-import {
-  accountSetupSchema,
-  emailSchema,
-  emailInputSchema,
-  usernameInputSchema,
-} from "@quorem/contracts/auth";
+import { accountSetupSchema, emailSchema } from "@quorem/contracts/auth";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, EyeOff, Fingerprint } from "lucide-react";
@@ -17,6 +15,7 @@ import { signIn, signInDestination, signInWithPassword, useSession } from "./ses
 import { signInReferral } from "./signInReferral";
 import {
   fetchAuthCapabilities,
+  lastLoginMethod,
   beginRegistration,
   registrationStatus,
   completeRegistration,
@@ -62,6 +61,7 @@ function LoginForm() {
     queryFn: fetchAuthCapabilities,
     retry: false,
   });
+  const lastMethod = useQuery({ queryKey: ["last-login-method"], queryFn: lastLoginMethod });
   useEffect(() => {
     const origin = capabilities.data?.preferredOrigin;
     if (!origin) return;
@@ -337,6 +337,9 @@ function LoginForm() {
                         >
                           <SocialProviderIcon provider={provider} size={18} />
                           {socialProviderLabels[provider]}
+                          {!creating && lastMethod.data === provider ? (
+                            <span className="auth-last-used">Last used</span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -361,8 +364,12 @@ function LoginForm() {
                         <label htmlFor="auth-username">
                           {creating ? "Username" : "Username or email"}
                         </label>
-                        <input
+                        <TextInput
+                          unstyled
                           aria-describedby={finishing ? "signup-username-rules" : undefined}
+                          constraint={
+                            finishing ? authInputConstraints.username : authInputConstraints.email
+                          }
                           id="auth-username"
                           name="username"
                           autoComplete="username"
@@ -372,16 +379,7 @@ function LoginForm() {
                           pattern={creating ? "[a-z0-9]+" : undefined}
                           title={creating ? "3–30 lowercase letters or digits" : undefined}
                           value={username}
-                          onChange={(event) => {
-                            if (!finishing) {
-                              setUsername(event.target.value);
-                              return;
-                            }
-                            const value = event.target.value
-                              .toLowerCase()
-                              .replace(/[^a-z0-9]/g, "");
-                            if (usernameInputSchema.safeParse(value).success) setUsername(value);
-                          }}
+                          onChange={(event) => setUsername(event.target.value)}
                           disabled={busy}
                           autoCapitalize="none"
                           spellCheck={false}
@@ -392,7 +390,9 @@ function LoginForm() {
                             <label htmlFor="auth-name">
                               Name <span>(optional)</span>
                             </label>
-                            <input
+                            <TextInput
+                              unstyled
+                              constraint={inputConstraints.name}
                               id="auth-name"
                               name="name"
                               autoComplete="name"
@@ -405,13 +405,15 @@ function LoginForm() {
                         ) : null}
                         <label htmlFor="auth-password">Password</label>
                         <div className="auth-password">
-                          <input
+                          <TextInput
+                            unstyled
+                            constraint={authInputConstraints.password}
                             id="auth-password"
                             name="password"
                             type={visible ? "text" : "password"}
                             autoComplete={creating ? "new-password" : "current-password"}
                             minLength={creating ? 8 : undefined}
-                            maxLength={creating ? 128 : undefined}
+                            maxLength={128}
                             required
                             value={password}
                             onChange={(event) => setPassword(event.target.value)}
@@ -432,7 +434,9 @@ function LoginForm() {
                     {creating && !finishing ? (
                       <>
                         <label htmlFor="auth-email">Email</label>
-                        <input
+                        <TextInput
+                          unstyled
+                          constraint={authInputConstraints.email}
                           id="auth-email"
                           name="email"
                           type="email"
@@ -443,10 +447,7 @@ function LoginForm() {
                           maxLength={254}
                           disabled={busy}
                           value={email}
-                          onChange={(event) => {
-                            if (emailInputSchema.safeParse(event.target.value).success)
-                              setEmail(event.target.value);
-                          }}
+                          onChange={(event) => setEmail(event.target.value)}
                         />
                       </>
                     ) : null}
@@ -466,6 +467,11 @@ function LoginForm() {
                       : capabilities.data?.method === "password"
                         ? "Sign in"
                         : "Continue to sign in"}
+                  {!creating &&
+                  capabilities.data?.method === "password" &&
+                  lastMethod.data === "email" ? (
+                    <span className="auth-last-used">Last used</span>
+                  ) : null}
                 </button>
               </form>
               {!creating && capabilities.data?.registration && (
@@ -486,6 +492,9 @@ function LoginForm() {
                 >
                   <Fingerprint size={18} />
                   Sign in with a passkey
+                  {lastMethod.data === "passkey" ? (
+                    <span className="auth-last-used">Last used</span>
+                  ) : null}
                 </button>
               ) : null}
               {!creating && capabilities.data?.passkey && !passkeySupported ? (

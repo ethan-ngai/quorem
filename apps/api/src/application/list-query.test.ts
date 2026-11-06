@@ -8,11 +8,11 @@ it("defaults and parses bounded list state", () => {
   );
   expect(
     parseListQuery(
-      new URLSearchParams("page=3&limit=100&sort=difficulty&order=desc"),
+      new URLSearchParams("page=3&limit=137&sort=difficulty&order=desc"),
       ["title", "difficulty"],
       defaults,
     ),
-  ).toEqual({ page: 3, limit: 100, sort: "difficulty", order: "desc" });
+  ).toEqual({ page: 3, limit: 137, sort: "difficulty", order: "desc" });
 });
 it("rejects ambiguous, unbounded and unrecognized list state", () => {
   for (const value of [
@@ -20,7 +20,9 @@ it("rejects ambiguous, unbounded and unrecognized list state", () => {
     "page=10001",
     "page=2.5",
     "limit=0",
-    "limit=101",
+    "limit=-1",
+    "limit=1.5",
+    "limit=9007199254740992",
     "sort=source",
     "order=sideways",
     "limit=10&limit=20",

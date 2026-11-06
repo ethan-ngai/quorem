@@ -1,0 +1,94 @@
+.page-size-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: var(--control-height);
+  padding-inline: var(--space-2) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
+.page-size-control:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--focus-ring);
+}
+.page-size-control input {
+  box-sizing: content-box;
+  min-width: 2ch;
+  max-width: 17ch;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.page-size-control > span {
+  white-space: nowrap;
+}
+.page-size-control > button {
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  width: var(--control-height);
+  padding: 0;
+  border: 0;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent;
+  color: inherit;
+}
+.page-size-control > button:hover:not(:disabled) {
+  background: var(--color-overlay);
+}
+.page-size-control > button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+.page-size-control[data-disabled] {
+  opacity: 0.5;
+}
+.page-size-options {
+  min-width: var(--radix-popover-trigger-width);
+  padding: var(--space-1);
+}
+.page-size-options > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  font-size: var(--text-small);
+}
+.page-size-options > button:is(:hover, [data-active]) {
+  background: var(--color-surface);
+}
+.page-size-options > button[aria-selected="true"] {
+  color: var(--color-primary);
+}
+@media (max-width: 650px) {
+  .page-size-control,
+  .page-size-options > button {
+    min-height: var(--narrow-touch-target);
+  }
+  .page-size-control > button {
+    width: var(--narrow-touch-target);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-size-control {
+    transition: none;
+  }
+}

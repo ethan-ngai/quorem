@@ -38,58 +38,76 @@ elevation:
   lg: { light: "0 16px 48px oklch(0.2 0 0 / 0.10)", dark: "none" }
 ---
 
-## Product values
+## Required design contract
 
-The editor is the focal point. Optimize for reading, writing, testing and recovering code. Compact controls and quiet neutral surfaces leave room for the task. Marketing can explain competition with richer illustrations; application screens stay focused.
+All agents must apply this contract to UI planning, implementation, refactors and reviews. Prioritize the editor. Carry confirmed preferences through iterations and handoffs; preserve behavior and presentation during representation changes. Write positive instructions; use negatives for clearer boundaries.
 
-Use clear hierarchy and factual labels. Show information that helps someone decide or act. Omit ornamental eyebrows, repeated headings, routine connection/autosave chatter, internal IDs and fabricated progress. Present unavailable capabilities honestly.
+## Model the task
 
-Preserve approved product language, branding and interactions. Quorem uses its supplied logo for navigation. Marketing navigation centers its public links, separating same-page exploration from Practice and Create match with a divider and brighter, medium-weight app links; theme, Sign in and Get started sit on the right. On-page links collapse into the menu before Practice and Create match. Get started opens the existing registration flow. The marketing footer pairs the logo with the same wordmark artwork as the hero, sized for a compact horizontal lockup. The marketing hero uses Russo One outlines: squared bowls, a blocky m, a full-width lower e terminal and a custom stepped q tail drawn from the mark. Keep the wordmark compact, capped at 480px. Marketing uses “Compete beyond the algorithm” below the wordmark in upright regular Silkscreen, with wide blocky pixel letterforms, kept on one line with blue emphasis on “beyond”. Keep the hero copy to the wordmark, slogan and CTA; omit the description. Preserve the interactive dots. Treat references as evidence: inspect the actual app before claiming a match.
+- Abstract schema fields into coherent user concepts and operations before choosing controls.
+- Derive semantically valid choices from the model; scale compatibility across inputs and localize conflicts.
+- Expose small, fixed choice sets through segments, radios or chips. Use dropdowns for longer/variable lists, including languages and comparison operators where appropriate.
+- Use switches for binary settings, Add/Remove for optional content, and explicit names for meaningful modes.
+- Distinguish viewing, editing, enabling submissions, publishing and deleting. Clarify consequential actions before execution.
+- Choose defaults, placement and emphasis deliberately; each communicates intent.
 
-## Shared foundations
+## Hierarchy and disclosure
 
-`packages/ui/src/theme.css` implements the palette, typography, spacing, radii, layering and motion tokens above. `packages/ui/src/tokens.ts` provides layout values needed by JavaScript. Editor scheme palettes live beside the editor. Change the owning token once; keep this document about intent rather than duplicating implementation tables.
+- Lead with the task and primary action. Keep labels factual; give each heading or instruction new information.
+- Prefer descriptive icons with tooltips over prose. Match established icon meanings to the action or state.
+- Retain useful action text, especially Add labels. Apply feedback to its context and balance brevity with clarity.
+- Reveal secondary details, long selections and advanced options on demand. Show bulk controls with selection.
+- Use compact, searchable rows and bounded scrolling for large collections; use bullets where prose benefits.
+- Label availability and illustrative data truthfully. Report measured progress; expose internal details when useful for decisions or recovery.
 
-Use Geist for interface/prose and JetBrains Mono for code and machine values. Keep literal operators readable; disable common, contextual and discretionary ligatures throughout monospace text, inputs, previews and editors. Large light-mode reading and editor surfaces are white. Reserve closely spaced off-whites for compact controls and overlays, with darker neutrals limited to small elements or strong emphasis. Blue identifies actions and focus. Semantic colors accompany text or icons. Maintain readable contrast in light and dark themes. System theme is the initial preference; explicit choices persist. Editor schemes follow global appearance using separately saved light and dark choices. Default to the new JetBrains Light and Dark palettes; named alternatives remain scoped to the editor.
+## Layout and typography
 
-Separate content through spacing, thin rules and tonal changes. Workspace panes stay flat, without nested cards, ornamental gradients, glass or decorative shadows. Small control radii and restrained overlay elevation follow shared tokens. Node diagrams share a row with case literals when space permits, wrap below on narrower surfaces and fit the available space automatically, without enclosing cards, pan/zoom interactions or navigation controls. Empty node structures use a small dashed `∅` placeholder with the variable name and an empty-value tooltip; expected/output indicators keep their semantic colors.
+- Compose the whole page. Align related labels, icons, controls and content through shared insets; give each gap a purpose.
+- Group flat task surfaces with spacing and restrained separators. Use backgrounds, borders and elevation to communicate structure; retain meaningful grouping when simplifying.
+- Establish compact controls, readable line lengths and consistent heading/body/metadata hierarchy across views.
+- Use Geist for UI/prose; JetBrains Mono for code, parameters, identifiers, machine values and units. Disable code ligatures.
+- Render math with proper symbols and spacing. Keep literal brackets/punctuation neutral while values retain syntax colors.
+- Use white light-mode reading/editor surfaces, neutral controls, blue actions/focus and semantic colors with text/icons. Maintain contrast in both themes.
+- Preserve source, undo, selection, focus and scroll through appearance/layout changes. Reserve asynchronous status space while keeping related controls adjacent.
 
-## Primitive ownership
+## Shared ownership
 
-Fix shared behavior and appearance at the lowest reusable layer. React primitives live in `apps/web/src/ui`; cross-app CSS foundations live in `packages/ui`. Features own content, dimensions and domain policy. A feature must not supply missing primitive typography, padding, focus, disabled behavior, portal layering or motion through ancestor selectors.
+- Inspect analogous consumers first. Fix the lowest shared owner: React primitives in `apps/web/src/ui`, cross-app foundations in `packages/ui`.
+- Primitives own typography, padding, focus, disabled states, layering and motion. Features own composition, dimensions and domain policy. Extend primitives for recurring needs.
+- Share rendering/controls across practice, competition, interviews, authoring and previews. Previews own scale/composition and work independently of page ancestors.
+- Preserve authorization, private-test boundaries and admitted input/result snapshots.
+- Share table surfaces, sorting and pagination. Filter/order authorized results before paging; reset pages on filter/sort/page-size changes. Keep embedded SQL/document tables compact.
 
-For small, bounded choice sets, expose options directly with segmented controls, radio groups or selectable chips. Keep choices visible and easy to compare. Use switches for binary on/off states; reserve dropdowns for longer or variable option lists.
+Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/ui/src/tokens.ts`. Change the owner once. Keep feature details in `docs/implementation`; preserve the [marketing brand contract](docs/implementation/marketing-brand.md).
 
-Reuse controls for buttons, selects, switches, tabs, tooltips, popovers, dialogs, sharing, loading and recovery. Extend a primitive for a recurring need; avoid feature-specific copies and compatibility re-exports. Compose primitives without erasing their accessible semantics. Prefer descriptive icons with tooltips over prose in controls. Choose symbols that communicate the action or value; tooltips and accessible names supply the full label. Keep native text editing and disclosure controls where appropriate. Use the shared `disclosure` class on inline `details` so expanding and collapsing use the same motion throughout the app.
+## State and motion
 
-Application and marketing product previews consume the same components and styles. Preview containers own scale and composition, not substitute button/editor/test styling. A preview must work without an application page ancestor. Label illustrative data and keep previews separate from real judging, sessions and persistence.
+- Design empty, loading, disabled, pending, read-only, error, recovery and large-data states alongside success. Keep actions usable at narrow widths.
+- Animate language/content switches, disclosures, overlays, selections and row changes through shared owners. Use short, reversible transitions and shared motion tokens.
+- Apply state immediately. Retain old asynchronous content until its replacement is ready; transition content and dimensions smoothly.
+- Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
+- Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.
+- Preserve disabled/pending geometry, prevent duplicate actions and use shared destructive-action treatment.
 
-List tables share the UI table surface, sort headers and pagination controls. Servers filter and order the full authorized result before paging; users can choose rows per page. Page-size, sort and filter changes reset pagination. Embedded SQL and document tables retain their compact reading/editing semantics.
+## Feedback and recovery
 
-## Workspace and interaction
+- Use concise toasts for completed actions and transient failures. Include nonzero outcome counts; disclose details through named actions. Keep routine successful autosave silent.
+- Keep active progress, blocking errors and next-step instructions beside the operation. Deduplicate notifications and retain recovery after toast expiry.
+- Explain cause, affected item and correction. Mark every participating conflict origin; include page-level errors when blocked. Clear diagnostics by origin.
+- Keep `PersistentNotice` mounted in a stable status slot, or wrap content with `NoticeRegion`. Shared popovers hold details/recovery; closing details preserves the issue.
 
-Problem left, solution right, results below the editor; panes resize with pointer and keyboard. Keep source, undo, selection, focus and scroll stable through theme, pane and result changes. Controls align through shared insets. Narrow layouts preserve usable actions and content access without horizontal page overflow.
+## Workspace contracts
 
-The desktop navigation rail expands in place. Mobile navigation uses a dismissible drawer. Keep the logo mounted through navigation transitions. Align control icons and text; preserve space when optional information hides or asynchronous state changes.
+- Problem left, editor right, results below; support pointer/keyboard resizing. Fit node diagrams beside literals, wrapping below on narrow screens. Empty structures use `∅`, variable name and tooltip.
+- Expand desktop navigation in place; use a mobile drawer and retain the logo through transitions.
+- Start with system theme; persist explicit choices and separate light/dark editor schemes. Default to JetBrains Light/Dark.
+- Use identity colors for participant avatars, remote carets and selections; photo rings and initial backgrounds. Keep the local caret in its editor scheme.
 
-Share typed input/output rendering, case navigation and execution controls across practice, competition, interviews and authoring. Render results against their admitted source/input snapshot. Authorization, hidden tests and domain-specific rules remain enforced by the server.
+## Completion gate
 
-Transient failures and room events use shared toasts; room alerts retain accessible history. Field validation, execution diagnostics and blocking failures stay beside their recovery controls. Deduplicate reconnect/repeated background notifications. Keep recovery available after a toast expires. Routine successful autosave stays silent; save failures remain recoverable.
+Before calling UI work complete:
 
-Report completed user actions through concise toasts. Include only nonzero outcome counts; disclose recoverable details through a named action or local notice. Reveal bulk controls when items are selected, and keep active progress beside the operation.
-
-Recoverable persistent errors use `PersistentNotice` in an always-mounted status slot, or `NoticeRegion` beside existing content. Keep the slot geometry stable when healthy; full details and recovery actions open in a shared popover. Closing details does not dismiss the underlying issue. Features own error state; primitives own presentation and accessibility. Avoid conditional error paragraphs that move surrounding controls.
-
-## Accessibility and motion
-
-All working controls support keyboard focus and an accessible name; icon-only controls have shared tooltips. Overlays own focus trapping/restoration, dismissal, collision handling and layering. Disabled and pending controls prevent duplicate actions and retain stable geometry. Destructive actions use shared semantic treatment.
-
-Collaboration colors follow user identity across participant avatars, remote carets and selections. Photos carry a colored ring; initials use the color as their background. The local caret retains its editor scheme.
-
-Give interactive state changes motion through the shared control whenever possible. Animate editable row insertion and removal without delaying the underlying change. Reuse short, reversible transitions; avoid ambient movement while coding. Respect reduced motion. Suspend decorative marketing animation offscreen and in hidden tabs. Loading and status changes must not move surrounding content.
-
-## Verification
-
-Use live Vite/HMR from the intended checkout. Check the served UI at desktop and narrow widths, both themes, keyboard navigation and reduced motion. Exercise real hover, focus, disabled, pending, empty, error and recovery states. Inspect spacing and portal stacking in the browser; passing tests alone does not prove visual correctness.
-
-Keep feature behavior, dimensions and verification details beside the owning implementation or in `docs/implementation`. Add a rule here only when it expresses a durable product value or a shared design contract.
+1. Inspect the served page and affected consumers for hierarchy, spacing, typography and coherence. Verify motion in use.
+2. Use live Vite/HMR from the intended checkout; report its exact URL. Check desktop/narrow layouts, both themes, keyboard/reduced motion and relevant states/scale extremes.
+3. Exercise hover, focus, overlays, failure and recovery. Combine browser evidence with appropriate tests; report unchecked material states.
+4. Remove duplicated defaults, styles, behavior and obsolete paths. Complete shared fixes before declaring consumers consistent.

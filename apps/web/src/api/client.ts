@@ -27,6 +27,16 @@ export const publicApi = () =>
     },
   });
 
+/** Retains machine-readable recovery codes while displaying sanitized messages. */
+export class ApiError extends UserFacingError {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Turns typed API error responses into messages suitable for the workspace. */
 export function requireData<T>(data: T | undefined, error: unknown): T {
   if (data !== undefined) return data;
@@ -35,6 +45,6 @@ export function requireData<T>(data: T | undefined, error: unknown): T {
   const serverMessage =
     detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
   const message = safeErrorMessage(code, serverMessage);
-  if (message) throw new UserFacingError(message);
+  if (message) throw new ApiError(message, typeof code === "string" ? code : "unknown");
   throw new Error("API request failed");
 }

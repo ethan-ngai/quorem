@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { migrateAuth } from "./migrations";
@@ -12,13 +13,15 @@ describe.skipIf(!url || !inbox)(
         APP_ENV: "local",
         AUTH_MODE: "password",
         AUTH_ORIGIN: origin,
-        BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+        BETTER_AUTH_SECRET: testAuthSecret,
         AUTH_DATABASE_URL: url,
         AUTH_INTERNAL_SECRET: "mock-internal-secret",
         SMTP_HOST: "127.0.0.1",
         SMTP_PORT: process.env.AUTH_TEST_SMTP_PORT ?? "51025",
       });
-      const { auth, createAuth, database } = await (await import("./node-auth")).createNodeRuntime(process.env);
+      const { auth, createAuth, database, repository } = await (
+        await import("./node-auth")
+      ).createNodeRuntime(process.env);
       await migrateAuth(database);
       const username = `edit${randomUUID().replaceAll("-", "").slice(0, 14)}`,
         email = `${username}@example.test`,
@@ -96,6 +99,8 @@ describe.skipIf(!url || !inbox)(
         expect(
           (await database.query('SELECT name,username FROM "user" WHERE id=$1', [id])).rows[0],
         ).toEqual({ name: "", username: `${username}2` });
+        const session = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
+        await repository.recordAssurance(session!.session.id);
         await clearLimits(newEmail);
         await clearLimits(email);
         expect(

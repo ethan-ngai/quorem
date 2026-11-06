@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
 import { LogoSpinner } from "../../ui/LoadingScreen";
 /** @file InvitePage.tsx @description Read-only invitation preview with explicit account-aware acceptance. @module matches */
 import * as Dialog from "@radix-ui/react-dialog";
@@ -17,6 +19,8 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import "../../styles/workspace.css";
 
 /** Invitation possession grants preview access; only explicit acceptance can claim a seat. */
+const nameConstraint = withMaxCharacters(inputConstraints.name, 40);
+
 export function InvitePage({ token }: { token: string }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
@@ -68,7 +72,9 @@ export function InvitePage({ token }: { token: string }) {
     setPending(true);
     setError(undefined);
     try {
-      const match = await joinAsGuest(token, guestName.trim());
+      const parsed = validateInput(guestName, nameConstraint);
+      if (!parsed.success) throw new Error("Enter a valid display name.");
+      const match = await joinAsGuest(token, parsed.data);
       window.location.assign(`/match/${match.id}`);
     } catch (cause) {
       setError(userFacingErrorMessage(cause, "Guest access unavailable."));
@@ -208,8 +214,9 @@ export function InvitePage({ token }: { token: string }) {
             {!accountUser && guestAllowed && !resumeGuest && (
               <label className="guest-name-field">
                 Display name
-                <input
-                  maxLength={40}
+                <TextInput
+                  unstyled
+                  constraint={nameConstraint}
                   autoComplete="nickname"
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}

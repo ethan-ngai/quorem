@@ -8,6 +8,35 @@ import { plannedResourceChanges } from "./hono-terraform-plan.mjs";
 import { isDeepStrictEqual } from "node:util";
 export const PRODUCTION_DATABASE_CONNECTIONS = 60;
 
+/** Relay rollouts may replace only the digest, preserving configuration and service identity. */
+function mailImageChange(item) {
+  const rollout = item.address === 'restapi_object.trusted_rollout["mail"]';
+  if (!rollout && item.address !== 'restapi_object.trusted["mail"]') return false;
+  const action = item.change.actions.join();
+  if (!(rollout ? ["create,delete", "delete,create"].includes(action) : action === "update"))
+    return false;
+  try {
+    for (const field of rollout ? ["data"] : ["data", "update_data"]) {
+      const before = JSON.parse(item.change.before[field]);
+      const after = JSON.parse(item.change.after[field]);
+      const key = rollout ? "target_configuration" : "configuration";
+      const image = after[key].image;
+      if (
+        typeof image !== "string" ||
+        !/^registry\.cloudflare\.com\/[a-f0-9]{32}\/quorem-hono-production-mail@sha256:[a-f0-9]{64}$/.test(
+          image,
+        )
+      )
+        return false;
+      after[key].image = before[key].image;
+      if (!isDeepStrictEqual(before, after)) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function inspectProductionPlan(plan, mode) {
   const changes = plannedResourceChanges(plan);
   for (const item of changes) {
@@ -69,7 +98,8 @@ export function inspectProductionPlan(plan, mode) {
         !(retired && action === "delete") &&
         !(versioned && ["create", "update", "delete,create", "create,delete"].includes(action)) &&
         !verifierWorker &&
-        !verifierDomain
+        !verifierDomain &&
+        !mailImageChange(item)
       ) {
         const error = new Error("Private Worker rollout includes unrelated mutation");
         if (/^[a-z_.\[\]"0-9-]+$/.test(item.address) && /^[a-z,]+$/.test(action))

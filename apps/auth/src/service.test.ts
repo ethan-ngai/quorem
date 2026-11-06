@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHmac, randomUUID } from "node:crypto";
 import { migrateAuth } from "./migrations";
 import { describe, it, expect } from "vitest";
@@ -7,7 +8,7 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
     Object.assign(process.env, {
       APP_ENV: "local",
       AUTH_ORIGIN: "http://127.0.0.1:5174",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       COGNITO_CLIENT_ID: "mock-client",

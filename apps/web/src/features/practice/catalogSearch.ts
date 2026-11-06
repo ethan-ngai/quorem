@@ -1,3 +1,5 @@
+import { pageSizeSchema } from "@quorem/contracts/pagination";
+
 export type CatalogSearch = {
   sql?: "true";
   type?: "classic" | "odyssey";
@@ -37,7 +39,7 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   const page = Number(search.page);
   if (Number.isInteger(page) && page > 1 && page <= 10000) result.page = page;
   const limit = Number(search.limit);
-  if ([10, 20, 50, 100].includes(limit)) result.limit = limit;
+  if (pageSizeSchema.safeParse(limit).success) result.limit = limit;
   return result;
 }
 

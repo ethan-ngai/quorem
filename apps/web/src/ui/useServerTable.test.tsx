@@ -19,8 +19,8 @@ it("never sorts or slices an already paginated server response", () => {
   }
   renderToStaticMarkup(<Subject />);
   expect(table.getRowModel().rows.map((row) => row.original)).toEqual(data);
-  table.setPageSize(10);
-  expect(onChange).toHaveBeenLastCalledWith({ page: 1, limit: 10, sort: "title", order: "asc" });
+  table.setPageSize(137);
+  expect(onChange).toHaveBeenLastCalledWith({ page: 1, limit: 137, sort: "title", order: "asc" });
   table.nextPage();
   expect(onChange).toHaveBeenLastCalledWith({ page: 4, limit: 20, sort: "title", order: "asc" });
   table.getColumn("title")!.toggleSorting();

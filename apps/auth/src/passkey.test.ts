@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { migrateAuth } from "./migrations";
@@ -8,7 +9,7 @@ describe.skipIf(!databaseURL)("passkey protocol with disposable PostgreSQL", () 
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: "http://localhost:5174",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       GOOGLE_CLIENT_ID: "test-google-client",
@@ -52,6 +53,11 @@ describe.skipIf(!databaseURL)("passkey protocol with disposable PostgreSQL", () 
         [randomUUID(), sessionToken, id],
       );
       expect((await call("passkey/generate-register-options")).status).toBe(401);
+      expect(
+        (await call("passkey/generate-register-options", "GET", undefined, cookie)).status,
+      ).toBe(403);
+      const current = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
+      await runtime.repository.recordAssurance(current!.session.id);
       const options = await call("passkey/generate-register-options", "GET", undefined, cookie);
       expect(options.status).toBe(200);
       const registration = await options.json();

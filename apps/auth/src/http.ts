@@ -24,6 +24,7 @@ export function createAuthApp(options: {
   config: ReturnType<typeof configuration>;
   auth: { handler(request: Request): Promise<Response> };
   registration?: Handler;
+  sudo?: Handler;
   profile?: Handler;
 }) {
   const app = new Hono();
@@ -34,7 +35,9 @@ export function createAuthApp(options: {
     const request = context.req.raw;
     const path = new URL(request.url).pathname;
     let response: Response;
-    if (path === "/api/auth/sign-in/hosted")
+    if (path.startsWith("/api/auth/sudo/"))
+      response = (await options.sudo?.(request)) ?? new Response(null, { status: 404 });
+    else if (path === "/api/auth/sign-in/hosted")
       response = await hostedSignIn(request, options.config.method, (next) =>
         options.auth.handler(next),
       );

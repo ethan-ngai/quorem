@@ -19,6 +19,7 @@ import { validateConstraints as validateDefinitions, comparisonChoices } from "@
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Tooltip } from "../../ui/Tooltip";
 import * as Popover from "../../ui/Popover";
+import { inputConstraints, validateInput } from "../../ui/input-constraints";
 import { TextArea, TextInput } from "../../ui/TextControl";
 import type { Constraint, ConstraintTarget, Signature } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
@@ -52,6 +53,52 @@ const properties = {
   unique: { label: "Unique values", icon: Fingerprint },
 } as const;
 
+function RangeBound({
+  value,
+  label,
+  placeholder,
+  className,
+  disabled,
+  allowEmpty,
+  onChange,
+  onValidityChange,
+}: {
+  value: number | undefined;
+  label: string;
+  placeholder: string;
+  className: string;
+  disabled: boolean;
+  allowEmpty: boolean;
+  onChange: (value: number | undefined) => void;
+  onValidityChange: (invalid: boolean) => void;
+}) {
+  const [source, setSource] = useState(value === undefined ? "" : String(value));
+  const validity = useRef(onValidityChange);
+  validity.current = onValidityChange;
+  useEffect(() => () => validity.current(false), []);
+  return (
+    <TextInput
+      mono
+      className={className}
+      type="text"
+      inputMode="decimal"
+      constraint={inputConstraints.scientific}
+      aria-label={label}
+      placeholder={placeholder}
+      value={source}
+      disabled={disabled}
+      onChange={(event) => {
+        const text = event.target.value;
+        setSource(text);
+        const valid =
+          text === "" ? allowEmpty : validateInput(text, inputConstraints.scientific).success;
+        validity.current(!valid);
+        if (valid) onChange(text === "" ? undefined : Number(text));
+      }}
+    />
+  );
+}
+
 export function ConstraintFields({
   value,
   signature,
@@ -69,6 +116,7 @@ export function ConstraintFields({
 }) {
   const addConstraint = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [invalidBounds, setInvalidBounds] = useState<Record<string, boolean>>({});
   const numericTargets = constraintTargets(signature, "range");
   const comparisonTargets = constraintTargets(signature, "comparison");
   const sequenceTargets = constraintTargets(signature, "property");
@@ -93,8 +141,11 @@ export function ConstraintFields({
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => {
-    validity.current?.(semanticIssues.length > 0, semanticIssues);
-  }, [issueKey]);
+    validity.current?.(
+      semanticIssues.length > 0 || Object.values(invalidBounds).some(Boolean),
+      semanticIssues,
+    );
+  }, [issueKey, invalidBounds]);
   useEffect(() => () => validity.current?.(false), []);
   const addOptions = [
     {
@@ -212,26 +263,27 @@ export function ConstraintFields({
                 )}
                 {rule.kind === "range" && (
                   <>
-                    <TextInput
-                      mono
+                    <RangeBound
                       className="constraint-lower-bound"
-                      type="number"
-                      step="any"
-                      aria-label={`Constraint ${index + 1} minimum`}
+                      label={`Constraint ${index + 1} minimum`}
                       placeholder="−∞"
-                      value={rule.min ?? ""}
+                      value={rule.min}
                       disabled={disabled}
-                      onChange={(event) => {
-                        const min = event.target.valueAsNumber;
-                        if (Number.isFinite(min)) change({ ...rule, min });
-                        else if (!event.target.value && rule.max !== undefined)
-                          change({
-                            ...rule,
-                            min: undefined,
-                            minInclusive: undefined,
-                            max: rule.max,
-                          });
-                      }}
+                      allowEmpty={rule.max !== undefined}
+                      onValidityChange={(invalid) =>
+                        setInvalidBounds((current) =>
+                          current[`${index}:min`] === invalid
+                            ? current
+                            : { ...current, [`${index}:min`]: invalid },
+                        )
+                      }
+                      onChange={(min) =>
+                        change({
+                          ...rule,
+                          min,
+                          minInclusive: min === undefined ? undefined : rule.minInclusive,
+                        } as typeof rule)
+                      }
                     />
                     <BoundRelation
                       label={`Constraint ${index + 1} lower bound`}
@@ -257,26 +309,27 @@ export function ConstraintFields({
                         change({ ...rule, maxInclusive: maxInclusive ? undefined : false })
                       }
                     />
-                    <TextInput
-                      mono
+                    <RangeBound
                       className="constraint-upper-bound"
-                      type="number"
-                      step="any"
-                      aria-label={`Constraint ${index + 1} maximum`}
+                      label={`Constraint ${index + 1} maximum`}
                       placeholder="∞"
-                      value={rule.max ?? ""}
+                      value={rule.max}
                       disabled={disabled}
-                      onChange={(event) => {
-                        const max = event.target.valueAsNumber;
-                        if (Number.isFinite(max)) change({ ...rule, max });
-                        else if (!event.target.value && rule.min !== undefined)
-                          change({
-                            ...rule,
-                            min: rule.min,
-                            max: undefined,
-                            maxInclusive: undefined,
-                          });
-                      }}
+                      allowEmpty={rule.min !== undefined}
+                      onValidityChange={(invalid) =>
+                        setInvalidBounds((current) =>
+                          current[`${index}:max`] === invalid
+                            ? current
+                            : { ...current, [`${index}:max`]: invalid },
+                        )
+                      }
+                      onChange={(max) =>
+                        change({
+                          ...rule,
+                          max,
+                          maxInclusive: max === undefined ? undefined : rule.maxInclusive,
+                        } as typeof rule)
+                      }
                     />
                   </>
                 )}

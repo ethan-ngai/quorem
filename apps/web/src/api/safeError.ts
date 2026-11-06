@@ -131,7 +131,7 @@ export function specificErrorMessage(code: string, detail: unknown): string | un
 const codeMessages: Record<string, string> = {
   no_matching_questions: "No questions match these filters. Change the filters before starting.",
   guest_hosting_paused: "Guest hosting is paused. Turn off Allow guests to continue.",
-  step_up_required: "Sign in with a verified passkey again before publishing.",
+  step_up_required: "Confirm your identity to continue.",
   entitlement_required: "This feature is not enabled for this account.",
   quota_exceeded: "A limit has been reached. Please try again later.",
   rate_limited: "Too many requests. Try again shortly.",

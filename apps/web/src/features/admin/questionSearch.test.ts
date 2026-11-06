@@ -5,13 +5,14 @@ it("preserves page size and both sort directions while bounding the active secti
   expect(
     questionSearch({ section: "drafts", sort: "updatedAt", order: "asc", page: "3", limit: "50" }),
   ).toMatchObject({ section: "drafts", sort: "updatedAt", order: "asc", page: 3, limit: 50 });
-  expect(
-    questionSearch({ section: "publications", sort: "updatedAt", limit: "101" }),
-  ).toMatchObject({ sort: undefined, limit: undefined });
-  expect(questionSearch({ sort: "difficulty", order: "desc", limit: 10 })).toMatchObject({
+  expect(questionSearch({ section: "publications", sort: "updatedAt", limit: "0" })).toMatchObject({
+    sort: undefined,
+    limit: undefined,
+  });
+  expect(questionSearch({ sort: "difficulty", order: "desc", limit: 137 })).toMatchObject({
     section: "publications",
     sort: "difficulty",
     order: "desc",
-    limit: 10,
+    limit: 137,
   });
 });
