@@ -167,7 +167,8 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         companies: "id,name",
         problem_companies: "problem_id,company_id",
         matches: "id,problem_version_id,state,rules",
-        match_participants: "match_id,owner_id,forfeited",
+        match_participants: "match_id,owner_id,forfeited,competitor_id",
+        match_rule_events: "match_id,competitor_id,kind,resource_key",
         match_reservations: "match_id,owner_id",
       }))
         await pool.query(`GRANT SELECT(${columns}) ON ${table} TO ${role}`);
