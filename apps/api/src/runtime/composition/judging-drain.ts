@@ -110,7 +110,10 @@ export function localJudgingDrain(
       }),
     );
     const headers = new Headers(response.headers);
-    headers.set("x-quorem-judging-profile", profile.header());
+    const timing = JSON.parse(profile.header());
+    headers.set("x-quorem-judging-profile", JSON.stringify(timing));
+    if (timing.metrics["sandbox.runCase"]?.calls)
+      console.log(JSON.stringify({ event: "judging-drain-completed", ...timing }));
     return new Response(response.body, { status: response.status, headers });
   };
 }

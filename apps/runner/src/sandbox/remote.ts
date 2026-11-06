@@ -184,6 +184,21 @@ export function remoteSandbox(config: {
       let complete = false;
       let failure: unknown;
       try {
+        let body: BodyInit;
+        if (request.input.size <= 65536) {
+          const bytes = new Uint8Array(request.input.size);
+          let offset = 0;
+          for await (const part of checkedInput(request.input)) {
+            combined.throwIfAborted();
+            bytes.set(part, offset);
+            offset += part.length;
+          }
+          body = bytes;
+        } else {
+          body = Readable.toWeb(
+            Readable.from(checkedInput(request.input)),
+          ) as ReadableStream<Uint8Array>;
+        }
         const response = await client(endpoint(request.fence.attemptId), {
           method: "POST",
           redirect: "manual",
@@ -200,9 +215,7 @@ export function remoteSandbox(config: {
             "x-quorem-body-sha256": bodyHash,
             "x-quorem-case-ordinal": String(request.ordinal),
           },
-          body: Readable.toWeb(
-            Readable.from(checkedInput(request.input)),
-          ) as ReadableStream<Uint8Array>,
+          body,
           duplex: "half",
           signal: combined,
         } as RequestInit & { duplex: "half" });

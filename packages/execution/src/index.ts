@@ -37,7 +37,7 @@ export {
   encodeCheckpoint,
   decodeCheckpoint,
 } from "./checkpoint.ts";
-export { decodeCaseFrames } from "./frames.ts";
+export { decodeCaseFrames, encodeCaseFrame } from "./frames.ts";
 export type { FrameLimits, OutputChannel } from "./frames.ts";
 export { encodeCompletion, decodeCompletion } from "./completion.ts";
 

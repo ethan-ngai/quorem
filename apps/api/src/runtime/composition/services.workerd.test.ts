@@ -351,7 +351,7 @@ it("real control objects block paused case posts and unactivated drains", async 
   expect(forwarded).toBe(0);
   const admitted = await post();
   expect(admitted.status).toBe(200);
-  expect(new TextDecoder().decode(await admitted.arrayBuffer())).toBe("ok");
+  expect(new TextDecoder().decode(await admitted.arrayBuffer())).toBe("\x01\0\0\0\0\0\0\0ok");
   expect(forwarded).toBe(1);
   expect(
     (await controlPost("/pause", { operation: crypto.randomUUID(), expectedGeneration: 1 })).status,

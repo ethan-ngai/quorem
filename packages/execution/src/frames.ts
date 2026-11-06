@@ -4,6 +4,20 @@ export interface FrameLimits {
   readonly stdoutBytes: number;
   readonly stderrBytes: number;
 }
+/** Canonical wire frame shared by native owners and transport admission. */
+export function encodeCaseFrame(channel: 1 | 2 | 3 | 4, bytes: Uint8Array): Uint8Array {
+  if (
+    bytes.length > 65536 ||
+    (channel === 3 && bytes.length !== 4) ||
+    (channel === 4 && bytes.length !== 0)
+  )
+    throw new Error("invalid case frame");
+  const output = new Uint8Array(8 + bytes.length);
+  output[0] = channel;
+  new DataView(output.buffer).setUint32(4, bytes.length);
+  output.set(bytes, 8);
+  return output;
+}
 /** Decode ordered frames with backpressure; success requires teardown and end-of-stream. */
 export async function decodeCaseFrames(
   source: AsyncIterable<Uint8Array>,
