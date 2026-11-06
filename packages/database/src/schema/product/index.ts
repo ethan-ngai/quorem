@@ -573,8 +573,27 @@ export const workspaces = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     match_id: uuid(),
+    review_match_id: uuid(),
+    review_source_owner_id: text(),
   },
   (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("review_workspace_owner_source_language")
+      .on(table.review_match_id, table.owner_id, table.review_source_owner_id, table.language)
+      .where(sql`kind = 'review'`),
+    foreignKey({
+      columns: [table.review_match_id],
+      foreignColumns: [matches.id],
+      name: "workspaces_review_match_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.review_source_owner_id],
+      foreignColumns: [users.id],
+      name: "workspaces_review_source_owner_id_fkey",
+    }),
+    check(
+      "workspace_review_kind",
+      sql`((kind = 'review' AND review_match_id IS NOT NULL AND review_source_owner_id IS NOT NULL) OR (kind <> 'review' AND review_match_id IS NULL AND review_source_owner_id IS NULL))`,
+    ),
     uniqueIndex("match_workspace_owner_language")
       .using(
         "btree",
@@ -608,7 +627,10 @@ export const workspaces = pgTable(
     }),
     unique("workspace_owner_identity").on(table.id, table.owner_id),
     check("workspace_match_kind", sql`(kind = 'match'::text) = (match_id IS NOT NULL)`),
-    check("workspaces_kind_check", sql`kind = ANY (ARRAY['solo'::text, 'match'::text])`),
+    check(
+      "workspaces_kind_check",
+      sql`kind = ANY (ARRAY['solo'::text, 'match'::text, 'review'::text])`,
+    ),
     check(
       "workspaces_language_check",
       sql`language = ANY (ARRAY['python'::text, 'java'::text, 'typescript'::text, 'ocaml'::text, 'postgresql'::text])`,

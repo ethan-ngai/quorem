@@ -23,6 +23,7 @@ export interface ExecutionAdmissionSnapshot {
   runtimeRevision: string;
   harnessRevision: string;
   sponsorId: string | null;
+  sponsorMatchId?: string | null;
   context:
     | {
         kind: "workspace";
@@ -98,9 +99,10 @@ export async function insertAdmittedExecution(
       FROM admitted`,
     )
   ).rows[0];
-  if (s.sponsorId && workspace?.matchId)
+  const sponsorMatchId = s.sponsorMatchId ?? workspace?.matchId;
+  if (s.sponsorId && sponsorMatchId)
     await tx.execute(
-      sql`INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES(${id}::uuid,${workspace.matchId}::uuid,${s.sponsorId})`,
+      sql`INSERT INTO guest_execution_usage(submission_id,match_id,sponsor_id) VALUES(${id}::uuid,${sponsorMatchId}::uuid,${s.sponsorId})`,
     );
   return { id, admittedAt: inserted.admittedAt };
 }

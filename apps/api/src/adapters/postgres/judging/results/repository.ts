@@ -10,6 +10,7 @@ import {
 import { ApplicationError } from "../../../../application/error.ts";
 import { guestScopeId, type Principal } from "../../../../modules/identity/model.ts";
 import type { SubmissionSnapshots } from "../../../../modules/judging/results/model.ts";
+import { authorizeReview } from "../../matches/review/authorization.ts";
 import { guestMayReadMatch, lookupGuestInTransaction } from "../../identity/guest.ts";
 import { encode, object, publicResult } from "./projection.ts";
 import { jsonStream } from "../../../../modules/judging/results/stream.ts";
@@ -30,6 +31,8 @@ type Row = {
   custom: boolean;
   interview: string | null;
   match: string | null;
+  reviewMatch: string | null;
+  reviewSource: string | null;
   result: Uint8Array | null;
 };
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -37,7 +40,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const missing = () => new ApplicationError("not_found", "Submission not found", 404);
 async function identity(tx: Transaction, who: Principal): Promise<void> {
   const user = await tx.execute(
-    sql`SELECT id FROM users WHERE id=${who.userId} AND NOT disabled FOR SHARE`,
+    sql`SELECT id FROM users WHERE id=${who.userId} AND NOT disabled FOR NO KEY UPDATE`,
   );
   if (!user.rows.length) throw missing();
   if (who.kind === "guest") {
@@ -49,7 +52,8 @@ async function identity(tx: Transaction, who: Principal): Promise<void> {
     if (
       !actual ||
       actual.userId !== who.userId ||
-      (actual.scope.kind !== who.scope.kind || guestScopeId(actual.scope) !== guestScopeId(who.scope))
+      actual.scope.kind !== who.scope.kind ||
+      guestScopeId(actual.scope) !== guestScopeId(who.scope)
     )
       throw missing();
   }
@@ -57,13 +61,17 @@ async function identity(tx: Transaction, who: Principal): Promise<void> {
 async function load(tx: Transaction, id: string, owner?: string, lock = false): Promise<Row> {
   if (!uuid.test(id)) throw missing();
   const result = await tx.execute<Row>(
-    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND s.owner_id=${owner}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
+    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND s.owner_id=${owner}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
   );
   const row = result.rows[0];
   if (!row) throw missing();
   return row;
 }
 async function assertScope(tx: Transaction, who: Principal, row: Row): Promise<void> {
+  if (row.reviewMatch && row.reviewSource) {
+    await authorizeReview(tx, who, row.reviewMatch, row.reviewSource);
+    return;
+  }
   if (who.kind !== "guest") return;
   if (who.scope.kind === "interview") {
     if (row.interview !== who.scope.interviewId) throw missing();
@@ -154,10 +162,10 @@ async function streamSnapshot(
   interviewId?: string,
 ): Promise<ReadableStream<Uint8Array>> {
   const prepared = await run((scope) =>
-    scope.transaction({ ...options, isolation: "repeatable read" }, async (tx) => {
+    scope.transaction(options, async (tx) => {
       await identity(tx, who);
       const access = interviewId ? await interviewAccess(tx, who, interviewId) : undefined;
-      const row = await load(tx, id, interviewId ? undefined : who.userId);
+      const row = await load(tx, id, interviewId ? undefined : who.userId, true);
       if (interviewId && row.interview !== interviewId) throw missing();
       await assertScope(tx, who, row);
       const header = (

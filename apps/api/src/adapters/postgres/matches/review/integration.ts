@@ -11,8 +11,13 @@ import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { persistQuestionVersion } from "../../problems/publication.ts";
 import { retainBatch } from "../../events/scheduling/retention.ts";
+import { reconcileScheduledMatch } from "../reconcile/repository.ts";
 import { matchSnapshot } from "../lifecycle/repository.ts";
 import { matchReviewRepository } from "./repository.ts";
+import { postgresWorkspaceAdmission } from "../../judging/admission/repository.ts";
+import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
+import { submissionSnapshots } from "../../judging/results/repository.ts";
+import { workspaceRepository } from "../../workspace/repository.ts";
 
 const url = process.env.QUOREM_REVIEW_TEST_DATABASE_URL;
 if (!url) throw new Error("Disposable review database required");
@@ -108,6 +113,19 @@ after(async () => {
 });
 void test("completed review is participant-only, latest-round and frozen-sharing bounded", async () => {
   await assert.rejects(repo.read(actor("review-a"), ids.match), { status: 404 });
+  const workspaces = workspaceRepository(run);
+  assert.equal((await workspaces.read(actor("review-a"), ids.a)).id, ids.a);
+  assert.equal(JSON.parse(await workspaces.problem(actor("review-a"), ids.a)).id, ids.version);
+  await assert.rejects(workspaces.read(actor("review-c"), ids.a), { status: 404 });
+  const people = await pool.query(
+    "SELECT id,participant_id FROM users WHERE id IN ('review-a','review-b')",
+  );
+  const participant = (owner: string) =>
+    people.rows.find((row) => row.id === owner).participant_id as string;
+  await assert.rejects(
+    repo.createWorkspace(actor("review-a"), ids.match, participant("review-a"), "python"),
+    { status: 404 },
+  );
   await pool.query(
     "UPDATE matches SET state='completed',completed_at=now(),outcome='{}' WHERE id=$1",
     [ids.match],
@@ -118,6 +136,11 @@ void test("completed review is participant-only, latest-round and frozen-sharing
     [pending, ids.a, ids.match],
   );
   await assert.rejects(repo.read(actor("review-a"), ids.match), { status: 404 });
+  assert.equal((await workspaces.read(actor("review-a"), ids.a)).id, ids.a);
+  await assert.rejects(
+    repo.createWorkspace(actor("review-a"), ids.match, participant("review-a"), "python"),
+    { status: 404 },
+  );
   const snapshot = (await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       matchSnapshot(tx, ids.match, "review-a"),
@@ -132,6 +155,35 @@ void test("completed review is participant-only, latest-round and frozen-sharing
   )) as { reviewPending: boolean };
   assert.equal(ready.reviewPending, false);
   await pool.query("DELETE FROM submissions WHERE id=$1", [pending]);
+  const runId = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,match_id,kind,source,source_hash,state,cases) VALUES($1,'review-a',$2,$3,'run','','hash','queued','[]')",
+    [runId, ids.a, ids.match],
+  );
+  await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [runId]);
+  const generation = (
+    await pool.query(
+      "SELECT generation::text FROM match_reconciliation_pending WHERE match_id=$1",
+      [ids.match],
+    )
+  ).rows[0].generation;
+  const priorVersion = (
+    await pool.query("SELECT version::text FROM matches WHERE id=$1", [ids.match])
+  ).rows[0].version;
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      reconcileScheduledMatch(tx, ids.match, generation),
+    ),
+  );
+  const notice = (
+    await pool.query(
+      "SELECT m.version::text,o.event_type FROM matches m JOIN match_outbox o ON o.match_id=m.id AND o.version=m.version WHERE m.id=$1",
+      [ids.match],
+    )
+  ).rows[0];
+  assert.equal(BigInt(notice.version), BigInt(priorVersion) + 1n);
+  assert.equal(notice.event_type, "match.updated");
+  await pool.query("DELETE FROM submissions WHERE id=$1", [runId]);
   await assert.rejects(repo.read(actor("review-c"), ids.match), { status: 404 });
   let data = JSON.parse(await repo.read(actor("review-a"), ids.match));
   assert.equal(data.participants[0].workspace.id, ids.a);
@@ -139,9 +191,86 @@ void test("completed review is participant-only, latest-round and frozen-sharing
   assert.equal(data.participants[1].submission.source, "last");
   assert.equal(data.participants[1].submission.verdict, "accepted");
   assert.equal(data.participants[1].workspace, null);
+  const own = await repo.createWorkspace(
+    actor("review-a"),
+    ids.match,
+    participant("review-a"),
+    "python",
+  );
+  const rival = await repo.createWorkspace(
+    actor("review-a"),
+    ids.match,
+    participant("review-b"),
+    "python",
+  );
+  assert.notEqual(own.id, rival.id);
+  assert.deepEqual(
+    own,
+    await repo.createWorkspace(actor("review-a"), ids.match, participant("review-a"), "python"),
+  );
+  assert.equal(own.kind, "review");
+  assert.equal(own.reviewMatchId, ids.match);
+  const accepted = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'review-a',$2,'submit','scratch','hash','queued','[]')",
+    [accepted, own.id],
+  );
+  await pool.query(
+    "UPDATE submissions SET state='completed',result='{\"verdict\":\"accepted\"}' WHERE id=$1",
+    [accepted],
+  );
+  assert.equal(
+    (
+      await pool.query("SELECT count(*)::int AS count FROM practice_solves WHERE workspace_id=$1", [
+        own.id,
+      ])
+    ).rows[0].count,
+    0,
+  );
+  await pool.query("UPDATE users SET disabled=true WHERE id='review-a'");
+  assert.ok(await repo.read(actor("review-b"), ids.match));
+  await pool.query("UPDATE users SET disabled=false WHERE id='review-a'");
+  assert.equal((await workspaces.read(actor("review-a"), rival.id)).id, rival.id);
+  await assert.rejects(workspaces.read(actor("review-b"), rival.id), { status: 404 });
+  await assert.rejects(repo.createWorkspace(actor("review-a"), ids.match, "review-b", "python"), {
+    status: 404,
+  });
+  const row = (
+    await pool.query(
+      "SELECT match_id,review_match_id,review_source_owner_id FROM workspaces WHERE id=$1",
+      [rival.id],
+    )
+  ).rows[0];
+  assert.deepEqual(row, {
+    match_id: null,
+    review_match_id: ids.match,
+    review_source_owner_id: "review-b",
+  });
+  const scratchSubmission = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,'review-a',$2,'run','scratch','hash','queued','[]')",
+    [scratchSubmission, rival.id],
+  );
+  const snapshots = submissionSnapshots(run);
+  assert.equal(
+    JSON.parse(
+      await new Response(await snapshots.read(actor("review-a"), scratchSubmission)).text(),
+    ).id,
+    scratchSubmission,
+  );
   await pool.query("UPDATE matches SET share_code_after_match=false WHERE id=$1", [ids.match]);
   data = JSON.parse(await repo.read(actor("review-a"), ids.match));
   assert.equal(data.participants.length, 1);
+  await assert.rejects(workspaces.read(actor("review-a"), rival.id), { status: 404 });
+  await assert.rejects(snapshots.read(actor("review-a"), scratchSubmission), { status: 404 });
+  await assert.rejects(snapshots.cancel(actor("review-a"), scratchSubmission, "denied"), {
+    status: 404,
+  });
+  await assert.rejects(
+    repo.createWorkspace(actor("review-a"), ids.match, participant("review-b"), "python"),
+    { status: 404 },
+  );
+  assert.equal((await workspaces.read(actor("review-a"), own.id)).id, own.id);
   assert.equal(
     JSON.parse(await repo.read(actor("review-b"), ids.match)).participants[0].submission.source,
     "last",
@@ -150,9 +279,14 @@ void test("completed review is participant-only, latest-round and frozen-sharing
     ids.match,
   ]);
   await assert.rejects(repo.read(actor("review-a"), ids.match), { status: 404 });
+  await assert.rejects(workspaces.read(actor("review-a"), own.id), { status: 404 });
   await pool.query(
     "UPDATE matches SET completed_at=now(),share_code_after_match=true WHERE id=$1",
     [ids.match],
+  );
+  assert.equal(
+    JSON.parse(await snapshots.cancel(actor("review-a"), scratchSubmission, "cancel")).state,
+    "cancelled",
   );
   await pool.query(
     "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1,'review-a','review-next',now()+interval '1 hour',30,'active',ARRAY['easy'],now(),now()+interval '30 minutes',$2)",
@@ -163,6 +297,7 @@ void test("completed review is participant-only, latest-round and frozen-sharing
     [ids.next],
   );
   await assert.rejects(repo.read(actor("review-a"), ids.match), { status: 404 });
+  await assert.rejects(workspaces.read(actor("review-a"), own.id), { status: 404 });
   assert.equal(
     JSON.parse(await repo.read(actor("review-b"), ids.match)).participants[1].submission.source,
     "last",
@@ -259,8 +394,32 @@ void test("party guest is restricted to participated rounds and live credentials
     JSON.parse(await repo.read(guest, second)).participants[1].submission.source,
     "shared-source",
   );
+  const newcomerId = (await pool.query("SELECT participant_id FROM users WHERE id='review-new'"))
+    .rows[0].participant_id as string;
+  const scratch = await repo.createWorkspace(guest, second, newcomerId, "python");
+  const command = await parseWorkspaceCommand(
+    JSON.stringify({ workspaceId: scratch.id, kind: "run", source: "def solve(x): return x" }),
+    "guest-review",
+  );
+  const admitted = await postgresWorkspaceAdmission(run, {
+    losslessCases: true,
+    guestExecution: true,
+  })(guest, "guest-review", command, { jobId: crypto.randomUUID(), receiptId: null, shard: 0 });
+  const accounting = (
+    await pool.query(
+      "SELECT s.match_id,u.sponsor_id FROM submissions s JOIN guest_execution_usage u ON u.submission_id=s.id WHERE s.id=$1",
+      [admitted.id],
+    )
+  ).rows[0];
+  assert.deepEqual(accounting, { match_id: null, sponsor_id: "review-a" });
+  assert.equal(
+    JSON.parse(await new Response(await submissionSnapshots(run).read(guest, admitted.id)).text())
+      .id,
+    admitted.id,
+  );
   await pool.query("UPDATE matches SET share_code_after_match=false WHERE id=$1", [second]);
   assert.equal(JSON.parse(await repo.read(guest, second)).participants.length, 1);
+  await assert.rejects(submissionSnapshots(run).read(guest, admitted.id), { status: 404 });
   await pool.query("UPDATE matches SET state='active',completed_at=NULL,outcome=NULL WHERE id=$1", [
     second,
   ]);

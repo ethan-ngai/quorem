@@ -65,7 +65,18 @@ describe("party cutover", () => {
           language: { switchLanguage: async () => ({ language: "java" }) },
         }),
       )
-      .route("/", matchReviewRoutes({ identify, review: { read: async () => '{"ok":true}' } }));
+      .route(
+        "/",
+        matchReviewRoutes({
+          identify,
+          review: {
+            read: async () => '{"ok":true}',
+            createWorkspace: async () => {
+              throw new Error("unexpected");
+            },
+          },
+        }),
+      );
     expect((await app.request("/v1/matches/current")).status).toBe(200);
     expect((await app.request("/v1/matches/id")).status).toBe(200);
     expect((await app.request("/v1/matches/id/review")).status).toBe(200);

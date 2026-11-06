@@ -528,7 +528,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["solo", "match"]
+          "enum": ["solo", "match", "review"]
         },
         "problemVersionId": {
           "type": "string",
@@ -540,9 +540,27 @@
         "matchId": {
           "type": "string",
           "format": "uuid"
+        },
+        "reviewMatchId": {
+          "type": "string",
+          "format": "uuid"
         }
       },
       "required": ["id", "kind", "problemVersionId", "language"],
+      "additionalProperties": false
+    },
+    "CreateReviewWorkspaceRequest": {
+      "type": "object",
+      "properties": {
+        "participantUserId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "language": {
+          "$ref": "#/$defs/Language"
+        }
+      },
+      "required": ["participantUserId", "language"],
       "additionalProperties": false
     },
     "CreateWorkspaceRequest": {
