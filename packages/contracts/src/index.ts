@@ -87,3 +87,5 @@ export type PartyMember = components["schemas"]["PartyMember"];
 export type PartySnapshot = components["schemas"]["PartySnapshot"];
 export type PartyCreated = components["schemas"]["PartyCreated"];
 export type PartyInvitation = components["schemas"]["PartyInvitation"];
+
+export type MatchReview = components["schemas"]["MatchReview"];

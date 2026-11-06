@@ -3123,6 +3123,139 @@
       },
       "required": ["id", "settings", "participantCount", "capacity"],
       "additionalProperties": false
+    },
+    "MatchReviewWorkspace": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "language": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "language"],
+      "additionalProperties": false
+    },
+    "MatchReviewSubmission": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/SubmissionState"
+        }
+      },
+      "required": ["language", "source", "verdict", "state"],
+      "additionalProperties": false
+    },
+    "MatchReviewParticipant": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "own": {
+          "type": "boolean"
+        },
+        "workspace": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatchReviewWorkspace"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "submission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatchReviewSubmission"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["userId", "displayName", "own", "workspace", "submission"],
+      "additionalProperties": false
+    },
+    "MatchReview": {
+      "type": "object",
+      "properties": {
+        "matchId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "shareCodeAfterMatch": {
+          "type": "boolean"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatchOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "problem": {
+          "$ref": "#/$defs/ProblemVersion"
+        },
+        "participants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MatchReviewParticipant"
+          }
+        }
+      },
+      "required": [
+        "matchId",
+        "completedAt",
+        "shareCodeAfterMatch",
+        "outcome",
+        "problem",
+        "participants"
+      ],
+      "additionalProperties": false
+    },
+    "PartyGuestJoinRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
     }
   },
   "$ref": "#/$defs/EventEnvelope"

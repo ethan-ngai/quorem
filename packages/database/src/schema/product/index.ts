@@ -190,7 +190,7 @@ export const guest_sessions = pgTable(
   {
     token_hash: text().primaryKey().notNull(),
     owner_id: text().notNull(),
-    match_id: uuid().notNull(),
+    match_id: uuid(),
     party_id: uuid(),
     created_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)

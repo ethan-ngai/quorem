@@ -1192,6 +1192,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getMatchReview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/parties/invitations/{token}/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinPartyGuest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2083,6 +2115,38 @@ export interface components {
             settings: components["schemas"]["PartySettings"];
             participantCount: number;
             capacity: number;
+        };
+        MatchReviewWorkspace: {
+            /** Format: uuid */
+            id: string;
+            language: string;
+        };
+        MatchReviewSubmission: {
+            language: string;
+            source: string;
+            verdict: string | null;
+            state: components["schemas"]["SubmissionState"];
+        };
+        MatchReviewParticipant: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            own: boolean;
+            workspace: components["schemas"]["MatchReviewWorkspace"] | null;
+            submission: components["schemas"]["MatchReviewSubmission"] | null;
+        };
+        MatchReview: {
+            /** Format: uuid */
+            matchId: string;
+            /** Format: date-time */
+            completedAt: string;
+            shareCodeAfterMatch: boolean;
+            outcome: components["schemas"]["MatchOutcome"] | null;
+            problem: components["schemas"]["ProblemVersion"];
+            participants: components["schemas"]["MatchReviewParticipant"][];
+        };
+        PartyGuestJoinRequest: {
+            name: string;
         };
     };
     responses: never;
@@ -4998,6 +5062,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartyCurrent"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getMatchReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchReview"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    joinPartyGuest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PartyGuestJoinRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PartySnapshot"];
                 };
             };
             /** @description Safe application error */

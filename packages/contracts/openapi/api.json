@@ -4534,6 +4534,91 @@
           }
         }
       }
+    },
+    "/v1/matches/{id}/review": {
+      "get": {
+        "operationId": "getMatchReview",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchReview"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/invitations/{token}/guest": {
+      "post": {
+        "operationId": "joinPartyGuest",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartyGuestJoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7679,6 +7764,139 @@
           }
         },
         "required": ["id", "settings", "participantCount", "capacity"],
+        "additionalProperties": false
+      },
+      "MatchReviewWorkspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "language"],
+        "additionalProperties": false
+      },
+      "MatchReviewSubmission": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/SubmissionState"
+          }
+        },
+        "required": ["language", "source", "verdict", "state"],
+        "additionalProperties": false
+      },
+      "MatchReviewParticipant": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "own": {
+            "type": "boolean"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchReviewWorkspace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "submission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchReviewSubmission"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["userId", "displayName", "own", "workspace", "submission"],
+        "additionalProperties": false
+      },
+      "MatchReview": {
+        "type": "object",
+        "properties": {
+          "matchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "shareCodeAfterMatch": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MatchOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "problem": {
+            "$ref": "#/components/schemas/ProblemVersion"
+          },
+          "participants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatchReviewParticipant"
+            }
+          }
+        },
+        "required": [
+          "matchId",
+          "completedAt",
+          "shareCodeAfterMatch",
+          "outcome",
+          "problem",
+          "participants"
+        ],
+        "additionalProperties": false
+      },
+      "PartyGuestJoinRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": ["name"],
         "additionalProperties": false
       }
     }
