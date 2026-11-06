@@ -35,6 +35,14 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
       ORDER BY s.admitted_at DESC LIMIT 24`,
     [createHash("sha256").update(acceptedSource).digest("hex"), version],
   );
+  const { rows: authKeyRate } = await database.query(
+    `SELECT used,expires_at>clock_timestamp() AS active FROM quorem_auth.rate_limit WHERE bucket=$1`,
+    [
+      createHash("sha256")
+        .update(JSON.stringify(["better-auth", "no-trusted-ip|/jwks"]))
+        .digest("hex"),
+    ],
+  );
   const { rows: databaseState } = await database.query(
     `SELECT
     EXISTS(SELECT 1 FROM public.schema_migrations WHERE name='072_sealed_suite_digests.sql') AS migrated,
@@ -145,6 +153,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
     generation: controls.runner.generation,
     active: controls.runner.status === "active" && !controls.cases.paused,
     database: databaseState[0],
+    authKeyRate: authKeyRate[0] ?? null,
     sandbox,
     drain,
     jobs,
