@@ -2236,6 +2236,7 @@ export const parties = pgTable("parties", {
   version: bigint({ mode: "bigint" }).default(0n).notNull(),
   current_match_id: uuid().references(() => matches.id),
   latest_match_id: uuid().references(() => matches.id),
+  queue_error: text(),
   countdown_ends_at: timestamp({ withTimezone: true, mode: "string" }),
   created_at: timestamp({ withTimezone: true, mode: "string" })
     .default(sql`clock_timestamp()`)

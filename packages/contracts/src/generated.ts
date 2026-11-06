@@ -2094,6 +2094,7 @@ export interface components {
             latestMatchId: string | null;
             /** Format: date-time */
             countdownEndsAt: string | null;
+            queueError: string | null;
         };
         PartyCurrent: {
             party: components["schemas"]["PartySnapshot"] | null;
@@ -2115,7 +2116,6 @@ export interface components {
         PartyInvitation: {
             /** Format: uuid */
             id: string;
-            settings: components["schemas"]["PartySettings"];
             participantCount: number;
             capacity: number;
         };
