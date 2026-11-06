@@ -31,4 +31,10 @@ No dependency replacement recommended from manifest inspection alone; maintained
 
 ## Baseline validation blocker
 
-Orchestrator ran `vp -C apps/api run check:boundaries`: fails on protected #559 `application/list-query.ts -> @quorem/contracts/pagination` business import boundary. Coordinate with #559 owner; do not attribute failure to this review or overwrite their edits.
+After #559 landed, the API boundary check failed on `application/list-query.ts -> @quorem/contracts/pagination`. The exact pure contract leaf is now allowed, with a regression test preserving rejection of other contract entrypoints.
+
+## Implementation disposition — backend slice
+
+Catalog item and facet queries now compose one owner/library visibility predicate; disposable-PostgreSQL tests cover anonymous, owner, other owner, global/private and private facets. Authoring list filtering, facets and pagination now live in a focused query module; transaction and authorization remain caller-owned. The authoring repository falls from 1,001 to 840 lines. Import remains with its closely coupled draft/publication helpers; an injected dependency bundle would add indirection without deleting complexity.
+
+Readiness still validates the entire matching collection for exact totals, but now advances batches by SQL keyset with the sort key resolved in PostgreSQL, preserving timestamp microseconds. A 105-draft fixture checks all sort modes and directions, ties, both readiness states and multiple batches. Persisted readiness and validator/runtime invalidation remain unresolved. Capability-lock consolidation is tracked in #568. No schema change included. Catalog and authoring Node/workerd suites passed against separate disposable PostgreSQL containers; authoring Node suite skipped its separate canonical-migration fixture without its database URL. API typecheck and boundary check run in this branch; hosted and production validation not performed.
