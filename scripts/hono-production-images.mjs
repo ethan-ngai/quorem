@@ -2,6 +2,7 @@
 import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { publishImages } from "./hono-stage-deploy-images.mjs";
+import { reusableNativeImages } from "./hono-native-image-reuse.mjs";
 const source = "333e4c79b06f9b074b13ae4891a6df65f32bcc8f";
 const runId = "41285899439";
 export function productionImages(env, { reuseMail = false } = {}) {
@@ -100,7 +101,7 @@ export function productionImages(env, { reuseMail = false } = {}) {
 }
 
 /** A new case image must match the runtime inputs covered by a successful CI run. */
-export function validatedJudgeImages(env, validationRun) {
+export async function validatedJudgeImages(env, validationRun, priorRelease) {
   if (!/^[1-9]\d{0,14}$/.test(validationRun)) throw new Error("Invalid judge validation run");
   const endpoint = `repos/ethan-ngai/quorem/actions/runs/${validationRun}`;
   const run = JSON.parse(runStageCommand("gh", ["api", endpoint], env));
@@ -145,12 +146,20 @@ export function validatedJudgeImages(env, validationRun) {
     ],
     env,
   );
-  const images = publishImages({
-    ...env,
-    HONO_DEPLOYMENT_SCOPE: "production",
-    TF_VAR_profile_media_enabled: "false",
-    HONO_MAIL_RELAY_ENABLED: "false",
-  });
+  const reused = await reusableNativeImages(env, priorRelease);
+  const images =
+    reused ??
+    publishImages({
+      ...env,
+      HONO_DEPLOYMENT_SCOPE: "production",
+      TF_VAR_profile_media_enabled: "false",
+      HONO_MAIL_RELAY_ENABLED: "false",
+    });
+  console.log(
+    JSON.stringify({
+      phase: reused ? "reuse-verified-native-images" : "publish-verified-native-images",
+    }),
+  );
   const { image, mail } = activeTrustedImages(env);
   return { ...images, image, mail };
 }
