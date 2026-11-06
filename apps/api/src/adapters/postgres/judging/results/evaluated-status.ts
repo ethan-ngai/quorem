@@ -1,3 +1,4 @@
+import { workspaceAccess } from "../../workspace/access.ts";
 /** @file evaluated-status.ts @description Bounded authoritative public case status history. @module judging */
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -19,7 +20,7 @@ export type EvaluatedStatusRow = {
 };
 function selection(scope: EvaluatedStatusScope): SQL {
   return scope.kind === "workspace"
-    ? sql`SELECT s.id,s.admitted_at,s.kind,s.xmin::text AS submission_version FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE s.workspace_id=${scope.workspaceId}::uuid AND s.owner_id=${scope.owner} AND s.state='completed' AND s.result IS NOT NULL AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
+    ? sql`SELECT s.id,s.admitted_at,s.kind,s.xmin::text AS submission_version FROM submissions s JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE s.workspace_id=${scope.workspaceId}::uuid AND ${workspaceAccess(scope.owner)} AND s.state='completed' AND s.result IS NOT NULL AND NOT s.custom_run AND s.odyssey_level IS NOT NULL AND s.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
     : sql`SELECT s.id,s.admitted_at,s.kind,s.xmin::text AS submission_version FROM interview_execution_public e JOIN submissions s ON s.id=e.submission_id JOIN execution_jobs j ON j.submission_id=s.id JOIN interviews i ON i.id=e.session_id WHERE e.session_id=${scope.sessionId}::uuid AND e.question_epoch=${scope.epoch}::uuid AND j.language=i.language AND s.state='completed' AND s.result IS NOT NULL AND NOT s.custom_run`;
 }
 function seed(scope: EvaluatedStatusScope): SQL {
@@ -32,7 +33,7 @@ function compactFeedback(scope: EvaluatedStatusScope): SQL {
     ? sql`SELECT f.*,f.xmin::text AS row_version FROM practice_case_feedback f
           JOIN workspaces w ON w.id=f.workspace_id
           LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id
-          WHERE w.id=${scope.workspaceId}::uuid AND w.owner_id=${scope.owner}
+          WHERE w.id=${scope.workspaceId}::uuid AND ${workspaceAccess(scope.owner)}
             AND f.admitted_at>=COALESCE(o.reset_at,'-infinity'::timestamptz)`
     : sql`SELECT f.*,f.xmin::text AS row_version FROM practice_case_feedback f WHERE false`;
 }

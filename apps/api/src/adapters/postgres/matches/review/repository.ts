@@ -70,6 +70,7 @@ export function matchReviewRepository(run: Run): MatchReview {
       return run((scope) =>
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
           const match = await authorizeReview(tx, principal, matchId);
+          const teammate = sql`(p.team IS NOT NULL AND p.team=(SELECT team FROM match_participants viewer WHERE viewer.match_id=p.match_id AND viewer.owner_id=${principal.userId}))`;
           const participants = (
             await tx.execute<Participant>(sql`
           SELECT u.participant_id AS "userId",u.display_name AS "displayName",NULLIF(u.profile_image,'') AS image,u.profile_color AS color,p.owner_id=${principal.userId} AS own,
@@ -78,11 +79,11 @@ export function matchReviewRepository(run: Run): MatchReview {
           FROM match_participants p JOIN users u ON u.id=p.owner_id
           LEFT JOIN workspaces w ON w.id=p.workspace_id AND p.owner_id=${principal.userId}
           LEFT JOIN LATERAL (SELECT id,workspace_id,source,result,state FROM submissions
-            WHERE match_id=p.match_id AND owner_id=p.owner_id AND kind='submit' AND match_sequence IS NOT NULL
-              AND (p.owner_id=${principal.userId} OR ${match.shareCodeAfterMatch})
+            WHERE match_id=p.match_id AND (owner_id=p.owner_id OR (p.team IS NOT NULL AND owner_id IN (SELECT owner_id FROM match_participants contributor WHERE contributor.match_id=p.match_id AND contributor.team=p.team))) AND kind='submit' AND match_sequence IS NOT NULL
+              AND (p.owner_id=${principal.userId} OR ${teammate} OR ${match.shareCodeAfterMatch})
             ORDER BY match_sequence DESC LIMIT 1) s ON true
           LEFT JOIN workspaces sw ON sw.id=s.workspace_id
-          WHERE p.match_id=${matchId}::uuid AND (p.owner_id=${principal.userId} OR ${match.shareCodeAfterMatch}) ORDER BY p.seat
+          WHERE p.match_id=${matchId}::uuid AND (p.owner_id=${principal.userId} OR ${teammate} OR ${match.shareCodeAfterMatch}) ORDER BY p.seat
         `)
           ).rows;
           const problem = await projectAuthorizedVersion(tx, match.problemId);
@@ -92,7 +93,11 @@ export function matchReviewRepository(run: Run): MatchReview {
             completedAt: match.completedAt,
             shareCodeAfterMatch: match.shareCodeAfterMatch,
             outcome: match.outcome,
-            participants: participants.map(({ image, color, ...person }) => ({ ...person, image: image ?? undefined, color: color || undefined })),
+            participants: participants.map(({ image, color, ...person }) => ({
+              ...person,
+              image: image ?? undefined,
+              color: color || undefined,
+            })),
           });
           return `${prefix.slice(0, -1)},"problem":${problem}}`;
         }),

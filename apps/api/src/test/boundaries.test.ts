@@ -43,7 +43,7 @@ test('rejects provider packages and dynamic or require indirection', () => {
 
 test('permits CodeMirror only in the document changes owner', () => {
   const errors = violations({
-    'modules/interviews/document/changes.ts': "import { ChangeSet } from '@codemirror/state'; import '@codemirror/view';",
+    'application/document-changes.ts': "import { ChangeSet } from '@codemirror/state'; import '@codemirror/view';",
     'modules/interviews/document/other.ts': "import '@codemirror/state';",
   });
   expect(errors).toHaveLength(2);

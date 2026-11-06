@@ -57,7 +57,7 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
   const participantIds = new Set<string>();
   if (
     !Array.isArray(value.participants) ||
-    value.participants.length > (value.mode === "free-for-all" ? 8 : 2) ||
+    value.participants.length > (value.mode === "showdown" ? 2 : 8) ||
     value.participants.some((participant) => {
       if (
         !record(participant) ||

@@ -6,7 +6,7 @@ import type {
   InterviewDocuments,
   DocumentPush,
 } from "../../../../modules/interviews/document/model.ts";
-import { applyDocumentChanges } from "../../../../modules/interviews/document/changes.ts";
+import { applyDocumentChanges } from "../../../../application/document-changes.ts";
 import { interviewCommandFingerprint } from "../../../../modules/interviews/question/fingerprint.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { lockInterview } from "../lifecycle/access.ts";

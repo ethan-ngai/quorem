@@ -154,7 +154,9 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
       tx,
       id,
       decision.outcome.kind,
-      people.find((p) => p.subject === decision.outcome?.winnerUserId)?.owner ?? null,
+      decision.outcome.winnerUserId?.startsWith("team:")
+        ? decision.outcome.winnerUserId
+        : (people.find((p) => p.subject === decision.outcome?.winnerUserId)?.owner ?? null),
       decision.outcome.reason,
     );
     changed = true;
@@ -169,13 +171,20 @@ export async function finishMatch(
   winner: string | null,
   reason: string,
 ): Promise<void> {
+  const winnerTeam = winner && /^team:[1-4]$/.test(winner) ? Number(winner.slice(5)) : null;
   const result = await tx.execute(
-    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},completed_at=clock_timestamp(),outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
+    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},completed_at=clock_timestamp(),outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'winnerTeam',${winnerTeam}::int,'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
   );
   if (result.rows.length !== 1) throw new Error("Match finish failed");
   if (
     winner !== null &&
-    !(await tx.execute(sql`SELECT 1 FROM users WHERE id=${winner}`)).rows.length
+    !(
+      await tx.execute(
+        winnerTeam === null
+          ? sql`SELECT 1 FROM users WHERE id=${winner}`
+          : sql`SELECT 1 FROM match_participants WHERE match_id=${id}::uuid AND team=${winnerTeam}`,
+      )
+    ).rows.length
   )
     throw new Error("Match winner missing");
   await tx.execute(

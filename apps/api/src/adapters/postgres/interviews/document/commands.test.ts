@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
-import { applyDocumentChanges } from "../../../../modules/interviews/document/changes.ts";
+import { applyDocumentChanges } from "../../../../application/document-changes.ts";
 import { interviewLifecycle } from "../lifecycle/repository.ts";
 import { preparePublishedInterviewQuestion } from "../question/prepare.ts";
 import { interviewSnapshotStream } from "../question/stream.ts";

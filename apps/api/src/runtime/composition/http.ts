@@ -1,3 +1,7 @@
+import { factionRoutes } from "../../modules/factions/routes.ts";
+import { factionRepository } from "../../adapters/postgres/factions/repository.ts";
+import { teamActionExecutor } from "../../adapters/postgres/factions/actions.ts";
+import { paidTeamActions } from "../../adapters/postgres/factions/paid-actions.ts";
 import { partyRoutes } from "../../modules/parties/routes.ts";
 import { partyRepository } from "../../adapters/postgres/parties/repository.ts";
 import { adminRoutes } from "../../modules/admin/routes.ts";
@@ -111,6 +115,15 @@ export function composeHttp(ports: HttpPorts) {
       capabilities: {
         capabilities: (userId) => run((scope) => capabilityRepository(scope).capabilities(userId)),
       },
+    }),
+  );
+  app.route(
+    "/",
+    factionRoutes({
+      identify,
+      factions: factionRepository(run, teamActionExecutor(paidTeamActions(options)), async () => {
+        await ports.execution.wake(0);
+      }),
     }),
   );
   app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));

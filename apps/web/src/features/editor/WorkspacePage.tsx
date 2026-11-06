@@ -1,3 +1,4 @@
+import type { SharedWorkspaceDocument } from "../collaboration/sharedWorkspace";
 import { MatchAssistance, ruleCostLabel } from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
 import type { RuleActionQuote } from "@quorem/contracts/match-rules";
@@ -77,6 +78,7 @@ export function WorkspacePage({
   identity: providedIdentity,
   matchHeader,
   review: reviewRequested = false,
+  sharedDocument,
 }: {
   slug?: string;
   match?: MatchSnapshot;
@@ -84,6 +86,7 @@ export function WorkspacePage({
   identity?: DevelopmentIdentity;
   matchHeader?: ReactNode | ((problem: ProblemVersion) => ReactNode);
   review?: boolean;
+  sharedDocument?: SharedWorkspaceDocument;
 }) {
   const [review, setReview] = useState(false);
   const originalSource = useRef<string | undefined>(undefined);
@@ -256,8 +259,10 @@ export function WorkspacePage({
     queriedProblem: problemQuery.data,
     loadedWorkspace,
     editorRef,
+    authoritative: !!sharedDocument,
     initialSource:
-      review && reviewParticipant
+      sharedDocument?.source ??
+      (review && reviewParticipant
         ? ((reviewParticipant.own &&
           reviewParticipant.workspace &&
           reviewParticipant.workspace.language === reviewLanguage
@@ -271,7 +276,7 @@ export function WorkspacePage({
           (reviewParticipant.submission?.language === reviewLanguage
             ? reviewParticipant.submission.source
             : undefined))
-        : undefined,
+        : undefined),
     onError: (error) => setActionError(errorMessage(error)),
   });
 
@@ -314,6 +319,10 @@ export function WorkspacePage({
   const displayedOdyssey = odyssey.data ?? previewOdyssey;
   useEffect(() => {
     if (loading || !displayedOdyssey || frozenMatch) return;
+    if (sharedDocument) {
+      sharedDocument.updateOdyssey(displayedOdyssey, documentLanguage);
+      return;
+    }
     let cancelled = false;
     async function append() {
       for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
@@ -339,6 +348,8 @@ export function WorkspacePage({
     [odyssey.data],
   );
   const execution = useSubmission({
+    beforeExecution: sharedDocument?.beforeExecution,
+    sharedSubmissionId: sharedDocument?.latestSubmissionId,
     runExamples,
     level: odyssey.data?.level,
     identity,
@@ -402,7 +413,9 @@ export function WorkspacePage({
     setActionError(undefined);
     try {
       await saveBeforeSwitch();
-      if (review) {
+      if (sharedDocument && !review) {
+        await sharedDocument.changeLanguage(language);
+      } else if (review) {
         setSelectedLanguage(language);
       } else if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
@@ -456,13 +469,16 @@ export function WorkspacePage({
     if (match && !review) {
       setQuotingSubmission(true);
       try {
+        if (sharedDocument && !(await sharedDocument.beforeExecution("submit"))) return;
         const source = editorRef.current?.getSource() ?? sourceRef.current;
         const { quote } = await matchRuleAction(identity, match.id, { kind: "submission" });
         if (quote.cooldownSeconds) {
           setActionError(`Submit available in ${quote.cooldownSeconds}s.`);
           return;
         }
-        if (quote.seconds || quote.points) setSubmissionConfirmation({ quote, source });
+        if ((quote.seconds || quote.points) && sharedDocument)
+          await sharedDocument.requestPaidAction({ kind: "submission" });
+        else if (quote.seconds || quote.points) setSubmissionConfirmation({ quote, source });
         else if (await execution.submit(quote, source)) setCustomMode(false);
       } catch (error) {
         setActionError(errorMessage(error));
@@ -478,6 +494,7 @@ export function WorkspacePage({
     identity,
     quotingSubmission,
     submissionConfirmation,
+    sharedDocument,
   ]);
 
   const hotkeyOptions = {
@@ -711,6 +728,7 @@ export function WorkspacePage({
                 identity={identity}
                 submission={submission}
                 complexityAvailable={problem.hasComplexity ?? false}
+                onPaidAction={sharedDocument?.requestPaidAction}
               />
             )}
             {problem.odyssey ? (
@@ -848,6 +866,7 @@ export function WorkspacePage({
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
+                  collaborationExtension={sharedDocument?.extension}
                   onSourceChange={updateSource}
                 />
               </div>
