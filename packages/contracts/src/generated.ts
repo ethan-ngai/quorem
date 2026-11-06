@@ -1503,6 +1503,8 @@ export interface components {
             /** @enum {string} */
             accessMode?: "accounts_only" | "guests_allowed";
             admissionLocked?: boolean;
+            /** Format: uuid */
+            partyId?: string;
         };
         MatchQuestionFilters: {
             /** @enum {string} */

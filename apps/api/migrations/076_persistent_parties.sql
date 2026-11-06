@@ -37,3 +37,4 @@ ALTER TABLE matches ADD COLUMN completed_at timestamptz;
 UPDATE matches SET completed_at=(outcome->>'completedAt')::timestamptz WHERE outcome->>'completedAt' IS NOT NULL;
 ALTER TABLE guest_sessions ALTER COLUMN match_id DROP NOT NULL;
 ALTER TABLE guest_sessions ADD CONSTRAINT guest_sessions_scope_check CHECK ((match_id IS NOT NULL) <> (party_id IS NOT NULL));
+ALTER TABLE parties ADD COLUMN guest_joins integer NOT NULL DEFAULT 0 CHECK (guest_joins >= 0);

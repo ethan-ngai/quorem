@@ -2232,6 +2232,7 @@ export const parties = pgTable("parties", {
     .references(() => users.id),
   invite_hash: text().notNull().unique(),
   settings: jsonb().notNull(),
+  guest_joins: integer().default(0).notNull(),
   version: bigint({ mode: "bigint" }).default(0n).notNull(),
   current_match_id: uuid().references(() => matches.id),
   latest_match_id: uuid().references(() => matches.id),

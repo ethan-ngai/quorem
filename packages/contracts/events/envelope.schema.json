@@ -945,6 +945,10 @@
         },
         "admissionLocked": {
           "type": "boolean"
+        },
+        "partyId": {
+          "type": "string",
+          "format": "uuid"
         }
       },
       "required": [
