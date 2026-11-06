@@ -10,6 +10,7 @@ import type { AdmissionFence } from "../../../../modules/judging/admission/admit
 import { validateExecutionCases } from "../../../../modules/judging/admission/select-cases.ts";
 import { consumePrearm } from "../../events/scheduling/prearm.ts";
 import {
+  checkAdmissionCapacity,
   insertAdmittedExecution,
   prepareExecutionInputs,
   customValidationMetadata,
@@ -155,6 +156,7 @@ export function postgresInterviewAdmission(
         );
         await bindJobInputs(tx, { jobId: fence.jobId, owner, ...input });
         await saveOperation(tx, actor.userId, key, hash, id, { submissionId: result.id });
+        await checkAdmissionCapacity(tx);
         return {
           id: result.id,
           state: "queued",
