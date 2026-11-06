@@ -4,7 +4,7 @@ import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
-import type { CreateMatchRequest, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState } from "react";
 import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
@@ -17,11 +17,12 @@ export function useAccountIdentity() {
   return { identity: (account.data?.user.id ?? "anonymous") as DevelopmentIdentity, account };
 }
 
-export const defaultMatchSettings: CreateMatchRequest = {
+export const defaultMatchSettings: PartySettings = {
   mode: "showdown",
   accessMode: "accounts_only",
   difficulties: ["easy"],
   durationMinutes: 30,
+  shareCodeAfterMatch: true,
   rules: { clipboard: "off", focus: "off" },
 };
 
@@ -35,8 +36,8 @@ export function MatchSettings({
   showHostRules = false,
   catalog,
 }: {
-  value: CreateMatchRequest;
-  onChange: (value: CreateMatchRequest) => void;
+  value: PartySettings;
+  onChange: (value: PartySettings) => void;
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
@@ -168,7 +169,7 @@ export function MatchSettings({
           onChange={(duration) =>
             onChange({
               ...value,
-              durationMinutes: Number(duration) as CreateMatchRequest["durationMinutes"],
+              durationMinutes: Number(duration) as PartySettings["durationMinutes"],
             })
           }
           options={[15, 30, 45, 60].map((minutes) => ({

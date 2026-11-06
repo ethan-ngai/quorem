@@ -1,264 +1,116 @@
-import { TextInput } from "../../ui/TextControl";
-import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
-import { LogoSpinner } from "../../ui/LoadingScreen";
-/** @file InvitePage.tsx @description Read-only invitation preview with explicit account-aware acceptance. @module matches */
-import * as Dialog from "@radix-ui/react-dialog";
-import { createApiClient } from "@quorem/contracts";
+/** @file InvitePage.tsx @description Accept a persistent party invitation. @module matches */
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useErrorNotification } from "../../ui/Notifications";
-import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
-import { requireData } from "../../api/client";
-import { Icon } from "../../ui/Icon";
+import type { PartyInvitation } from "@quorem/contracts";
+import { useAccountIdentity } from "./MatchControls";
+import { partyCommand, partyRequest, useParty } from "./party";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
-import { joinMatch, joinAsGuest } from "./api";
-import { ModeIcon } from "./ModeIcon";
-import { useAccountIdentity } from "./MatchControls";
-import { InvitationLayout } from "../../ui/InvitationLayout";
-import { SessionDialog } from "../../ui/SessionDialog";
-import "../../styles/workspace.css";
-
-/** Invitation possession grants preview access; only explicit acceptance can claim a seat. */
-const nameConstraint = withMaxCharacters(inputConstraints.name, 40);
 
 export function InvitePage({ token }: { token: string }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
-  const [guestName, setGuestName] = useState("");
+  const current = useParty(identity, !!account.data);
+  const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
-  const [dismissedToken, setDismissedToken] = useState<string>();
-  const [error, setError] = useState<string>();
-  useErrorNotification(error);
-  const preview = useQuery({
-    queryKey: ["invite-preview", token],
-    queryFn: async ({ signal }) => {
-      const { data, error, response } = await createApiClient({
-        baseUrl: window.location.origin,
-      }).GET("/v1/match-invites/{token}", { params: { path: { token } }, signal });
-      if (response.status === 404)
-        throw new UserFacingError("This invitation has expired or the lobby is unavailable.");
-      return requireData(data, error);
-    },
+  const [error, setError] = useState("");
+  const invitation = useQuery({
+    queryKey: ["party-invitation", token],
     retry: false,
-    refetchOnWindowFocus: "always",
-    refetchOnReconnect: "always",
+    queryFn: () =>
+      partyRequest<PartyInvitation>(`/v1/parties/invitations/${encodeURIComponent(token)}`),
   });
-  const lobby = preview.data;
-  const accountUser = account.data?.kind !== "guest" && !!account.data;
-  const resumeGuest = account.data?.kind === "guest" && account.data.matchId === lobby?.id;
-  const guestAllowed = lobby?.accessMode === "guests_allowed";
-  const full =
-    !!lobby && !resumeGuest && (lobby.admissionLocked || lobby.participantCount >= lobby.capacity);
-  const loginURL = `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`;
-  async function accept() {
-    if (pending || !accountUser || !lobby || full) return;
+  const join = async () => {
+    if (pending) return;
     setPending(true);
-    setError(undefined);
+    setError("");
     try {
-      const snapshot = await joinMatch(identity, token);
-      window.location.assign(`/match/${snapshot.id}`);
-    } catch (cause) {
-      setError(userFacingErrorMessage(cause, "Could not join this lobby. Please try again."));
-      setPending(false);
-      void preview.refetch();
-    }
-  }
-  async function continueGuest() {
-    if (resumeGuest) {
-      window.location.assign(`/match/${account.data!.matchId}`);
-      return;
-    }
-    if (pending || !lobby || !guestName.trim()) return;
-    setPending(true);
-    setError(undefined);
-    try {
-      const parsed = validateInput(guestName, nameConstraint);
-      if (!parsed.success) throw new Error("Enter a valid display name.");
-      const match = await joinAsGuest(token, parsed.data);
-      window.location.assign(`/match/${match.id}`);
-    } catch (cause) {
-      setError(userFacingErrorMessage(cause, "Guest access unavailable."));
-      setPending(false);
-      void preview.refetch();
-    }
-  }
-  return (
-    <InvitationLayout
-      navigation={
-        <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
+      if (account.data) await partyCommand(identity, "/v1/parties/join", "POST", { token });
+      else {
+        const session = await fetch("/v1/guest-sessions", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        if (!session.ok) throw new Error("Guest unavailable");
+        await partyCommand(
+          identity,
+          `/v1/parties/invitations/${encodeURIComponent(token)}/guest`,
+          "POST",
+          {
+            name: name.trim(),
+          },
+        );
       }
-    >
-      {!lobby || preview.isError ? (
-        <div className="invite-entry">
-          {!preview.isError && <LogoSpinner />}
-          <h1>{preview.isError ? "Invitation unavailable" : "Opening lobby…"}</h1>
-          {preview.isError && (
-            <>
-              <p>
-                {userFacingErrorMessage(
-                  preview.error,
-                  "Could not load this lobby. Please try again.",
-                )}
-              </p>
-              <button className="button button-secondary" onClick={() => void preview.refetch()}>
-                Retry
-              </button>
-              <a className="text-link" href="/practice">
-                Back to practice
+      window.location.assign("/party");
+    } catch {
+      setError("Could not join this lobby. Check the invitation and leave any other lobby first.");
+      setPending(false);
+    }
+  };
+  return (
+    <main className="match-page">
+      <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
+      <section className="match-page-content">
+        {invitation.isPending ? (
+          <p role="status">Opening invitation…</p>
+        ) : !invitation.data ? (
+          <>
+            <h1>Invitation unavailable</h1>
+            <p>This invitation may have expired.</p>
+          </>
+        ) : (
+          <>
+            <h1>Join lobby</h1>
+            <p>
+              {invitation.data.participantCount} of {invitation.data.capacity} seats filled
+            </p>
+            {error && <p role="alert">{error}</p>}
+            {account.data && current.data?.party?.id === invitation.data.id ? (
+              <a className="button button-primary" href="/party">
+                Return to lobby
               </a>
-            </>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="competitive-lobby-heading">
-            <h1>
-              <ModeIcon mode={lobby.mode} />
-              {lobby.mode === "free-for-all" ? "Free-for-all" : "Showdown"}
-            </h1>
-          </div>
-          <div className="competitive-seats invite-preview-seats" aria-label="Players">
-            <div className="competitive-seat">
-              <Icon name="people" />
-              <div>
-                <strong>Players</strong>
-                <span>
-                  {lobby.participantCount} of {lobby.capacity} seats filled
-                </span>
-              </div>
-            </div>
-            <div className="competitive-seat">
-              <div>
-                <strong>
-                  {lobby.admissionLocked ? "Admission locked" : full ? "Lobby full" : "Open seats"}
-                </strong>
-                <span>{lobby.capacity - lobby.participantCount} available</span>
-              </div>
-            </div>
-          </div>
-          <dl className="competitive-lobby-summary">
-            <div>
-              <dt>Game mode</dt>
-              <dd>{lobby.mode === "free-for-all" ? "Free-for-all" : "Showdown"}</dd>
-            </div>
-            <div>
-              <dt>Difficulty</dt>
-              <dd>{lobby.difficulties.join(", ")}</dd>
-            </div>
-            <div>
-              <dt>Problem</dt>
-              <dd className="invite-preview-problem">Revealed when the match starts</dd>
-            </div>
-            <div>
-              <dt>Duration</dt>
-              <dd>{lobby.durationMinutes} minutes</dd>
-            </div>
-            <div>
-              <dt>Copy / paste</dt>
-              <dd>{lobby.rules.clipboard === "off" ? "Allow" : lobby.rules.clipboard}</dd>
-            </div>
-            <div>
-              <dt>Leaving the window</dt>
-              <dd>{lobby.rules.focus === "off" ? "Allow" : lobby.rules.focus}</dd>
-            </div>
-          </dl>
-          <footer className="competitive-lobby-footer">
-            <span>
-              {lobby.admissionLocked
-                ? "The host has locked admission."
-                : full
-                  ? "This lobby has no open seats."
-                  : "Accept the invitation to join this lobby."}
-            </span>
-            {account.isError ? (
-              <button className="button button-secondary" onClick={() => void account.refetch()}>
-                Retry account check
-              </button>
-            ) : full ? (
-              <button
-                className="button button-secondary"
-                disabled={preview.isFetching}
-                onClick={() => void preview.refetch()}
-              >
-                Refresh lobby
-              </button>
-            ) : (
+            ) : account.data ? (
               <button
                 className="button button-primary"
-                disabled={account.isPending}
-                id="invite-join"
-                onClick={() => setDismissedToken(undefined)}
+                disabled={pending}
+                onClick={() => void join()}
               >
-                {account.isPending ? "Checking account…" : "Join lobby"}
+                {pending ? "Joining…" : "Join lobby"}
               </button>
-            )}
-          </footer>
-          <SessionDialog
-            open={account.isSuccess && dismissedToken !== token && !full && !preview.isError}
-            onOpenChange={(open) => setDismissedToken(open ? undefined : token)}
-            pending={pending}
-            returnFocus={() => document.getElementById("invite-join")?.focus()}
-            title={
-              accountUser || guestAllowed || resumeGuest ? "Join this lobby?" : "Sign in to join"
-            }
-            description={
-              accountUser
-                ? `Join as ${account.data!.user.displayName}.`
-                : resumeGuest
-                  ? `Return as ${account.data!.user.displayName} (guest).`
-                  : guestAllowed
-                    ? "Sign in or choose a display name to continue as a guest."
-                    : "This lobby requires an account. Sign in to join."
-            }
-          >
-            {!accountUser && guestAllowed && !resumeGuest && (
-              <label className="guest-name-field">
-                Display name
-                <TextInput
-                  unstyled
-                  constraint={nameConstraint}
-                  autoComplete="nickname"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  disabled={pending}
-                />
-              </label>
-            )}
-            <div className="competitive-dialog-actions">
-              <Dialog.Close asChild>
-                <button className="button button-secondary" disabled={pending}>
-                  View lobby
-                </button>
-              </Dialog.Close>
-              {accountUser ? (
-                <button
-                  className="button button-primary"
-                  disabled={pending}
-                  onClick={() => void accept()}
+            ) : (
+              <>
+                <a
+                  className="button button-secondary"
+                  href={`/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`}
                 >
-                  {pending ? "Joining…" : "Join lobby"}
-                </button>
-              ) : (
-                <div className="guest-entry-actions">
-                  <a className="button button-secondary" href={loginURL}>
-                    Sign in
-                  </a>
-                  {(guestAllowed || resumeGuest) && (
-                    <button
-                      className="button button-primary"
-                      disabled={pending || (!resumeGuest && !guestName.trim())}
-                      onClick={() => void continueGuest()}
-                    >
-                      {pending ? "Joining…" : resumeGuest ? "Return to lobby" : "Continue as guest"}
+                  Sign in
+                </a>
+                {invitation.data.guestAllowed && (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void join();
+                    }}
+                  >
+                    <label>
+                      Guest name{" "}
+                      <input
+                        value={name}
+                        maxLength={40}
+                        onChange={(event) => setName(event.target.value)}
+                        required
+                      />
+                    </label>
+                    <button className="button button-primary" disabled={pending || !name.trim()}>
+                      {pending ? "Joining…" : "Continue as guest"}
                     </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </SessionDialog>
-        </>
-      )}
-    </InvitationLayout>
+                  </form>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </section>
+    </main>
   );
 }

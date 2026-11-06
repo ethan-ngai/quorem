@@ -15,6 +15,7 @@ export interface CatalogFilter {
 }
 export interface ProblemActor {
   readonly userId: string;
+  readonly guestScope?: import("../identity/model.ts").GuestScope;
 }
 export interface CandidateCriteria {
   readonly selectedVersionId?: string;

@@ -13,14 +13,7 @@
   gap: var(--space-2);
   border-radius: var(--radius-sm);
 }
-.match-summary-metadata .match-summary-mode {
-  color: var(--color-info);
-}
 .match-summary-metadata > span:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 4px;
-}
-.match-summary-duration > span {
-  font-family: var(--font-code);
-  font-size: var(--text-label);
 }

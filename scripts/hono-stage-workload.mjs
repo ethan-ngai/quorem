@@ -29,7 +29,7 @@ export async function runStageWorkload(env, deps = {}) {
   const stats = { http: [], command: [], jobs: [], errors: 0, disconnects: 0, reconnects: 0 };
   const actors = [],
     sockets = [],
-    rooms = [],
+    parties = [],
     pending = [],
     resultStreams = [];
   const controller = new AbortController();
@@ -215,7 +215,7 @@ export async function runStageWorkload(env, deps = {}) {
     for (let i = 0; i < size; i++) {
       const host = actors[2 * i],
         guest = actors[2 * i + 1];
-      const room = await request(host, "/v1/matches", {
+      const created = await request(host, "/v1/parties", {
         method: "POST",
         command: true,
         expected: 201,
@@ -225,34 +225,38 @@ export async function runStageWorkload(env, deps = {}) {
           mode: "showdown",
         },
       });
-      if (!uuid.test(room.id ?? "") || typeof room.inviteUrl !== "string")
-        throw new Error("Invalid match response");
-      if (rooms.some((existing) => existing.id === room.id)) throw new Error("Duplicate match");
-      rooms.push({ id: room.id, host });
-      const invite = room.inviteUrl.split("/").at(-1);
+      const party = created.party;
+      if (!uuid.test(party?.id ?? "") || typeof created.inviteUrl !== "string")
+        throw new Error("Invalid party response");
+      if (parties.some((existing) => existing.id === party.id)) throw new Error("Duplicate party");
+      const membership = { id: party.id, actors: [host] };
+      parties.push(membership);
+      const invite = created.inviteUrl.split("/").at(-1);
       if (!invite || /[?#]/.test(invite)) throw new Error("Invalid invitation");
-      await request(guest, "/v1/matches/join", {
+      await request(guest, "/v1/parties/join", {
         method: "POST",
         command: true,
-        body: { inviteToken: invite },
+        body: { token: invite },
       });
-      await request(host, `/v1/matches/${room.id}/ready`, {
-        method: "POST",
-        command: true,
-        body: { ready: true },
-      });
-      const ready = await request(guest, `/v1/matches/${room.id}/ready`, {
-        method: "POST",
-        command: true,
-        body: { ready: true },
-      });
-      if (ready.state === "waiting")
-        await request(host, `/v1/matches/${room.id}/start`, {
+      membership.actors.push(guest);
+      for (const actor of [host, guest]) {
+        await request(actor, "/v1/presence/heartbeat", {
+          method: "POST",
+          body: { windowId: randomUUID() },
+        });
+        await request(actor, `/v1/parties/${party.id}/ready`, {
           method: "POST",
           command: true,
-          body: {},
+          body: { ready: true },
         });
-      else if (ready.state !== "active") throw new Error("Match did not start");
+      }
+      const started = await request(host, `/v1/parties/${party.id}/start`, {
+        method: "POST",
+        command: true,
+        body: {},
+      });
+      const room = { id: started.currentMatchId };
+      if (!uuid.test(room.id ?? "")) throw new Error("Match did not start");
       for (const actor of [host, guest]) {
         const snapshot = await request(actor, `/v1/matches/${room.id}`);
         const workspaces = snapshot.participants?.map((p) => p.workspaceId).filter(Boolean);
@@ -395,16 +399,18 @@ export async function runStageWorkload(env, deps = {}) {
       )
     )
       cleanupFailure = true;
-    for (const room of rooms) {
-      try {
-        await request(room.host, `/v1/matches/${room.id}/leave`, {
-          method: "POST",
-          command: true,
-          body: {},
-          cleanup: true,
-        });
-      } catch {
-        cleanupFailure = true;
+    for (const party of parties) {
+      for (const actor of party.actors) {
+        try {
+          await request(actor, `/v1/parties/${party.id}/leave`, {
+            method: "POST",
+            command: true,
+            body: {},
+            cleanup: true,
+          });
+        } catch {
+          cleanupFailure = true;
+        }
       }
     }
     for (const actor of actors) {

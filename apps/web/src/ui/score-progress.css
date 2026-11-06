@@ -1,0 +1,40 @@
+.score-progress {
+  display: inline-flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  width: 9ch;
+  font: var(--text-label) / 1.5 var(--font-code);
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+.score-progress-number {
+  text-align: right;
+  white-space: nowrap;
+}
+.score-progress-total {
+  color: var(--color-text-secondary);
+}
+.score-progress-track {
+  display: block;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+}
+.score-progress-track[data-unavailable="true"] {
+  visibility: hidden;
+}
+.score-progress-track > span {
+  display: block;
+  width: var(--score-progress);
+  height: 100%;
+  border-radius: inherit;
+  background: var(--score-color);
+  transition: width var(--motion-standard) var(--motion-easing);
+}
+@media (prefers-reduced-motion: reduce) {
+  .score-progress-track > span {
+    transition: none;
+  }
+}

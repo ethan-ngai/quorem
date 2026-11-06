@@ -4,23 +4,26 @@ import { LanguageLogo } from "../../../ui/LanguageLogo";
 import { languageLabels, type EditorLanguage } from "../editorLanguages";
 import { Tooltip } from "../../../ui/Tooltip";
 
-export function SolutionToolbar({
+export function SolutionControls({
   language,
   languages,
   disabled,
   onChange,
   intelligence,
+  iconOnly = false,
 }: {
   language: EditorLanguage;
   languages: readonly { language: string }[];
   disabled?: boolean;
+  iconOnly?: boolean;
   onChange?: (language: EditorLanguage) => void;
   intelligence?: { status: string; hint: string };
 }) {
   return (
-    <div className="code-toolbar">
+    <>
       <SelectField
         className="select-field--compact"
+        iconOnly={iconOnly}
         label={language === "postgresql" ? "SQL dialect" : "Solution language"}
         value={language}
         disabled={disabled || !onChange}
@@ -46,6 +49,14 @@ export function SolutionToolbar({
           </Tooltip>
         )}
       </div>
+    </>
+  );
+}
+
+export function SolutionToolbar(props: Parameters<typeof SolutionControls>[0]) {
+  return (
+    <div className="code-toolbar">
+      <SolutionControls {...props} />
     </div>
   );
 }

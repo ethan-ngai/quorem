@@ -2,6 +2,7 @@ import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 /** @file grant.ts @description Reauthorize verified socket grants without retaining credentials. @module identity */
 import {
   IdentityError,
+  guestScopeId,
   type Claims,
   type GuestPrincipal,
   type ManagedPrincipal,
@@ -15,7 +16,7 @@ export type ManagedGrant = Pick<Claims, "issuer" | "subject" | "sessionId" | "ex
 };
 export type GuestGrant = {
   kind: "guest";
-  scope: "match" | "interview";
+  scope: "match" | "party" | "interview";
   resourceId: string;
   hash: string;
   expiresAt: number;
@@ -24,7 +25,7 @@ export type VerifiedGrant = ManagedGrant | GuestGrant;
 export interface GrantReaders {
   sessions: SessionAuthority;
   managed(grant: ManagedGrant): Promise<ManagedPrincipal | null>;
-  guest(kind: GuestGrant["scope"], hash: string): Promise<GuestPrincipal | null>;
+  guest(kind: "match" | "interview", hash: string): Promise<GuestPrincipal | null>;
 }
 /** Only call after token verification; profile claims and bearer bytes are deliberately discarded. */
 export function managedGrant(claims: Claims, strongUntil: number): ManagedGrant {
@@ -63,13 +64,14 @@ export async function reauthorizeGrant(
       };
     }
     if (grant.kind === "guest") {
-      const principal = await readers.guest(grant.scope, grant.hash);
-      const scopeId =
-        principal?.scope.kind === "match" ? principal.scope.matchId : principal?.scope.interviewId;
+      const principal = await readers.guest(
+        grant.scope === "interview" ? "interview" : "match",
+        grant.hash,
+      );
       if (
         !principal ||
         principal.scope.kind !== grant.scope ||
-        scopeId !== grant.resourceId ||
+        guestScopeId(principal.scope) !== grant.resourceId ||
         principal.sessionId !== grant.hash
       )
         throw new IdentityError("unauthorized");

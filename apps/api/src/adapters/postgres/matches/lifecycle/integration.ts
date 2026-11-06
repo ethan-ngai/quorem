@@ -125,7 +125,6 @@ before(async () => {
     examples: [{ args: [1], expected: 2, explanation: "Increment." }],
   });
   fixture.hiddenCases = [{ args: [3], expected: 4 }];
-  fixture.implementations[0].starterSource = "class Solution:\n def f(self,x): pass\n";
   fixture.approaches[0].implementations.find(
     (item: { language: string }) => item.language === "python",
   )!.source = "class Solution:\n def f(self,x): return x+1\n";
@@ -430,19 +429,9 @@ void test("Node HTTP maps lifecycle results and invalid commands", async () => {
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("server unavailable");
     const base = `http://127.0.0.1:${address.port}`;
-    const invalid = await fetch(`${base}/v1/matches`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": "http-bad" },
-      body: JSON.stringify({ difficulty: "easy", extra: true }),
-    });
-    assert.equal(invalid.status, 400);
-    const created = await fetch(`${base}/v1/matches`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": "http-create" },
-      body: JSON.stringify({ difficulty: "easy" }),
-    });
-    assert.equal(created.status, 201);
-    const data = (await created.json()) as { id: string };
+    const retired = await fetch(`${base}/v1/matches`, { method: "POST" });
+    assert.equal(retired.status, 404);
+    const data = (await repo.create(host, "http-create", settings)) as { id: string };
     const read = await fetch(`${base}/v1/matches/${data.id}`);
     assert.equal(read.status, 200);
     assert.equal(((await read.json()) as { state: string }).state, "waiting");
@@ -697,7 +686,7 @@ void test("selected SQL question gives each participant a PostgreSQL workspace",
     v = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug,owner_id) VALUES($1,$2,'match-host')", [p, p]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'SQL','easy','','{}','[]','{}','test')",
+    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',NULL,'[]','{}','test','{}')",
     [v, p],
   );
   await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [p, v]);
@@ -937,13 +926,13 @@ void test(
       assert.equal(presence(initial, hostPublic), "online");
       assert.equal(presence(initial, publicId), "online");
       assert.equal(presence(other.frames[0], publicId), "online");
-      const ready = await app.request(`/v1/matches/${room.id}/ready`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": "presence-ready" },
-        body: '{"ready":true}',
-      });
-      assert.equal(ready.status, 200);
-      const readySnapshot = (await ready.json()) as Snapshot;
+      const readySnapshot = (await repo.mutate(
+        h,
+        room.id,
+        "presence-ready",
+        "ready",
+        true,
+      )) as Snapshot;
       assert.equal(presence(readySnapshot, hostPublic), "online");
       one.ws.close();
       await waitFor(
@@ -988,3 +977,24 @@ void test(
     }
   },
 );
+
+void test("match snapshots carry saved profile colors and pictures", async () => {
+  await pool.query(
+    "UPDATE users SET profile_color=7,profile_image='/profile/rival.png' WHERE id='match-rival'",
+  );
+  const created = (await repo.create(host, "profile-colors", settings)) as { id: string };
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,'match-rival',2)",
+    [created.id],
+  );
+  const snapshot = (await repo.read(host, created.id)) as {
+    participants: { displayName: string; color?: number; image?: string }[];
+  };
+  const profile = snapshot.participants.find((person) => person.displayName === "Rival")!;
+  assert.equal(profile.color, 7);
+  assert.equal(profile.image, "/profile/rival.png");
+  assert.equal(
+    snapshot.participants.find((person) => person.displayName === "Host")!.color,
+    undefined,
+  );
+});

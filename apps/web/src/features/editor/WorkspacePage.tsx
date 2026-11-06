@@ -7,7 +7,12 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
-import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
+import {
+  participantUserId,
+  type DevelopmentIdentity,
+  type MatchSnapshot,
+  type ProblemVersion,
+} from "@quorem/contracts";
 import { RotateCcw } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,7 +27,13 @@ import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
-import { importBrowserDrafts, clearOwnerRecovery } from "./recovery";
+import { importBrowserDrafts, clearOwnerRecovery, readBrowserDraft } from "./recovery";
+import { authenticatedFetch } from "../auth/session";
+import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
+import { EditorialCode } from "./components/EditorialCode";
+import { useMatchReview, createReviewWorkspace } from "../matches/useMatchReview";
+import { ReviewComparison } from "../matches/ReviewComparison";
+import "../matches/review.css";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { passedCaseLevels } from "../odyssey/caseFeedback";
@@ -38,7 +49,7 @@ import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
-import { SolutionToolbar } from "./components/SolutionToolbar";
+import { SolutionControls } from "./components/SolutionToolbar";
 import { WorkspaceTests } from "./components/WorkspaceTests";
 import { ExecutionActions } from "./components/ExecutionActions";
 import "../../styles/workspace.css";
@@ -62,13 +73,17 @@ export function WorkspacePage({
   matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
   matchHeader,
+  review: reviewRequested = false,
 }: {
   slug?: string;
   match?: MatchSnapshot;
   matchWorkspaceId?: string;
   identity?: DevelopmentIdentity;
-  matchHeader?: ReactNode;
+  matchHeader?: ReactNode | ((problem: ProblemVersion) => ReactNode);
+  review?: boolean;
 }) {
+  const [review, setReview] = useState(false);
+  const originalSource = useRef<string | undefined>(undefined);
   const account = useSession();
   const identity = (account.data?.user.id ??
     providedIdentity ??
@@ -118,6 +133,19 @@ export function WorkspacePage({
   );
   const problemQuery = useQuery({
     ...problemOptions,
+    queryFn:
+      match && matchWorkspaceId
+        ? async () => {
+            const response = await authenticatedFetch(
+              new URL(
+                `/v1/workspaces/${encodeURIComponent(matchWorkspaceId)}/problem`,
+                import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
+              ),
+            );
+            if (!response.ok) throw new Error("Could not load the match problem.");
+            return response.json() as Promise<ProblemVersion>;
+          }
+        : problemOptions.queryFn,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
   });
   const activeLanguage = problemQuery.data?.languages?.some(
@@ -125,16 +153,53 @@ export function WorkspacePage({
   )
     ? selectedLanguage
     : (problemQuery.data?.languages?.[0]?.language ?? selectedLanguage);
+  const [reviewParticipantId, setReviewParticipantId] = useState("");
+  const [compareReview, setCompareReview] = useState(false);
+  const [diffReview, setDiffReview] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [comparisonSource, setComparisonSource] = useState<{
+    participantId: string;
+    language: EditorLanguage;
+    source: string;
+  }>();
+  const reviewQuery = useMatchReview(identity, match?.id, review);
+  const [reviewExpired, setReviewExpired] = useState(false);
+  useEffect(() => {
+    if (!reviewQuery.data) return;
+    const delay = Date.parse(reviewQuery.data.completedAt) + 86_400_000 - Date.now();
+    if (delay <= 0) {
+      setReviewExpired(true);
+      return;
+    }
+    setReviewExpired(false);
+    const timer = window.setTimeout(() => setReviewExpired(true), delay);
+    return () => window.clearTimeout(timer);
+  }, [reviewQuery.data?.completedAt]);
+  const reviewParticipant =
+    reviewQuery.data?.participants.find((person) => person.userId === reviewParticipantId) ??
+    reviewQuery.data?.participants.find((person) => person.own);
+  const reviewLanguage = selectedLanguage;
+  const reviewReference = reviewQuery.data?.participants.find(
+    (person) => person.userId !== reviewParticipant?.userId && person.submission,
+  );
   const workspaceQuery = useQuery({
-    queryKey: ["workspace", identity, matchWorkspaceId ?? problemQuery.data?.id, activeLanguage],
+    queryKey: [
+      "workspace",
+      identity,
+      review ? match?.id : (matchWorkspaceId ?? problemQuery.data?.id),
+      review ? reviewParticipant?.userId : null,
+      review ? reviewLanguage : activeLanguage,
+    ],
     queryFn: () =>
-      match
-        ? fetchWorkspace(identity, matchWorkspaceId!)
-        : createWorkspace(identity, problemQuery.data!.id, activeLanguage),
+      review
+        ? createReviewWorkspace(match!.id, reviewParticipant!.userId, reviewLanguage)
+        : match
+          ? fetchWorkspace(identity, matchWorkspaceId!)
+          : createWorkspace(identity, problemQuery.data!.id, activeLanguage),
     enabled:
       !!account.data &&
       (account.data.kind !== "guest" || !!match) &&
-      (match ? !!matchWorkspaceId : !!problemQuery.data),
+      (review ? !!reviewParticipant : match ? !!matchWorkspaceId : !!problemQuery.data),
     staleTime: 0,
     gcTime: 5 * 60_000,
   });
@@ -153,6 +218,14 @@ export function WorkspacePage({
     workspaceQuery.data,
   ]);
 
+  const frozenMatch =
+    !!match &&
+    !review &&
+    (match.state !== "active" ||
+      !!match.participants.find((person) => person.userId === participantUserId(identity))
+        ?.forfeited);
+  const frozenRef = useRef(frozenMatch);
+  frozenRef.current = frozenMatch;
   const {
     problem,
     workspace,
@@ -170,12 +243,37 @@ export function WorkspacePage({
     restoreHistory,
   } = useWorkspaceDraft({
     identity,
+    canEdit: !frozenMatch,
     accountPresent: !!account.data,
     queriedProblem: problemQuery.data,
     loadedWorkspace,
     editorRef,
+    initialSource:
+      review && reviewParticipant
+        ? ((reviewParticipant.own &&
+          reviewParticipant.workspace &&
+          reviewParticipant.workspace.language === reviewLanguage
+            ? (originalSource.current ??
+              readBrowserDraft(
+                identity,
+                reviewParticipant.workspace.id,
+                problemQuery.data?.id ?? "",
+              ))
+            : undefined) ??
+          (reviewParticipant.submission?.language === reviewLanguage
+            ? reviewParticipant.submission.source
+            : undefined))
+        : undefined,
     onError: (error) => setActionError(errorMessage(error)),
   });
+
+  if (!review && workspace?.kind === "match") originalSource.current = sourceRef.current;
+  useEffect(() => {
+    if (reviewRequested && !review && workspace?.kind === "match") {
+      setSelectedLanguage(workspace.language as EditorLanguage);
+      setReview(true);
+    }
+  }, [reviewRequested, review, workspace]);
 
   const dataMatchesRoute =
     (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
@@ -184,6 +282,7 @@ export function WorkspacePage({
     problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
   const serverWorkspace = !!account.data && (account.data.kind !== "guest" || !!match);
   const loading =
+    (review && (reviewExpired || reviewQuery.isPending || !reviewParticipant)) ||
     problemQuery.isPending ||
     account.isPending ||
     (serverWorkspace && workspaceQuery.isPending) ||
@@ -191,7 +290,7 @@ export function WorkspacePage({
     !dataMatchesState ||
     !problem ||
     !workspace;
-  const matchRules = useMatchRules(identity, match);
+  const matchRules = useMatchRules(identity, review ? undefined : match);
   const documentLanguage = (workspace?.language ?? activeLanguage) as EditorLanguage;
   const odyssey = useQuery({
     queryKey: ["odyssey", workspace?.id],
@@ -206,7 +305,7 @@ export function WorkspacePage({
   );
   const displayedOdyssey = odyssey.data ?? previewOdyssey;
   useEffect(() => {
-    if (loading || !displayedOdyssey) return;
+    if (loading || !displayedOdyssey || frozenMatch) return;
     let cancelled = false;
     async function append() {
       for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
@@ -214,7 +313,7 @@ export function WorkspacePage({
         if (!editor) return;
         const before = editor.getSource();
         const edit = await unlockedMethodEdit(before, documentLanguage, displayedOdyssey!.levels);
-        if (cancelled) return;
+        if (cancelled || frozenRef.current) return;
         if (editor.getSource() !== before) continue;
         if (edit) editor.applyEdit(edit.from, edit.to, edit.insert);
         return;
@@ -224,7 +323,7 @@ export function WorkspacePage({
     return () => {
       cancelled = true;
     };
-  }, [loading, displayedOdyssey, documentLanguage, workspace?.id]);
+  }, [loading, displayedOdyssey, documentLanguage, workspace?.id, frozenMatch]);
   const [resettingOdyssey, setResettingOdyssey] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
@@ -253,7 +352,8 @@ export function WorkspacePage({
         problem,
         workspace,
         slug,
-        match,
+        match: review ? undefined : match,
+        review: review ? { matchId: match!.id } : undefined,
         matchWorkspaceId,
         loaded: !loading,
       }),
@@ -294,7 +394,9 @@ export function WorkspacePage({
     setActionError(undefined);
     try {
       await saveBeforeSwitch();
-      if (match) {
+      if (review) {
+        setSelectedLanguage(language);
+      } else if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
         setMatchSelection({ matchId: match.id, workspaceId: selected.id });
       } else {
@@ -306,6 +408,25 @@ export function WorkspacePage({
     } finally {
       setLanguageSwitching(false);
     }
+  };
+  const selectReviewParticipant = (value: string) => {
+    if (languageSwitching || submissionBusy || admissionPending) return;
+    setLanguageSwitching(true);
+    void saveBeforeSwitch()
+      .then(() => {
+        const participant = reviewQuery.data?.participants.find(
+          (person) => person.userId === value,
+        );
+        const language = participant?.own
+          ? participant.workspace?.language
+          : participant?.submission?.language;
+        if (language && problem?.languages?.some((item) => item.language === language))
+          setSelectedLanguage(language as EditorLanguage);
+        setReviewParticipantId(value);
+        setShowOriginal(false);
+      })
+      .catch((error) => setActionError(errorMessage(error)))
+      .finally(() => setLanguageSwitching(false));
   };
   const run = useCallback(async () => {
     if (!account.data || (account.data.kind === "guest" && !match)) {
@@ -335,12 +456,18 @@ export function WorkspacePage({
   useHotkey(workspaceShortcuts.submit.binding, () => void submit(), hotkeyOptions);
   useHotkey(workspaceShortcuts.save.binding, () => void saveCurrentDraft(), hotkeyOptions);
 
-  const loadError = problemQuery.error ?? workspaceQuery.error ?? account.error;
+  const loadError =
+    (reviewExpired ? new Error("This review has expired.") : undefined) ??
+    reviewQuery.error ??
+    problemQuery.error ??
+    workspaceQuery.error ??
+    account.error;
   const retryLoading = () => {
     if (account.data === undefined) {
       void account.refetch();
       return;
     }
+    if (review) void reviewQuery.refetch();
     if (problemOptions.enabled && (!match || !!matchWorkspaceId)) void problemQuery.refetch();
     if (serverWorkspace && (match ? !!matchWorkspaceId : !!problemQuery.data))
       void workspaceQuery.refetch();
@@ -379,7 +506,8 @@ export function WorkspacePage({
       problem,
       workspace,
       slug,
-      match,
+      match: review ? undefined : match,
+      review: review ? { matchId: match!.id } : undefined,
       matchWorkspaceId,
       loaded: !loading,
     });
@@ -398,6 +526,27 @@ export function WorkspacePage({
         )}
       </main>
     );
+
+  const solutionControls = (
+    <SolutionControls
+      language={documentLanguage}
+      iconOnly={review}
+      languages={problem.languages ?? [{ language: "python" }]}
+      disabled={
+        loading ||
+        languageSwitching ||
+        submissionBusy ||
+        admissionPending ||
+        (!!match && !review && (match.state !== "active" || matchRules.blocked))
+      }
+      onChange={(value) => void changeLanguage(value)}
+      intelligence={
+        hostedIntelligenceEnabled || browserIntelligenceAvailable
+          ? { status: intelligenceStatus, hint: intelligenceHint }
+          : undefined
+      }
+    />
+  );
 
   return (
     <>
@@ -429,8 +578,11 @@ export function WorkspacePage({
               onOpenChange: setSettingsOpen,
               onImportDrafts: async (file) => {
                 try {
+                  if (frozenRef.current) return;
                   await saveCurrentDraft();
-                  const imported = await importBrowserDrafts(await file.text(), identity);
+                  const content = await file.text();
+                  if (frozenRef.current) return;
+                  const imported = await importBrowserDrafts(content, identity);
                   if (imported > 0) window.location.reload();
                 } catch (error) {
                   setActionError(errorMessage(error));
@@ -459,53 +611,60 @@ export function WorkspacePage({
           </GlobalNav>
         }
         header={
-          matchHeader ? (
-            matchHeader
-          ) : odyssey.data ? (
-            <OdysseyStepper
-              progress={odyssey.data}
-              passedLevels={passedCaseLevels(odyssey.data, execution.submission)}
-              selectedLevel={selectedLevel}
-              onSelect={setSelectedLevel}
-              actions={
-                workspace?.kind === "solo" && (
-                  <Tooltip content="Reset Odyssey progress">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label="Reset Odyssey progress"
-                      disabled={
-                        resettingOdyssey ||
-                        execution.busy ||
-                        execution.admissionPending ||
-                        languageSwitching
-                      }
-                      onClick={async () => {
-                        if (resettingOdyssey || execution.busy || execution.admissionPending)
-                          return;
-                        setResettingOdyssey(true);
-                        try {
-                          await queryClient.cancelQueries({ queryKey: ["odyssey", workspace.id] });
-                          const progress = await interviewRequest<OdysseyProgress>(
-                            `/v1/workspaces/${workspace.id}/odyssey/reset`,
-                            "POST",
-                          );
-                          execution.clearResult();
-                          setSelectedLevel(undefined);
-                          queryClient.setQueryData(["odyssey", workspace.id], progress);
-                        } catch (cause) {
-                          setActionError(errorMessage(cause));
-                        } finally {
-                          setResettingOdyssey(false);
-                        }
-                      }}
-                    >
-                      <RotateCcw size={16} aria-hidden="true" />
-                    </button>
-                  </Tooltip>
-                )
-              }
-            />
+          matchHeader || odyssey.data ? (
+            <>
+              {typeof matchHeader === "function" ? matchHeader(problem) : matchHeader}
+              {(!matchHeader || review) && odyssey.data && (
+                <OdysseyStepper
+                  progress={odyssey.data}
+                  passedLevels={passedCaseLevels(odyssey.data, execution.submission)}
+                  selectedLevel={selectedLevel}
+                  onSelect={setSelectedLevel}
+                  actions={
+                    (workspace?.kind === "solo" || review) && (
+                      <Tooltip
+                        content={review ? "Reset review progress" : "Reset Odyssey progress"}
+                      >
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label={review ? "Reset review progress" : "Reset Odyssey progress"}
+                          disabled={
+                            resettingOdyssey ||
+                            execution.busy ||
+                            execution.admissionPending ||
+                            languageSwitching
+                          }
+                          onClick={async () => {
+                            if (resettingOdyssey || execution.busy || execution.admissionPending)
+                              return;
+                            setResettingOdyssey(true);
+                            try {
+                              await queryClient.cancelQueries({
+                                queryKey: ["odyssey", workspace.id],
+                              });
+                              const progress = await interviewRequest<OdysseyProgress>(
+                                `/v1/workspaces/${workspace.id}/odyssey/reset`,
+                                "POST",
+                              );
+                              execution.clearResult();
+                              setSelectedLevel(undefined);
+                              queryClient.setQueryData(["odyssey", workspace.id], progress);
+                            } catch (cause) {
+                              setActionError(errorMessage(cause));
+                            } finally {
+                              setResettingOdyssey(false);
+                            }
+                          }}
+                        >
+                          <RotateCcw size={16} aria-hidden="true" />
+                        </button>
+                      </Tooltip>
+                    )
+                  }
+                />
+              )}
+            </>
           ) : undefined
         }
         panel={activePanel}
@@ -515,7 +674,7 @@ export function WorkspacePage({
             {problem.odyssey ? (
               displayedOdyssey ? (
                 <OdysseyPanel
-                  allowTopics={match?.rules.hints?.topics !== false}
+                  allowTopics={review || match?.rules.hints?.topics !== false}
                   progress={displayedOdyssey}
                   problem={problem}
                   selectedLevel={selectedLevel}
@@ -527,7 +686,7 @@ export function WorkspacePage({
                     identity={identity}
                     versionId={problem.id}
                     language={documentLanguage}
-                    inMatch={!!match && match.rules.hints?.complexity !== true}
+                    inMatch={!!match && !review && match.rules.hints?.complexity !== true}
                   />
                 </OdysseyPanel>
               ) : (
@@ -542,18 +701,18 @@ export function WorkspacePage({
             ) : (
               <ProblemStatement
                 problem={problem}
-                allowTopics={match?.rules.hints?.topics !== false}
+                allowTopics={review || match?.rules.hints?.topics !== false}
               >
                 <EditorialPanel
                   theme={theme}
                   colorScheme={editorSchemes[theme]}
                   available={problem.hasComplexity ?? false}
-                  solutionAvailable={!match && (problem.hasSolutions ?? false)}
+                  solutionAvailable={(!match || review) && (problem.hasSolutions ?? false)}
                   key={`${identity}:${problem.id}`}
                   identity={identity}
                   versionId={problem.id}
                   language={documentLanguage}
-                  inMatch={!!match && match.rules.hints?.complexity !== true}
+                  inMatch={!!match && !review && match.rules.hints?.complexity !== true}
                 />
               </ProblemStatement>
             )}
@@ -561,43 +720,113 @@ export function WorkspacePage({
         }
         editor={
           <>
-            <SolutionToolbar
-              language={documentLanguage}
-              languages={problem.languages ?? [{ language: "python" }]}
-              disabled={
-                loading ||
-                languageSwitching ||
-                submissionBusy ||
-                admissionPending ||
-                (!!match && (match.state !== "active" || matchRules.blocked))
-              }
-              onChange={(value) => void changeLanguage(value)}
-              intelligence={
-                hostedIntelligenceEnabled || browserIntelligenceAvailable
-                  ? { status: intelligenceStatus, hint: intelligenceHint }
-                  : undefined
-              }
-            />
-            <div className="editor-frame">
-              <PythonEditor
-                language={documentLanguage}
-                key={editorDocumentKey}
-                ref={editorRef}
-                documentKey={editorDocumentKey}
-                documentUri={virtualDocumentUri}
-                initialSource={source}
-                theme={theme}
-                colorScheme={editorSchemes[theme]}
-                fontSize={fontSize}
-                tabSize={tabSize}
-                wrap={wrap}
-                readOnly={languageSwitching}
-                completionEnabled={true}
-                intelligenceExtensions={
-                  browserIntelligenceAvailable ? intelligence.extensions : undefined
+            {review && reviewQuery.data && (
+              <ReviewToolbar
+                review={reviewQuery.data}
+                participantId={reviewParticipant?.userId ?? ""}
+                disabled={languageSwitching || submissionBusy || admissionPending}
+                compare={compareReview}
+                diff={diffReview}
+                original={showOriginal}
+                canDiff={
+                  (reviewReference?.own
+                    ? reviewReference.workspace?.language
+                    : reviewReference?.submission?.language) === documentLanguage
                 }
-                onSourceChange={updateSource}
-              />
+                onSelect={selectReviewParticipant}
+                onCompare={() => setCompareReview(!compareReview)}
+                onDiff={() => setDiffReview(!diffReview)}
+                onOriginal={() => setShowOriginal(!showOriginal)}
+                originalContent={
+                  reviewParticipant?.submission && (
+                    <>
+                      <ReviewPaneHeader
+                        name="Original submission"
+                        language={reviewParticipant.submission.language as EditorLanguage}
+                        original
+                      />
+                      <EditorialCode
+                        source={reviewParticipant.submission.source}
+                        language={reviewParticipant.submission.language as EditorLanguage}
+                        label="Original submission"
+                        theme={theme}
+                        colorScheme={editorSchemes[theme]}
+                      />
+                    </>
+                  )
+                }
+              >
+                {solutionControls}
+              </ReviewToolbar>
+            )}
+            {!(review && reviewQuery.data) && (
+              <div className="code-toolbar">{solutionControls}</div>
+            )}
+            <div className="review-editor-grid">
+              <div className="editor-frame">
+                {review && compareReview && !diffReview && (
+                  <ReviewPaneHeader
+                    name={reviewParticipant?.displayName ?? "Player"}
+                    self={reviewParticipant?.own}
+                    participant={reviewParticipant}
+                    language={documentLanguage}
+                    active
+                  />
+                )}
+                <PythonEditor
+                  language={documentLanguage}
+                  key={editorDocumentKey}
+                  ref={editorRef}
+                  documentKey={editorDocumentKey}
+                  documentUri={virtualDocumentUri}
+                  initialSource={source}
+                  theme={theme}
+                  colorScheme={editorSchemes[theme]}
+                  fontSize={fontSize}
+                  tabSize={tabSize}
+                  wrap={wrap}
+                  readOnly={
+                    languageSwitching ||
+                    (!!match && !review && (match.state !== "active" || matchRules.blocked))
+                  }
+                  mergeOriginal={
+                    review &&
+                    compareReview &&
+                    diffReview &&
+                    comparisonSource?.participantId === reviewReference?.userId &&
+                    comparisonSource?.language === documentLanguage
+                      ? comparisonSource.source
+                      : undefined
+                  }
+                  completionEnabled={true}
+                  intelligenceExtensions={
+                    browserIntelligenceAvailable ? intelligence.extensions : undefined
+                  }
+                  onSourceChange={updateSource}
+                />
+              </div>
+              {review && compareReview && reviewReference && match && (
+                <ReviewComparison
+                  key={reviewReference.userId}
+                  identity={identity}
+                  matchId={match.id}
+                  participant={reviewReference}
+                  problem={problem}
+                  theme={theme}
+                  colorScheme={editorSchemes[theme]}
+                  fontSize={fontSize}
+                  tabSize={tabSize}
+                  wrap={wrap}
+                  hidden={
+                    diffReview &&
+                    comparisonSource?.participantId === reviewReference.userId &&
+                    comparisonSource.language === documentLanguage
+                  }
+                  onSource={setComparisonSource}
+                  onSelect={() => selectReviewParticipant(reviewReference.userId)}
+                  disabled={languageSwitching || submissionBusy || admissionPending}
+                />
+              )}
             </div>
           </>
         }
@@ -611,46 +840,50 @@ export function WorkspacePage({
             customMode={customMode}
             onCustomModeChange={setCustomMode}
             drafts={customDrafts}
-            onDraftsChange={changeCustomDrafts}
+            onDraftsChange={frozenMatch ? undefined : changeCustomDrafts}
             snapshot={execution.runSnapshot}
           />
         }
         actions={
-          <ExecutionActions
-            disabled={
-              submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
-            }
-            runDisabled={
-              (submissionBusy && !execution.canReplaceRun) ||
-              (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
-            }
-            onRun={() => void run()}
-            onSubmit={() => void submit()}
-            onCancel={
-              submissionBusy &&
-              !admissionPending &&
-              !(submission?.kind === "submit" && workspace.kind === "match")
-                ? () => void execution.cancel()
-                : undefined
-            }
-          />
+          <>
+            <ExecutionActions
+              disabled={
+                submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+              }
+              runDisabled={
+                (submissionBusy && !execution.canReplaceRun) ||
+                (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+              }
+              onRun={() => void run()}
+              onSubmit={() => void submit()}
+              onCancel={
+                submissionBusy &&
+                !admissionPending &&
+                !(submission?.kind === "submit" && workspace.kind === "match")
+                  ? () => void execution.cancel()
+                  : undefined
+              }
+            />
+          </>
         }
       >
-        <WorkspaceCompletion
-          key={workspace.id}
-          submission={submission}
-          workspaceId={workspace.id}
-          title={problem.title}
-          difficulty={problem.difficulty}
-          language={documentLanguage}
-          odyssey={problem.odyssey ? displayedOdyssey : undefined}
-          odysseyReady={
-            !problem.odyssey ||
-            (!!odyssey.data && !odyssey.isError && settledOdysseySubmission === submission?.id)
-          }
-          competitive={!!match}
-          outcome={match ? matchCompletionOutcome(match, identity) : "success"}
-        />
+        {!review && (
+          <WorkspaceCompletion
+            key={workspace.id}
+            submission={submission}
+            workspaceId={workspace.id}
+            title={problem.title}
+            difficulty={problem.difficulty}
+            language={documentLanguage}
+            odyssey={problem.odyssey ? displayedOdyssey : undefined}
+            odysseyReady={
+              !problem.odyssey ||
+              (!!odyssey.data && !odyssey.isError && settledOdysseySubmission === submission?.id)
+            }
+            competitive={!!match && !review}
+            outcome={match ? matchCompletionOutcome(match, identity) : "success"}
+          />
+        )}
         <SessionDialog
           open={signInPrompt}
           onOpenChange={setSignInPrompt}
@@ -676,6 +909,7 @@ export function WorkspacePage({
             workspace={workspace}
             onClose={() => setHistoryOpen(false)}
             onRestore={restoreHistory}
+            readOnly={frozenMatch}
           />
         )}
         {createMatchOpen && (

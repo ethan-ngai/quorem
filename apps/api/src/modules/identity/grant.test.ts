@@ -65,6 +65,36 @@ describe("verified grants", () => {
       ),
     ).rejects.toMatchObject({ kind: "unauthorized" });
   });
+  it("reauthorizes a party guest using its party binding", async () => {
+    const partyGuest = {
+      kind: "guest" as const,
+      userId: "g",
+      displayName: "G",
+      admin: false as const,
+      emailVerified: false as const,
+      sessionId: "hash",
+      strongUntil: 0 as const,
+      credentialExpiresAt: 3000,
+      scope: { kind: "party" as const, partyId: "one" },
+    };
+    const partyReaders: GrantReaders = {
+      ...readers,
+      guest: async (kind) => (kind === "match" ? partyGuest : null),
+    };
+    const partyGrant = {
+      kind: "guest" as const,
+      scope: "party" as const,
+      resourceId: "one",
+      hash: "hash",
+      expiresAt: 2000,
+    };
+    expect(await reauthorizeGrant(partyGrant, partyReaders, 1000000)).toMatchObject({
+      scope: partyGuest.scope,
+    });
+    await expect(
+      reauthorizeGrant({ ...partyGrant, resourceId: "other" }, partyReaders, 1000000),
+    ).rejects.toMatchObject({ kind: "unauthorized" });
+  });
   it("never upgrades strong authority beyond the original grant", async () => {
     expect(await reauthorizeGrant({ ...grant, strongUntil: 0 }, readers, 1000000)).toMatchObject({
       strongUntil: 0,

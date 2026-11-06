@@ -64,6 +64,11 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
         !uuidPattern.test(participant.userId) ||
         typeof participant.displayName !== "string" ||
         typeof participant.ready !== "boolean" ||
+        (participant.image !== undefined && typeof participant.image !== "string") ||
+        (participant.color !== undefined &&
+          (!Number.isInteger(participant.color) ||
+            Number(participant.color) < 1 ||
+            Number(participant.color) > 24)) ||
         (participant.presence !== "online" && participant.presence !== "offline") ||
         (participant.submissionState !== undefined &&
           (typeof participant.submissionState !== "string" ||
@@ -125,6 +130,9 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     uuidPattern.test(value.hostUserId) &&
     typeof value.expiresAt === "string" &&
     validDate(value.expiresAt) &&
+    (value.partyId === undefined ||
+      (typeof value.partyId === "string" && uuidPattern.test(value.partyId))) &&
+    (value.reviewPending === undefined || typeof value.reviewPending === "boolean") &&
     (value.startedAt === undefined || validDate(value.startedAt)) &&
     (value.deadline === undefined || validDate(value.deadline)) &&
     (value.finalizingAt === undefined || validDate(value.finalizingAt)) &&

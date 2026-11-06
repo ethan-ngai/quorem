@@ -195,6 +195,18 @@ async function byValue(
   ).rows;
   return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
 }
+/** Projects a version after the caller has authorized its specific context. */
+export async function projectAuthorizedVersion(
+  tx: Transaction,
+  id: string,
+): Promise<string | null> {
+  const rows = (
+    await tx.execute<Projected>(
+      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
+    )
+  ).rows;
+  return rows.length ? stringifyLosslessJson(projected(rows[0])) : null;
+}
 async function readEditorials(
   tx: Transaction,
   actor: ProblemActor | undefined,
