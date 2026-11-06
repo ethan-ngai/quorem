@@ -2,7 +2,6 @@
 import { mkdtemp, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { createNodePool } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
@@ -96,7 +95,11 @@ it.skipIf(!url)(
           [storageProjection(raw).safe, Buffer.from(raw)],
         )
       ).rows[0].id;
-      await migrate(pool, "product", fileURLToPath(migrations));
+      await writeFile(
+        join(dir, "074_solution_approaches.sql"),
+        await readFile(new URL("074_solution_approaches.sql", migrations)),
+      );
+      await migrate(pool, "product", dir);
       const approaches = (
         await pool.query(
           "SELECT id,title,is_canonical,explanation_markdown,complexity_notes FROM problem_solution_approaches WHERE version_id=$1 ORDER BY ordinal",
