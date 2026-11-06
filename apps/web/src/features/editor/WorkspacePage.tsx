@@ -5,12 +5,7 @@ import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
-import type {
-  DevelopmentIdentity,
-  MatchSnapshot,
-  ProblemVersion,
-  Workspace,
-} from "@quorem/contracts";
+import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { RotateCcw } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,21 +16,11 @@ import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
-import { customDraftStorageKey, readCustomDrafts, type CustomCaseDraft } from "./customCases";
 import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
-import { SaveIndicator, type SaveState } from "./components/SaveIndicator";
+import { SaveIndicator } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
-import {
-  createBrowserDraftWriter,
-  importBrowserDrafts,
-  browserDraftScope,
-  readBrowserDraft,
-  writeBrowserDraft,
-  clearOwnerRecovery,
-  readLatestRecovery,
-  writeRecovery,
-} from "./recovery";
+import { importBrowserDrafts, clearOwnerRecovery } from "./recovery";
 import { useTheme } from "./useTheme";
 import { canExecuteDocument } from "./executionGuard";
 import { passedCaseLevels } from "../odyssey/caseFeedback";
@@ -46,6 +31,7 @@ import { OdysseyPanel } from "../odyssey/OdysseyPanel";
 import { interviewRequest } from "../interviews/api";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { useSubmission } from "./useSubmission";
+import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
@@ -88,8 +74,6 @@ export function WorkspacePage({
   const { preference: themePreference, setPreference: setThemePreference, theme } = useTheme();
   const [activePanel, setActivePanel] = useState<Panel>("code");
   const [createMatchOpen, setCreateMatchOpen] = useState(false);
-  const [problem, setProblem] = useState<ProblemVersion>();
-  const [workspace, setWorkspace] = useState<Workspace>();
   const [matchSelection, setMatchSelection] = useState<{ matchId: string; workspaceId: string }>();
   const matchWorkspaceId =
     matchSelection?.matchId === match?.id
@@ -106,12 +90,7 @@ export function WorkspacePage({
       ? (saved as EditorLanguage)
       : "python";
   });
-  const [source, setSource] = useState("");
-  const sourceRef = useRef(source);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [customMode, setCustomMode] = useState(false);
-  const [customDrafts, setCustomDrafts] = useState<CustomCaseDraft[]>([]);
   const [signInPrompt, setSignInPrompt] = useState(false);
   const signInPromptOrigin = useRef<HTMLElement | null>(null);
   const [actionError, setActionError] = useState<string>();
@@ -128,39 +107,6 @@ export function WorkspacePage({
     onWrapChange: setWrap,
   } = useLocalEditorPreferences();
   const editorRef = useRef<PythonEditorHandle>(null);
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
-  const dirtyRef = useRef(false);
-  const editGeneration = useRef(0);
-  const saveNowRef = useRef<() => Promise<void>>(async () => {});
-  const saveTimerRef = useRef<number | undefined>(undefined);
-  const draftContextRef = useRef<
-    | {
-        key: string;
-        identity: DevelopmentIdentity;
-        workspaceId: string;
-        problemVersionId: string;
-        storageId: string;
-      }
-    | undefined
-  >(undefined);
-  const lastQueuedSourceRef = useRef<string | undefined>(undefined);
-  const browserWriterRef = useRef<ReturnType<typeof createBrowserDraftWriter> | undefined>(
-    undefined,
-  );
-  if (!browserWriterRef.current) {
-    browserWriterRef.current = createBrowserDraftWriter((error, draft) => {
-      const context = draftContextRef.current;
-      if (
-        context?.identity === draft.identity &&
-        context.storageId === draft.workspaceId &&
-        context.problemVersionId === draft.version
-      ) {
-        setSaveState("error");
-        setActionError(errorMessage(error));
-      }
-    });
-  }
-
   const queryClient = useQueryClient();
   const problemOptions = problemQueryOptions(
     queryClient,
@@ -205,165 +151,29 @@ export function WorkspacePage({
     workspaceQuery.data,
   ]);
 
-  useEffect(() => {
-    if (!problemQuery.data || !loadedWorkspace) return;
-    const nextContext = {
-      key: `${identity}:${loadedWorkspace.id}:${problemQuery.data.id}`,
-      identity,
-      workspaceId: loadedWorkspace.id,
-      problemVersionId: problemQuery.data.id,
-      storageId: browserDraftScope(loadedWorkspace),
-    };
-    const previousContext = draftContextRef.current;
-    if (previousContext?.key === nextContext.key) return;
-    try {
-      browserWriterRef.current?.flush();
-    } catch (error) {
-      setActionError(errorMessage(error));
-    }
-    if (previousContext && previousContext.key !== nextContext.key && dirtyRef.current) {
-      const snapshot = sourceRef.current;
-      void writeRecovery(
-        previousContext.identity,
-        previousContext.storageId,
-        previousContext.problemVersionId,
-        snapshot,
-      ).catch(() => undefined);
-    }
-    window.clearTimeout(saveTimerRef.current);
-    draftContextRef.current = nextContext;
-    lastQueuedSourceRef.current = undefined;
-    setProblem(problemQuery.data);
-    setWorkspace(loadedWorkspace);
-    setCustomMode(false);
-    setCustomDrafts(readCustomDrafts(nextContext.key, problemQuery.data));
-    const initialSource =
-      readBrowserDraft(identity, nextContext.storageId, problemQuery.data.id) ??
-      (account.data
-        ? readBrowserDraft(
-            "anonymous" as DevelopmentIdentity,
-            nextContext.storageId,
-            problemQuery.data.id,
-          )
-        : undefined) ??
-      problemQuery.data.languages?.find((item) => item.language === loadedWorkspace.language)
-        ?.starterSource ??
-      problemQuery.data.starterSource;
-    setSource(initialSource);
-    sourceRef.current = initialSource;
-    dirtyRef.current = false;
-    setSaveState("saved");
-  }, [problemQuery.data, loadedWorkspace, workspaceQuery.isFetching, identity, account.data]);
-
-  useEffect(() => {
-    if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
-    let active = true;
-    const context = draftContextRef.current;
-    const generation = editGeneration.current;
-    const load = async () => {
-      // Preserve older recovery databases without importing server drafts.
-      const snapshot =
-        (await readLatestRecovery(identity, context.storageId, problem.id)) ??
-        (await readLatestRecovery(identity, workspace.id, problem.id));
-      if (
-        active &&
-        snapshot &&
-        editGeneration.current === generation &&
-        readBrowserDraft(identity, context.storageId, problem.id) === undefined
-      ) {
-        setSource(snapshot.source);
-        editorRef.current?.replaceSource(snapshot.source);
-        sourceRef.current = snapshot.source;
-        writeBrowserDraft(identity, context.storageId, problem.id, snapshot.source);
-      }
-    };
-    void load().catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [workspace, problem, identity]);
-
-  const updateSource = useCallback((next: string) => {
-    editGeneration.current++;
-    sourceRef.current = next;
-    const wasDirty = dirtyRef.current;
-    dirtyRef.current = true;
-    if (!wasDirty) setSaveState("dirty");
-    const context = draftContextRef.current;
-    if (context)
-      browserWriterRef.current?.schedule({
-        identity: context.identity,
-        workspaceId: context.storageId,
-        version: context.problemVersionId,
-        source: next,
-      });
-    window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
-  }, []);
-
-  const saveCurrentDraft = useCallback(async () => {
-    const context = draftContextRef.current;
-    if (
-      !context ||
-      !dirtyRef.current ||
-      context.key !== `${identity}:${workspace?.id}:${problem?.id}`
-    )
-      return;
-    const snapshot = sourceRef.current;
-    if (snapshot === lastQueuedSourceRef.current) return;
-    const key = context.key;
-    setSaveState("saving");
-    const task = saveQueue.current.then(() =>
-      writeRecovery(context.identity, context.storageId, context.problemVersionId, snapshot),
-    );
-    lastQueuedSourceRef.current = snapshot;
-    saveQueue.current = task.then(
-      () => {},
-      () => {},
-    );
-    try {
-      browserWriterRef.current?.flush();
-      await task;
-      if (draftContextRef.current?.key !== key) return;
-      if (sourceRef.current === snapshot) {
-        dirtyRef.current = false;
-        setSaveState("saved");
-      } else {
-        setSaveState("dirty");
-      }
-    } catch (error) {
-      if (draftContextRef.current?.key !== key) return;
-      if (lastQueuedSourceRef.current === snapshot) lastQueuedSourceRef.current = undefined;
-      setSaveState("error");
-      setActionError(errorMessage(error));
-    }
-  }, [identity, problem, workspace]);
-  saveNowRef.current = saveCurrentDraft;
-
-  useEffect(() => {
-    const preserveDraft = () => {
-      try {
-        browserWriterRef.current?.flush();
-      } catch (error) {
-        setSaveState("error");
-        setActionError(errorMessage(error));
-      }
-      const context = draftContextRef.current;
-      if (context && dirtyRef.current)
-        void writeRecovery(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          sourceRef.current,
-        ).catch(() => undefined);
-    };
-    window.addEventListener("pagehide", preserveDraft);
-    return () => {
-      window.removeEventListener("pagehide", preserveDraft);
-      window.clearTimeout(saveTimerRef.current);
-      preserveDraft();
-    };
-  }, []);
+  const {
+    problem,
+    workspace,
+    source,
+    sourceRef,
+    saveState,
+    customMode,
+    setCustomMode,
+    customDrafts,
+    changeCustomDrafts,
+    contextKey,
+    updateSource,
+    saveCurrentDraft,
+    saveBeforeSwitch,
+    restoreHistory,
+  } = useWorkspaceDraft({
+    identity,
+    accountPresent: !!account.data,
+    queriedProblem: problemQuery.data,
+    loadedWorkspace,
+    editorRef,
+    onError: (error) => setActionError(errorMessage(error)),
+  });
 
   const dataMatchesRoute =
     (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
@@ -437,7 +247,7 @@ export function WorkspacePage({
       !matchRules.blocked &&
       canExecuteDocument({
         identity,
-        contextKey: draftContextRef.current?.key,
+        contextKey: contextKey,
         problem,
         workspace,
         slug,
@@ -466,16 +276,6 @@ export function WorkspacePage({
     workspace,
     queryClient,
   ]);
-  const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
-    setCustomDrafts(drafts);
-    const context = draftContextRef.current;
-    if (!context) return;
-    try {
-      localStorage.setItem(customDraftStorageKey(context.key), JSON.stringify(drafts));
-    } catch {
-      /* Custom inputs remain usable without browser storage. */
-    }
-  }, []);
   const submission = execution.submission;
   const submissionBusy = execution.busy;
   const admissionPending = execution.admissionPending;
@@ -484,8 +284,7 @@ export function WorkspacePage({
     setLanguageSwitching(true);
     setActionError(undefined);
     try {
-      await saveCurrentDraft();
-      if (dirtyRef.current) throw new Error("Save the current draft before switching language.");
+      await saveBeforeSwitch();
       if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
         setMatchSelection({ matchId: match.id, workspaceId: selected.id });
@@ -525,50 +324,7 @@ export function WorkspacePage({
   };
   useHotkey(workspaceShortcuts.run.binding, () => void run(), hotkeyOptions);
   useHotkey(workspaceShortcuts.submit.binding, () => void submit(), hotkeyOptions);
-  useHotkey(workspaceShortcuts.save.binding, () => void saveNowRef.current(), hotkeyOptions);
-
-  const restoreHistory = useCallback(
-    async (historicalSource: string) => {
-      if (!workspace) return;
-      const context = draftContextRef.current;
-      const generation = editGeneration.current;
-      await saveCurrentDraft();
-      await saveQueue.current;
-      if (draftContextRef.current !== context) return;
-      if (editGeneration.current !== generation) {
-        dirtyRef.current = true;
-        lastQueuedSourceRef.current = undefined;
-        setSaveState("dirty");
-        saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
-        throw new Error(
-          "Newer local edits were kept. Save to retain them instead of the restored history.",
-        );
-      }
-      if (context)
-        writeBrowserDraft(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          historicalSource,
-        );
-      editorRef.current?.replaceSource(historicalSource);
-      sourceRef.current = historicalSource;
-      const restoredGeneration = editGeneration.current;
-      if (context)
-        await writeRecovery(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          historicalSource,
-        );
-      if (editGeneration.current === restoredGeneration) {
-        dirtyRef.current = false;
-        window.clearTimeout(saveTimerRef.current);
-        setSaveState("saved");
-      }
-    },
-    [identity, workspace, saveCurrentDraft],
-  );
+  useHotkey(workspaceShortcuts.save.binding, () => void saveCurrentDraft(), hotkeyOptions);
 
   const loadError = problemQuery.error ?? workspaceQuery.error ?? account.error;
   const retryLoading = () => {
@@ -610,7 +366,7 @@ export function WorkspacePage({
     !matchRules.blocked &&
     canExecuteDocument({
       identity,
-      contextKey: draftContextRef.current?.key,
+      contextKey: contextKey,
       problem,
       workspace,
       slug,

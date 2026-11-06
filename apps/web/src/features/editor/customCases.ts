@@ -23,6 +23,22 @@ export type RunSnapshot = {
   cases: { id: string; value: CustomCase }[];
 };
 
+/** Associate admitted case values with stable case IDs. */
+export function createRunSnapshot(
+  problemVersionId: string,
+  cases: CustomCase[],
+  drafts?: CustomCaseDraft[],
+): RunSnapshot {
+  return {
+    problemVersionId,
+    custom: !!drafts,
+    cases: cases.map((value, index) => ({
+      id: drafts ? drafts[index]!.id : String(index),
+      value: caseSnapshotValue(value),
+    })),
+  };
+}
+
 /** Snapshot only executable case data, including ordered stateful calls. */
 export function caseSnapshotValue(value: CustomCase): CustomCase {
   return {
@@ -250,6 +266,14 @@ export function parseCustomCases(
 
 export function customDraftStorageKey(scope: string) {
   return `quorem.custom-cases.v1:${scope}`;
+}
+
+export function writeCustomDrafts(scope: string, drafts: CustomCaseDraft[]) {
+  try {
+    localStorage.setItem(customDraftStorageKey(scope), JSON.stringify(drafts));
+  } catch {
+    /* Custom inputs remain usable without browser storage. */
+  }
 }
 
 export function readCustomDrafts(scope: string, problem: QuestionProblem): CustomCaseDraft[] {

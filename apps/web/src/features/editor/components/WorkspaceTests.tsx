@@ -1,3 +1,4 @@
+import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
 import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
@@ -56,35 +57,19 @@ export function WorkspaceTests({
     <>
       {!hideToolbar && (
         <div className="results-toolbar">
-          <div className="result-tabs" role="tablist" aria-label="Tests">
-            {tabs.map((tab, index) => (
-              <button
-                key={tab}
-                id={`tests-${tab}-tab`}
-                role="tab"
-                aria-selected={selectedTab === tab}
-                aria-controls={`tests-${tab}-panel`}
-                tabIndex={selectedTab === tab ? 0 : -1}
-                onClick={() => selectTab(tab)}
-                onKeyDown={(event) => {
-                  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-                  event.preventDefault();
-                  const target =
-                    event.key === "Home"
-                      ? 0
-                      : event.key === "End"
-                        ? tabs.length - 1
-                        : (index + (event.key === "ArrowLeft" ? tabs.length - 1 : 1)) % tabs.length;
-                  const next = tabs[target]!;
-                  selectTab(next);
-                  document.getElementById(`tests-${next}-tab`)?.focus();
-                }}
-              >
-                <Icon name={tab === "custom" ? "custom" : "samples"} />
-                {tab === "custom" ? "Custom cases" : "Examples"}
-              </button>
-            ))}
-          </div>
+          <AuthoringTabs
+            label="Tests"
+            appearance="default"
+            value={selectedTab}
+            onChange={selectTab}
+            tabId={(tab) => `tests-${tab}-tab`}
+            panelId={(tab) => `tests-${tab}-panel`}
+            tabs={tabs.map((tab) => ({
+              value: tab,
+              icon: <Icon name={tab === "custom" ? "custom" : "samples"} />,
+              label: tab === "custom" ? "Custom cases" : "Examples",
+            }))}
+          />
         </div>
       )}
       <div className="results-content case-results-content">

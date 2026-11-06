@@ -7,15 +7,15 @@
   background: var(--color-surface);
   color: var(--color-text);
   font: 11px/1.4 var(--font-interface);
-  box-shadow: 0 2px 8px #0002;
-  animation: tooltip-enter 120ms ease-out;
+  box-shadow: var(--shadow-small);
+  animation: tooltip-enter var(--motion-fast) var(--motion-easing);
 }
 .workspace-tooltip code {
   font-family: var(--font-code);
   font-size: inherit;
 }
 .workspace-tooltip[data-state="closed"] {
-  animation: tooltip-exit 100ms ease-in;
+  animation: tooltip-exit var(--motion-fast) var(--motion-easing);
 }
 @keyframes tooltip-enter {
   from {
