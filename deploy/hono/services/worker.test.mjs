@@ -660,6 +660,9 @@ void test("signed live case observation follows execution and confirmed attempt 
     waitUntil() {},
     container: {
       images: { python: "fixture" },
+      async inspect() {
+        return { image: "fixture", labels: {} };
+      },
       running: false,
       start() {
         this.running = true;
