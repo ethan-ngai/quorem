@@ -74,6 +74,8 @@ Share typed input/output rendering, case navigation and execution controls acros
 
 Transient failures and room events use shared toasts; room alerts retain accessible history. Field validation, execution diagnostics and blocking failures stay beside their recovery controls. Deduplicate reconnect/repeated background notifications. Keep recovery available after a toast expires. Routine successful autosave stays silent; save failures remain recoverable.
 
+Report completed user actions through concise toasts. Include only nonzero outcome counts; disclose recoverable details through a named action or local notice. Reveal bulk controls when items are selected, and keep active progress beside the operation.
+
 Recoverable persistent errors use `PersistentNotice` in an always-mounted status slot, or `NoticeRegion` beside existing content. Keep the slot geometry stable when healthy; full details and recovery actions open in a shared popover. Closing details does not dismiss the underlying issue. Features own error state; primitives own presentation and accessibility. Avoid conditional error paragraphs that move surrounding controls.
 
 ## Accessibility and motion

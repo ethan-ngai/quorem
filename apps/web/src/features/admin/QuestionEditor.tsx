@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import {
   updateAuthoringIssues,
   authoringMessages,
@@ -189,7 +190,6 @@ function AuthoringWorkspace({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useErrorNotification(draft ? undefined : error);
-  const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState(false);
   const [previewLanguage, setPreviewLanguage] =
     useState<Exclude<EditorLanguage, "postgresql">>("python");
@@ -259,7 +259,6 @@ function AuthoringWorkspace({
     setDirty(false);
     setPreview(false);
     setError("");
-    setNotice("");
     setInvalidFields(new Map());
   }
   function closeEditor() {
@@ -270,7 +269,6 @@ function AuthoringWorkspace({
   async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       const next = await action();
       const nextPublication = next.publishedVersionId;
@@ -283,8 +281,8 @@ function AuthoringWorkspace({
         });
       } else {
         open(next);
-        setNotice(message);
       }
+      toast.success(message);
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
       await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
@@ -671,16 +669,10 @@ function AuthoringWorkspace({
               onChange={(next) => {
                 setContent(next);
                 setDirty(true);
-                setNotice("");
               }}
             />
           )}
         </section>
-      )}
-      {notice && (
-        <p className="admin-notice" role="status">
-          {notice}
-        </p>
       )}
     </main>
   );

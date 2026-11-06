@@ -12,7 +12,9 @@ import { SearchField } from "../../ui/SearchField";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { toast } from "sonner";
+import { notifyBatchResult } from "../../ui/Notifications";
 import type { QuestionDraftSummary } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { LoadingScreen } from "../../ui/LoadingScreen";
@@ -79,6 +81,8 @@ export function QuestionDashboard({
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
   const [errors, setErrors] = useState<{ id: string; title: string; message: string }[]>([]);
+  const [errorsOpen, setErrorsOpen] = useState(false);
+  const notification = useId();
   const rows: Row[] = tab === "drafts" ? drafts : publications;
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = rows.length > 0 && rows.every((row) => selected.has(row.id));
@@ -102,6 +106,11 @@ export function QuestionDashboard({
     setRunning(true);
     onRunning(true);
     setErrors([]);
+    setErrorsOpen(false);
+    toast.loading(
+      `${action === "publish" ? "Publishing" : "Deleting"} ${confirmed.length} questions…`,
+      { id: notification },
+    );
     const failures: typeof errors = [];
     const succeeded: string[] = [];
     try {
@@ -133,9 +142,15 @@ export function QuestionDashboard({
       }
       toggle(succeeded, false);
       setErrors(failures);
-      setProgress(
-        `${succeeded.length} ${action === "publish" ? "published" : "deleted"} · ${failures.length} failed`,
-      );
+      setProgress("");
+      notifyBatchResult({
+        id: notification,
+        verb: action === "publish" ? "Published" : "Deleted",
+        noun: "question",
+        succeeded: succeeded.length,
+        failed: failures.length,
+        onDetails: () => setErrorsOpen(true),
+      });
       setConfirmation(undefined);
       await onChanged();
     } finally {
@@ -236,41 +251,49 @@ export function QuestionDashboard({
           />
         )}
       </fieldset>
-      <div className="admin-toolbar admin-bulk-bar">
-        <span>{chosen.length} selected</span>
-        <PersistentNotice
-          label="Some bulk actions failed"
-          message={errors.map((error) => `${error.title}: ${error.message}`)}
-        />
-        <div className="admin-toolbar">
-          {tab === "drafts" && (
-            <button
-              className="button button-primary admin-bulk-action"
-              data-visible={chosen.length > 0}
-              aria-hidden={chosen.length === 0}
-              disabled={disabled || !chosen.length}
-              onClick={() => {
-                setVisibility("private");
-                setConfirmation({ action: "publish", rows: chosen });
-              }}
-            >
-              <Icon name="submit" />
-              Publish selected
-            </button>
-          )}
-          <button
-            className="button button-secondary admin-delete-action admin-bulk-action"
-            data-visible={chosen.length > 0}
-            aria-hidden={chosen.length === 0}
-            disabled={disabled || !chosen.length}
-            onClick={() => setConfirmation({ action: "delete", rows: chosen })}
-          >
-            <Icon name="trash" />
-            Delete selected
-          </button>
+      <div
+        className="admin-bulk-disclosure"
+        data-open={chosen.length > 0 || errors.length > 0}
+        aria-hidden={chosen.length === 0 && errors.length === 0}
+        inert={chosen.length === 0 && errors.length === 0}
+      >
+        <div>
+          <div className="admin-toolbar admin-bulk-bar">
+            {chosen.length > 0 && <span>{chosen.length} selected</span>}
+            <PersistentNotice
+              label="Some bulk actions failed"
+              message={errors.map((error) => `${error.title}: ${error.message}`)}
+              open={errorsOpen}
+              onOpenChange={setErrorsOpen}
+            />
+            {chosen.length > 0 && (
+              <div className="admin-toolbar">
+                {tab === "drafts" && (
+                  <button
+                    className="button button-primary"
+                    disabled={disabled || !chosen.length}
+                    onClick={() => {
+                      setVisibility("private");
+                      setConfirmation({ action: "publish", rows: chosen });
+                    }}
+                  >
+                    <Icon name="submit" />
+                    Publish selected
+                  </button>
+                )}
+                <button
+                  className="button button-secondary admin-delete-action"
+                  disabled={disabled || !chosen.length}
+                  onClick={() => setConfirmation({ action: "delete", rows: chosen })}
+                >
+                  <Icon name="trash" />
+                  Delete selected
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <p role="status">{progress}</p>
       {loading ? (
         <LoadingScreen inline label="Loading questions…" />
       ) : failed ? (
