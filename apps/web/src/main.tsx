@@ -3,6 +3,7 @@ import { questionSearch } from "./features/admin/questionSearch";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   RouterProvider,
+  Outlet,
   createRootRoute,
   createRoute,
   createRouter,
@@ -19,6 +20,8 @@ import { PageLayout } from "./features/navigation/PageLayout";
 import { createRoot, type Root } from "react-dom/client";
 import { LoginPage } from "./features/auth/LoginPage";
 import { sessionQueryOptions, type Session } from "./features/auth/session";
+import { requireAdminAccess, requireAuthoringAccess } from "./features/auth/adminAccess";
+import { RouteAccess } from "./features/auth/RouteAccess";
 import { primeProfile } from "./features/auth/profile";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { InvitePage } from "./features/matches/InvitePage";
@@ -39,6 +42,10 @@ initializeTheme();
 const loadQuestionEditor = () =>
   import("./features/admin/QuestionEditor").then((module) => ({ default: module.QuestionEditor }));
 const QuestionEditor = lazy(loadQuestionEditor);
+
+const loadAdminDashboard = () =>
+  import("./features/admin/AdminDashboard").then((module) => ({ default: module.AdminDashboard }));
+const AdminDashboard = lazy(loadAdminDashboard);
 
 const WorkspacePage = lazy(loadWorkspacePage);
 const loadLegalPage = () =>
@@ -158,16 +165,44 @@ const loginRoute = createRoute({
 });
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/admin/questions",
+  path: "/admin",
+  beforeLoad: ({ location }) => requireAdminAccess(queryClient, location.href),
+  component: () => (
+    <RouteAccess access="admin">
+      <Outlet />
+    </RouteAccess>
+  ),
+});
+const adminIndexRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/",
+  loader: () => loadAdminDashboard().then(() => undefined),
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening admin dashboard…" />}>
+      <AdminDashboard />
+    </Suspense>
+  ),
+});
+const adminUnknownRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "$",
+  component: NotFoundPage,
+});
+const questionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/questions",
   validateSearch: questionSearch,
-  beforeLoad: ({ location, search }) => {
+  beforeLoad: async ({ location, search }) => {
+    await requireAuthoringAccess(queryClient, location.href);
     if (new URLSearchParams(location.searchStr).get("section") !== search.section)
-      throw redirect({ to: "/admin/questions", search, hash: location.hash, replace: true });
+      throw redirect({ to: "/questions", search, hash: location.hash, replace: true });
   },
   loader: () => loadQuestionEditor().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening question editor…" />}>
-      <QuestionEditor />
+      <RouteAccess access="authoring">
+        <QuestionEditor />
+      </RouteAccess>
     </Suspense>
   ),
 });
@@ -207,13 +242,34 @@ const interviewInviteRoute = createRoute({
     );
   },
 });
+const CompletionDemo = lazy(() =>
+  import("./features/completion/CompletionDemo").then((module) => ({
+    default: module.CompletionDemo,
+  })),
+);
+const completionDemoRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/dev/completion",
+        component: () => (
+          <Suspense fallback={<LoadingScreen label="Opening demo…" />}>
+            <CompletionDemo />
+          </Suspense>
+        ),
+      }),
+    ]
+  : [];
+
 const routeTree = rootRoute.addChildren([
+  ...completionDemoRoutes,
   privacyRoute,
   termsRoute,
   interviewsRoute,
   interviewRoute,
   interviewInviteRoute,
-  adminRoute,
+  adminRoute.addChildren([adminIndexRoute, adminUnknownRoute]),
+  questionsRoute,
   indexRoute,
   loginRoute,
   practiceRoute,

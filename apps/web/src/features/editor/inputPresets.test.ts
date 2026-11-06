@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import { describe, expect, it } from "vitest";
 import {
   inputPresetSchemas,
@@ -112,7 +113,7 @@ describe("typed input presets", () => {
     };
     const draft = createCustomDraft(problem);
     expect(draft.args).toEqual(['"hello"']);
-    expect(parseCustomDraft(draft, problem.signature)).toEqual({ args: ["hello"] });
+    expect(parseCustomDraft(draft, primarySignature(problem))).toEqual({ args: ["hello"] });
   });
 
   it("supports OO registration while unknown server codecs fail closed", () => {

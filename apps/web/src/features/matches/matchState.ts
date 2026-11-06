@@ -1,4 +1,5 @@
 /** @file matchState.ts @description Participant selection and authoritative match display rules. @module matches */
+import type { CompletionOutcome } from "../../ui/completionOutcome";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 
 export const freeForAll = { id: "free-for-all", name: "Free-for-all" } as const;
@@ -61,4 +62,17 @@ export function outcomeLabel(snapshot: MatchSnapshot, identity: DevelopmentIdent
     : snapshot.mode === "free-for-all"
       ? `${winner?.displayName ?? "Another player"} won`
       : "Opponent won";
+}
+
+/** Normalize the result once; celebration primitives own viewer eligibility. */
+export function matchCompletionOutcome(
+  snapshot: MatchSnapshot,
+  identity: DevelopmentIdentity,
+): CompletionOutcome {
+  const own = ownParticipant(snapshot, identity);
+  if (own?.forfeited) return "loss";
+  if (snapshot.state !== "completed") return snapshot.state === "cancelled" ? "neutral" : "pending";
+  if (snapshot.outcome?.kind !== "win") return "neutral";
+  if (!own) return "observer";
+  return snapshot.outcome.winnerUserId === participantUserId(identity) ? "success" : "loss";
 }

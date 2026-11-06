@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 /** @file WorkspaceSidebar.tsx @description In-place desktop rail expansion and a mobile navigation drawer. @module navigation */
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Home, SquarePen, Users } from "lucide-react";
+import { BookOpen, Home, LayoutDashboard, SquarePen, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./sidebar.css";
 import { Tooltip } from "../../ui/Tooltip";
@@ -10,10 +10,12 @@ import { Tooltip } from "../../ui/Tooltip";
 export function WorkspaceSidebar({
   pathname,
   admin,
+  author = admin,
   interviews = false,
 }: {
   pathname: string;
   admin: boolean;
+  author?: boolean;
   interviews?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -69,6 +71,7 @@ export function WorkspaceSidebar({
           <SidebarLinks
             pathname={pathname}
             admin={admin}
+            author={author}
             interviews={interviews}
             peek={!open}
             id="desktop-navigation"
@@ -106,7 +109,7 @@ export function WorkspaceSidebar({
               <span className="brand-mark" aria-hidden="true" />
             </a>
           </div>
-          <SidebarLinks pathname={pathname} admin={admin} interviews={interviews} />
+          <SidebarLinks pathname={pathname} admin={admin} author={author} interviews={interviews} />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -117,12 +120,14 @@ export function WorkspaceSidebar({
 function SidebarLinks({
   pathname,
   admin,
+  author,
   interviews,
   peek = false,
   id,
 }: {
   pathname: string;
   admin: boolean;
+  author?: boolean;
   interviews?: boolean;
   peek?: boolean;
   id?: string;
@@ -154,10 +159,20 @@ function SidebarLinks({
         ...(admin
           ? [
               {
-                href: "/admin/questions",
+                href: "/admin",
+                label: "Admin Dashboard",
+                icon: LayoutDashboard,
+                active: pathname === "/admin" || pathname === "/admin/",
+              },
+            ]
+          : []),
+        ...(author
+          ? [
+              {
+                href: "/questions",
                 label: "Question Editor",
                 icon: SquarePen,
-                active: pathname.startsWith("/admin"),
+                active: pathname.startsWith("/questions"),
               },
             ]
           : []),

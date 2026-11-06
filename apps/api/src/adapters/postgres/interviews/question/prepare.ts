@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "@quorem/questions";
+import { questionRuntime, projectQuestionRuntime } from "../../problems/runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import type { InterviewCreate } from "../../../../modules/interviews/lifecycle/model.ts";
@@ -79,11 +80,12 @@ export async function preparePublishedInterviewQuestion(
     return prepared;
   }
   const found = (
-    await tx.execute<{ indexed: boolean }>(
-      sql`SELECT COALESCE(r.sealed,false) AS indexed FROM problem_versions v JOIN problems p ON p.id=v.problem_id LEFT JOIN runner_version_inputs r ON r.version_id=v.id JOIN problem_languages l ON l.version_id=v.id AND l.language=${q.language} AND l.starter_source<>'' WHERE v.id::text=${q.problemVersionId as string} AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${actor.userId}) FOR SHARE OF p,v`,
+    await tx.execute<{ indexed: boolean; isSql: boolean }>(
+      sql`SELECT COALESCE(r.sealed,false) AS indexed,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions v JOIN problems p ON p.id=v.problem_id LEFT JOIN runner_version_inputs r ON r.version_id=v.id WHERE v.id::text=${q.problemVersionId as string} AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${actor.userId}) FOR SHARE OF p,v`,
     )
   ).rows[0];
   if (!found) throw new ApplicationError("not_found", "Question unavailable", 404);
+  questionRuntime(q.language, found.isSql);
   if (!found.indexed)
     throw new ApplicationError(
       "temporarily_unavailable",
@@ -126,18 +128,16 @@ export async function writePublishedInterviewQuestion(
             Object.entries(hints as Record<string, unknown>).filter(([, value]) => value !== null),
           ),
         );
-  const result = await tx.execute(sql`
+  const result = await tx.execute<{ fixture: string }>(sql`
     WITH chosen AS (
       SELECT jsonb_strip_nulls(jsonb_build_object(
         'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
-        'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'leetcodeId',p.leetcode_id,
+        'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'leetcodeId',p.leetcode_id,
         'tags',COALESCE((SELECT jsonb_agg(t.tag ORDER BY t.ordinal) FROM problem_tags t WHERE t.version_id=v.id),'[]'::jsonb),
         'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
-        'languages',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',x.language,'starterSource',x.starter_source,'runtimeRevision',x.runtime_revision,'harnessRevision',x.harness_revision) ORDER BY x.language) FROM problem_languages x WHERE x.version_id=v.id),'[]'::jsonb),
         'odyssey',CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_set(v.odyssey,'{levels}',COALESCE((SELECT jsonb_agg(stage-'examples' ORDER BY n) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY z(stage,n)),'[]'::jsonb)) ELSE NULL END
-      )) AS metadata,l.starter_source,l.runtime_revision,l.harness_revision,v.attribution
+      )) AS metadata,v.attribution
       FROM runner_version_inputs r JOIN problem_versions v ON v.id=r.version_id JOIN problems p ON p.id=v.problem_id
-      JOIN problem_languages l ON l.version_id=v.id AND l.language=${language}
       WHERE r.version_id=${versionId}::uuid AND r.sealed AND v.sealed
     ), counts AS (
       SELECT COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY c.ordinal) FROM runner_version_input_cases c WHERE c.version_id=${versionId}::uuid AND c.channel='example' AND c.stage=0),'[]'::jsonb) AS examples,
@@ -147,11 +147,17 @@ export async function writePublishedInterviewQuestion(
         (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY q.ordinal) FROM runner_version_input_cases q WHERE q.version_id=${versionId}::uuid AND q.channel='hidden' AND q.stage=n),'[]'::jsonb) ORDER BY n),'[]'::jsonb) FROM generate_series(1,jsonb_array_length(c.metadata->'odyssey'->'levels')) n)
       ELSE '[]'::jsonb END AS suites FROM chosen c CROSS JOIN counts
     )
-    UPDATE interviews i SET question = jsonb_build_object(
-      'problem',jsonb_set(jsonb_set(jsonb_set(p.metadata,'{examples}',p.examples,true),'{starterSource}',to_jsonb(p.starter_source),true),'{runtimeRevision}',to_jsonb(p.runtime_revision),true),
-      'hiddenCases',p.hidden,'odysseyHiddenCases',p.suites,'harnessRevision',COALESCE(p.harness_revision,''),'attribution',COALESCE(p.attribution,'')
-    ) || CASE WHEN ${hint}::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('hints',${hint}::jsonb) END,
-    lossless_question=NULL,source=p.starter_source,language=${language}
-    FROM prepared p WHERE i.id=${sessionId}::uuid RETURNING i.id`);
+    SELECT (jsonb_build_object(
+      'problem',jsonb_set(p.metadata,'{examples}',p.examples,true),
+      'hiddenCases',p.hidden,'odysseyHiddenCases',p.suites,'attribution',COALESCE(p.attribution,'')
+    ) || CASE WHEN ${hint}::text IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('hints',${hint}::jsonb) END)::text AS fixture
+    FROM prepared p`);
   if (!result.rows.length) throw new Error("Sealed question input unavailable");
+  const fixture = object(parseLosslessJson(result.rows[0].fixture));
+  const problem = object(fixture.problem);
+  const derived = { ...problem };
+  projectQuestionRuntime(derived, language);
+  await tx.execute(sql`UPDATE interviews SET question=${stringifyLosslessJson(fixture)}::jsonb,
+    lossless_question=NULL,source=${derived.starterSource as string},language=${language}
+    WHERE id=${sessionId}::uuid`);
 }

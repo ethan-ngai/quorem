@@ -1,4 +1,5 @@
 /** @file commands.ts @description Atomic interview question and stage commands. @module interviews */
+import { projectQuestionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "@quorem/questions";
@@ -159,18 +160,20 @@ export function interviewQuestionCommands(run: Run): InterviewQuestions {
         ).rows[0];
         if (!current) throw fail("not_found", "Interview unavailable", 404);
         if (current.indexed) {
-          const available = (
-            await tx.execute(
-              sql`SELECT 1 FROM interviews i CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.question->'problem'->'languages')='array' THEN i.question->'problem'->'languages' ELSE '[]'::jsonb END) l WHERE i.id=${id}::uuid AND l->>'language'=${language} AND jsonb_typeof(l->'starterSource')='string' AND jsonb_typeof(l->'runtimeRevision')='string' AND jsonb_typeof(l->'harnessRevision')='string'`,
+          const selected = (
+            await tx.execute<{ problem: { [key: string]: JsonValue } }>(
+              sql`SELECT question->'problem' AS problem FROM interviews WHERE id=${id}::uuid`,
             )
-          ).rows.length;
-          if (!available) throw fail("invalid_input", "Language unavailable for this question");
+          ).rows[0];
+          const derived = { ...selected.problem };
+          projectQuestionRuntime(derived, language);
           if (language === current.language) return false;
           await tx.execute(
             sql`INSERT INTO interview_language_drafts(session_id,question_epoch,language,source) SELECT id,question_epoch,language,source FROM interviews WHERE id=${id}::uuid ON CONFLICT(session_id,question_epoch,language) DO UPDATE SET source=EXCLUDED.source`,
           );
           await tx.execute(
-            sql`WITH selected AS (SELECT l AS value FROM interviews i CROSS JOIN LATERAL jsonb_array_elements(i.question->'problem'->'languages') l WHERE i.id=${id}::uuid AND l->>'language'=${language} LIMIT 1), saved AS (DELETE FROM interview_language_drafts WHERE session_id=${id}::uuid AND question_epoch=${access.questionEpoch}::uuid AND language=${language} RETURNING source) UPDATE interviews i SET language=${language},source=COALESCE((SELECT source FROM saved),selected.value->>'starterSource'),document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question=jsonb_set(jsonb_set(jsonb_set(i.question,'{problem,starterSource}',selected.value->'starterSource'),'{problem,runtimeRevision}',selected.value->'runtimeRevision'),'{harnessRevision}',selected.value->'harnessRevision') FROM selected WHERE i.id=${id}::uuid`,
+            sql`WITH saved AS (DELETE FROM interview_language_drafts WHERE session_id=${id}::uuid AND question_epoch=${access.questionEpoch}::uuid AND language=${language} RETURNING source)
+            UPDATE interviews SET language=${language},source=COALESCE((SELECT source FROM saved),${derived.starterSource as string}),document_version=0,document_epoch=${crypto.randomUUID()}::uuid WHERE id=${id}::uuid`,
           );
           return;
         }

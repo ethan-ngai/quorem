@@ -65,7 +65,6 @@ export async function metadataSpans(spool: Spool, level: number | null) {
     topNames,
   );
   const signature = fields.get("signature");
-  if (!signature) throw new Error("Missing signature");
   const methods: { name: string; span: StreamingJsonSpan }[] = [],
     names = new Set<string>(),
     odyssey = fields.get("odyssey");
@@ -132,5 +131,10 @@ export async function metadataSpans(spool: Spool, level: number | null) {
       if ((await input.peek()) || stage < level!) throw new Error("Invalid Odyssey levels");
     });
   }
-  return { signature, sql: fields.get("sql"), methods };
+  const sql = fields.get("sql");
+  const isSql =
+    sql && (await withStreamingJsonReader(reader(spool, sql), (input) => input.peek())) !== "n";
+  const primary = signature ?? methods[0]?.span;
+  if (!primary && !isSql) throw new Error("Missing signature");
+  return { signature: isSql ? undefined : primary, sql, methods };
 }

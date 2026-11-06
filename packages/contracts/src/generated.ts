@@ -7,6 +7,23 @@ export type WireValue = null | number | boolean | string | WireValue[] | {
     [key: string]: WireValue;
 };
 export interface paths {
+    "/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Administrator-only platform aggregates. Submission activity reflects retained history, not lifetime analytics. */
+        get: operations["getAdminOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/problems/{slug}": {
         parameters: {
             query?: never;
@@ -1003,6 +1020,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AdminOverview: {
+            /** Format: date-time */
+            generatedAt: string;
+            /** Format: date-time */
+            windowStart: string;
+            users: {
+                accounts: number;
+                administrators: number;
+                disabled: number;
+                active7d: number;
+            };
+            content: {
+                publications: number;
+                drafts: number;
+                workspaces: number;
+            };
+            submissions: {
+                retained7d: number;
+                pending: number;
+            };
+            activeUsers: {
+                id: string;
+                displayName: string;
+                /** @enum {string} */
+                role: "admin" | "user";
+                disabled: boolean;
+                submissions: number;
+                /** Format: date-time */
+                lastSubmittedAt: string;
+            }[];
+            recentDrafts: {
+                id: string;
+                title: string;
+                /** Format: date-time */
+                updatedAt: string;
+                editingPublication: boolean;
+            }[];
+        };
         /** @enum {string} */
         Language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
         /** @enum {string} */
@@ -1093,7 +1148,7 @@ export interface components {
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             starterSource: string;
             runtimeRevision: string;
             limits: components["schemas"]["ExecutionLimits"];
@@ -1432,7 +1487,7 @@ export interface components {
             /** @description Optional for the canonical approach; other approaches require a name. */
             title?: string;
             /** @enum {string} */
-            defaultLanguage: "python" | "java" | "typescript" | "ocaml" | "postgresql";
+            defaultLanguage?: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             explanationMarkdown: string;
             timeComplexity: string;
             spaceComplexity: string;
@@ -1447,13 +1502,6 @@ export interface components {
             spaceComplexity: string;
             complexityNotes: string;
         };
-        AuthoringImplementation: {
-            /** @enum {string} */
-            language: "python" | "java" | "typescript" | "ocaml" | "postgresql";
-            starterSource: string;
-            runtimeRevision: string;
-            harnessRevision: string;
-        };
         QuestionProblem: {
             id: string;
             slug: string;
@@ -1466,7 +1514,7 @@ export interface components {
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             limits: components["schemas"]["ExecutionLimits"];
             sql?: components["schemas"]["SqlConfig"];
             odyssey?: components["schemas"]["Odyssey"];
@@ -1489,11 +1537,9 @@ export interface components {
             columns: components["schemas"]["SqlColumn"][];
         };
         QuestionContent: {
-            problem: components["schemas"]["QuestionProblem"];
+            problem: components["schemas"]["AuthoredQuestionProblem"];
             hiddenCases: components["schemas"]["CustomCase"][];
             attribution: string;
-            implementations: components["schemas"]["AuthoringImplementation"][];
-            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
             canonicalApproachId: string;
             approaches: components["schemas"]["SolutionApproach"][];
         };
@@ -1628,11 +1674,10 @@ export interface components {
         InterviewCustomQuestion: {
             title: string;
             statementMarkdown: string;
-            signature: components["schemas"]["Signature"];
+            signature?: components["schemas"]["Signature"];
             publicCases?: components["schemas"]["CustomCase"][];
             privateCases?: components["schemas"]["CustomCase"][];
-            odyssey?: components["schemas"]["Odyssey"];
-            odysseyHiddenCases?: components["schemas"]["CustomCase"][][];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
         } & unknown;
         InterviewQuestionInput: {
             problemVersionId?: string;
@@ -1761,6 +1806,33 @@ export interface components {
             problemTitle: string;
             memberCount: number;
         };
+        AuthoredQuestionProblem: {
+            id: string;
+            slug: string;
+            version: string;
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
+            tags: string[];
+            statementMarkdown: string;
+            examples: components["schemas"]["ProblemExample"][];
+            constraints: components["schemas"]["Constraint"][];
+            signature?: components["schemas"]["Signature"];
+            limits: components["schemas"]["ExecutionLimits"];
+            sql?: components["schemas"]["SqlConfig"];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
+        } & unknown;
+        AuthoredOdyssey: {
+            levels: components["schemas"]["AuthoredOdysseyLevel"][];
+        };
+        AuthoredOdysseyLevel: {
+            title: string;
+            statementMarkdown: string;
+            methods: components["schemas"]["Signature"][];
+            examples: components["schemas"]["ProblemExample"][];
+            hiddenCases: components["schemas"]["CustomCase"][];
+        };
     };
     responses: never;
     parameters: never;
@@ -1770,6 +1842,44 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getAdminOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Administrator required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getProblem: {
         parameters: {
             query?: never;

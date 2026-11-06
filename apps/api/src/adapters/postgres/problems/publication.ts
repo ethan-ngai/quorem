@@ -3,6 +3,8 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import {
   JsonNumber,
+  publicQuestionProblem,
+  type AuthoredQuestionProblem,
   parseLosslessJson,
   stringifyLosslessJson,
   validateQuestionPublication,
@@ -20,28 +22,17 @@ const str = (value: JsonValue | undefined): string => {
 };
 const store = storageProjection;
 const content = (raw: string): Obj => object(parseLosslessJson(raw));
-const bad = (message: string) => new Error(message);
 function fixture(contentValue: Obj): Obj {
-  const p = object(contentValue.problem),
-    implementations = list(contentValue.implementations).map(object),
-    primary = implementations.find((v) => v.language === (p.sql ? "postgresql" : "python"));
-  if (!primary) throw bad("primary implementation missing");
-  const languages = implementations.map((v) => ({
-    language: v.language,
-    starterSource: v.starterSource,
-    runtimeRevision: v.runtimeRevision,
-    harnessRevision: v.harnessRevision,
-  }));
+  const authored = object(contentValue.problem);
+  const problem = publicQuestionProblem(
+    authored as unknown as AuthoredQuestionProblem,
+  ) as unknown as Obj;
+  const levels = authored.odyssey ? list(object(authored.odyssey).levels) : [];
+  const suites = levels.map((level) => object(level).hiddenCases ?? []);
   return {
-    problem: {
-      ...p,
-      languages,
-      starterSource: primary.starterSource,
-      runtimeRevision: primary.runtimeRevision,
-    },
+    problem,
     hiddenCases: contentValue.hiddenCases ?? [],
-    odysseyHiddenCases: contentValue.odysseyHiddenCases ?? [],
-    harnessRevision: primary.harnessRevision,
+    odysseyHiddenCases: suites,
     attribution: contentValue.attribution ?? "",
   };
 }
@@ -110,7 +101,7 @@ export async function persistQuestionVersion(
     safeProblem = object(safe.problem),
     publicJSON = stringifyLosslessJson(safeProblem);
   await tx.execute(
-    sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${versionId}::uuid,${problemId}::uuid,${version},doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',doc->'signature',COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
+    sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${versionId}::uuid,${problemId}::uuid,${version},doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',CASE WHEN doc->'sql' IS NOT NULL OR doc->'odyssey' IS NOT NULL THEN NULL ELSE doc->'signature' END,COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
   );
   const hidden = stringifyLosslessJson(safe.hiddenCases ?? []),
     staged = stringifyLosslessJson(safe.odysseyHiddenCases ?? []);
@@ -159,18 +150,11 @@ export async function updateQuestionCatalogMetadata(
   }
 }
 async function registerArtifacts(tx: Transaction, c: Obj, versionId: string): Promise<void> {
-  for (const item of list(c.implementations)) {
-    const v = object(item);
-    const result = await tx.execute(
-      sql`INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision,reference_source_hash) VALUES(${versionId}::uuid,${str(v.language)},${str(v.starterSource)},${str(v.runtimeRevision)},${str(v.harnessRevision)},COALESCE((SELECT reference_source_hash FROM problem_languages WHERE version_id=${versionId}::uuid AND language=${str(v.language)}),sha256(decode('01','hex')))) ON CONFLICT(version_id,language) DO UPDATE SET language=EXCLUDED.language WHERE problem_languages.starter_source=EXCLUDED.starter_source AND problem_languages.runtime_revision=EXCLUDED.runtime_revision AND problem_languages.harness_revision=EXCLUDED.harness_revision AND problem_languages.reference_source_hash=EXCLUDED.reference_source_hash RETURNING language`,
-    );
-    if (!result.rows.length) throw new Error("Fixture language artifacts are immutable");
-  }
   for (const [ordinal, item] of list(c.approaches).entries()) {
     const a = object(item);
     const registered =
       await tx.execute(sql`INSERT INTO problem_solution_approaches AS existing(version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes)
-      VALUES(${versionId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${str(a.defaultLanguage)},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(version_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
+      VALUES(${versionId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${typeof a.defaultLanguage === "string" ? a.defaultLanguage : null},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(version_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
     if (!registered.rows.length) throw new Error("Approach metadata is immutable");
     for (const variant of list(a.implementations)) {
       const v = object(variant);

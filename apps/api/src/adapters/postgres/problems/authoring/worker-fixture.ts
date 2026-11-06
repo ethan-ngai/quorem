@@ -1,4 +1,5 @@
 /** @file worker-fixture.ts @description Native authoring integration fixture. @module problems */
+import { languageRuntime } from "@quorem/execution";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { createApp } from "../../../../app.ts";
@@ -15,10 +16,6 @@ export default {
     const options = { connectionTimeoutMs: 1000, lifetimeMs: 10000 };
     const run: AuthoringScope = <T>(action: (scope: ConnectionScope) => Promise<T>) =>
       withWorkerConnection(url.toString(), options, action);
-    const runtime = (language: string) =>
-      language === "python"
-        ? { revision: "python-3.12-v1", harness: "quorem-harness-v2" }
-        : undefined;
     const app = createApp({ allowedOrigins: [], requestId: () => "workerd-authoring" }).route(
       "/",
       authoringRoutes({
@@ -26,7 +23,7 @@ export default {
           withWorkerConnection(url.toString(), options, (scope) =>
             developmentIdentity(scope, "quorem-author-worker"),
           ),
-        authoring: questionAuthoring(run, runtime),
+        authoring: questionAuthoring(run, languageRuntime),
         allowLocalStrongBypass: false,
         now: () => Math.floor(Date.now() / 1000),
       }),

@@ -2,7 +2,7 @@
 import type { ApproachComplexity } from "@quorem/contracts";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
-import { Clock3, MemoryStick } from "lucide-react";
+import { Icon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
 import "./editorial.css";
 type Complexity = Pick<
@@ -17,7 +17,7 @@ export function ComplexityDetails({ value }: { value: Complexity }) {
           <dt>
             <Tooltip content="Time complexity">
               <span tabIndex={0} role="img" aria-label="Time complexity">
-                <Clock3 size={15} aria-hidden="true" />
+                <Icon name="time" width={15} height={15} strokeWidth={2} />
               </span>
             </Tooltip>
           </dt>
@@ -31,7 +31,7 @@ export function ComplexityDetails({ value }: { value: Complexity }) {
           <dt>
             <Tooltip content="Auxiliary space">
               <span tabIndex={0} role="img" aria-label="Auxiliary space">
-                <MemoryStick size={15} aria-hidden="true" />
+                <Icon name="memory" width={15} height={15} strokeWidth={2} />
               </span>
             </Tooltip>
           </dt>

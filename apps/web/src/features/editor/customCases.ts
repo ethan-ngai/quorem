@@ -1,3 +1,4 @@
+import { primarySignature, validateSqlCase } from "@quorem/questions";
 import { validateCodingCase, validateCodingSequence } from "@quorem/questions/coding-case";
 import { nodeType } from "@quorem/contracts/node-type";
 import { randomUUID } from "../../randomUUID";
@@ -86,30 +87,36 @@ export function createCustomDraft(problem: QuestionProblem): CustomCaseDraft {
       expected: JSON.stringify(example?.expected ?? { rows: [] }, null, 2),
     };
   }
-  const inputs = example ? bindArguments(problem.signature, example.args) : undefined;
+  const inputs = example ? bindArguments(primarySignature(problem), example.args) : undefined;
   return {
     id: randomUUID(),
-    args: problem.signature.parameters.map(({ type, input }, index) =>
+    args: primarySignature(problem).parameters.map(({ type, input }, index) =>
       formatTypedField(
         type,
         inputs ? inputs[index]!.value : defaultValue(type),
-        caseFieldConfig(problem.signature, type, input, false, { args: example?.args }),
+        caseFieldConfig(primarySignature(problem), type, input, false, { args: example?.args }),
       ),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
-      problem.signature.returnType,
-      example?.expected ?? defaultValue(problem.signature.returnType),
-      caseFieldConfig(problem.signature, problem.signature.returnType, undefined, true, {
-        args: example?.args,
-      }),
+      primarySignature(problem).returnType,
+      example?.expected ?? defaultValue(primarySignature(problem).returnType),
+      caseFieldConfig(
+        primarySignature(problem),
+        primarySignature(problem).returnType,
+        undefined,
+        true,
+        {
+          args: example?.args,
+        },
+      ),
     ),
   };
 }
 
 export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProblem): CustomCase {
   if (!problem.sql && !problem.odyssey)
-    return parseCustomDraft(draft, problem.signature, problem.constraints);
+    return parseCustomDraft(draft, primarySignature(problem), problem.constraints);
   if (problem.sql)
     return normalizeSqlDraft(
       problem,
@@ -125,7 +132,7 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProbl
       if (methods.some((method) => method.nodeReferences)) {
         const value = { args: [], calls: input };
         validateCodingSequence(
-          problem.signature,
+          primarySignature(problem),
           problem.constraints,
           methods,
           JSON.stringify(value),
@@ -144,7 +151,7 @@ export function parseProblemDraft(draft: CustomCaseDraft, problem: QuestionProbl
           validateTypedValue(parameter.type, call.args[index]),
         );
         validateSequenceCallConstraints(
-          problem.signature,
+          primarySignature(problem),
           method.methodName,
           call.args,
           problem.constraints,
@@ -165,7 +172,7 @@ export function parseProblemDrafts(
   problem: QuestionProblem,
 ): CustomCase[] {
   if (!problem.sql && !problem.odyssey)
-    return parseCustomDrafts(drafts, problem.signature, problem.constraints);
+    return parseCustomDrafts(drafts, primarySignature(problem), problem.constraints);
   if (drafts.length < 1 || drafts.length > 20)
     throw new Error("Add between 1 and 20 custom cases.");
   const cases = drafts.map((draft, index) => {
@@ -290,7 +297,7 @@ export function readCustomDrafts(scope: string, problem: QuestionProblem): Custo
           typeof value.id === "string" &&
           Array.isArray(value.args) &&
           value.args.length ===
-            (problem.sql || problem.odyssey ? 1 : problem.signature.parameters.length) &&
+            (problem.sql || problem.odyssey ? 1 : primarySignature(problem).parameters.length) &&
           value.args.every((arg: unknown) => typeof arg === "string") &&
           typeof value.expectedEnabled === "boolean" &&
           typeof value.expected === "string"
@@ -316,4 +323,13 @@ export function associatedResultIndex(
   return snapshot.cases.findIndex(
     (item) => item.id === id && JSON.stringify(item.value) === JSON.stringify(value),
   );
+}
+
+/** Recover classic Run inputs using the question's own case codec. */
+export function parseRunSnapshotCases(source: string, problem: QuestionProblem): CustomCase[] {
+  if (!problem.sql) return parseCustomCases(source, primarySignature(problem));
+  const values: unknown = JSON.parse(source);
+  if (!Array.isArray(values) || values.length > 100) throw new Error("Invalid SQL Run snapshot");
+  for (const value of values) validateSqlCase(problem.sql, JSON.stringify(value), false);
+  return values as CustomCase[];
 }

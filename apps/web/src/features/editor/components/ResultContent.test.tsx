@@ -125,3 +125,36 @@ describe("result presentation boundaries", () => {
     expect(markup).not.toContain("Input:");
   });
 });
+
+it.each([
+  "syntax_error",
+  "runtime_error",
+  "wrong_answer",
+  "time_limit",
+  "memory_limit",
+  "output_limit",
+  "invalid_output",
+] as const)("keeps %s diagnostics out of the aggregate run summary", (verdict) => {
+  const submission: Submission = {
+    ...result,
+    kind: "run",
+    score: undefined,
+    verdict,
+    diagnostics: [{ message: "case-specific diagnostic" }],
+    publicCases: [{ index: 0, status: verdict }],
+  };
+  const html = renderToStaticMarkup(
+    <ResultContent submission={submission} busy={false} showCases={false} />,
+  );
+  expect(html).toContain("0/1 cases passed");
+  expect(html).not.toContain("case-specific diagnostic");
+  expect(
+    renderToStaticMarkup(
+      <ResultContent
+        submission={{ ...submission, publicCases: [] }}
+        busy={false}
+        showCases={false}
+      />,
+    ),
+  ).toBe("");
+});

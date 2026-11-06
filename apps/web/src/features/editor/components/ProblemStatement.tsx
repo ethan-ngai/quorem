@@ -1,3 +1,4 @@
+import { primarySignature } from "@quorem/questions";
 import "./machine-values.css";
 import "./problem-statement.css";
 import { formatLabel } from "../../../ui/formatLabel";
@@ -11,10 +12,10 @@ import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
 import { constraintMarkup } from "../constraintMarkup";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { QuestionProblem } from "@quorem/contracts";
 
 export type StatementProblem = Pick<
-  ProblemVersion,
+  QuestionProblem,
   | "id"
   | "title"
   | "difficulty"
@@ -139,7 +140,7 @@ export function ProblemStatement({
                     ) : (
                       <div className="example-data">
                         <CaseArguments
-                          signature={problem.signature}
+                          signature={primarySignature(problem)}
                           args={example.args}
                           expected={example.expected}
                         >
@@ -147,8 +148,11 @@ export function ProblemStatement({
                             name="Output"
                             purpose="output"
                             value={example.expected}
-                            type={problem.signature.returnType}
-                            nodeContext={{ signature: problem.signature, args: example.args }}
+                            type={primarySignature(problem).returnType}
+                            nodeContext={{
+                              signature: primarySignature(problem),
+                              args: example.args,
+                            }}
                           />
                         </CaseArguments>
                       </div>

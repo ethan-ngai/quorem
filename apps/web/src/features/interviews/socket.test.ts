@@ -70,8 +70,11 @@ describe("interview socket", () => {
     expect(changed).toHaveBeenLastCalledWith("interview.document");
     for (let tick = 0; tick < 6; tick++) {
       await vi.advanceTimersByTimeAsync(10_000);
-      socket.frame({ type: "changed" });
+      socket.frame({ type: "heartbeat" });
     }
+    expect(changed).toHaveBeenCalledTimes(2);
+    expect(Socket.instances).toHaveLength(1);
+    expect(socket.readyState).toBe(Socket.OPEN);
     expect(socket.sent).toHaveLength(1);
     transport.stop();
   });

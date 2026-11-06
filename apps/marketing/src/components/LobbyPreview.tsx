@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MatchSettings, ModeIcon } from "../../../web/src/features/matches/MatchControls";
+import { MatchSettings } from "../../../web/src/features/matches/MatchControls";
+import { ModeIcon } from "../../../web/src/features/matches/ModeIcon";
 const catalog = [{ id: "two-sum-preview", title: "Two Sum", difficulty: "easy" }];
 const settings = {
   mode: "free-for-all" as const,

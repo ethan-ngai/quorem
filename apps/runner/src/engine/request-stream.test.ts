@@ -43,7 +43,6 @@ void test("projects only active Odyssey methods and excludes all expected values
   });
   const meta = await fixture(
     JSON.stringify({
-      signature: signature("a"),
       statementMarkdown: "x".repeat(180000),
       odyssey: {
         levels: [
@@ -74,6 +73,7 @@ void test("projects only active Odyssey methods and excludes all expected values
     const wire = await text(result.input.open()),
       parsed = JSON.parse(wire);
     assert.deepEqual(Object.keys(parsed.methods), ["a"]);
+    assert.equal(parsed.signature.methodName, "a");
     assert.doesNotMatch(wire, /SECRET|private text|statementMarkdown/);
     assert.equal(parsed.calls[0].methodName, "a");
     assert.equal(parsed.methods.a.nodeReferences, "return");
@@ -171,10 +171,36 @@ void test("locates large signature spans without materializing their contents", 
   const spool = await fixture(raw, "metadata");
   try {
     const spans = await metadataSpans(spool, 1);
+    assert.ok(spans.signature);
     assert.ok(spans.signature.length > 500000);
     assert.equal(spans.methods[0].name, "go");
     assert.ok(spans.methods[0].span.length > 500000);
   } finally {
     await spool.dispose();
+  }
+});
+
+void test("streams SQL metadata without a fictional coding signature", async () => {
+  const meta = await fixture(
+    JSON.stringify({ sql: { dialect: "postgresql", outputOrder: "ordered" } }),
+    "metadata",
+  );
+  const source = await fixture("SELECT 1", "source"),
+    testcase = await fixture('{"args":[{"tables":[]}],"expected":{"rows":[[1]]}}', "case");
+  try {
+    const result = await streamedCaseRequest({
+      source,
+      metadata: meta,
+      testcase,
+      level: null,
+      operation: "direct",
+      language: "postgresql",
+    });
+    const parsed = JSON.parse(await text(result.input.open()));
+    assert.equal(parsed.sql.dialect, "postgresql");
+    assert.equal("signature" in parsed, false);
+    assert.equal("expected" in parsed, false);
+  } finally {
+    await Promise.all([meta.dispose(), source.dispose(), testcase.dispose()]);
   }
 });

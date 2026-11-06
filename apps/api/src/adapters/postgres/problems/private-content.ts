@@ -1,7 +1,10 @@
 /** @file private-content.ts @description Authorized transaction-bound private question snapshots. @module problems */
+import { languageRuntime } from "@quorem/execution";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import {
+  generateQuestionImplementations,
+  type QuestionProblem,
   normalizeQuestionDraft,
   parseLosslessJson,
   stringifyLosslessJson,
@@ -36,7 +39,6 @@ async function readPrivateQuestionContent(
  'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
  'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
  'attribution',v.attribution,
- 'implementations',COALESCE((SELECT jsonb_agg(jsonb_build_object('language',language,'starterSource',starter_source,'runtimeRevision',runtime_revision,'harnessRevision',harness_revision) ORDER BY language) FROM problem_languages WHERE version_id=v.id),'[]'::jsonb),
  'canonicalApproachId',${canonicalApproachProjection(sql`v.id`)},
  'approaches',${approachesProjection(sql`v.id`)})::text AS data
  FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_version_id=v.id)) ${lock ? sql`FOR SHARE OF p,v` : sql``}`)
@@ -65,6 +67,14 @@ async function readPrivateQuestionContent(
       stringifyLosslessJson(object(list(object(p.odyssey).levels)[0]).examples ?? [])
   )
     p.examples = [];
+  if (p.odyssey) {
+    const levels = list(object(p.odyssey).levels);
+    const suites = list(c.odysseyHiddenCases);
+    levels.forEach((level, index) => {
+      object(level).hiddenCases = suites[index] ?? [];
+    });
+  }
+  delete c.odysseyHiddenCases;
   return normalizeQuestionDraft(stringifyLosslessJson(c));
 }
 /** Authoring may clone owned private versions or global versions as administrator. */
@@ -84,11 +94,13 @@ export async function readPublishedFixture(
   versionId: string,
   language: string,
 ): Promise<{ content: string; starterSource: string; language: string } | undefined> {
-  if (!["python", "java", "typescript", "ocaml", "postgresql"].includes(language)) return undefined;
   const raw = await readPrivateQuestionContent(tx, actorUserId, versionId, true, true);
   if (!raw) return undefined;
-  const implementations = list(content(raw).implementations);
-  const selected = implementations.map(object).find((value) => value.language === language);
+  const implementations = generateQuestionImplementations(
+    object(content(raw).problem) as unknown as QuestionProblem,
+    languageRuntime,
+  );
+  const selected = implementations.find((value) => value.language === language);
   if (!selected || typeof selected.starterSource !== "string" || !selected.starterSource)
     return undefined;
   return { content: raw, starterSource: selected.starterSource, language };

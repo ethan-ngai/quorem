@@ -168,10 +168,6 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
         [version, problem],
       );
       await pool.query(
-        "INSERT INTO problem_languages(version_id,language,starter_source,runtime_revision,harness_revision) VALUES($1,'python','','python-3.12-v1','quorem-harness-v2')",
-        [version],
-      );
-      await pool.query(
         "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
         [workspace, user, version],
       );

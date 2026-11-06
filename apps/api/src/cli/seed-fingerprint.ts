@@ -125,7 +125,6 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
     sourceProblem = obj(source.problem),
     problem: Obj = {};
   if (Array.isArray(source.hiddenCases)) c.hiddenCases = source.hiddenCases;
-  if (Array.isArray(source.odysseyHiddenCases)) c.odysseyHiddenCases = source.odysseyHiddenCases;
   if (Array.isArray(sourceProblem.examples)) p.examples = sourceProblem.examples;
   if (p.odyssey && sourceProblem.odyssey) {
     const stages = arr(obj(p.odyssey).levels),
@@ -134,6 +133,8 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
       const original = originals[index];
       if (original && Array.isArray(obj(original).examples))
         obj(level).examples = obj(original).examples!;
+      if (original && Array.isArray(obj(original).hiddenCases))
+        obj(level).hiddenCases = obj(original).hiddenCases!;
     });
   }
   const marks = markRawCases(raw, c);
@@ -148,6 +149,7 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
           statementMarkdown: str(x.statementMarkdown),
           methods: arr(x.methods).map(signature),
           examples: arr(x.examples).map((v) => testcase(v, true)),
+          hiddenCases: arr(x.hiddenCases).map((v) => testcase(v)),
         };
       }),
     };
@@ -168,7 +170,7 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
   problem.statementMarkdown = str(p.statementMarkdown);
   problem.examples = arr(p.examples).map((v) => testcase(v, true));
   problem.constraints = arr(p.constraints).map(constraint);
-  problem.signature = signature(p.signature!);
+  if (p.signature) problem.signature = signature(p.signature);
   const l = obj(p.limits);
   problem.limits = {
     wallTimeMs: l.wallTimeMs!,
@@ -179,32 +181,16 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
     maxNestingDepth: l.maxNestingDepth!,
   };
   const out: Obj = {};
-  if (arr(c.odysseyHiddenCases).length)
-    out.odysseyHiddenCases = arr(c.odysseyHiddenCases).map((stage) =>
-      arr(stage).map((v) => testcase(v)),
-    );
   out.problem = problem;
   out.hiddenCases = arr(c.hiddenCases).map((v) => testcase(v));
   out.attribution = str(c.attribution);
-  const sorted = (v: JsonValue | undefined) =>
-    arr(v)
-      .map(obj)
-      .sort((a, b) =>
-        str(a.language) < str(b.language) ? -1 : str(a.language) > str(b.language) ? 1 : 0,
-      );
-  out.implementations = sorted(c.implementations).map((i) => ({
-    language: str(i.language),
-    starterSource: "",
-    runtimeRevision: str(i.runtimeRevision),
-    harnessRevision: str(i.harnessRevision),
-  }));
   out.canonicalApproachId = c.canonicalApproachId!;
   out.approaches = arr(c.approaches)
     .map(obj)
     .map((a) => ({
       id: str(a.id),
       title: str(a.title),
-      defaultLanguage: str(a.defaultLanguage),
+      ...(a.defaultLanguage === undefined ? {} : { defaultLanguage: str(a.defaultLanguage) }),
       explanationMarkdown: str(a.explanationMarkdown),
       timeComplexity: str(a.timeComplexity),
       spaceComplexity: str(a.spaceComplexity),
