@@ -673,7 +673,8 @@ it.skipIf(!url)(
         "conflict",
       );
       await repo.update(actor, items[0].draftId, "1", JSON.stringify(draft));
-      expect(JSON.parse(await repo.importDraft(actor, raw, false))).toEqual({
+      expect(JSON.parse(await repo.importDraft(actor, raw, false)).status).toBe("conflict");
+      expect(JSON.parse(await repo.importDraft(actor, JSON.stringify(draft), false))).toEqual({
         status: "existing",
         draftId: items[0].draftId,
       });

@@ -7,6 +7,8 @@ import {
 } from "@quorem/database/core";
 import {
   normalizeQuestionDraft,
+  questionPublicationSlug,
+  questionSlugFits,
   parseLosslessJson,
   stringifyLosslessJson,
   generateQuestionImplementations,
@@ -167,7 +169,7 @@ async function prepareImport(raw: string, admin: boolean) {
   const p = object(content(normalized).problem);
   const slug = str(p.slug);
   const leetcode = sourceId(p);
-  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120)
+  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || !questionSlugFits(slug))
     throw bad("Choose a valid question slug");
   if (leetcode !== null && (!/^[1-9]\d{0,9}$/.test(leetcode) || Number(leetcode) > 2147483647))
     throw bad("Invalid LeetCode ID");
@@ -418,13 +420,11 @@ async function publish(
     privateOwner = null;
   } else if (visibility === "private") privateOwner = actor.userId;
 
-  let slug = str(p.slug);
-  const actorPrefix = `private-${(await contentDigest(privateOwner ?? actor.userId)).slice(0, 16)}-`;
-  if (slug.startsWith(actorPrefix)) slug = slug.slice(actorPrefix.length);
-  if (privateOwner) {
-    if (new TextEncoder().encode(slug).length > 96)
-      throw bad("Private question slug must be 96 characters or fewer");
-    slug = `${actorPrefix}${slug}`;
+  let slug: string;
+  try {
+    slug = await questionPublicationSlug(str(p.slug), privateOwner, privateOwner ?? actor.userId);
+  } catch (error) {
+    throw bad(error instanceof Error ? error.message : "Invalid question slug");
   }
   p.slug = slug;
   if (privateOwner && p.leetcodeId !== undefined && p.leetcodeId !== null)
@@ -733,7 +733,7 @@ function createQuestionAuthoring(
         );
         const [row] = (
           await tx.execute<DraftRow>(
-            sql`UPDATE question_drafts SET content=${data.safe}::jsonb,lossless_content=${data.lossless},revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
+            sql`UPDATE question_drafts SET content=${data.safe}::jsonb,lossless_content=${data.lossless},import_digest=NULL,revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
           )
         ).rows;
         return draftJson(row);

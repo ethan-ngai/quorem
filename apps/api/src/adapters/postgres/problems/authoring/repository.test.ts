@@ -5,6 +5,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { createApp } from "../../../../app.ts";
 import { authoringRoutes } from "../../../../modules/problems/authoring/routes.ts";
 import { questionAuthoring } from "./repository.ts";
+import { parseCatalogFilter } from "../../../../modules/problems/queries.ts";
 import { problemQueries } from "../queries/repository.ts";
 const url = process.env.QUOREM_AUTHORING_TEST_DATABASE_URL;
 const runtime = (language: string) =>
@@ -410,6 +411,35 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         }),
       );
       expect(draftDeleted.items[0].status).toBe("succeeded");
+      const longSlugContent = structuredClone(parsedContent);
+      longSlugContent.problem.slug = `long-${crypto.randomUUID().replaceAll("-", "")}-${"a".repeat(42)}`;
+      expect(longSlugContent.problem.slug).toHaveLength(80);
+      const longSlugDraft = JSON.parse(
+        await repository.create(actor, JSON.stringify(longSlugContent), undefined),
+      );
+      const readyLongSlug = JSON.parse(
+        await repository.list(actor, {
+          ...parseCatalogFilter(new URLSearchParams()),
+          query: longSlugContent.problem.slug,
+          sort: "title",
+        }),
+      );
+      expect(
+        readyLongSlug.items.find((item: { id: string }) => item.id === longSlugDraft.id)?.ready,
+      ).toBe(true);
+      const longSlugPublished = JSON.parse(
+        await repository.publish(actor, longSlugDraft.id, "1", "private"),
+      );
+      expect(longSlugPublished.content.problem.slug).toHaveLength(105);
+      const editedLongSlug = JSON.parse(
+        await repository.update(
+          actor,
+          longSlugDraft.id,
+          longSlugPublished.revision,
+          JSON.stringify(longSlugPublished.content),
+        ),
+      );
+      expect(editedLongSlug.content.problem.slug).toBe(longSlugPublished.content.problem.slug);
       const global = { userId: admin, admin: true, globalAllowed: true };
       const draftA = JSON.parse(await repository.create(global, raw, undefined));
       const draftB = JSON.parse(await repository.create(global, raw, undefined));

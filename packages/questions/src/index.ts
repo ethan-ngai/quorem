@@ -49,3 +49,5 @@ export {
   canonicalCode,
   withCanonicalApproach,
 } from "./editorial.ts";
+
+export { questionSlugFits, questionPublicationSlug } from "./identity.ts";
