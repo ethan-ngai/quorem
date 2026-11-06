@@ -1,5 +1,6 @@
 /** @file draft.ts @description Bounded authoring draft rules. @module questions */
 import type { QuestionContent } from "./model.ts";
+import { questionSlugFits } from "./identity.ts";
 import { validSource } from "./source.ts";
 
 const bytes = (value: string) => new TextEncoder().encode(value).length;
@@ -34,7 +35,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
   if (
     bytes(p.id) > 64 ||
     bytes(p.version) > 32 ||
-    bytes(p.slug) > 80 ||
+    !questionSlugFits(p.slug) ||
     bytes(p.title) > 160 ||
     bytes(p.statementMarkdown) > 65536 ||
     bytes(content.attribution) > 2048
