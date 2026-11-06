@@ -18,9 +18,6 @@ import { benchmarkProductionPython } from "./hono-production-benchmark.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
 );
-const { verifyPassword } = createRequire(new URL("../apps/auth/package.json", import.meta.url))(
-  "better-auth/crypto",
-);
 const hosts = {
   drain: "runner-hono.quorem.app",
   verifier: "verifier-hono.quorem.app",
@@ -116,27 +113,11 @@ async function rollout(env, benchmarkOnly) {
       const { diagnoseProductionJudge } = await import("./hono-production-judge-diagnostics.mjs");
       return { diagnostics: await diagnoseProductionJudge(db, keys, namespace, { runner, cases }) };
     }
-    const benchmarkEnv = { ...env };
-    if (env.JUDGING_WORKLOAD === "true") {
-      benchmarkEnv.DATABASE_URL = database.href;
-      benchmarkEnv.BETTER_AUTH_SECRET = keys.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET;
-    }
-    if (!benchmarkEnv.AUTH_BOOTSTRAP_USERNAME) {
-      const { rows } = await db.query(`SELECT DISTINCT a.username, c.password
-        FROM quorem_auth."user" a
-        JOIN quorem_auth.account c ON c."userId"=a.id AND c."providerId"='credential'
-        JOIN identity_bindings b ON b.subject=a.id
-        JOIN users u ON u.id=b.user_id
-        WHERE u.role='admin' AND NOT u.disabled AND a.username IS NOT NULL AND c.password IS NOT NULL
-        LIMIT 21`);
-      if (env.AUTH_BOOTSTRAP_PASSWORD && rows.length <= 20) {
-        const matches = [];
-        for (const row of rows)
-          if (await verifyPassword({ hash: row.password, password: env.AUTH_BOOTSTRAP_PASSWORD }))
-            matches.push(row.username);
-        if (matches.length === 1) benchmarkEnv.AUTH_BOOTSTRAP_USERNAME = matches[0];
-      }
-    }
+    const benchmarkEnv = {
+      ...env,
+      DATABASE_URL: database.href,
+      BETTER_AUTH_SECRET: keys.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET,
+    };
     if (benchmarkOnly || (runner.status === "active" && runner.release === release)) {
       await current.requireActive(runner.generation);
       return benchmarkEnv;
