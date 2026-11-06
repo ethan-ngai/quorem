@@ -44,16 +44,17 @@ Connected but inactive tabs are a separate AFK concern. Initial scope uses platf
 
 ## Latest-match review
 
-- Results expose **Review code**. Open the completed workspace read-only, with the same problem/editor/results composition.
+- The completed workspace stays mounted behind the result dialog. Freeze the match clock, conduct monitoring, editing and new match admissions; already-admitted judging may finish. **Review code** dismisses the dialog in place; **Results** reopens it.
 - Own view restores the latest saved match draft. Identify the exact last submitted source and its verdict separately when it differs. Recover unsaved local edits through the existing recovery mechanism.
 - With sharing enabled for that round, participants can select each opponent's last admitted Submit source. Show No submission when absent. Do not share unsubmitted opponent drafts.
 - Review stays unavailable until the entire round has settled, including when the viewer forfeits early. Finishing one's own participation never grants early access to a still-running opponent.
 - Only participants of that completed round may read its shared sources. Later party joiners and nonparticipant spectators gain no access. Apply authorization on every read; never depend on hidden UI.
 - Own code is readable regardless of the sharing setting. Opponent reads use the round's frozen sharing policy. Enabling sharing in a later lobby cannot expose a previous private round.
-- Support Your code, an opponent selector, and Compare. Compare uses side-by-side read-only editors; same-language comparisons can switch to a diff. Different languages retain side-by-side comparison. Reuse CodeMirror and existing language/theme primitives.
+- Support Your code, an opponent selector, and Compare inside the same problem/editor/results composition. Review edits belong to viewer-owned experimental drafts, isolated per round, source participant and language. Preserve both the original submissions and the viewer's match draft. Side-by-side editors and same-language diff use the shared CodeMirror/language/theme owners; different languages retain side-by-side comparison.
+- Run and Submit execute the selected experimental draft, with the target named beside the actions and its results below. Review jobs use normal execution limits; they never enter match scoring, change original submissions or grant practice solve credit. Changing the active editor cannot retarget an already-admitted job. Local drafts survive view/layout changes.
 - Expose one immediately previous round per viewer. Access ends when that viewer starts another competitive round, or 24 hours after completion, whichever comes first. Leaving/disbanding a party does not immediately destroy that bounded review window.
 - Retention is enforced on the server. Clear stale review pointers and source retention holds after expiry; continue using existing finite submission retention for independently retained submission records. Add no match-history archive or question-version snapshot system.
-- Review never enables Run, Submit, live draft mutation, private-case reads or opponent workspace access through the existing owner-only workspace route. A dedicated completed-round projection returns only allowed code, public results and problem content.
+- A dedicated completed-round projection returns only permitted submitted code, public results and problem content. Review execution uses a distinct viewer-owned workspace, authorized through that same latest-round/sharing boundary on every operation. It grants no opponent workspace access or additional private-case visibility. Expiry blocks new review work; original results remain immutable.
 
 ## Architecture and implementation order
 

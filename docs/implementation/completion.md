@@ -23,9 +23,11 @@ The persistent lobby and bounded code-review contract is [persistent parties](..
 
 1. **Return to lobby**: preserve membership, settings and readiness. Navigation never readies or unreadies a player.
 2. **Ready up**: everyone readies from results or the lobby; the same party starts another round after a cancellable five-second countdown. Both views show the same waiting/countdown state and allow Unready.
-3. **Review code**: read-only own draft/submission and permitted opponent submissions after the whole round settles. Sharing defaults on, is a lobby setting, and freezes per round. Same-language code supports a diff. Access expires at the next competitive round or 24 hours after completion.
+3. **Review code**: dismiss the dialog over the retained workspace. Keep original match submissions immutable; experiment in viewer-owned drafts with Run/Submit targeting the selected editor. Experimental verdicts never change match scores or solve credit. Opponent submissions become available after the entire round settles, subject to the round's frozen sharing policy. Split editors and same-language diff preserve local drafts. Access expires at the next competitive round or 24 hours after completion. **Results** reopens the summary.
 
 Authoritative membership, renewable platform presence, idempotent commands and scheduled reconciliation own round transitions. Never reactivate an expired guest identity or reuse completed workspace/result state.
+
+Finishing freezes the existing match workspace rather than replacing its background with a results page. Stop the match clock and conduct monitoring, disable match edits and new admissions, and retain already-admitted judging. Popup-free celebrations launch inward from just beyond the viewport's left and right edges; dialog celebrations retain their behind-popup origins.
 
 ## Local demo
 
