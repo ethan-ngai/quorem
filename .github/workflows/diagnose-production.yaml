@@ -2,6 +2,10 @@ name: Diagnose production
 on:
   workflow_dispatch:
     inputs:
+      mail:
+        description: Read-only authenticated SMTP relay health probe
+        type: boolean
+        default: false
       sql:
         description: Measure practice SQL using a read-only production connection
         type: boolean
@@ -30,7 +34,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.sql && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' }}
+    if: ${{ !inputs.mail && !inputs.sql && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -100,3 +104,25 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-private-workers.mjs --benchmark-only
+
+  mail:
+    if: inputs.mail
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - run: node scripts/hono-production-mail-probe.mjs
