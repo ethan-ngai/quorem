@@ -228,12 +228,7 @@ export function CompletionDemo() {
         </>
       }
       results={<div className="result-message">Illustrative fixture · execution unavailable</div>}
-      actions={
-        <>
-          {!review && <span>Round complete</span>}
-          <ExecutionActions disabled onRun={() => {}} onSubmit={() => {}} />
-        </>
-      }
+      actions={<ExecutionActions disabled onRun={() => {}} onSubmit={() => {}} />}
     >
       {inline ? (
         <Celebration key={replay} outcome={mode === "Interview" ? "observer" : "success"} inline />
