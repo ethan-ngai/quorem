@@ -338,38 +338,35 @@ export async function executeAndStage(
             (artifact ? Buffer.byteLength(artifact) : 0);
           const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
           const atomicFinal = !!repository.finalizeCompletion && start + width === total;
-          // Prefetch at most two waves while bounding live VMs independently of the window.
-          const lanes = Array.from({ length: caseConcurrency }, () => Promise.resolve());
-          const runs = Array.from({ length: width }, (_, index) => {
-            const lane = index % caseConcurrency;
-            const run = lanes[lane]
-              .then(() => {
-                signal.throwIfAborted();
-                return executeCase(start + index, { artifact, compilation, fatal }, refs[index]);
-              })
-              .then((result) => {
+          // An idle worker takes the next case; physical sandbox lanes remain ordinal-bound.
+          const results = new Array<Awaited<ReturnType<typeof executeCase>>>(width);
+          let next = 0;
+          const run = async () => {
+            for (;;) {
+              signal.throwIfAborted();
+              const index = next++;
+              if (index >= width) return;
+              try {
+                const result = await executeCase(
+                  start + index,
+                  { artifact, compilation, fatal },
+                  refs[index],
+                );
+                results[index] = result;
                 // Final windows need no ordered checkpoint; verify each stopped case immediately.
                 if (atomicFinal)
                   enqueueStage(start + index, storedFrame(start + index, result.frame));
-                return result;
-              })
-              .catch((error) => {
+              } catch (error) {
                 controller.abort(error);
                 throw error;
-              });
-            lanes[lane] = run.then(
-              () => {},
-              () => {},
-            );
-            return run;
-          });
-          const outcomes = await Promise.allSettled(runs);
+              }
+            }
+          };
+          const outcomes = await Promise.allSettled(
+            Array.from({ length: Math.min(width, caseConcurrency) }, run),
+          );
           const failed = outcomes.find((value) => value.status === "rejected");
           if (failed?.status === "rejected") throw failed.reason;
-          const results = outcomes.map(
-            (value) =>
-              (value as PromiseFulfilledResult<Awaited<ReturnType<typeof executeCase>>>).value,
-          );
           if (start + width === total) onFinalCase?.();
           for (let index = 0; index < results.length; index++) {
             const ordinal = start + index;
