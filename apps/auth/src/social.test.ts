@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { randomUUID } from "node:crypto";
 import { describe, it, expect, vi } from "vitest";
 import { migrateAuth } from "./migrations";
@@ -11,7 +12,7 @@ describe.skipIf(!databaseURL)("social identity with disposable PostgreSQL", () =
       AUTH_MODE: "password",
       AUTH_ORIGIN: origin,
       AUTH_DATABASE_URL: databaseURL,
-      BETTER_AUTH_SECRET: "test-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_INTERNAL_SECRET: "test-internal",
       GITHUB_CLIENT_ID: "fixture",
       GITHUB_CLIENT_SECRET: "fixture",

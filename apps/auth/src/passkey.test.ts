@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 import { createHmac, randomUUID } from "node:crypto";
 import { describe, it, expect } from "vitest";
 import { migrateAuth } from "./migrations";
@@ -8,7 +9,7 @@ describe.skipIf(!databaseURL)("passkey protocol with disposable PostgreSQL", () 
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: "http://localhost:5174",
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: databaseURL,
       AUTH_INTERNAL_SECRET: "mock-internal-secret",
       GOOGLE_CLIENT_ID: "test-google-client",

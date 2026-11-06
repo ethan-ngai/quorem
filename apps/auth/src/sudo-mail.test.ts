@@ -1,3 +1,4 @@
+import { testAuthSecret } from "./test-auth-fixture.ts";
 /** @file sudo-mail.test.ts @description Composed SMTP sudo fallback through durable mail and Better Auth. @module auth */
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
@@ -14,7 +15,7 @@ describe.skipIf(!url || !inbox)("sudo email delivery", () => {
       APP_ENV: "local",
       AUTH_MODE: "password",
       AUTH_ORIGIN: origin,
-      BETTER_AUTH_SECRET: "mock-secret-".repeat(4),
+      BETTER_AUTH_SECRET: testAuthSecret,
       AUTH_DATABASE_URL: url,
       AUTH_INTERNAL_SECRET: "fixture",
       SMTP_HOST: "127.0.0.1",
