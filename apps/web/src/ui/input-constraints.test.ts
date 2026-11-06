@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inputConstraints, isAllowedInput, validateInput } from "./input-constraints";
+import { inputConstraints, isAllowedInput, validateInput, withMaxBytes } from "./input-constraints";
 
 describe("input constraints", () => {
   it("allows partial numbers but rejects impossible characters and upper bounds", () => {
@@ -12,6 +12,19 @@ describe("input constraints", () => {
     expect(["-", ".", "-.", "1."].every((v) => isAllowedInput(v, decimal))).toBe(true);
     expect(validateInput("-.", decimal).success).toBe(false);
     expect(validateInput("-2.5", decimal).success).toBe(false);
+  });
+  it("accepts scientific drafts but validates complete finite numbers", () => {
+    const constraint = inputConstraints.scientific;
+    expect(["-", ".", "1e", "1e-"].every((value) => isAllowedInput(value, constraint))).toBe(true);
+    expect(validateInput("1e-", constraint).success).toBe(false);
+    expect(validateInput("-1.5e+3", constraint).success).toBe(true);
+    expect(validateInput("1e999", constraint).success).toBe(false);
+  });
+  it("enforces UTF-8 byte limits for editing and validation", () => {
+    const constraint = withMaxBytes(inputConstraints.name, 4);
+    expect(isAllowedInput("éé", constraint)).toBe(true);
+    expect(isAllowedInput("ééa", constraint)).toBe(false);
+    expect(validateInput("ééa", constraint).success).toBe(false);
   });
   it("keeps ordinary names editable and rejects controls and repeated spaces", () => {
     expect(isAllowedInput("Ada Lovelace ", inputConstraints.name)).toBe(true);

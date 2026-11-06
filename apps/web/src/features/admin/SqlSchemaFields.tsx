@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints } from "../../ui/input-constraints";
 import { useRef } from "react";
 import { Trash2 } from "lucide-react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -31,12 +33,14 @@ function SqlColumns({
   columns,
   types,
   disabled,
+  output = false,
   onChange,
 }: {
   label: string;
   columns: Column[];
   types: readonly Column["type"][];
   disabled: boolean;
+  output?: boolean;
   onChange: (columns: Column[]) => void;
 }) {
   const addColumn = useRef<HTMLButtonElement>(null);
@@ -54,7 +58,10 @@ function SqlColumns({
         focusFallback={addColumn}
         renderRow={(column, index) => (
           <div className="admin-sql-column">
-            <input
+            <TextInput
+              unstyled
+              constraint={output ? undefined : inputConstraints.identifier}
+              maxLength={output ? undefined : 63}
               className="admin-code"
               aria-label={`Column ${index + 1} name`}
               placeholder="Column name"
@@ -127,7 +134,10 @@ export function SqlSchemaFields({
             <fieldset className="admin-fields admin-sql-table">
               <legend>Table {index + 1}</legend>
               <Field label="Table name">
-                <input
+                <TextInput
+                  unstyled
+                  constraint={inputConstraints.identifier}
+                  maxLength={63}
                   value={table.name}
                   onChange={(event) => updateTable(index, { name: event.target.value })}
                 />
@@ -182,6 +192,7 @@ export function SqlSchemaFields({
         </div>
         <SqlColumns
           label="Result columns"
+          output
           columns={value.output ?? []}
           types={outputTypes}
           disabled={disabled}

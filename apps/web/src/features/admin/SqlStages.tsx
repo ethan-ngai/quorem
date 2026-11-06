@@ -1,3 +1,5 @@
+import { TextInput } from "../../ui/TextControl";
+import { inputConstraints, withMaxBytes } from "../../ui/input-constraints";
 import type { ReportAuthoringValidity } from "./authoringValidation";
 import { Trash2 } from "lucide-react";
 import { useId, useState } from "react";
@@ -70,7 +72,9 @@ export function SqlStages({
           hidden={selected !== index}
         >
           <Field label="Step title">
-            <input
+            <TextInput
+              unstyled
+              constraint={withMaxBytes(inputConstraints.name, 160)}
               value={level.title}
               onChange={(event) =>
                 update(

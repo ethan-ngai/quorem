@@ -1,4 +1,5 @@
 import { NoticeRegion } from "../../ui/PersistentNotice";
+import { inputConstraints, validateInput, withMaxBytes } from "../../ui/input-constraints";
 import { TextInput } from "../../ui/TextControl";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import "../../ui/topic-chip.css";
@@ -72,9 +73,20 @@ export function TopicField({
   const [source, setSource] = useState("");
   const id = useId();
   const field = useRef<HTMLInputElement>(null);
+  const baseTagConstraint = withMaxBytes(inputConstraints.tag, label === "Topics" ? 64 : 80);
+  const tagConstraint =
+    label === "Topics"
+      ? baseTagConstraint
+      : {
+          ...baseTagConstraint,
+          edit: (value: string) => baseTagConstraint.edit(value) && !value.includes(","),
+          schema: baseTagConstraint.schema.refine((value) => !value.includes(",")),
+        };
   const next = source.trim();
   const canAdd =
-    tags.length < limit && !!next && !tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
+    tags.length < limit &&
+    validateInput(next, tagConstraint).success &&
+    !tags.some((tag) => tag.toLowerCase() === next.toLowerCase());
   function add() {
     if (!canAdd) return;
     onChange([...tags, next]);
@@ -111,6 +123,7 @@ export function TopicField({
         <div className="authoring-inline-input">
           <TextInput
             id={id}
+            constraint={tagConstraint}
             ref={field}
             placeholder={label === "Topics" ? "Add topic…" : "Add company…"}
             value={source}
@@ -166,17 +179,28 @@ export function AuthoringNumberField({
       <Field label={label} icon={icon} hint={hint} unit={unit}>
         <TextInput
           mono
+          constraint={
+            scale === 1
+              ? inputConstraints.integer({ min: 1 })
+              : inputConstraints.decimal({ min: 0 })
+          }
           aria-label={unit ? `${label} (${unit})` : label}
-          type="number"
-          min={1 / scale}
-          step={scale === 1 ? 1 : "any"}
+          type="text"
+          inputMode={scale === 1 ? "numeric" : "decimal"}
           value={source}
           aria-invalid={invalid}
           aria-describedby={invalid ? id : undefined}
           onChange={(event) => {
             setSource(event.target.value);
-            const next = event.target.valueAsNumber * scale;
-            const bad = !Number.isSafeInteger(next) || next < 1;
+            const next = event.target.value === "" ? NaN : Number(event.target.value) * scale;
+            const constraint =
+              scale === 1
+                ? inputConstraints.integer({ min: 1 })
+                : inputConstraints.decimal({ min: 0 });
+            const bad =
+              !validateInput(event.target.value, constraint).success ||
+              !Number.isSafeInteger(next) ||
+              next < 1;
             setInvalid(bad);
             onValidityChange(bad, bad ? error : undefined);
             if (!bad) onChange(next);
@@ -215,19 +239,19 @@ export function LeetcodeIDField({
       >
         <TextInput
           mono
+          constraint={inputConstraints.integer({ min: 1, max: 2147483647 })}
           aria-label="LeetCode ID"
-          type="number"
-          min={1}
-          max={2147483647}
-          step={1}
+          type="text"
+          inputMode="numeric"
           value={source}
           aria-invalid={invalid}
           aria-describedby={invalid ? id : undefined}
           onChange={(event) => {
             const text = event.target.value;
-            const number = event.target.valueAsNumber;
+            const number = Number(text);
             const bad =
-              text !== "" && (!Number.isInteger(number) || number < 1 || number > 2147483647);
+              text !== "" &&
+              !validateInput(text, inputConstraints.integer({ min: 1, max: 2147483647 })).success;
             setSource(text);
             setInvalid(bad);
             onValidityChange(bad);
