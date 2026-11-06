@@ -301,6 +301,7 @@ resource "cloudflare_worker_version" "verifier" {
   main_module         = "worker-verifier.js"
   modules             = [{ name = "worker-verifier.js", content_type = "application/javascript+module", content_base64 = filebase64(local.verifier_module) }]
   bindings = concat(
+    [{ type = "service", name = "VERIFICATION_SOURCE", service = replace(var.worker_name, "-services-", "-"), environment = "production" }],
     [for name in ["VERIFIER_ORIGIN", "QUOREM_VERIFICATION_SOURCE_ORIGIN"] : { type = "plain_text", name = name, text = local.public[name] }],
     [for name in local.verifier_secrets : { type = "secret_text", name = name, text = var.service_secrets[name] }]
   )
