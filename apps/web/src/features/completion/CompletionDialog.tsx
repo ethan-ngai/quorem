@@ -46,7 +46,9 @@ export function CompletionDialog({
         <>
           <CompletionOutcomeIcon
             outcome={outcome}
-            successIcon={competitive ? <Trophy size={20} /> : undefined}
+            successIcon={
+              competitive ? <Trophy size={20} className="completion-trophy" /> : undefined
+            }
           />
           {title}
         </>

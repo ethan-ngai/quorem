@@ -81,7 +81,7 @@ describe("match presentation boundaries", () => {
       },
     };
     expect(outcomeLabel(terminal, "alice")).toBe("Opponent won");
-    expect(outcomeLabel(terminal, "bob")).toBe("You won");
+    expect(outcomeLabel(terminal, "bob")).toBe("Victory");
     expect(
       outcomeLabel({ ...terminal, outcome: { ...terminal.outcome, kind: "draw" } }, "alice"),
     ).toBe("Draw");

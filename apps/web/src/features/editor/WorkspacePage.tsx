@@ -79,7 +79,7 @@ export function WorkspacePage({
   match?: MatchSnapshot;
   matchWorkspaceId?: string;
   identity?: DevelopmentIdentity;
-  matchHeader?: ReactNode;
+  matchHeader?: ReactNode | ((problem: ProblemVersion) => ReactNode);
   review?: boolean;
 }) {
   const [review, setReview] = useState(false);
@@ -613,7 +613,7 @@ export function WorkspacePage({
         header={
           matchHeader || odyssey.data ? (
             <>
-              {matchHeader}
+              {typeof matchHeader === "function" ? matchHeader(problem) : matchHeader}
               {(!matchHeader || review) && odyssey.data && (
                 <OdysseyStepper
                   progress={odyssey.data}

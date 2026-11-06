@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, requireData } from "../../api/client";
 import { useAccountIdentity, MatchSettings } from "./MatchControls";
 import { partyCommand, useParty, type PartySettings } from "./party";
-import { PartyReadyStatus } from "./PartyReadyStatus";
+import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
@@ -143,21 +143,9 @@ export function PartyPage() {
             Copy invitation
           </button>
         )}
-        <ul>
-          {party.members.map((member) => (
-            <li key={member.userId}>
-              {member.displayName}
-              {member.userId === party.hostUserId ? " · Host" : ""} ·{" "}
-              {member.online ? (member.ready ? "Ready" : "Not ready") : "Offline"}
-            </li>
-          ))}
-        </ul>
+        <PartyMemberReadiness members={party.members} hostUserId={party.hostUserId} />
         {!party.currentMatchId && (
-          <PartyReadyStatus
-            members={party.members}
-            countdownEndsAt={party.countdownEndsAt}
-            queueError={party.queueError}
-          />
+          <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
         )}
         {party.currentMatchId && (
           <p>

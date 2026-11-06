@@ -7,7 +7,11 @@ import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
-import { PartyReadyStatus } from "./PartyReadyStatus";
+import {
+  PartyReadyStatus,
+  PartyMemberReadiness,
+  PartyReadinessIndicator,
+} from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { partyCommand, useParty } from "./party";
 import { useEffect, useState } from "react";
@@ -55,12 +59,14 @@ export function MatchEndView({
   open,
   onOpenChange,
   onReview,
+  problemTitle,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onReview: () => void;
+  problemTitle?: string;
 }) {
   const [celebrate, setCelebrate] = useState(open);
   const [pending, setPending] = useState(false);
@@ -176,6 +182,10 @@ export function MatchEndView({
       />
     </div>
   );
+  const joinedMembers =
+    party?.members.filter(
+      (member) => !snapshot.participants.some((player) => player.userId === member.userId),
+    ) ?? [];
   const standings = (
     <ol className="match-result-players" aria-label="Match results">
       {players.map((player) => (
@@ -189,17 +199,24 @@ export function MatchEndView({
               />
             )}
           </span>
-          <span>
-            {player.forfeited ? (
-              "Forfeited"
-            ) : player.bestScore ? (
-              <>
-                <strong>{player.bestScore.passed}</strong>
-                <span className="result-score-total"> / {player.bestScore.total}</span>
-              </>
-            ) : (
-              "—"
+          <span className="match-result-score">
+            {party && (
+              <PartyReadinessIndicator
+                member={party.members.find((member) => member.userId === player.userId)}
+              />
             )}
+            <span className="match-result-score-value">
+              {player.forfeited ? (
+                "Forfeited"
+              ) : player.bestScore ? (
+                <>
+                  <strong>{player.bestScore.passed}</strong>
+                  <span className="result-score-total"> / {player.bestScore.total}</span>
+                </>
+              ) : (
+                "—"
+              )}
+            </span>
           </span>
         </li>
       ))}
@@ -208,11 +225,7 @@ export function MatchEndView({
   return (
     <>
       {party && !partyQuery.isError && (
-        <PartyReadyStatus
-          members={party.members}
-          countdownEndsAt={party.countdownEndsAt}
-          queueError={party.queueError}
-        />
+        <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
       )}
       <CompletionDialog
         open={open}
@@ -222,7 +235,7 @@ export function MatchEndView({
         }}
         celebrate={celebrate}
         title={title}
-        description={description}
+        description={problemTitle ?? description}
         context={
           <MatchSummaryMetadata
             mode={snapshot.mode}
@@ -245,11 +258,13 @@ export function MatchEndView({
           <p role="status">Code review will be available when the round and judging finish.</p>
         )}
         {party && !partyQuery.isError && (
-          <PartyReadyStatus
-            members={party.members}
-            countdownEndsAt={party.countdownEndsAt}
-            queueError={party.queueError}
-          />
+          <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
+        )}
+        {joinedMembers.length > 0 && (
+          <section className="match-lobby-joined" aria-label="Joined lobby">
+            <h3>Joined lobby</h3>
+            <PartyMemberReadiness members={joinedMembers} hostUserId={party?.hostUserId} />
+          </section>
         )}
         {partyStatus}
         {error && <p role="alert">{error}</p>}

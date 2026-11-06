@@ -912,16 +912,3 @@
     animation: none;
   }
 }
-
-.party-ready-status {
-  min-height: 1.5em;
-  margin: 8px 0;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-
-.party-ready-feedback {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}

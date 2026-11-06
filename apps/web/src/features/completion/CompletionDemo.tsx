@@ -14,7 +14,7 @@ import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
 import { MatchCompletionActions } from "../matches/MatchCompletionActions";
 import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
 import { LeaveLobbyButton } from "../matches/LeaveLobbyButton";
-import { PartyReadyStatus } from "../matches/PartyReadyStatus";
+import { PartyReadinessIndicator, PartyMemberReadiness } from "../matches/PartyReadyStatus";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { PythonEditor } from "../editor/PythonEditor";
 import { useTheme } from "../editor/useTheme";
@@ -259,16 +259,12 @@ export function CompletionDemo() {
             competitive
               ? lost
                 ? "Opponent won"
-                : "You won"
+                : "Victory"
               : mode === "Odyssey finale"
                 ? "Odyssey complete"
                 : "Problem solved"
           }
-          description={
-            competitive
-              ? "The first correct submission decided this match."
-              : "Your solution passed every test case."
-          }
+          description={competitive ? "Two Sum" : "Your solution passed every test case."}
           context={
             competitive ? (
               <MatchSummaryMetadata mode="showdown" durationMinutes={30} difficulty="easy" />
@@ -313,23 +309,40 @@ export function CompletionDemo() {
                     <strong>{lost ? "Alex" : "You"}</strong>
                     <MatchWinnerMetadata elapsed="8:42" />
                   </span>
-                  <span>24 / 24</span>
+                  <span className="match-result-score">
+                    {inLobby && (
+                      <PartyReadinessIndicator
+                        member={{ ready: lost ? true : ready, online: true }}
+                      />
+                    )}
+                    <span className="match-result-score-value">24 / 24</span>
+                  </span>
                 </li>
                 <li>
                   <span>
                     <strong>{lost ? "You" : "Alex"}</strong>
                   </span>
-                  <span>18 / 24</span>
+                  <span className="match-result-score">
+                    {inLobby && (
+                      <PartyReadinessIndicator
+                        member={{ ready: lost ? ready : true, online: true }}
+                      />
+                    )}
+                    <span className="match-result-score-value">18 / 24</span>
+                  </span>
                 </li>
               </ol>
               {inLobby && (
-                <PartyReadyStatus
-                  countdownEndsAt={null}
-                  members={[
-                    { displayName: "You", ready, online: true },
-                    { displayName: "Alex", ready: true, online: true },
-                  ]}
-                />
+                <section className="match-lobby-joined" aria-label="Joined lobby">
+                  <h3>Joined lobby</h3>
+                  <PartyMemberReadiness
+                    members={[
+                      { displayName: "Sam", ready: false, online: true },
+                      { displayName: "Jordan", ready: true, online: true },
+                      { displayName: "Casey", ready: false, online: true },
+                    ]}
+                  />
+                </section>
               )}
             </>
           )}

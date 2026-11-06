@@ -39,7 +39,7 @@ export function outcomeLabel(snapshot: MatchSnapshot, identity: DevelopmentIdent
   if (outcome.kind === "cancelled") return "Match cancelled";
   const winner = snapshot.participants.find((player) => player.userId === outcome.winnerUserId);
   return outcome.winnerUserId === participantUserId(identity)
-    ? "You won"
+    ? "Victory"
     : snapshot.mode === "free-for-all"
       ? `${winner?.displayName ?? "Another player"} won`
       : "Opponent won";

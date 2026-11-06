@@ -5,7 +5,12 @@ import { MatchRecovery } from "./MatchRecovery";
 import { MatchEndView } from "./MatchEndView";
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
-import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
+import {
+  participantUserId,
+  type DevelopmentIdentity,
+  type MatchSnapshot,
+  type ProblemVersion,
+} from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
@@ -231,7 +236,7 @@ export function MatchPage({
       }
     />
   );
-  const ledger = (
+  const ledger = (problem?: ProblemVersion) => (
     <>
       <MatchLedger
         snapshot={snapshot}
@@ -259,6 +264,7 @@ export function MatchPage({
       {finished && (
         <MatchEndView
           snapshot={finished.snapshot}
+          problemTitle={problem?.title}
           identity={finished.identity}
           open={resultsOpen}
           onOpenChange={setResultsOpen}
@@ -301,7 +307,7 @@ export function MatchPage({
             <button className="button button-secondary" onClick={() => void refetch()}>
               Try again
             </button>
-            {ledger}
+            {ledger()}
           </>
         )}
       </section>
