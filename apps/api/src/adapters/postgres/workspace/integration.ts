@@ -131,8 +131,11 @@ void test("workspace identity is owner and language scoped under concurrent crea
     repo.read(bob, workspaceId),
     (e: unknown) => e instanceof Error && "code" in e && e.code === "not_found",
   );
+  const java = await repo.create(alice, version, "java");
+  assert.notEqual(java.id, workspaceId);
+  assert.equal(java.language, "java");
   await assert.rejects(
-    repo.create(alice, version, "java"),
+    repo.create(alice, version, "postgresql"),
     (e: unknown) => e instanceof Error && "code" in e && e.code === "invalid_input",
   );
   await assert.rejects(
