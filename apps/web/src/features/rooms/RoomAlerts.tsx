@@ -1,6 +1,6 @@
 /** @file RoomAlerts.tsx @description Shared monitoring toast and persistent alert history. @module rooms */
 import { useEffect, useMemo } from "react";
-import { Bell, ClipboardPaste, Focus } from "lucide-react";
+import { Bell, ClipboardPaste, Copy, EyeOff, Focus, Send, Tags, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { useChangeMotion } from "../../ui/useChangeMotion";
@@ -9,16 +9,26 @@ import { Tooltip } from "../../ui/Tooltip";
 import { createAlertTracker } from "./alertTracker";
 import "./room-alerts.css";
 
+const alertIcons = {
+  paste: ClipboardPaste,
+  copy: Copy,
+  focus: Focus,
+  topics: Tags,
+  complexity: Timer,
+  hiddenCase: EyeOff,
+  submission: Send,
+};
+
 export type RoomAlert = {
   id: string;
   name: string;
-  kind: "paste" | "focus";
+  kind: keyof typeof alertIcons;
   description: string;
   occurredAt: string;
 };
 
 function EventIcon({ kind }: { kind: RoomAlert["kind"] }) {
-  const Icon = kind === "paste" ? ClipboardPaste : Focus;
+  const Icon = alertIcons[kind];
   return <Icon className="room-event-icon" size={16} aria-hidden="true" />;
 }
 

@@ -600,6 +600,9 @@
         },
         "level": {
           "type": "integer"
+        },
+        "matchApproval": {
+          "$ref": "#/$defs/RuleApproval"
         }
       },
       "required": ["workspaceId", "kind", "source"],
@@ -826,6 +829,11 @@
         "completedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "winnerTeam": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
         }
       },
       "required": ["kind", "reason", "completedAt"],
@@ -871,6 +879,38 @@
         },
         "guest": {
           "type": "boolean"
+        },
+        "competitorId": {
+          "type": "string"
+        },
+        "penaltySeconds": {
+          "type": "integer"
+        },
+        "penaltyPoints": {
+          "type": "integer"
+        },
+        "adjustedScore": {
+          "type": "number"
+        },
+        "cooldownUntil": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "eligibleFinishAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "revealedAssistance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["topics", "complexity"]
+          }
+        },
+        "team": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4
         }
       },
       "required": ["userId", "displayName", "ready", "presence"],
@@ -963,7 +1003,7 @@
           "items": {
             "$ref": "#/$defs/MatchRuleEvent"
           },
-          "maxItems": 20
+          "maxItems": 100
         },
         "accessMode": {
           "type": "string",
@@ -978,6 +1018,12 @@
         },
         "reviewPending": {
           "type": "boolean"
+        },
+        "factionNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -1316,30 +1362,177 @@
     },
     "MatchMode": {
       "type": "string",
-      "enum": ["showdown", "free-for-all"]
+      "enum": ["showdown", "free-for-all", "factions"]
     },
     "MatchRuleAction": {
       "type": "string",
-      "enum": ["off", "warning", "announce"]
+      "enum": ["off", "warning", "announce", "penalty"]
     },
     "MatchRuleKind": {
       "type": "string",
-      "enum": ["clipboard", "focus"]
+      "enum": ["clipboard", "copy", "focus"]
     },
     "MatchRules": {
       "type": "object",
       "properties": {
+        "victory": {
+          "type": "string",
+          "enum": ["race", "high_score"]
+        },
+        "settingsEditors": {
+          "type": "string",
+          "enum": ["host", "everyone"]
+        },
         "clipboard": {
-          "$ref": "#/$defs/MatchRuleAction"
+          "type": "string",
+          "enum": ["off", "warning", "announce", "penalty"]
+        },
+        "copy": {
+          "type": "string",
+          "enum": ["off", "warning", "announce", "penalty"]
         },
         "focus": {
-          "$ref": "#/$defs/MatchRuleAction"
+          "type": "string",
+          "enum": ["off", "warning", "announce", "penalty"]
         },
-        "hints": {
-          "$ref": "#/$defs/QuestionHints"
+        "behavioralSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "behavioralPoints": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "focusGraceSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "focusFreeWarnings": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "assistance": {
+          "type": "object",
+          "properties": {
+            "topics": {
+              "type": "object",
+              "properties": {
+                "access": {
+                  "type": "string",
+                  "enum": ["blocked", "free", "announce", "penalty"]
+                },
+                "seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3600
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": ["access", "seconds", "points"],
+              "additionalProperties": false
+            },
+            "complexity": {
+              "type": "object",
+              "properties": {
+                "access": {
+                  "type": "string",
+                  "enum": ["blocked", "free", "announce", "penalty"]
+                },
+                "seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3600
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": ["access", "seconds", "points"],
+              "additionalProperties": false
+            },
+            "hiddenCase": {
+              "type": "object",
+              "properties": {
+                "access": {
+                  "type": "string",
+                  "enum": ["blocked", "free", "announce", "penalty"]
+                },
+                "seconds": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 3600
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                }
+              },
+              "required": ["access", "seconds", "points"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["topics", "complexity", "hiddenCase"],
+          "additionalProperties": false
+        },
+        "submissions": {
+          "type": "object",
+          "properties": {
+            "cooldownSeconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 300
+            },
+            "freeSubmissions": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600
+            },
+            "points": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "required": ["cooldownSeconds", "freeSubmissions", "seconds", "points"],
+          "additionalProperties": false
         }
       },
-      "required": ["clipboard", "focus"],
+      "required": [
+        "victory",
+        "settingsEditors",
+        "clipboard",
+        "copy",
+        "focus",
+        "behavioralSeconds",
+        "behavioralPoints",
+        "focusGraceSeconds",
+        "focusFreeWarnings",
+        "assistance",
+        "submissions"
+      ],
       "additionalProperties": false
     },
     "MatchRuleEvent": {
@@ -1354,15 +1547,25 @@
           "format": "uuid"
         },
         "kind": {
-          "$ref": "#/$defs/MatchRuleKind"
+          "type": "string",
+          "enum": ["clipboard", "copy", "focus", "topics", "complexity", "hiddenCase", "submission"]
         },
         "action": {
           "type": "string",
-          "const": "announce"
+          "enum": ["announce", "penalty"]
         },
         "occurredAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "competitorId": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "integer"
+        },
+        "points": {
+          "type": "integer"
         }
       },
       "required": ["id", "userId", "kind", "action", "occurredAt"],
@@ -2762,19 +2965,7 @@
           "format": "uuid"
         },
         "rules": {
-          "type": "object",
-          "properties": {
-            "clipboard": {
-              "$ref": "#/$defs/MatchRuleAction"
-            },
-            "focus": {
-              "$ref": "#/$defs/MatchRuleAction"
-            },
-            "hints": {
-              "$ref": "#/$defs/QuestionHints"
-            }
-          },
-          "additionalProperties": false
+          "$ref": "#/$defs/MatchRules"
         },
         "accessMode": {
           "type": "string",
@@ -2786,6 +2977,9 @@
         "shareCodeAfterMatch": {
           "type": "boolean",
           "default": true
+        },
+        "factionChangesLocked": {
+          "type": "boolean"
         }
       },
       "required": ["durationMinutes"],
@@ -2834,6 +3028,9 @@
     "PartyMember": {
       "type": "object",
       "properties": {
+        "previousWinner": {
+          "type": "boolean"
+        },
         "userId": {
           "type": "string",
           "format": "uuid"
@@ -3136,6 +3333,119 @@
       },
       "required": ["name"],
       "additionalProperties": false
+    },
+    "RuleApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ruleVersion", "seconds", "points"],
+      "properties": {
+        "ruleVersion": {
+          "type": "string"
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600
+        },
+        "points": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "RuleActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["topics", "complexity", "hiddenCase", "submission"]
+        },
+        "submissionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "caseIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483646
+        },
+        "approval": {
+          "$ref": "#/$defs/RuleApproval"
+        }
+      }
+    },
+    "RuleActionResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quote"],
+      "properties": {
+        "quote": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "ruleVersion",
+            "seconds",
+            "points",
+            "cooldownSeconds",
+            "alreadyRevealed"
+          ],
+          "properties": {
+            "ruleVersion": {
+              "type": "string"
+            },
+            "seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600
+            },
+            "points": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "kind": {
+              "type": "string",
+              "enum": ["topics", "complexity", "hiddenCase", "submission"]
+            },
+            "cooldownSeconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "alreadyRevealed": {
+              "type": "boolean"
+            },
+            "caseIndex": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "revealed": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "topics": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "complexity": {
+              "type": "string"
+            },
+            "input": {
+              "type": "string"
+            },
+            "result": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   },
   "$ref": "#/$defs/EventEnvelope"

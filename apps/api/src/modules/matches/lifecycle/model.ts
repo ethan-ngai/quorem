@@ -1,4 +1,11 @@
 /** @file model.ts @description Match lifecycle inputs and ports. @module matches */
+import {
+  matchPreset,
+  matchRulesSchema,
+  type MatchRuleSettings,
+  type RuleActionRequest,
+  type RuleActionResult,
+} from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
@@ -8,7 +15,7 @@ export interface Settings {
   mode: string;
   difficulties: string[];
   selectedProblemVersionId?: string;
-  rules: { hints?: unknown; clipboard: string; focus: string };
+  rules: MatchRuleSettings;
   difficulty: string;
   durationMinutes: number;
 }
@@ -42,24 +49,13 @@ export function normalizeSettings(value: unknown): Settings {
         ].includes(k),
     ) ||
     Object.keys(filters).some((k) => !["type", "sql", "topic", "company"].includes(k)) ||
-    Object.keys(rules).some((k) => !["hints", "clipboard", "focus"].includes(k)) ||
     (v.difficulties !== undefined && v.difficulties !== null && !Array.isArray(v.difficulties))
   )
     throw invalid();
-  if (rules.hints !== undefined && rules.hints !== null) {
-    if (typeof rules.hints !== "object" || Array.isArray(rules.hints)) throw invalid();
-    const h = rules.hints as Record<string, unknown>;
-    if (
-      Object.keys(h).some((k) => !["topics", "complexity"].includes(k)) ||
-      Object.values(h).some((x) => x !== null && typeof x !== "boolean")
-    )
-      throw invalid();
-  }
+  const parsedRules = matchRulesSchema.safeParse(v.rules ?? matchPreset());
+  if (!parsedRules.success) throw invalid();
   for (const k of ["accessMode", "mode", "difficulty", "selectedProblemVersionId"] as const)
     if (v[k] !== undefined && v[k] !== null && typeof v[k] !== "string") throw invalid();
-  for (const k of ["clipboard", "focus"] as const)
-    if (rules[k] !== undefined && rules[k] !== null && typeof rules[k] !== "string")
-      throw invalid();
   if (v.durationMinutes != null && typeof v.durationMinutes !== "number") throw invalid();
   const selected = typeof v.selectedProblemVersionId === "string" ? v.selectedProblemVersionId : "";
   const access = typeof v.accessMode === "string" && v.accessMode ? v.accessMode : "accounts_only";
@@ -70,19 +66,14 @@ export function normalizeSettings(value: unknown): Settings {
     Array.isArray(v.difficulties) && v.difficulties.length
       ? v.difficulties
       : [v.difficulty || (selected ? "easy" : "")];
-  const clipboard =
-    typeof rules.clipboard === "string" && rules.clipboard ? rules.clipboard : "off";
-  const focus = typeof rules.focus === "string" && rules.focus ? rules.focus : "off";
   if (
     !["accounts_only", "guests_allowed"].includes(access) ||
-    !["showdown", "free-for-all"].includes(mode) ||
+    !["showdown", "free-for-all", "factions"].includes(mode) ||
     ![15, 30, 45, 60].includes(duration) ||
     ds.length < 1 ||
     ds.length > 3 ||
     new Set(ds).size !== ds.length ||
     ds.some((x) => typeof x !== "string" || !["easy", "medium", "hard"].includes(x)) ||
-    !["off", "warning", "announce"].includes(clipboard) ||
-    !["off", "warning", "announce"].includes(focus) ||
     (v.admissionLocked != null && typeof v.admissionLocked !== "boolean")
   )
     throw invalid();
@@ -92,7 +83,7 @@ export function normalizeSettings(value: unknown): Settings {
     accessMode: access,
     mode,
     difficulties: ds as string[],
-    rules: { clipboard, focus },
+    rules: parsedRules.data,
     difficulty: ds[0] as string,
     durationMinutes: duration,
   };
@@ -112,17 +103,16 @@ export function normalizeSettings(value: unknown): Settings {
       throw invalid();
     out.questionFilters[k] = x;
   }
-  if (rules.hints !== undefined && rules.hints !== null) {
-    const h = rules.hints as Record<string, unknown>;
-    out.rules.hints = {
-      ...(h.topics == null ? {} : { topics: h.topics }),
-      ...(h.complexity == null ? {} : { complexity: h.complexity }),
-    };
-  }
   return out;
 }
 const invalid = () => new ApplicationError("invalid_input", "Invalid match settings", 400);
 export interface Lifecycle {
+  ruleAction(
+    who: Principal,
+    id: string,
+    key: string,
+    input: RuleActionRequest,
+  ): Promise<RuleActionResult>;
   create(who: Principal, key: string, settings: Settings): Promise<unknown>;
   read(who: Principal, id: string): Promise<unknown>;
   current(who: Principal): Promise<unknown>;
@@ -131,6 +121,6 @@ export interface Lifecycle {
     id: string,
     key: string,
     action: "settings" | "ready" | "start" | "leave" | "forfeit" | "rule-events",
-    body: Settings | boolean | "clipboard" | "focus" | null,
+    body: Settings | boolean | "clipboard" | "copy" | "focus" | null,
   ): Promise<unknown>;
 }

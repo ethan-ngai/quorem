@@ -160,6 +160,11 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
           SELECT ${job.submissionId}::uuid,${channel},f.ordinal,f.ordinal,
             convert_to(to_json(f.status)::text,'UTF8'),sha256(convert_to(to_json(f.status)::text,'UTF8'))
           FROM public_results JOIN frames f USING (ordinal)`);
+          if (initial.match && state.kind === "submit") {
+            await tx.execute(
+              sql`INSERT INTO match_private_result_cases(submission_id,ordinal,result_data) SELECT ${job.submissionId}::uuid,ordinal,frame_data FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private' ON CONFLICT DO NOTHING`,
+            );
+          }
           if (state.interview && state.kind === "submit") {
             for (let ordinal = 0; ordinal < state.cases; ordinal++)
               await savePrivateResultFrame(

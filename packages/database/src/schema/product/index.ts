@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 /** @file schema/product/index.ts @description PostgreSQL schema and migration ownership. @module database */
 import {
   pgTable,
@@ -9,6 +10,7 @@ import {
   unique,
   uuid,
   integer,
+  smallint,
   boolean,
   check,
   bigserial,
@@ -425,11 +427,23 @@ export const match_rule_events = pgTable(
     match_id: uuid().notNull(),
     owner_id: text().notNull(),
     kind: text().notNull(),
+    competitor_id: text().notNull(),
+    action: text().default("announce").notNull(),
+    seconds: integer().default(0).notNull(),
+    points: integer().default(0).notNull(),
+    resource_key: text(),
+    submission_id: uuid(),
     occurred_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    uniqueIndex("match_rule_reveal_once")
+      .on(table.match_id, table.competitor_id, table.kind, table.resource_key)
+      .where(sql`resource_key IS NOT NULL`),
+    index("match_rule_competitor").on(table.match_id, table.competitor_id, table.occurred_at),
+    check("match_rule_events_seconds_check", sql`seconds>=0`),
+    check("match_rule_events_points_check", sql`points>=0`),
     index("match_rule_events_match").using(
       "btree",
       table.match_id.asc().nullsLast().op("timestamptz_ops"),
@@ -447,7 +461,7 @@ export const match_rule_events = pgTable(
     }),
     check(
       "match_rule_events_kind_check",
-      sql`kind = ANY (ARRAY['clipboard'::text, 'focus'::text])`,
+      sql`kind = ANY (ARRAY['clipboard','copy','focus','topics','complexity','hiddenCase','submission'])`,
     ),
   ],
 );
@@ -566,6 +580,7 @@ export const workspaces = pgTable(
   {
     id: uuid().primaryKey().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     problem_version_id: uuid(),
     language: text().notNull(),
     kind: text().default("solo").notNull(),
@@ -577,6 +592,8 @@ export const workspaces = pgTable(
     review_source_owner_id: text(),
   },
   (table): PgTableExtraConfigValue[] => [
+    check("workspaces_team_check", sql`team BETWEEN 1 AND 4`),
+    check("workspace_team_context", sql`team IS NULL OR (kind='match' AND match_id IS NOT NULL)`),
     uniqueIndex("review_workspace_owner_source_language")
       .on(table.review_match_id, table.owner_id, table.review_source_owner_id, table.language)
       .where(sql`kind = 'review'`),
@@ -709,6 +726,7 @@ export const matches = pgTable(
     problem_version_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
+    rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),
     outcome: jsonb(),
@@ -716,9 +734,10 @@ export const matches = pgTable(
       .default(sql`'-infinity'`)
       .notNull(),
     mode: text().default("showdown").notNull(),
+    faction_names: jsonb().default([]).notNull(),
     difficulties: text().array().notNull(),
     selected_problem_version_id: uuid(),
-    rules: jsonb().default({ focus: "off", clipboard: "off" }).notNull(),
+    rules: jsonb().default(matchPreset()).notNull(),
     access_mode: text().default("accounts_only").notNull(),
     guest_joins: integer().default(0).notNull(),
     admission_locked: boolean().default(false).notNull(),
@@ -775,7 +794,10 @@ export const matches = pgTable(
       sql`(state = ANY (ARRAY['completed'::text, 'cancelled'::text])) = (outcome IS NOT NULL)`,
     ),
     check("matches_duration_minutes_check", sql`duration_minutes = ANY (ARRAY[15, 30, 45, 60])`),
-    check("matches_mode_check", sql`mode = ANY (ARRAY['showdown'::text, 'free-for-all'::text])`),
+    check(
+      "matches_mode_check",
+      sql`mode = ANY (ARRAY['showdown'::text, 'free-for-all'::text, 'factions'::text])`,
+    ),
     check(
       "matches_state_check",
       sql`state = ANY (ARRAY['waiting'::text, 'ready'::text, 'active'::text, 'finalizing'::text, 'completed'::text, 'cancelled'::text])`,
@@ -1178,11 +1200,6 @@ export const submissions = pgTable(
       columns: [table.interview_id],
       foreignColumns: [interviews.id],
       name: "submissions_interview_id_fkey",
-    }),
-    foreignKey({
-      columns: [table.workspace_id, table.owner_id],
-      foreignColumns: [workspaces.id, workspaces.owner_id],
-      name: "submission_workspace_owner_fkey",
     }),
     foreignKey({
       columns: [table.id, table.interview_id],
@@ -1735,7 +1752,11 @@ export const match_participants = pgTable(
   {
     match_id: uuid().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     seat: integer().notNull(),
+    competitor_id: text(),
+    eligible_finish_at: timestamp({ withTimezone: true, mode: "string" }),
+    best_percentage: doublePrecision().default(0).notNull(),
     ready: boolean().default(false).notNull(),
     presence: text().default("offline").notNull(),
     workspace_id: uuid(),
@@ -1745,6 +1766,7 @@ export const match_participants = pgTable(
     last_rule_event_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
+    check("match_participants_team_check", sql`team BETWEEN 1 AND 4`),
     foreignKey({
       columns: [table.match_id],
       foreignColumns: [matches.id],
@@ -1754,11 +1776,6 @@ export const match_participants = pgTable(
       columns: [table.owner_id],
       foreignColumns: [users.id],
       name: "match_participants_owner_id_fkey",
-    }),
-    foreignKey({
-      columns: [table.workspace_id, table.owner_id],
-      foreignColumns: [workspaces.id, workspaces.owner_id],
-      name: "match_participant_workspace_owner_fkey",
     }),
     primaryKey({ columns: [table.match_id, table.owner_id], name: "match_participants_pkey" }),
     unique("match_participants_match_id_seat_key").on(table.match_id, table.seat),
@@ -2265,6 +2282,8 @@ export const parties = pgTable(
     host_owner_id: text().notNull(),
     invite_hash: text().notNull(),
     settings: jsonb().notNull(),
+    team_count: smallint().default(2).notNull(),
+    faction_names: jsonb().default([]).notNull(),
     guest_joins: integer().default(0).notNull(),
     version: bigint({ mode: "bigint" }).default(0n).notNull(),
     current_match_id: uuid(),
@@ -2277,6 +2296,7 @@ export const parties = pgTable(
     disbanded_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (t) => [
+    check("parties_team_count_check", sql`team_count BETWEEN 2 AND 4`),
     foreignKey({
       columns: [t.host_owner_id],
       foreignColumns: [users.id],
@@ -2304,6 +2324,7 @@ export const party_members = pgTable(
   {
     party_id: uuid().notNull(),
     owner_id: text().notNull(),
+    team: smallint(),
     seat: integer().notNull(),
     ready: boolean().default(false).notNull(),
     joined_at: timestamp({ withTimezone: true, mode: "string" })
@@ -2314,6 +2335,7 @@ export const party_members = pgTable(
       .notNull(),
   },
   (t) => [
+    check("party_members_team_check", sql`team BETWEEN 1 AND 4`),
     foreignKey({
       columns: [t.party_id],
       foreignColumns: [parties.id],
@@ -2346,5 +2368,24 @@ export const platform_presence_leases = pgTable(
     }),
     primaryKey({ columns: [t.owner_id, t.window_id] }),
     index("platform_presence_expiry").on(t.expires_at),
+  ],
+);
+
+export * from "./factions.ts";
+export const match_private_result_cases = pgTable(
+  "match_private_result_cases",
+  {
+    submission_id: uuid().notNull(),
+    ordinal: integer().notNull(),
+    result_data: bytea().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.submission_id, t.ordinal] }),
+    foreignKey({
+      columns: [t.submission_id],
+      foreignColumns: [submissions.id],
+      name: "match_private_result_cases_submission_id_fkey",
+    }).onDelete("cascade"),
+    check("match_private_result_cases_ordinal_check", sql`ordinal>=0`),
   ],
 );

@@ -1,3 +1,4 @@
+import { isMatchWinner } from "./competitors";
 /** @file matchState.ts @description Participant selection and authoritative match display rules. @module matches */
 import type { CompletionOutcome } from "../../ui/completionOutcome";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
@@ -37,6 +38,10 @@ export function outcomeLabel(snapshot: MatchSnapshot, identity: DevelopmentIdent
   if (outcome.kind === "draw") return "Draw";
   if (outcome.kind === "no_contest") return "No contest";
   if (outcome.kind === "cancelled") return "Match cancelled";
+  if (snapshot.mode === "factions")
+    return isMatchWinner(snapshot, ownParticipant(snapshot, identity))
+      ? "Victory"
+      : `Team ${outcome.winnerTeam ?? "—"} won`;
   const winner = snapshot.participants.find((player) => player.userId === outcome.winnerUserId);
   return outcome.winnerUserId === participantUserId(identity)
     ? "Victory"
@@ -55,5 +60,5 @@ export function matchCompletionOutcome(
   if (snapshot.state !== "completed") return snapshot.state === "cancelled" ? "neutral" : "pending";
   if (snapshot.outcome?.kind !== "win") return "neutral";
   if (!own) return "observer";
-  return snapshot.outcome.winnerUserId === participantUserId(identity) ? "success" : "loss";
+  return isMatchWinner(snapshot, own) ? "success" : "loss";
 }

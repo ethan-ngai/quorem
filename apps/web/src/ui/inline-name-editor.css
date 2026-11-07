@@ -1,0 +1,26 @@
+.inline-name-editor {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-block-size: var(--control-height);
+  min-width: 0;
+}
+.inline-name-editor > .icon-button {
+  block-size: var(--control-height);
+}
+.inline-name-editor > :is(h2, h3, span):first-child {
+  margin: 0;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.inline-name-editor > .inline-name-input {
+  inline-size: 18ch;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.inline-name-error {
+  flex-basis: 100%;
+  color: var(--color-error);
+  font-size: var(--text-label);
+}

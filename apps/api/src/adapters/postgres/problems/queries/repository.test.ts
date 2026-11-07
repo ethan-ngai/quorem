@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { describe, expect, it } from "vitest";
 import {
   createNodePool,
@@ -139,8 +140,8 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [versions[1]],
       );
       await pool.query(
-        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,problem_version_id,started_at,deadline,difficulties,rules) VALUES($1,$2,$3,now()+interval '1 hour',30,'active',$4,now(),now()+interval '30 minutes',ARRAY['easy'], '{\"hints\":{\"complexity\":true}}'::jsonb)",
-        [match, owner, `hash-${uid}`, versions[1]],
+        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,problem_version_id,started_at,deadline,difficulties,rules) VALUES($1,$2,$3,now()+interval '1 hour',30,'active',$4,now(),now()+interval '30 minutes',ARRAY['easy'], $5::jsonb)",
+        [match, owner, `hash-${uid}`, versions[1], JSON.stringify(matchPreset("casual"))],
       );
       await pool.query(
         "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,1),($1,$3,2)",
@@ -166,7 +167,8 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         companies: "id,name",
         problem_companies: "problem_id,company_id",
         matches: "id,problem_version_id,state,rules",
-        match_participants: "match_id,owner_id,forfeited",
+        match_participants: "match_id,owner_id,forfeited,competitor_id",
+        match_rule_events: "match_id,competitor_id,kind,resource_key",
         match_reservations: "match_id,owner_id",
       }))
         await pool.query(`GRANT SELECT(${columns}) ON ${table} TO ${role}`);

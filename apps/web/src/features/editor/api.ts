@@ -1,3 +1,4 @@
+import { ruleApproval } from "@quorem/contracts/match-rules";
 import { api, requireData } from "../../api/client";
 import { UserFacingError } from "../../ui/errors";
 /** @file api.ts @description Typed browser requests for public problems and solo workspaces. @module editor */
@@ -48,11 +49,19 @@ export async function createSubmission(
   customCases?: CustomCase[],
   idempotencyKey: string = randomUUID(),
   level?: number,
+  matchApproval?: import("@quorem/contracts/match-rules").RuleApproval,
 ) {
   if (source.includes("\0")) throw new UserFacingError("Source cannot contain NUL characters.");
   const { data, error } = await api(identity).POST("/v1/submissions", {
     params: { header: { "Idempotency-Key": idempotencyKey } },
-    body: { workspaceId, kind, source, customCases, ...(level !== undefined ? { level } : {}) },
+    body: {
+      workspaceId,
+      kind,
+      source,
+      customCases,
+      ...(matchApproval ? { matchApproval: ruleApproval(matchApproval) } : {}),
+      ...(level !== undefined ? { level } : {}),
+    },
   });
   return requireData(data as SubmissionAdmission | undefined, error);
 }

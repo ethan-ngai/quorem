@@ -1,3 +1,7 @@
+import type { SharedWorkspaceDocument } from "../collaboration/sharedWorkspace";
+import { MatchAssistance, ruleCostLabel } from "../matches/MatchAssistance";
+import { matchRuleAction } from "../matches/api";
+import type { RuleActionQuote } from "@quorem/contracts/match-rules";
 import { matchCompletionOutcome } from "../matches/matchState";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -74,6 +78,7 @@ export function WorkspacePage({
   identity: providedIdentity,
   matchHeader,
   review: reviewRequested = false,
+  sharedDocument,
 }: {
   slug?: string;
   match?: MatchSnapshot;
@@ -81,6 +86,7 @@ export function WorkspacePage({
   identity?: DevelopmentIdentity;
   matchHeader?: ReactNode | ((problem: ProblemVersion) => ReactNode);
   review?: boolean;
+  sharedDocument?: SharedWorkspaceDocument;
 }) {
   const [review, setReview] = useState(false);
   const originalSource = useRef<string | undefined>(undefined);
@@ -110,6 +116,11 @@ export function WorkspacePage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [signInPrompt, setSignInPrompt] = useState(false);
   const signInPromptOrigin = useRef<HTMLElement | null>(null);
+  const [submissionConfirmation, setSubmissionConfirmation] = useState<{
+    quote: RuleActionQuote;
+    source: string;
+  }>();
+  const [quotingSubmission, setQuotingSubmission] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -248,8 +259,10 @@ export function WorkspacePage({
     queriedProblem: problemQuery.data,
     loadedWorkspace,
     editorRef,
+    authoritative: !!sharedDocument,
     initialSource:
-      review && reviewParticipant
+      sharedDocument?.source ??
+      (review && reviewParticipant
         ? ((reviewParticipant.own &&
           reviewParticipant.workspace &&
           reviewParticipant.workspace.language === reviewLanguage
@@ -263,7 +276,7 @@ export function WorkspacePage({
           (reviewParticipant.submission?.language === reviewLanguage
             ? reviewParticipant.submission.source
             : undefined))
-        : undefined,
+        : undefined),
     onError: (error) => setActionError(errorMessage(error)),
   });
 
@@ -306,6 +319,10 @@ export function WorkspacePage({
   const displayedOdyssey = odyssey.data ?? previewOdyssey;
   useEffect(() => {
     if (loading || !displayedOdyssey || frozenMatch) return;
+    if (sharedDocument) {
+      sharedDocument.updateOdyssey(displayedOdyssey, documentLanguage);
+      return;
+    }
     let cancelled = false;
     async function append() {
       for (let attempt = 0; attempt < 3 && !cancelled; attempt++) {
@@ -331,6 +348,8 @@ export function WorkspacePage({
     [odyssey.data],
   );
   const execution = useSubmission({
+    beforeExecution: sharedDocument?.beforeExecution,
+    sharedSubmissionId: sharedDocument?.latestSubmissionId,
     runExamples,
     level: odyssey.data?.level,
     identity,
@@ -394,7 +413,9 @@ export function WorkspacePage({
     setActionError(undefined);
     try {
       await saveBeforeSwitch();
-      if (review) {
+      if (sharedDocument && !review) {
+        await sharedDocument.changeLanguage(language);
+      } else if (review) {
         setSelectedLanguage(language);
       } else if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
@@ -443,12 +464,41 @@ export function WorkspacePage({
       setSignInPrompt(true);
       return;
     }
+    if (quotingSubmission || submissionConfirmation) return;
     setActivePanel("results");
-    if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit, account.data, match]);
+    if (match && !review) {
+      setQuotingSubmission(true);
+      try {
+        if (sharedDocument && !(await sharedDocument.beforeExecution("submit"))) return;
+        const source = editorRef.current?.getSource() ?? sourceRef.current;
+        const { quote } = await matchRuleAction(identity, match.id, { kind: "submission" });
+        if (quote.cooldownSeconds) {
+          setActionError(`Submit available in ${quote.cooldownSeconds}s.`);
+          return;
+        }
+        if ((quote.seconds || quote.points) && sharedDocument)
+          await sharedDocument.requestPaidAction({ kind: "submission" });
+        else if (quote.seconds || quote.points) setSubmissionConfirmation({ quote, source });
+        else if (await execution.submit(quote, source)) setCustomMode(false);
+      } catch (error) {
+        setActionError(errorMessage(error));
+      } finally {
+        setQuotingSubmission(false);
+      }
+    } else if (await execution.submit()) setCustomMode(false);
+  }, [
+    execution.submit,
+    account.data,
+    match,
+    review,
+    identity,
+    quotingSubmission,
+    submissionConfirmation,
+    sharedDocument,
+  ]);
 
   const hotkeyOptions = {
-    enabled: !settingsOpen && !signInPrompt,
+    enabled: !settingsOpen && !signInPrompt && !submissionConfirmation,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -671,10 +721,20 @@ export function WorkspacePage({
         onPanelChange={setActivePanel}
         problem={
           <>
+            {match && !review && (
+              <MatchAssistance
+                key={match.id}
+                match={match}
+                identity={identity}
+                submission={submission}
+                complexityAvailable={problem.hasComplexity ?? false}
+                onPaidAction={sharedDocument?.requestPaidAction}
+              />
+            )}
             {problem.odyssey ? (
               displayedOdyssey ? (
                 <OdysseyPanel
-                  allowTopics={review || match?.rules.hints?.topics !== false}
+                  allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
                   progress={displayedOdyssey}
                   problem={problem}
                   selectedLevel={selectedLevel}
@@ -686,7 +746,9 @@ export function WorkspacePage({
                     identity={identity}
                     versionId={problem.id}
                     language={documentLanguage}
-                    inMatch={!!match && !review && match.rules.hints?.complexity !== true}
+                    inMatch={
+                      !!match && !review && match.rules.assistance.complexity.access !== "free"
+                    }
                   />
                 </OdysseyPanel>
               ) : (
@@ -701,7 +763,7 @@ export function WorkspacePage({
             ) : (
               <ProblemStatement
                 problem={problem}
-                allowTopics={review || match?.rules.hints?.topics !== false}
+                allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
               >
                 <EditorialPanel
                   theme={theme}
@@ -712,7 +774,9 @@ export function WorkspacePage({
                   identity={identity}
                   versionId={problem.id}
                   language={documentLanguage}
-                  inMatch={!!match && !review && match.rules.hints?.complexity !== true}
+                  inMatch={
+                    !!match && !review && match.rules.assistance.complexity.access !== "free"
+                  }
                 />
               </ProblemStatement>
             )}
@@ -802,6 +866,7 @@ export function WorkspacePage({
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
+                  collaborationExtension={sharedDocument?.extension}
                   onSourceChange={updateSource}
                 />
               </div>
@@ -884,6 +949,43 @@ export function WorkspacePage({
             outcome={match ? matchCompletionOutcome(match, identity) : "success"}
           />
         )}
+        <SessionDialog
+          open={!!submissionConfirmation}
+          onOpenChange={(open) => {
+            if (!open) setSubmissionConfirmation(undefined);
+          }}
+          pending={execution.admissionPending}
+          title="Submit with penalty?"
+          description={`Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`}
+        >
+          <div className="competitive-dialog-actions">
+            <button
+              className="button button-secondary"
+              disabled={execution.admissionPending}
+              onClick={() => setSubmissionConfirmation(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-primary"
+              disabled={execution.admissionPending}
+              onClick={async () => {
+                if (!submissionConfirmation) return;
+                if (
+                  await execution.submit(
+                    submissionConfirmation.quote,
+                    submissionConfirmation.source,
+                  )
+                ) {
+                  setCustomMode(false);
+                  setSubmissionConfirmation(undefined);
+                }
+              }}
+            >
+              Submit
+            </button>
+          </div>
+        </SessionDialog>
         <SessionDialog
           open={signInPrompt}
           onOpenChange={setSignInPrompt}

@@ -1,3 +1,4 @@
+import { workspaceAccess } from "./access.ts";
 /** @file repository.ts @description Workspace identity and Odyssey persistence. @module workspace */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
@@ -55,7 +56,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   if (!uuid.test(id)) throw missing();
   const row = (
     await tx.execute<Row>(
-      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND w.owner_id=${principal.userId} FOR SHARE OF w,p,v`,
+      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND ${workspaceAccess(principal.userId)} FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -96,7 +97,7 @@ async function progress(tx: Transaction, owner: string, w: Workspace): Promise<s
     }>(sql`SELECT CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_array_length(v.odyssey->'levels') ELSE NULL END AS total,COALESCE(o.level,1) AS level,COALESCE(o.completed,false) AS completed,
     (SELECT COALESCE(jsonb_agg(jsonb_build_object('title',stage.value->'title','statementMarkdown',stage.value->'statementMarkdown','methods',stage.value->'methods','examples',stage.value->'examples') ORDER BY stage.ordinality),'[]'::jsonb)::text FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN v.odyssey->'levels' ELSE '[]'::jsonb END) WITH ORDINALITY stage(value,ordinality) WHERE stage.ordinality<=COALESCE(o.level,1)) AS levels,
     v.lossless_stages AS lossless
-    FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=${w.id}::uuid AND w.owner_id=${owner}`)
+    FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=${w.id}::uuid AND ${workspaceAccess(owner)}`)
   ).rows[0];
   if (!row) throw missing();
   if (row.total === null || row.level < 1 || row.level > row.total || row.levels === null)
@@ -149,7 +150,9 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const w = await workspace(tx, principal, id);
-          const problem = await projectAuthorizedVersion(tx, w.problemVersionId);
+          const problem = await projectAuthorizedVersion(tx, w.problemVersionId, {
+            userId: principal.userId,
+          });
           if (!problem) throw missing();
           return problem;
         }),

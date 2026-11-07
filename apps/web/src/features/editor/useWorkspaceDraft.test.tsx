@@ -33,14 +33,18 @@ const onError = vi.fn();
 function Subject({
   active = workspace,
   editable = true,
+  authoritative = false,
 }: {
   active?: Workspace;
   editable?: boolean;
+  authoritative?: boolean;
 }) {
   state = useWorkspaceDraft({
     identity: "alice",
     accountPresent: true,
     canEdit: editable,
+    authoritative,
+    initialSource: authoritative ? "team authority" : undefined,
     queriedProblem: problem,
     loadedWorkspace: active,
     editorRef: editor,
@@ -199,4 +203,21 @@ it("freezes draft, history restore and custom case changes", async () => {
     await state.restoreHistory("older code");
   });
   expect(state.sourceRef.current).toBe("finished code");
+});
+
+it("never restores local drafts over a shared authoritative document", async () => {
+  recovery.writeBrowserDraft("alice", "team-workspace", "v1", "obsolete local source");
+  vi.mocked(recovery.readLatestRecovery).mockResolvedValueOnce({
+    source: "obsolete recovery",
+  } as never);
+  await act(async () =>
+    root.render(
+      <Subject
+        key="team"
+        active={{ ...workspace, id: "team-workspace", kind: "match" }}
+        authoritative
+      />,
+    ),
+  );
+  expect(state.sourceRef.current).toBe("team authority");
 });

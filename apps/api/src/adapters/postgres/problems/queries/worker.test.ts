@@ -46,7 +46,8 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           companies: "id,name",
           problem_companies: "problem_id,company_id",
           matches: "id,problem_version_id,state,rules",
-          match_participants: "match_id,owner_id,forfeited",
+          match_participants: "match_id,owner_id,forfeited,competitor_id",
+          match_rule_events: "match_id,competitor_id,kind,resource_key",
           match_reservations: "match_id,owner_id",
         };
         for (const [table, columns] of Object.entries(grants))
@@ -81,7 +82,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Fixture-Identity-First")).toBe("true");
-    expect(response.headers.get("X-Fixture-Queries")).toBe("4");
+    expect(response.headers.get("X-Fixture-Queries")).toBe("5");
     const text = await response.text();
     expect(text).toContain(slug);
     expect(text).toContain("\\u0000");
@@ -103,7 +104,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     expect(active).toBe(0);
     const detail = await SELF.fetch(`http://localhost/v1/problem-versions/${version}`);
     expect(detail.status).toBe(200);
-    expect(detail.headers.get("X-Fixture-Queries")).toBe("1");
+    expect(detail.headers.get("X-Fixture-Queries")).toBe("2");
   });
   it("denies private columns and rejects a revoked live identity before opening the catalog scope", async () => {
     const restricted = new URL(url);

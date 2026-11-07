@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 /** @file matchState.test.ts @description Privacy and outcome display boundaries. @module matches */
 import { describe, expect, it } from "vitest";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
@@ -36,7 +37,7 @@ const snapshot: MatchSnapshot = {
   serverNow: "2026-10-10T12:00:00Z",
   difficulty: "easy",
   difficulties: ["easy"],
-  rules: { clipboard: "off", focus: "off" },
+  rules: { ...matchPreset("casual"), clipboard: "off", focus: "off" },
   ruleEvents: [],
   durationMinutes: 15,
   hostUserId: developmentUserIds.alice,

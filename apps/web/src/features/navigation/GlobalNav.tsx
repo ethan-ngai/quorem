@@ -32,7 +32,7 @@ export function GlobalNav({
 }: {
   identity?: DevelopmentIdentity;
   slug?: string;
-  mode?: "showdown" | "free-for-all";
+  mode?: "showdown" | "free-for-all" | "factions";
   onCreateMatch?: () => void;
   theme?: ThemePreference;
   onThemeChange?: (theme: ThemePreference) => void;

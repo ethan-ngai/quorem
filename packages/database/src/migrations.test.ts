@@ -124,6 +124,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         text: "text",
         uuid: "uuid",
         integer: "int4",
+        smallint: "int2",
         boolean: "bool",
         bigint: "int8",
         bigserial: "int8",
@@ -385,8 +386,9 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         )
       ).rows;
     const upgraded = await snapshot();
+    // A fresh database has no session-local migration helpers from the previous build.
     await pool.query(
-      "DROP SCHEMA quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
+      "DISCARD TEMP; DROP SCHEMA quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
     );
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);
@@ -465,7 +467,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       url!,
     ]);
     await pool.query(
-      "DROP SCHEMA quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
+      "DISCARD TEMP; DROP SCHEMA quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
     );
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);

@@ -12,22 +12,31 @@
   font-size: var(--text-small);
 }
 .party-ready-members {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: var(--space-2) var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: var(--text-small);
 }
-.party-ready-members li {
+.party-ready-members > li {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+  max-width: 100%;
 }
-.party-ready-name {
-  overflow-wrap: anywhere;
+.party-ready-person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+.party-ready-members[data-actions] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 .party-readiness-indicator {
   display: inline-flex;
@@ -36,7 +45,7 @@
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
 }
-.party-readiness-indicator[data-ready="true"] {
+.party-ready-check {
   color: var(--color-success);
 }
 .party-ready-check circle {
@@ -49,9 +58,6 @@
   outline: 2px solid var(--color-primary);
   outline-offset: var(--space-1);
 }
-.party-ready-members .party-readiness-indicator {
-  margin-left: auto;
-}
 
 .match-lobby-joined {
   margin-top: var(--space-4);
@@ -61,16 +67,6 @@
   font-size: var(--text-small);
   font-weight: 500;
   color: var(--color-text-secondary);
-}
-.match-lobby-joined .party-ready-members {
-  display: flex;
-  flex-wrap: wrap;
-}
-.match-lobby-joined .party-ready-members li {
-  gap: var(--space-1);
-}
-.match-lobby-joined .party-readiness-indicator {
-  margin-left: 0;
 }
 .party-ready-heading {
   display: flex;
@@ -85,4 +81,85 @@
   margin-left: auto;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
+}
+
+.lobby-roster {
+  display: flow-root;
+  container: lobby-roster / inline-size;
+}
+.lobby-roster .party-ready-person {
+  min-block-size: var(--icon-button-size);
+}
+.lobby-roster > .party-ready-members {
+  --roster-divider: color-mix(in oklch, var(--color-border) 75%, var(--color-text-secondary));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+.lobby-roster > .party-ready-members > li {
+  position: relative;
+  padding-block: var(--space-2);
+}
+@container lobby-roster (width < calc(22rem + 16px)) {
+  .lobby-roster > .party-ready-members > li {
+    border-block-start: 1px solid transparent;
+  }
+  .lobby-roster > .party-ready-members > li + li {
+    border-block-start-color: var(--roster-divider);
+  }
+}
+
+@container lobby-roster (width >= calc(22rem + 16px)) {
+  .lobby-roster > .party-ready-members {
+    --roster-player: minmax(0, max-content);
+    --roster-gap: minmax(var(--space-4), 1fr);
+    --roster-edge: 0px;
+    grid-template-columns: var(--roster-player) var(--roster-gap) var(--roster-player) var(
+        --roster-edge
+      );
+  }
+  .lobby-roster > .party-ready-members:has(> li > .icon-button) {
+    --roster-edge: calc(var(--icon-button-size) + var(--space-1));
+    /* Keep Remove on the player's side of the centered divider. */
+    --roster-gap: minmax(calc(2 * var(--roster-edge)), 1fr);
+  }
+  .lobby-roster > .party-ready-members:has(> li:only-child) {
+    grid-template-columns: var(--roster-player) 1fr;
+  }
+  .lobby-roster > .party-ready-members > li {
+    display: grid;
+    grid-column: span 2;
+    grid-template-columns: subgrid;
+    column-gap: 0;
+  }
+  .lobby-roster > .party-ready-members .party-ready-person {
+    grid-area: 1 / 1;
+  }
+  .lobby-roster > .party-ready-members > li > .icon-button {
+    grid-area: 1 / 2;
+    justify-self: start;
+    margin-inline-start: var(--space-1);
+  }
+  .lobby-roster > .party-ready-members > li::after {
+    grid-area: 1 / 2;
+    justify-self: center;
+    align-self: stretch;
+    border-inline-start: 1px solid var(--roster-divider);
+    pointer-events: none;
+  }
+}
+@container lobby-roster (width >= calc(22rem + 16px)) and (width < calc(33rem + 32px)) {
+  .lobby-roster > .party-ready-members > li:nth-child(odd):not(:last-child)::after {
+    content: "";
+  }
+}
+@container lobby-roster (width >= calc(33rem + 32px)) {
+  .lobby-roster > .party-ready-members:has(> li:nth-child(3)) {
+    grid-template-columns:
+      repeat(2, var(--roster-player) var(--roster-gap))
+      var(--roster-player) var(--roster-edge);
+  }
+  .lobby-roster > .party-ready-members > li:not(:nth-child(3n)):not(:last-child)::after {
+    content: "";
+  }
 }

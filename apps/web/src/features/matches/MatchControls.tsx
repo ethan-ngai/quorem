@@ -1,16 +1,18 @@
-import { NoticeRegion } from "../../ui/PersistentNotice";
+import { Disclosure } from "../../ui/Disclosure";
+import { ToggleSwitch } from "../../ui/ToggleSwitch";
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { DifficultySegments } from "../../ui/DifficultySegments";
-import { QuestionHintsControls } from "../../ui/QuestionHintsControls";
+import { matchPreset } from "@quorem/contracts/match-rules";
+import { MatchRuleSettingsControls } from "./MatchRuleSettings";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState } from "react";
-import { Clipboard, Focus, Gauge, Swords, BookOpen, Shield, Info } from "lucide-react";
 import { api, requireData } from "../../api/client";
-import { Tooltip } from "../../ui/Tooltip";
-import { ModeIcon } from "./ModeIcon";
-import { Icon } from "../../ui/Icon";
+import { Swords, Gauge, BookOpen, Clock, Users, Code2 } from "lucide-react";
+import { matchModeLabels, ModeIcon } from "./ModeIcon";
 
 export function useAccountIdentity() {
   const account = useSession();
@@ -23,7 +25,7 @@ export const defaultMatchSettings: PartySettings = {
   difficulties: ["easy"],
   durationMinutes: 30,
   shareCodeAfterMatch: true,
-  rules: { clipboard: "off", focus: "off" },
+  rules: matchPreset(),
 };
 
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
@@ -33,7 +35,7 @@ export function MatchSettings({
   disabled = false,
   identity,
   participantCount = 0,
-  showHostRules = false,
+  canEditPermissions = true,
   catalog,
 }: {
   value: PartySettings;
@@ -41,7 +43,7 @@ export function MatchSettings({
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
-  showHostRules?: boolean;
+  canEditPermissions?: boolean;
   catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
 }) {
   const [problems, setProblems] = useState<
@@ -87,42 +89,32 @@ export function MatchSettings({
           : value.selectedProblemVersionId,
     });
   };
-  const rules = value.rules ?? { clipboard: "off", focus: "off" };
+  const rules = value.rules ?? matchPreset();
   return (
-    <div className="match-options">
+    <div className="match-options lobby-settings">
       <div className="match-option">
         <span>
-          <Swords />
+          <Swords size={16} aria-hidden="true" />
           Game mode
         </span>
-        <div className="match-difficulty match-modes" role="group" aria-label="Game mode">
-          {(["showdown", "free-for-all"] as const).map((mode) => (
-            <Tooltip
-              key={mode}
-              content={
-                mode === "showdown" && participantCount > 2
-                  ? "Showdown needs two players or fewer"
-                  : mode === "showdown"
-                    ? "Two players"
-                    : "Up to eight players"
-              }
-            >
-              <button
-                type="button"
-                disabled={disabled || (mode === "showdown" && participantCount > 2)}
-                aria-pressed={(value.mode ?? "showdown") === mode}
-                onClick={() => onChange({ ...value, mode })}
-              >
-                <ModeIcon mode={mode} />
-                {mode === "showdown" ? "Showdown" : "Free-for-all"}
-              </button>
-            </Tooltip>
-          ))}
-        </div>
+        <SegmentedControl
+          label="Game mode"
+          value={value.mode ?? "showdown"}
+          disabled={disabled}
+          compact
+          options={(["showdown", "free-for-all", "factions"] as const).map((mode) => ({
+            value: mode,
+            label: matchModeLabels[mode],
+            icon: <ModeIcon mode={mode} />,
+            disabled: mode === "showdown" && participantCount > 2,
+            hint: mode === "showdown" ? "Two players or fewer" : "Up to eight players",
+          }))}
+          onChange={(mode) => onChange({ ...value, mode })}
+        />
       </div>
       <div className="match-option difficulty-option">
         <span>
-          <Gauge />
+          <Gauge size={16} aria-hidden="true" />
           Difficulty
         </span>
         <DifficultySegments
@@ -134,35 +126,34 @@ export function MatchSettings({
       </div>
       <div className="match-option">
         <span>
-          <BookOpen />
+          <BookOpen size={16} aria-hidden="true" />
           Problem
+          <PersistentNotice message={catalogError} label="Problem list unavailable" />
         </span>
-        <NoticeRegion message={catalogError} label="Problem list unavailable">
-          <ProblemPicker
-            items={problems.filter((problem) =>
-              pools.includes(problem.difficulty as (typeof pools)[number]),
-            )}
-            identity={identity}
-            difficulties={pools}
-            filters={value.questionFilters}
-            onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
-            value={value.selectedProblemVersionId}
-            disabled={disabled}
-            allowRandom
-            onChange={(selectedProblemVersionId, problem) => {
-              setPickedProblem(problem);
-              onChange({ ...value, difficulties: pools, selectedProblemVersionId });
-            }}
-          />
-        </NoticeRegion>
+        <ProblemPicker
+          items={problems.filter((problem) =>
+            pools.includes(problem.difficulty as (typeof pools)[number]),
+          )}
+          identity={identity}
+          difficulties={pools}
+          filters={value.questionFilters}
+          onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
+          value={value.selectedProblemVersionId}
+          disabled={disabled}
+          allowRandom
+          discloseFilters
+          onChange={(selectedProblemVersionId, problem) => {
+            setPickedProblem(problem);
+            onChange({ ...value, difficulties: pools, selectedProblemVersionId });
+          }}
+        />
       </div>
       <div className="match-option">
         <span>
-          <Icon name="clock" />
+          <Clock size={16} aria-hidden="true" />
           Duration
         </span>
         <SelectField
-          className="match-choice"
           label="Duration"
           value={String(value.durationMinutes)}
           disabled={disabled}
@@ -174,57 +165,46 @@ export function MatchSettings({
           }
           options={[15, 30, 45, 60].map((minutes) => ({
             value: String(minutes),
-            label: `${minutes} minutes`,
+            label: `${minutes} min`,
           }))}
         />
       </div>
-      <QuestionHintsControls
-        complexityAvailable={
-          selectedProblem
-            ? !!selectedProblem.hasComplexity
-            : problems.some(
-                (problem) =>
-                  pools.includes(problem.difficulty as (typeof pools)[number]) &&
-                  !!problem.hasComplexity,
-              )
-        }
-        value={rules.hints ?? {}}
+      <MatchRuleSettingsControls
+        value={rules}
         disabled={disabled}
-        onChange={(hints) => onChange({ ...value, rules: { ...rules, hints } })}
+        onChange={(rules) => onChange({ ...value, rules })}
       />
-      {showHostRules && (
-        <>
-          <div className="match-rules-heading">
-            <Shield size={16} />
-            <span>Host rules</span>
-            <Tooltip content="Browser-observed activity; these rules are not tamper-proof.">
-              <button type="button" className="icon-button" aria-label="About host rules">
-                <Info size={16} />
-              </button>
-            </Tooltip>
-          </div>
-          {(["clipboard", "focus"] as const).map((rule) => (
-            <div className="match-option" key={rule}>
-              <span>
-                {rule === "clipboard" ? <Clipboard /> : <Focus />}
-                {rule === "clipboard" ? "Copy / paste" : "Leaving the window"}
-              </span>
-              <SelectField
-                className="match-choice"
-                label={rule === "clipboard" ? "Copy and paste rule" : "Window focus rule"}
-                value={rules[rule] ?? "off"}
-                disabled={disabled}
-                onChange={(action) => onChange({ ...value, rules: { ...rules, [rule]: action } })}
-                options={[
-                  { value: "off", label: "Allow" },
-                  { value: "warning", label: "Warn" },
-                  { value: "announce", label: "Announce to lobby" },
-                ]}
-              />
-            </div>
-          ))}
-        </>
-      )}
+      <Disclosure title="Lobby options">
+        <div className="match-option">
+          <span>
+            <Users size={16} aria-hidden="true" />
+            Everyone can edit settings
+          </span>
+          <ToggleSwitch
+            label="Everyone can edit lobby settings"
+            checked={rules.settingsEditors === "everyone"}
+            disabled={disabled || !canEditPermissions}
+            onChange={(enabled) =>
+              onChange({
+                ...value,
+                rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
+              })
+            }
+          />
+        </div>
+        <div className="match-option">
+          <span>
+            <Code2 size={16} aria-hidden="true" />
+            Share code after match
+          </span>
+          <ToggleSwitch
+            label="Share code after match"
+            checked={value.shareCodeAfterMatch}
+            disabled={disabled}
+            onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
+          />
+        </div>
+      </Disclosure>
     </div>
   );
 }

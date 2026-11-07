@@ -1,0 +1,100 @@
+[data-sonner-toaster] [data-sonner-toast].persistent-action-toast-shell {
+  padding: var(--space-3);
+  align-items: stretch;
+  gap: 0;
+}
+.persistent-action-toast-shell [data-content] {
+  width: 100%;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.persistent-action-toast-shell [data-description] {
+  width: 100%;
+}
+.persistent-action-toast-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-small);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.persistent-action-toast {
+  display: grid;
+  gap: var(--space-3);
+  color: var(--color-text);
+  font-size: var(--text-small);
+}
+.persistent-action-toast p {
+  margin: 0;
+}
+.persistent-action-toast-context,
+.persistent-action-toast-actions,
+.persistent-action-toast-countdown,
+.persistent-action-toast-ballot,
+.persistent-action-toast-trigger,
+.persistent-action-toast-disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.persistent-action-toast-context {
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.persistent-action-toast-context > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.persistent-action-toast-countdown {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.persistent-action-toast-summary {
+  display: grid;
+  gap: var(--space-1);
+}
+.persistent-action-toast-cost {
+  font-weight: 500;
+}
+.persistent-action-toast-actions {
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.persistent-action-toast-meta,
+.persistent-action-toast-ballot {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.persistent-action-toast-minimize.quiet-button {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-1);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) 0 0;
+}
+.persistent-action-toast-disclosure.quiet-button {
+  justify-self: start;
+  padding: 0;
+  font-size: var(--text-label);
+}
+.persistent-action-toast-disclosure svg {
+  transition: transform var(--motion-fast) var(--motion-easing);
+}
+.persistent-action-toast-disclosure svg[data-expanded="true"] {
+  transform: rotate(180deg);
+}
+.persistent-action-toast-cancel {
+  margin-left: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .persistent-action-toast-disclosure svg {
+    transition: none;
+  }
+}

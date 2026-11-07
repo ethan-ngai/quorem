@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -10,7 +11,6 @@ describe("server-rendered match settings", () => {
         <MatchSettings
           identity="alice"
           disabled
-          showHostRules
           catalog={[{ id: "example", title: "Two Sum", difficulty: "easy" }]}
           value={{
             mode: "free-for-all",
@@ -18,14 +18,19 @@ describe("server-rendered match settings", () => {
             selectedProblemVersionId: "example",
             durationMinutes: 30,
             shareCodeAfterMatch: true,
-            rules: { clipboard: "warning", focus: "announce" },
+            rules: { ...matchPreset("casual"), clipboard: "warning", focus: "announce" },
           }}
           onChange={() => {}}
         />
       </QueryClientProvider>,
     );
-    for (const label of ["Two Sum", "30 minutes", "Warn", "Announce to lobby"])
+    for (const label of ["Two Sum", "30 min", "Paste: Block", "Leave window: Notify"])
       expect(html).toContain(label);
+    expect(html.match(/aria-label="Leave window: [^"]+"/g)).toEqual([
+      'aria-label="Leave window: Allow"',
+      'aria-label="Leave window: Notify"',
+      'aria-label="Leave window: Penalize"',
+    ]);
     expect(html.match(/aria-label="Difficulty filter"/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Question filters"');
     expect(html).toContain('aria-label="SQL questions"');

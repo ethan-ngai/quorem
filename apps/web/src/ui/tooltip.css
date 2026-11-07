@@ -1,4 +1,5 @@
 .workspace-tooltip {
+  pointer-events: none;
   z-index: var(--layer-tooltip, 400);
   max-width: min(280px, var(--radix-tooltip-content-available-width));
   padding: 5px 8px;

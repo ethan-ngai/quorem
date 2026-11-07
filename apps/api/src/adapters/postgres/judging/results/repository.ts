@@ -1,3 +1,4 @@
+import { workspaceAccess } from "../../workspace/access.ts";
 /** @file repository.ts @description Authorized submission reads and atomic cancellation. @module judging */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
@@ -58,10 +59,16 @@ async function identity(tx: Transaction, who: Principal): Promise<void> {
       throw missing();
   }
 }
-async function load(tx: Transaction, id: string, owner?: string, lock = false): Promise<Row> {
+async function load(
+  tx: Transaction,
+  id: string,
+  owner?: string,
+  lock = false,
+  shared = false,
+): Promise<Row> {
   if (!uuid.test(id)) throw missing();
   const result = await tx.execute<Row>(
-    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND s.owner_id=${owner}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
+    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND ${shared ? sql`(s.owner_id=${owner} OR ${workspaceAccess(owner)})` : sql`s.owner_id=${owner}`}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
   );
   const row = result.rows[0];
   if (!row) throw missing();
@@ -165,7 +172,7 @@ async function streamSnapshot(
     scope.transaction(options, async (tx) => {
       await identity(tx, who);
       const access = interviewId ? await interviewAccess(tx, who, interviewId) : undefined;
-      const row = await load(tx, id, interviewId ? undefined : who.userId, true);
+      const row = await load(tx, id, interviewId ? undefined : who.userId, true, true);
       if (interviewId && row.interview !== interviewId) throw missing();
       await assertScope(tx, who, row);
       const header = (
@@ -177,6 +184,8 @@ async function streamSnapshot(
       if (header && !["completed", "failed", "cancelled"].includes(row.state))
         throw new Error("Result is not terminal");
       const value = snapshot({ ...row, result: header?.data ?? null }, !interviewId);
+      const matchSubmission = !!row.match && row.kind === "submit";
+      if (matchSubmission) delete value.hiddenCases;
       const hidden = Array.isArray(value.hiddenCases) ? value.hiddenCases : [];
       let hiddenCount = hidden.length;
       const headerFields: Record<string, string> = {};
@@ -315,6 +324,7 @@ async function streamSnapshot(
       }
       return {
         row,
+        matchSubmission,
         value,
         access,
         count,
@@ -332,7 +342,7 @@ async function streamSnapshot(
   );
   async function authorizePage(tx: Transaction): Promise<void> {
     await identity(tx, who);
-    const current = await load(tx, id, interviewId ? undefined : who.userId);
+    const current = await load(tx, id, interviewId ? undefined : who.userId, false, true);
     await assertScope(tx, who, current);
     if (prepared.headerVersion) {
       const same = await tx.execute(
@@ -398,6 +408,7 @@ async function streamSnapshot(
     for (const field of ["verdict", "infrastructureError", "hiddenCases", "diagnostics"]) {
       if (
         !prepared.headerFields[field] ||
+        (prepared.matchSubmission && field === "hiddenCases") ||
         (prepared.row.interview &&
           (!interviewId || prepared.access?.role !== "interviewer") &&
           prepared.row.kind === "submit" &&

@@ -1,3 +1,4 @@
+import type { RuleApproval } from "@quorem/contracts/match-rules";
 import { sha256 } from "../../sha256";
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -39,6 +40,8 @@ export function useSubmission({
   enabled = true,
   level,
   runExamples,
+  beforeExecution,
+  sharedSubmissionId,
 }: {
   identity: DevelopmentIdentity;
   workspace?: Workspace;
@@ -48,6 +51,8 @@ export function useSubmission({
   drafts: CustomCaseDraft[];
   problem?: ProblemVersion;
   enabled?: boolean;
+  beforeExecution?: (kind: "run" | "submit") => Promise<boolean>;
+  sharedSubmissionId?: string;
   level?: number;
   runExamples?: ProblemVersion["examples"];
 }) {
@@ -64,7 +69,8 @@ export function useSubmission({
   const admissionLock = useRef(false);
   const pendingRequest = useRef<PendingExecution | undefined>(undefined);
   const scope = workspace ? `${identity}:${workspace.id}` : "";
-  const activeSubmissionId = active?.scope === scope ? active.id : undefined;
+  const activeSubmissionId =
+    sharedSubmissionId ?? (active?.scope === scope ? active.id : undefined);
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
 
@@ -204,7 +210,7 @@ export function useSubmission({
       : undefined;
 
   const dispatch = useCallback(
-    async (kind: "run" | "submit") => {
+    async (kind: "run" | "submit", approval?: RuleApproval, frozenSource?: string) => {
       const replacement = kind === "run" ? replaceableRun : undefined;
       if (!enabled || !workspace || !problem || admissionLock.current || (busy && !replacement))
         return false;
@@ -225,11 +231,12 @@ export function useSubmission({
               customMode ? drafts : undefined,
             )
           : undefined;
-      const source = editorRef.current?.getSource() ?? sourceRef.current;
       admissionLock.current = true;
       setAdmissionPending(true);
       setError(undefined);
       try {
+        if (beforeExecution && !(await beforeExecution(kind))) return false;
+        const source = frozenSource ?? editorRef.current?.getSource() ?? sourceRef.current;
         if (replacement) {
           let previous = await cancelSubmission(identity, replacement);
           const deadline = Date.now() + 30_000;
@@ -243,7 +250,7 @@ export function useSubmission({
           if (scopeRef.current !== scope) return false;
         }
         const fingerprint = await sha256(
-          JSON.stringify({ scope, kind, source, customCases, level }),
+          JSON.stringify({ scope, kind, source, customCases, level, approval }),
         );
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
         pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
@@ -255,6 +262,7 @@ export function useSubmission({
           customCases,
           pendingRequest.current.key,
           level,
+          ...(approval ? [approval] : []),
         );
         if (scopeRef.current === scope) {
           setActive({ scope, id: admission.id, level });
@@ -302,6 +310,7 @@ export function useSubmission({
       scope,
       queryClient,
       enabled,
+      beforeExecution,
       level,
     ],
   );
@@ -317,7 +326,10 @@ export function useSubmission({
   }, [identity, submission, busy, workspace]);
 
   const run = useCallback(() => dispatch("run"), [dispatch]);
-  const submit = useCallback(() => dispatch("submit"), [dispatch]);
+  const submit = useCallback(
+    (approval?: RuleApproval, frozenSource?: string) => dispatch("submit", approval, frozenSource),
+    [dispatch],
+  );
 
   return {
     submission,
