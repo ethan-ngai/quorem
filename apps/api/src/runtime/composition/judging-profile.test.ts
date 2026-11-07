@@ -27,6 +27,9 @@ void test("private timing preserves receivers, failures and non-function propert
   assert.equal(value.metrics["fixture.read"].calls, 1);
   assert.equal(value.metrics["fixture.fail"].calls, 1);
   assert.ok(value.elapsedMs >= 0);
+  assert.equal(value.failures[0].operation, "fixture.fail");
+  assert.equal(value.failures[0].databaseKind, "other");
+  assert.match(value.failures[0].fingerprint, /^[0-9a-f]{64}$/);
 });
 
 void test("connection timings retain awaited release and never record operation data", async () => {
@@ -54,4 +57,24 @@ void test("connection timings retain awaited release and never record operation 
   const value = JSON.parse(raw);
   for (const name of ["open", "work", "close"])
     assert.equal(value.metrics[`postgres.${name}`].calls, 1);
+});
+
+void test("correlates a wrapped database failure with its attempt", async () => {
+  const profile = judgingProfile();
+  const attemptId = crypto.randomUUID();
+  const owner = profile.wrap(
+    {
+      async finalize(_job: { attemptId: string }) {
+        throw new Error("private SQL", { cause: { code: "55P03" } });
+      },
+    },
+    "repository",
+  );
+  await assert.rejects(owner.finalize({ attemptId }));
+  const raw = profile.header();
+  assert.equal(raw.includes("private SQL"), false);
+  const [failure] = JSON.parse(raw).failures;
+  assert.equal(failure.operation, "repository.finalize");
+  assert.equal(failure.databaseKind, "lock_timeout");
+  assert.equal(failure.attemptId, attemptId);
 });
