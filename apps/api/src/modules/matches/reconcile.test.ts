@@ -86,6 +86,22 @@ describe("Go match reconciliation vectors", () => {
 
 describe("penalty victory rules", () => {
   const players = ["alice", "bob"];
+  it("closes early while retaining the original eligibility boundary and finish order", () => {
+    const deadline = now + minute;
+    const rules = { victory: "race" as const, penalties: new Map(), submissionDeadline: now };
+    const winner = { ...accepted("bob"), eligibleAt: now + minute / 2n };
+    const later = { ...accepted("alice"), eligibleAt: deadline };
+    expect(reconcile(now - 1n, deadline, null, players, [later, winner], rules).outcome).toBeNull();
+    expect(reconcile(now, deadline, null, players, [later, winner], rules).outcome).toEqual({
+      kind: "win",
+      winnerUserId: "bob",
+      reason: "first_correct",
+    });
+    const pending = entry("alice", "running", { eligibleAt: now + 1n });
+    const unresolved = reconcile(now, deadline, null, players, [pending, winner], rules);
+    expect(unresolved.outcome).toBeNull();
+    expect(unresolved.finalizingAt).toBe(now);
+  });
   it("keeps Race open until the adjusted finish and lets an opponent beat it", () => {
     const delayed = { ...accepted("alice"), eligibleAt: now + minute };
     expect(reconcile(now, now + 5n * minute, null, players, [delayed]).outcome).toBeNull();

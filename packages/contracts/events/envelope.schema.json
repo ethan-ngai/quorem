@@ -957,6 +957,11 @@
           "type": "string",
           "format": "date-time"
         },
+        "submissionDeadline": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Earlier shared cutoff when every remaining competitor has settled time penalties."
+        },
         "finalizingAt": {
           "type": "string",
           "format": "date-time"

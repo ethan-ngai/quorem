@@ -8,7 +8,11 @@ export function reconcile(
   finalizingAt: bigint | null,
   owners: readonly string[],
   submissions: readonly SubmissionProgress[],
-  rules: { victory: "race" | "high_score"; penalties: ReadonlyMap<string, number> } = {
+  rules: {
+    victory: "race" | "high_score";
+    penalties: ReadonlyMap<string, number>;
+    submissionDeadline?: bigint;
+  } = {
     victory: "race",
     penalties: new Map(),
   },
@@ -37,7 +41,10 @@ export function reconcile(
       if (p.eligibleFinishAt === null || time < p.eligibleFinishAt) p.eligibleFinishAt = time;
     }
   }
-  const due = eligible.filter((s) => (s.eligibleAt ?? 0n) <= now);
+  const submissionDeadline = rules.submissionDeadline ?? deadline;
+  const submissionsClosed = now >= submissionDeadline;
+  // Once nobody can submit, adjusted timestamps still order eligible attempts.
+  const due = submissionsClosed ? eligible : eligible.filter((s) => (s.eligibleAt ?? 0n) <= now);
   let candidateTime: bigint | null = null;
   const candidates = new Set<string>();
   for (const s of due) {
@@ -91,7 +98,7 @@ export function reconcile(
       const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
       if (time <= candidateTime && !s.intermediate && !cannotPass && !candidates.has(s.owner))
         blocked = true;
-    } else if (now >= deadline || finalizingAt !== null) {
+    } else if (submissionsClosed || finalizingAt !== null) {
       if (!draw && s.owner === winner) continue;
       const upper =
         rules.victory === "high_score" ? 100 - (rules.penalties.get(s.owner) ?? 0) : s.maxPossible;
@@ -104,7 +111,7 @@ export function reconcile(
       candidates.size === 1
         ? { kind: "win", winnerUserId: [...candidates][0], reason: "first_correct" }
         : { kind: "draw", reason: "first_correct" };
-  } else if (now >= deadline || candidateTime !== null || finalizingAt !== null) {
+  } else if (submissionsClosed || candidateTime !== null || finalizingAt !== null) {
     finalizingAt ??= now >= deadline ? deadline : now;
     if (blocked) {
       if (now >= finalizingAt + 120_000_000n)

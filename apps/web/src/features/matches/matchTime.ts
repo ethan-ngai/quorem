@@ -1,4 +1,12 @@
 /** @file matchTime.ts @description Settled round duration and shared clock formatting. @module matches */
+import type { MatchSnapshot } from "@quorem/contracts";
+
+/** @returns The viewer's submission cutoff before any new per-submit charge. */
+export function personalSubmissionDeadline(match: MatchSnapshot, penaltySeconds = 0) {
+  if (!match.deadline || match.rules.victory !== "race" || !penaltySeconds) return match.deadline;
+  return new Date(Date.parse(match.deadline) - penaltySeconds * 1000).toISOString();
+}
+
 export function elapsedRoundSeconds(startedAt?: string, completedAt?: string) {
   if (!startedAt || !completedAt) return undefined;
   const seconds = Math.floor((Date.parse(completedAt) - Date.parse(startedAt)) / 1000);

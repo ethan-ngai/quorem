@@ -17,6 +17,7 @@ export function postgresExecutionCommands(
   run: Run,
   capabilities: RunnerCapabilities,
   verification: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
+  wakeMatchDeadline?: (match: string) => Promise<void>,
 ): ExecutionRepository & ExecutionQueueControl & ExecutionInputReader {
   if (
     !verification?.verifier ||
@@ -41,8 +42,8 @@ export function postgresExecutionCommands(
       staging.seal(job, channel, ordinal, status),
     sealCompletionDiagnostics: (job) => staging.sealDiagnostics(job),
     finishCompletionStream: (job, proof) => staging.eof(job, proof),
-    promoteCompletion: postgresCompletionPromotion(run),
-    finalizeCompletion: postgresCompletionPromotion(run, true),
+    promoteCompletion: postgresCompletionPromotion(run, false, wakeMatchDeadline),
+    finalizeCompletion: postgresCompletionPromotion(run, true, wakeMatchDeadline),
     async loadCheckpoint(job) {
       resumable();
       return checkpoints.loadCheckpoint(job);

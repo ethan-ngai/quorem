@@ -1426,6 +1426,11 @@ export interface components {
             startedAt?: string;
             /** Format: date-time */
             deadline?: string;
+            /**
+             * Format: date-time
+             * @description Earlier shared cutoff when every remaining competitor has settled time penalties.
+             */
+            submissionDeadline?: string;
             /** Format: date-time */
             finalizingAt?: string;
             /** Format: uuid */

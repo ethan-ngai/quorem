@@ -26,13 +26,21 @@ import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
-import { formatPenaltyDuration } from "./matchTime";
+import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
-function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boolean }) {
+function MatchClock({
+  snapshot,
+  active,
+  penaltySeconds = 0,
+}: {
+  snapshot: MatchSnapshot;
+  active: boolean;
+  penaltySeconds?: number;
+}) {
   const received = useRef({ version: snapshot.serverNow, at: Date.now() });
   const frozen = useRef<string | undefined>(undefined);
   if (active && received.current.version !== snapshot.serverNow)
@@ -40,23 +48,62 @@ function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boo
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, [active]);
+
+  const deadline = snapshot.submissionDeadline ?? snapshot.deadline;
+  const elapsed = Math.max(0, now - received.current.at);
   const remaining = active
-    ? remainingTime(snapshot.deadline, snapshot.serverNow, Math.max(0, now - received.current.at))
+    ? remainingTime(deadline, snapshot.serverNow, elapsed)
     : (frozen.current ??= remainingTime(
-        snapshot.deadline,
+        deadline,
         snapshot.state === "finalizing"
-          ? (snapshot.deadline ?? snapshot.serverNow)
+          ? (deadline ?? snapshot.serverNow)
           : (snapshot.outcome?.completedAt ?? snapshot.serverNow),
-        0,
       ));
-  return (
-    <span className="match-clock">
+  const showPersonal = active && snapshot.rules.victory === "race" && penaltySeconds > 0;
+  const personal = showPersonal
+    ? remainingTime(
+        personalSubmissionDeadline(snapshot, penaltySeconds),
+        snapshot.serverNow,
+        elapsed,
+      )
+    : undefined;
+  const shortenedBy =
+    snapshot.deadline && snapshot.submissionDeadline
+      ? Math.round((Date.parse(snapshot.deadline) - Date.parse(snapshot.submissionDeadline)) / 1000)
+      : 0;
+  const shortened = shortenedBy > 0;
+  const global = (
+    <span className="match-clock" data-shortened={shortened} tabIndex={shortened ? 0 : undefined}>
       <Icon name="clock" />
+      {(showPersonal || shortened) && <span className="match-clock-label">Match</span>}
       {remaining}
+      {shortened && (
+        <span className="match-clock-label">−{formatPenaltyDuration(shortenedBy)}</span>
+      )}
     </span>
+  );
+
+  return (
+    <div className="match-timers">
+      {personal && (
+        <span className="match-clock match-clock-personal">
+          <span className="match-clock-label">Submit</span>
+          {personal === "00:00" ? "Closed" : personal}
+        </span>
+      )}
+      {shortened ? (
+        <Tooltip
+          content={`Match closes ${formatPenaltyDuration(shortenedBy)} early when the last submission window ends.`}
+        >
+          {global}
+        </Tooltip>
+      ) : (
+        global
+      )}
+    </div>
   );
 }
 
@@ -65,7 +112,7 @@ function ScorePenalty({ value, unit }: { value: number; unit: "seconds" | "point
   const time = unit === "seconds";
   const duration = time ? formatPenaltyDuration(value) : "";
   const label = time
-    ? `Submissions must arrive ${duration} before the match ends to count`
+    ? `Submission cutoff is ${duration} before the scheduled end`
     : `${value} ${value === 1 ? "point" : "points"} deducted from score`;
   return (
     <Tooltip content={label}>
@@ -132,6 +179,7 @@ function MatchLedger({
           {snapshot.startedAt && (
             <MatchClock
               snapshot={snapshot}
+              penaltySeconds={own?.penaltySeconds}
               active={snapshot.state === "active" && !own?.forfeited}
             />
           )}
