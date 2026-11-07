@@ -86,7 +86,7 @@ const descriptions = {
   strict:
     "Double assistance penalties. Extra submissions, paste and focus loss also add penalties.",
   tournament: "Assistance and paste disabled. Focus loss adds a penalty.",
-  custom: "Rules have been customized. Expand Customize rules to review them.",
+  custom: "Open the settings icon to review custom rules.",
 };
 function RuleInfo({ label, children }: { label: string; children: string }) {
   return (
@@ -308,37 +308,44 @@ export function MatchRuleSettingsControls({
           onChange={(victory) => onChange({ ...value, victory })}
         />
       </div>
-      <div className="match-option">
-        <span>
-          <SlidersHorizontal size={16} aria-hidden="true" />
-          Rules
-          <RuleInfo label="About this preset">{descriptions[preset]}</RuleInfo>
-        </span>
-        <SelectField
-          label="Rules preset"
-          value={preset}
-          disabled={disabled}
-          options={[
-            ...(preset === "custom"
-              ? [{ value: "custom", label: "Custom", leading: presetIcons.custom }]
-              : []),
-            ...MATCH_PRESETS.map((name) => ({
-              value: name,
-              label: titles[name],
-              leading: presetIcons[name],
-            })),
-          ]}
-          onChange={(name) => {
-            if (name !== "custom")
-              onChange({
-                ...matchPreset(name as (typeof MATCH_PRESETS)[number]),
-                victory: value.victory,
-                settingsEditors: value.settingsEditors,
-              });
-          }}
-        />
-      </div>
-      <Disclosure title={disabled ? "View rule details" : "Customize rules"}>
+      <Disclosure
+        title={disabled ? "View rule details" : "Customize rules"}
+        header={(trigger) => (
+          <div className="match-option">
+            <span>
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              Rules
+              <RuleInfo label="About this preset">{descriptions[preset]}</RuleInfo>
+            </span>
+            <div className="settings-disclosure-controls">
+              <SelectField
+                label="Rules preset"
+                value={preset}
+                disabled={disabled}
+                options={[
+                  ...(preset === "custom"
+                    ? [{ value: "custom", label: "Custom", leading: presetIcons.custom }]
+                    : []),
+                  ...MATCH_PRESETS.map((name) => ({
+                    value: name,
+                    label: titles[name],
+                    leading: presetIcons[name],
+                  })),
+                ]}
+                onChange={(name) => {
+                  if (name !== "custom")
+                    onChange({
+                      ...matchPreset(name as (typeof MATCH_PRESETS)[number]),
+                      victory: value.victory,
+                      settingsEditors: value.settingsEditors,
+                    });
+                }}
+              />
+              {trigger}
+            </div>
+          </div>
+        )}
+      >
         <fieldset className="match-rule-group">
           <legend>
             Assistance{" "}

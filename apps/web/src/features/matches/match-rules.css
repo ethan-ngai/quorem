@@ -112,8 +112,10 @@
   justify-content: flex-start;
   gap: var(--space-2);
   padding-top: var(--space-4);
-  margin-bottom: var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+.lobby-setup-heading > .settings-disclosure-trigger {
+  margin-inline-start: auto;
 }
 .lobby-setup-heading h2 {
   margin: 0;

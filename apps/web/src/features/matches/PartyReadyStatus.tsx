@@ -1,7 +1,7 @@
 /** @file PartyReadyStatus.tsx @description Shared per-member readiness and automatic-start feedback. @module matches */
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
+import { CircleCheck, CircleDashed, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -75,16 +75,8 @@ export function PartyMemberReadiness({
             <ParticipantName
               participant={member}
               self={member.userId === ownUserId}
+              host={member.userId === hostUserId}
               nameSuffix={member.previousWinner && <MatchWinnerMetadata previous />}
-              nameAdornment={
-                hostUserId && member.userId === hostUserId ? (
-                  <Tooltip content="Lobby host">
-                    <span role="img" aria-label="Lobby host" tabIndex={0}>
-                      <Crown size={12} aria-hidden="true" />
-                    </span>
-                  </Tooltip>
-                ) : undefined
-              }
             />
             <PartyReadinessIndicator member={member} />
           </span>

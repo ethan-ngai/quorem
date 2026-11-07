@@ -347,20 +347,6 @@ export function PartyPage() {
           )}
         </fieldset>
         {readinessActions}
-        <div className="lobby-setup-heading">
-          <h2>Match setup</h2>
-          <Tooltip
-            content={
-              host || party.settings.rules?.settingsEditors === "everyone"
-                ? "Changes to the round or enabling code sharing reset readiness."
-                : "Only the host can change settings. Changes to the round or enabling code sharing reset readiness."
-            }
-          >
-            <button type="button" className="icon-button" aria-label="About lobby settings">
-              <Info size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
-        </div>
         <fieldset className="lobby-command-lock" disabled={controlsPending && !pendingSettings}>
           <MatchSettings
             value={displayedSettings}
@@ -373,6 +359,23 @@ export function PartyPage() {
             }
             onChange={(settings) => void run("settings", settings satisfies PartySettings, "PUT")}
             canEditPermissions={host}
+            heading={(options) => (
+              <div className="lobby-setup-heading">
+                <h2>Match setup</h2>
+                <Tooltip
+                  content={
+                    host || party.settings.rules?.settingsEditors === "everyone"
+                      ? "Changes to the round or enabling code sharing reset readiness."
+                      : "Only the host can change settings. Changes to the round or enabling code sharing reset readiness."
+                  }
+                >
+                  <button type="button" className="icon-button" aria-label="About lobby settings">
+                    <Info size={16} aria-hidden="true" />
+                  </button>
+                </Tooltip>
+                {options}
+              </div>
+            )}
           />
         </fieldset>
         {readinessActions}

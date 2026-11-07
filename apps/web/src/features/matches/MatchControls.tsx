@@ -9,7 +9,7 @@ import { ProblemPicker } from "../practice/ProblemPicker";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
 import { Swords, Gauge, BookOpen, Clock, Users, Code2 } from "lucide-react";
 import { matchModeLabels, ModeIcon } from "./ModeIcon";
@@ -37,6 +37,7 @@ export function MatchSettings({
   participantCount = 0,
   canEditPermissions = true,
   catalog,
+  heading,
 }: {
   value: PartySettings;
   onChange: (value: PartySettings) => void;
@@ -44,6 +45,7 @@ export function MatchSettings({
   identity: DevelopmentIdentity;
   participantCount?: number;
   canEditPermissions?: boolean;
+  heading?: (lobbyOptions: ReactNode) => ReactNode;
   catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
 }) {
   const [problems, setProblems] = useState<
@@ -90,8 +92,42 @@ export function MatchSettings({
     });
   };
   const rules = value.rules ?? matchPreset();
+  const lobbyOptions = (
+    <Disclosure title="Lobby options" header={heading}>
+      <div className="match-option">
+        <span>
+          <Users size={16} aria-hidden="true" />
+          Everyone can edit settings
+        </span>
+        <ToggleSwitch
+          label="Everyone can edit lobby settings"
+          checked={rules.settingsEditors === "everyone"}
+          disabled={disabled || !canEditPermissions}
+          onChange={(enabled) =>
+            onChange({
+              ...value,
+              rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
+            })
+          }
+        />
+      </div>
+      <div className="match-option">
+        <span>
+          <Code2 size={16} aria-hidden="true" />
+          Share code after match
+        </span>
+        <ToggleSwitch
+          label="Share code after match"
+          checked={value.shareCodeAfterMatch}
+          disabled={disabled}
+          onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
+        />
+      </div>
+    </Disclosure>
+  );
   return (
     <div className="match-options lobby-settings">
+      {heading && lobbyOptions}
       <div className="match-option">
         <span>
           <Swords size={16} aria-hidden="true" />
@@ -174,37 +210,7 @@ export function MatchSettings({
         disabled={disabled}
         onChange={(rules) => onChange({ ...value, rules })}
       />
-      <Disclosure title="Lobby options">
-        <div className="match-option">
-          <span>
-            <Users size={16} aria-hidden="true" />
-            Everyone can edit settings
-          </span>
-          <ToggleSwitch
-            label="Everyone can edit lobby settings"
-            checked={rules.settingsEditors === "everyone"}
-            disabled={disabled || !canEditPermissions}
-            onChange={(enabled) =>
-              onChange({
-                ...value,
-                rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
-              })
-            }
-          />
-        </div>
-        <div className="match-option">
-          <span>
-            <Code2 size={16} aria-hidden="true" />
-            Share code after match
-          </span>
-          <ToggleSwitch
-            label="Share code after match"
-            checked={value.shareCodeAfterMatch}
-            disabled={disabled}
-            onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
-          />
-        </div>
-      </Disclosure>
+      {!heading && lobbyOptions}
     </div>
   );
 }

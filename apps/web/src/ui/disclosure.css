@@ -1,37 +1,25 @@
 .settings-disclosure {
   min-width: 0;
 }
-.settings-disclosure-trigger {
+.settings-disclosure-controls,
+.settings-disclosure-actions {
   display: flex;
-  width: 100%;
-  padding-inline: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  text-align: start;
   align-items: center;
   gap: var(--space-2);
-  min-height: 36px;
-  padding-block: var(--space-2);
-  cursor: pointer;
-  font-size: var(--text-label);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-sm);
+  min-width: 0;
 }
-.settings-disclosure-trigger:hover {
-  color: var(--color-text);
+.settings-disclosure-controls > :first-child {
+  flex: 1;
+  min-width: 0;
 }
-.settings-disclosure-trigger:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.settings-disclosure-actions {
+  justify-content: flex-end;
 }
-.settings-disclosure-trigger > svg {
-  flex-shrink: 0;
+.settings-disclosure-trigger:is([aria-expanded="true"], [data-highlighted]) {
+  color: var(--color-primary);
 }
-.settings-disclosure-trigger small {
-  margin-left: auto;
-  font: inherit;
-  text-align: right;
+.settings-disclosure-trigger[aria-expanded="true"] {
+  background: var(--color-control-selected);
 }
 .settings-disclosure-content {
   display: grid;
@@ -47,16 +35,16 @@
   overflow: clip;
   opacity: 0;
 }
-.settings-disclosure-trigger[aria-expanded="true"] + .settings-disclosure-panel {
+.settings-disclosure[data-open="true"] > .settings-disclosure-panel {
   grid-template-rows: minmax(0, 1fr);
   overflow: visible;
   opacity: 1;
 }
-.settings-disclosure-trigger[aria-expanded="true"] .disclosure-chevron {
-  rotate: 90deg;
+.settings-disclosure-trigger[aria-expanded="true"] > svg {
+  rotate: 35deg;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .settings-disclosure-trigger .disclosure-chevron {
+  .settings-disclosure-trigger > svg {
     transition: rotate var(--motion-fast) var(--motion-easing);
   }
   .settings-disclosure-panel {
@@ -65,7 +53,7 @@
       grid-template-rows var(--motion-standard) var(--motion-easing),
       overflow 0s allow-discrete;
   }
-  .settings-disclosure-trigger[aria-expanded="true"] + .settings-disclosure-panel {
+  .settings-disclosure[data-open="true"] > .settings-disclosure-panel {
     transition-delay: 0s, 0s, var(--motion-standard);
   }
 }
