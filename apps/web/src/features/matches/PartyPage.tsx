@@ -20,6 +20,8 @@ import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { usePageTitle } from "../navigation/PageMetadata";
+import { matchModeLabels } from "./ModeIcon";
 import { readPendingCommand } from "./commandRecovery";
 import { Trash2, Info, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
@@ -51,8 +53,10 @@ export function PartyPage() {
   const [error, setError] = useState("");
   const [, setRecoveryRevision] = useState(0);
   const party = query.data?.party;
-  const rosterMode = party?.currentMatchId ? undefined : party?.settings.mode;
-  const factions = useFactionLobby(party?.id, party?.settings.mode === "factions");
+  const mode = party?.settings.mode;
+  usePageTitle(mode ? `${matchModeLabels[mode]} Lobby - Quorem` : undefined);
+  const rosterMode = party?.currentMatchId ? undefined : mode;
+  const factions = useFactionLobby(party?.id, mode === "factions");
   const showFactions = rosterMode === "factions" && (!!factions.data || factions.isError);
   const factionsReady =
     party?.settings.mode !== "factions" ||

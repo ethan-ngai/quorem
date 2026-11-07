@@ -79,6 +79,8 @@ function errorMessage(error: unknown) {
 import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
 import { problemQueryOptions } from "../practice/problemQueries";
+import { usePageTitle } from "../navigation/PageMetadata";
+import { matchModeLabels } from "../matches/ModeIcon";
 import { languageFileNames, type EditorLanguage } from "./editorLanguages";
 
 export function WorkspacePage({
@@ -169,6 +171,16 @@ export function WorkspacePage({
         : problemOptions.queryFn,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
   });
+  const question = problemQuery.data;
+  const currentQuestion = match
+    ? account.data && match.startedAt && question?.id === match.problemVersionId
+    : question?.slug === slug;
+  const mode = match ? matchModeLabels[match.mode] : "Practice";
+  usePageTitle(
+    currentQuestion && question?.title
+      ? `${question.title} - ${mode}${reviewRequested || review ? " Review" : ""}`
+      : undefined,
+  );
   const activeLanguage = problemQuery.data?.languages?.some(
     (item) => item.language === selectedLanguage,
   )

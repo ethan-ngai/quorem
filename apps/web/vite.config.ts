@@ -1,11 +1,11 @@
 /** @file vite.config.ts @description Editor development and build configuration. @module web */
-import { seoMarkup } from "../../packages/ui/src/seo.ts";
+import { pageSeo, routeSeoFile, seoMarkup } from "../../packages/ui/src/seo.ts";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite-plus";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { resolve, extname } from "node:path";
+import { resolve } from "node:path";
 import { marketingDevBase, marketingDevHtml } from "../../scripts/marketing-dev.mjs";
 
 /** Serve the assembled production artifact; development proxies live Astro/HMR. */
@@ -13,24 +13,14 @@ function marketingPages(): Plugin {
   const web = resolve(fileURLToPath(new URL("./dist/", import.meta.url)));
   const serve = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const path = new URL(req.url ?? "/", "http://localhost").pathname;
-    const app =
-      /^\/(privacy|terms|practice|match|invite|login|admin|questions|interviews|interview|interview-invite)(\/|$)/.test(
-        path,
-      );
-    if (!app && path !== "/" && !path.startsWith("/_marketing/")) return next();
-    const base = web;
-    const file = resolve(base, app ? "app.html" : path === "/" ? "index.html" : `.${path}`);
-    if (!file.startsWith(`${base}/`) || !existsSync(file)) return next();
-    const types: Record<string, string> = {
-      ".css": "text/css",
-      ".js": "text/javascript",
-      ".woff2": "font/woff2",
-      ".woff": "font/woff",
-      ".png": "image/png",
-      ".svg": "image/svg+xml",
-      ".html": "text/html",
-    };
-    res.setHeader("Content-Type", types[extname(file)] ?? "application/octet-stream");
+    const page = pageSeo(path);
+    if (!page.route) return next();
+    const file = resolve(
+      web,
+      page.route === "/" ? "index.html" : `${routeSeoFile(page.route)}.html`,
+    );
+    if (!existsSync(file)) return next();
+    res.setHeader("Content-Type", "text/html");
     createReadStream(file).pipe(res);
   };
   return {
@@ -41,7 +31,7 @@ function marketingPages(): Plugin {
         seoMarkup(
           context.server
             ? new URL(context.originalUrl ?? context.path, "http://localhost").pathname
-            : "/app",
+            : "/404",
           process.env.QUOREM_SITE_URL,
         ),
       );

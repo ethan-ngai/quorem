@@ -1,5 +1,11 @@
 /** @file prepare-pages.mjs @description Pages routing and cache policy for the combined static frontend. @module deployment */
-import { appPaths, publicPaths, escapeHtml, seoMarkup } from "../packages/ui/src/seo.ts";
+import {
+  appPaths,
+  publicPaths,
+  escapeHtml,
+  routeSeoFile,
+  seoMarkup,
+} from "../packages/ui/src/seo.ts";
 import { readFileSync, writeFileSync } from "node:fs";
 
 const directory = "apps/web/dist";
@@ -8,16 +14,13 @@ const entry = readFileSync(`${directory}/app.html`, "utf8");
 const render = (path) =>
   entry.replace(/<!-- seo:start -->[\s\S]*?<!-- seo:end -->/, seoMarkup(path, origin));
 if (!entry.includes("<!-- seo:start -->")) throw new Error("App entry is missing SEO metadata");
-const routes = appPaths.map((path) => {
-  const name = path.slice(1);
-  writeFileSync(`${directory}/route-${name}.html`, render(path));
-  return `${path} /route-${name} 200`;
-});
-writeFileSync(`${directory}/route-workspace.html`, render("/practice/workspace"));
-for (const path of ["/match", "/invite", "/interview", "/interview-invite", "/admin"]) {
-  routes.push(`${path}/* /route-${path.slice(1)} 200`);
-}
-routes.push("/practice/* /route-workspace 200");
+const routes = [...appPaths]
+  .sort((a, b) => Number(a.includes(":")) - Number(b.includes(":")))
+  .flatMap((path) => {
+    const name = routeSeoFile(path);
+    writeFileSync(`${directory}/${name}.html`, render(path));
+    return [`${path} /${name} 200`, `${path}/ /${name} 200`];
+  });
 writeFileSync(`${directory}/_redirects`, routes.join("\n") + "\n");
 writeFileSync(
   `${directory}/robots.txt`,

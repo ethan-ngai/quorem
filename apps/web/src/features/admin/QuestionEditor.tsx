@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QuestionContent, QuestionDraft } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { usePageTitle } from "../navigation/PageMetadata";
 import { useSession } from "../auth/session";
 import type { EditorTheme } from "../editor/PythonEditor";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
@@ -157,6 +158,12 @@ function AuthoringWorkspace({
     queryFn: ({ signal }) => listPublications(filters, signal),
   });
   const [draft, setDraft] = useState<QuestionDraft | undefined>(initialDraft);
+  const questionTitle = draft?.content.problem.title || "Untitled question";
+  usePageTitle(
+    draft
+      ? `${questionTitle} - Question Editor`
+      : `${section === "drafts" ? "Question Drafts" : "Published Questions"} - Quorem`,
+  );
   const [content, setContent] = useState<QuestionContent | undefined>(initialDraft?.content);
   const [dirty, setDirty] = useState(false);
   const navigationBlocker = useBlocker({
@@ -348,7 +355,7 @@ function AuthoringWorkspace({
         }}
       />
       <header className="admin-heading">
-        <h1>{draft ? draft.content.problem.title || "Untitled question" : "Questions"}</h1>
+        <h1>{draft ? questionTitle : "Questions"}</h1>
         <div className="admin-toolbar">
           {draft ? (
             <button className="button button-secondary" disabled={busy} onClick={closeEditor}>

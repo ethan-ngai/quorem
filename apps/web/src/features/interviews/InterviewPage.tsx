@@ -20,6 +20,7 @@ import { EditorialPanel } from "../editor/components/EditorialPanel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePageTitle } from "../navigation/PageMetadata";
 import type { InterviewSnapshot, InterviewQuestionInput, Submission } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
@@ -91,6 +92,7 @@ function InterviewSession({ id }: { id: string }) {
     },
   });
   const [initial, setInitial] = useState<InterviewSnapshot>();
+  usePageTitle(query.data?.title ? `${query.data.title} - Coding Interview` : undefined);
   useEffect(() => {
     if (query.data && !initial) setInitial(query.data);
   }, [query.data, initial]);
