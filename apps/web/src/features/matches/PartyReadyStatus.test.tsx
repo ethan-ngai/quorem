@@ -40,6 +40,11 @@ it("keeps countdown and failure feedback without idle readiness prose", () => {
     <PartyReadyStatus countdownEndsAt={new Date(Date.now() + 5000).toISOString()} />,
   );
   expect(countdown).toContain("Next match in 5s");
+  const firstMatch = renderToStaticMarkup(
+    <PartyReadyStatus countdownEndsAt={new Date(Date.now() + 5000).toISOString()} firstMatch />,
+  );
+  expect(firstMatch).toContain("Match in 5s");
+  expect(firstMatch).not.toContain("Next match");
 });
 
 it("keeps the count without new members and lists only new arrivals", () => {

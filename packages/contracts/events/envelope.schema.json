@@ -501,6 +501,14 @@
         },
         "hasComplexity": {
           "type": "boolean"
+        },
+        "hiddenCaseCounts": {
+          "description": "Number of hidden cases by stage. Stage 0 is the base suite.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
         }
       },
       "required": [
@@ -956,6 +964,11 @@
         "deadline": {
           "type": "string",
           "format": "date-time"
+        },
+        "submissionDeadline": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Earlier shared cutoff when every remaining competitor has settled time penalties."
         },
         "finalizingAt": {
           "type": "string",

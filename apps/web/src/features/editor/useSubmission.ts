@@ -57,8 +57,14 @@ export function useSubmission({
   runExamples?: ProblemVersion["examples"];
 }) {
   const queryClient = useQueryClient();
-  const [active, setActive] = useState<{ scope: string; id: string; level?: number }>();
-  const [admissionPending, setAdmissionPending] = useState(false);
+  const [active, setActive] = useState<{
+    scope: string;
+    id: string;
+    level?: number;
+    kind?: Submission["kind"];
+  }>();
+  const [admittingKind, setAdmittingKind] = useState<Submission["kind"]>();
+  const admissionPending = admittingKind !== undefined;
   const [error, setError] = useState<string>();
   useErrorNotification(error);
   const [runSnapshot, setRunSnapshot] = useState<{
@@ -142,6 +148,12 @@ export function useSubmission({
       count < 1,
     refetchOnWindowFocus: (query) => query.state.status === "error",
     refetchOnReconnect: (query) => query.state.status === "error",
+    refetchInterval: ({ state }) =>
+      state.data?.kind === "submit" &&
+      state.data.state === "running" &&
+      !(state.error instanceof SubmissionReadError && [401, 403, 404].includes(state.error.status))
+        ? 1000
+        : false,
   });
   const submission = submissionQuery.data;
   const streaming =
@@ -232,7 +244,7 @@ export function useSubmission({
             )
           : undefined;
       admissionLock.current = true;
-      setAdmissionPending(true);
+      setAdmittingKind(kind);
       setError(undefined);
       try {
         if (beforeExecution && !(await beforeExecution(kind))) return false;
@@ -265,7 +277,7 @@ export function useSubmission({
           ...(approval ? [approval] : []),
         );
         if (scopeRef.current === scope) {
-          setActive({ scope, id: admission.id, level });
+          setActive({ scope, id: admission.id, level, kind });
           setRunSnapshot(
             snapshot ? { scope, submissionId: admission.id, value: snapshot } : undefined,
           );
@@ -293,7 +305,7 @@ export function useSubmission({
         return false;
       } finally {
         admissionLock.current = false;
-        setAdmissionPending(false);
+        setAdmittingKind(undefined);
       }
     },
     [
@@ -341,6 +353,9 @@ export function useSubmission({
     isPending: submissionQuery.isPending,
     busy,
     admissionPending,
+    pendingKind:
+      admittingKind ??
+      (submissionQuery.isPending && active?.id === activeSubmissionId ? active?.kind : undefined),
     canReplaceRun: !!replaceableRun && !admissionPending,
     error,
     run,

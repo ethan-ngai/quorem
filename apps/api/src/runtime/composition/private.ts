@@ -17,6 +17,7 @@ export interface PrivateConfig {
   verificationServiceOrigin: string;
   verificationPublicKey: string;
   verificationAccess?: AccessCredentials;
+  wakeMatchDeadline?: (match: string) => Promise<void>;
 }
 function hex(value: string): Uint8Array {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error("Invalid private credential");
@@ -74,6 +75,7 @@ export async function composePrivate(
             losslessResults: true,
           },
           { verifier, verificationPublicKey: key },
+          config.wakeMatchDeadline,
         ),
     })),
   );

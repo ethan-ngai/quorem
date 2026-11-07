@@ -1,5 +1,6 @@
 import { freezePartyTeams, initializeTeamWorkspaces } from "../factions/start.ts";
 /** @file reconcile.ts @description Party presence and round transitions. @module parties */
+import { PARTY_READY_COUNTDOWN_SECONDS } from "@quorem/contracts";
 import { sql } from "drizzle-orm";
 import { classifyDatabaseError, type Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../application/error.ts";
@@ -10,7 +11,7 @@ import { digest, token } from "../matches/lifecycle/crypto.ts";
 import { reviewPending } from "../matches/review/pending.ts";
 import { matchEvent } from "../matches/reconcile/repository.ts";
 import { uuid, conflict, online, reset } from "./store.ts";
-export async function startRound(
+async function startRound(
   tx: Transaction,
   id: string,
   p: { host: string; settings: PartySettings },
@@ -122,7 +123,7 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
       settings: PartySettings;
       current: string | null;
       latest: string | null;
-      due: boolean;
+      due: boolean | null;
     }>(
       sql`SELECT host_owner_id AS host,settings,current_match_id::text AS current,latest_match_id::text AS latest,countdown_ends_at<=clock_timestamp() AS due FROM parties WHERE id=${id}::uuid AND disbanded_at IS NULL FOR UPDATE`,
     )
@@ -176,6 +177,7 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
       return;
     }
   }
+  if (p.due === null && !p.current && !p.latest) await scheduleIfReady(tx, id);
   if (p.due && !p.current && !offline.rows.length && !removed.rows.length) {
     await tx.execute(sql`SAVEPOINT party_round_start`);
     try {
@@ -201,13 +203,13 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
         "invalid_transition",
       ].includes(error.code)
         ? error.message
-        : "Could not start the next round. Try again.";
+        : "Could not start the match. Try again.";
       await tx.execute(sql`UPDATE parties SET queue_error=${message} WHERE id=${id}::uuid`);
     }
   }
 }
 export async function scheduleIfReady(tx: Transaction, id: string) {
   await tx.execute(
-    sql`UPDATE parties p SET countdown_ends_at=clock_timestamp()+interval '5 seconds' WHERE p.id=${id}::uuid AND p.current_match_id IS NULL AND p.latest_match_id IS NOT NULL AND (SELECT count(*) FROM party_members WHERE party_id=p.id)>=2 AND (p.settings->>'mode'<>'showdown' OR (SELECT count(*) FROM party_members WHERE party_id=p.id)=2) AND NOT EXISTS(SELECT 1 FROM party_members pm WHERE pm.party_id=p.id AND (NOT pm.ready OR NOT (${online})))`,
+    sql`UPDATE parties p SET countdown_ends_at=clock_timestamp()+make_interval(secs=>${PARTY_READY_COUNTDOWN_SECONDS}),version=version+1 WHERE p.id=${id}::uuid AND p.current_match_id IS NULL AND p.countdown_ends_at IS NULL AND p.queue_error IS NULL AND (SELECT count(*) FROM party_members WHERE party_id=p.id)>=2 AND (p.settings->>'mode'<>'showdown' OR (SELECT count(*) FROM party_members WHERE party_id=p.id)=2) AND NOT EXISTS(SELECT 1 FROM party_members pm WHERE pm.party_id=p.id AND (NOT pm.ready OR NOT (${online})))`,
   );
 }

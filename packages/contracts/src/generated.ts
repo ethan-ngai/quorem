@@ -952,22 +952,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/parties/{id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startParty"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/parties/{id}/leave": {
         parameters: {
             query?: never;
@@ -1286,6 +1270,10 @@ export interface components {
             odyssey?: components["schemas"]["Odyssey"];
             hasSolutions?: boolean;
             hasComplexity?: boolean;
+            /** @description Number of hidden cases by stage. Stage 0 is the base suite. */
+            hiddenCaseCounts?: {
+                [key: string]: number;
+            };
         };
         Workspace: {
             /** Format: uuid */
@@ -1426,6 +1414,11 @@ export interface components {
             startedAt?: string;
             /** Format: date-time */
             deadline?: string;
+            /**
+             * Format: date-time
+             * @description Earlier shared cutoff when every remaining competitor has settled time penalties.
+             */
+            submissionDeadline?: string;
             /** Format: date-time */
             finalizingAt?: string;
             /** Format: uuid */
@@ -4515,39 +4508,6 @@ export interface operations {
                 "application/json": components["schemas"]["PartyReadyRequest"];
             };
         };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PartySnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    startParty: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Success */
             200: {

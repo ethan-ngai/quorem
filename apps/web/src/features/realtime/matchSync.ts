@@ -134,6 +134,7 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     (value.reviewPending === undefined || typeof value.reviewPending === "boolean") &&
     (value.startedAt === undefined || validDate(value.startedAt)) &&
     (value.deadline === undefined || validDate(value.deadline)) &&
+    (value.submissionDeadline === undefined || validDate(value.submissionDeadline)) &&
     (value.finalizingAt === undefined || validDate(value.finalizingAt)) &&
     (value.problemVersionId === undefined ||
       (typeof value.problemVersionId === "string" && uuidPattern.test(value.problemVersionId))) &&

@@ -28,6 +28,7 @@ import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts
 import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadlines.ts";
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
+import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
@@ -401,7 +402,13 @@ export default {
           const execute = async (privateRun: ReturnType<typeof runFor>) => {
             const handlers = await composePrivate(
               profile.connection(privateRun),
-              privateConfig(env),
+              {
+                ...privateConfig(env),
+                wakeMatchDeadline: (id) =>
+                  cloudflareCoordinator(env.DEADLINES).wake(
+                    matchDeadlineShard(id, boundedInt(env.DEADLINE_SHARDS, 1, 256)),
+                  ),
+              },
               (peer) =>
                 localJudgingDrain(
                   peer,

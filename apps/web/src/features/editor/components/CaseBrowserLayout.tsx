@@ -1,7 +1,9 @@
 import "./results.css";
 /** @file CaseBrowserLayout.tsx @description Shared case rail/detail geometry for execution and authoring. @module editor */
+import { ScrollCue } from "../../../ui/ScrollCue";
 import { useChangeMotion } from "../../../ui/useChangeMotion";
 import type { ReactNode } from "react";
+
 export function CaseBrowserLayout({
   rail,
   railLabel,
@@ -22,15 +24,17 @@ export function CaseBrowserLayout({
   const detail = useChangeMotion<HTMLDivElement>(selection);
   return (
     <div className="case-browser" aria-busy={busy}>
-      <div className="case-rail" aria-label={railLabel}>
+      <ScrollCue viewportClassName="case-rail" role="group" aria-label={railLabel}>
         {rail}
-      </div>
+      </ScrollCue>
       <div className="case-detail-panel">
         {actions && <div className="case-visibility-action">{actions}</div>}
-        {status}
-        <div ref={detail} className="case-details">
-          {children}
-        </div>
+        <ScrollCue viewportClassName="case-detail-scroll" resetKey={selection}>
+          {status}
+          <div ref={detail} className="case-details">
+            {children}
+          </div>
+        </ScrollCue>
       </div>
     </div>
   );

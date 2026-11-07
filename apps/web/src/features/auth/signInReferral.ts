@@ -3,7 +3,7 @@ export function signInReferral(search: string, referrer: string, origin: string)
   const valid = (path: string) =>
     !/[\\\r\n]/.test(path) &&
     (/^\/(\?|#|$)/.test(path) ||
-      /^\/(practice|match|invite|admin|questions|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
+      /^\/(practice|match|party|invite|admin|questions|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
         path,
       ));
   const withoutCreation = (path: string) => {

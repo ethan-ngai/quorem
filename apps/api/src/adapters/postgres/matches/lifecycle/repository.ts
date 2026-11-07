@@ -1,6 +1,7 @@
 import { executeRuleAction } from "../rules/actions.ts";
 import {
   effectiveEvent,
+  matchSubmissionDeadline,
   competitiveSubject,
   recordRuleEvent,
   victoryCost,
@@ -19,6 +20,7 @@ import {
 } from "../../../../modules/matches/lifecycle/model.ts";
 import {
   activateDeadline,
+  matchDeadlineShard,
   type Coordinator,
   type Receipts,
 } from "../../../../modules/events/scheduling/scheduling.ts";
@@ -97,7 +99,7 @@ export async function requireMatchMember(tx: Transaction, who: Principal, id: st
 export async function matchSnapshot(tx: Transaction, id: string, owner: string): Promise<unknown> {
   const row = (
     await tx.execute<{ data: unknown }>(
-      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'partyId',m.party_id,'reviewPending',${reviewPending(sql`m.id`)},'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'factionNames',m.faction_names,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',COALESCE(v.difficulty,m.difficulties[1]),'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'team',p.team,'competitorId',COALESCE(p.competitor_id,p.owner_id),'eligibleFinishAt',p.eligible_finish_at,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action',e.action,'competitorId',e.competitor_id,'seconds',e.seconds,'points',e.points,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM (SELECT * FROM match_rule_events history WHERE history.match_id=m.id AND history.action IN ('announce','penalty') AND (history.kind<>'submission' OR history.action='penalty') ORDER BY history.occurred_at DESC LIMIT 100) e JOIN users u ON u.id=e.owner_id WHERE ${effectiveEvent(sql`e`)}),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
+      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'partyId',m.party_id,'reviewPending',${reviewPending(sql`m.id`)},'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'factionNames',m.faction_names,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',COALESCE(v.difficulty,m.difficulties[1]),'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'submissionDeadline',NULLIF(${matchSubmissionDeadline(sql`m`)},m.deadline),'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'team',p.team,'competitorId',COALESCE(p.competitor_id,p.owner_id),'eligibleFinishAt',p.eligible_finish_at,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action',e.action,'competitorId',e.competitor_id,'seconds',e.seconds,'points',e.points,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM (SELECT * FROM match_rule_events history WHERE history.match_id=m.id AND history.action IN ('announce','penalty') AND (history.kind<>'submission' OR history.action='penalty') ORDER BY history.occurred_at DESC LIMIT 100) e JOIN users u ON u.id=e.owner_id WHERE ${effectiveEvent(sql`e`)}),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
     )
   ).rows[0];
   if (!row) throw missing();
@@ -255,7 +257,7 @@ export function matchLifecycle(
 ): Lifecycle {
   if (!Number.isInteger(deps.shards) || deps.shards < 1 || deps.shards > 256)
     throw new RangeError("Invalid shard count");
-  const shard = (id: string) => parseInt(id.slice(0, 8), 16) % deps.shards;
+  const shard = (id: string) => matchDeadlineShard(id, deps.shards);
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
   const command = matchCommandOwner(run, deps.inviteKey);
@@ -265,17 +267,28 @@ export function matchLifecycle(
     );
   return {
     async ruleAction(who, id, key, input) {
-      return (await command(who, `rule-action:${id}`, key, input, async (tx) => {
-        await lockMatch(tx, id);
-        await requireMatchMember(tx, who, id);
-        await reconcileMatch(tx, id);
-        const m = await lockMatch(tx, id);
-        if (m.state !== "active") throw transition("Match is not active");
-        const result = await executeRuleAction(tx, id, who.userId, m.settings.rules, input);
-        if (result.revealed && !result.quote.alreadyRevealed)
-          await matchEvent(tx, id, "match.updated");
-        return result;
-      })) as import("@quorem/contracts/match-rules").RuleActionResult;
+      const perform = (receipt?: { id: string; shard: number }) =>
+        command(
+          who,
+          `rule-action:${id}`,
+          key,
+          input,
+          async (tx) => {
+            await lockMatch(tx, id);
+            await requireMatchMember(tx, who, id);
+            await reconcileMatch(tx, id);
+            const m = await lockMatch(tx, id);
+            if (m.state !== "active") throw transition("Match is not active");
+            const result = await executeRuleAction(tx, id, who.userId, m.settings.rules, input);
+            if (result.revealed && !result.quote.alreadyRevealed)
+              await matchEvent(tx, id, "match.updated");
+            return result;
+          },
+          receipt,
+        );
+      return (await (input.approval?.seconds && uuid.test(id)
+        ? arm(id, perform)
+        : perform())) as import("@quorem/contracts/match-rules").RuleActionResult;
     },
     async create(who, key, input) {
       const s = normalizeSettings(input);
@@ -567,7 +580,12 @@ export function matchLifecycle(
           },
           receipt,
         );
-      return action === "ready" || action === "start" ? arm(id, perform) : perform();
+      return action === "ready" ||
+        action === "start" ||
+        action === "rule-events" ||
+        action === "forfeit"
+        ? arm(id, perform)
+        : perform();
     },
   };
 }

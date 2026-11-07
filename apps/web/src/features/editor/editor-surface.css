@@ -3,6 +3,12 @@
   gap: 8px;
   align-items: center;
 }
+.disabled-action-hint {
+  display: inline-flex;
+}
+.disabled-action-hint > button {
+  pointer-events: none;
+}
 .code-toolbar {
   display: flex;
   align-items: center;

@@ -35,12 +35,16 @@ export function ProblemStatement({
   navigation,
   beforeExamples,
   allowTopics = true,
+  requestTopics,
+  topicsDisabled = false,
 }: {
   problem: StatementProblem;
   children?: ReactNode;
   navigation?: ReactNode;
   beforeExamples?: ReactNode;
   allowTopics?: boolean;
+  requestTopics?: (anchor: HTMLButtonElement, open: (tags: string[]) => void) => void;
+  topicsDisabled?: boolean;
 }) {
   const [selection, setSelection] = useState({ problemId: problem.id, index: 0 });
   const selectedExample =
@@ -50,7 +54,21 @@ export function ProblemStatement({
   const examplesId = useId();
   const [revealedTopicsFor, setRevealedTopicsFor] = useState<string>();
   const topicsVisible = revealedTopicsFor === problem.id;
+  const [grantedTopics, setGrantedTopics] = useState<{ id: string; tags: string[] }>();
+  const matchTopics = grantedTopics?.id === problem.id ? grantedTopics.tags : undefined;
+  const topics = requestTopics ? (matchTopics ?? []) : problem.tags;
+  const showTopicsControl = allowTopics && (!!requestTopics || topics.length > 0);
   const topicsId = useId();
+  function toggleTopics(anchor: HTMLButtonElement) {
+    if (topicsVisible) setRevealedTopicsFor(undefined);
+    else if (requestTopics && !matchTopics) {
+      if (topicsDisabled) return;
+      requestTopics(anchor, (tags) => {
+        setGrantedTopics({ id: problem.id, tags });
+        setRevealedTopicsFor(problem.id);
+      });
+    } else setRevealedTopicsFor(problem.id);
+  }
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
@@ -59,13 +77,15 @@ export function ProblemStatement({
           <span className={`difficulty difficulty-${problem.difficulty}`}>
             {problem.difficulty}
           </span>
-          {allowTopics && problem.tags.length > 0 && (
+          {showTopicsControl && (
             <button
               className="topics-toggle"
               aria-label={topicsVisible ? "Hide topics" : "Show topics"}
               aria-expanded={topicsVisible}
               aria-controls={topicsId}
-              onClick={() => setRevealedTopicsFor(topicsVisible ? undefined : problem.id)}
+              aria-disabled={!!requestTopics && !matchTopics && topicsDisabled}
+              aria-haspopup={requestTopics && !matchTopics ? "dialog" : undefined}
+              onClick={(event) => toggleTopics(event.currentTarget)}
             >
               <VisibilityIcon visible={topicsVisible} />
               Topics
@@ -73,14 +93,14 @@ export function ProblemStatement({
           )}
         </div>
       </div>
-      {allowTopics && problem.tags.length > 0 && (
+      {showTopicsControl && (
         <div
           id={topicsId}
           className="topic-list"
           data-visible={topicsVisible}
           aria-hidden={!topicsVisible}
         >
-          {problem.tags.map((tag) => (
+          {topics.map((tag) => (
             <span key={tag}>{formatLabel(tag)}</span>
           ))}
         </div>

@@ -12,6 +12,8 @@ import { Tooltip } from "../../../ui/Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
 import type { ReactNode } from "react";
 import { Icon } from "../../../ui/Icon";
+import { Spinner } from "../../../ui/Spinner";
+import { useChangeMotion } from "../../../ui/useChangeMotion";
 
 export function verdictTone(status?: string) {
   return status === "accepted"
@@ -22,28 +24,39 @@ export function verdictTone(status?: string) {
 }
 
 /** Render feedback only for the selected case's admitted result. */
-export function CaseVerdict({ result }: { result?: PublicCaseResult }) {
-  if (!result) return null;
-  const tone = verdictTone(result.status);
-  const status = result.status.replaceAll("_", " ");
+export function CaseVerdict({
+  result,
+  pending = false,
+}: {
+  result?: PublicCaseResult;
+  pending?: boolean;
+}) {
+  const motion = useChangeMotion<HTMLDivElement>(pending ? "pending" : result?.status);
+  const status = pending ? "judging test case" : result?.status.replaceAll("_", " ");
+  if (!status) return null;
+  const tone = verdictTone(pending ? undefined : result?.status);
   const label = `${status[0].toUpperCase()}${status.slice(1)}`;
+  const stderr = pending ? "" : (result?.stderr ?? "");
+  const hasStderr = !!stderr.trim();
   const messages =
     tone === "verdict-error"
-      ? result.diagnostics?.map(
+      ? result?.diagnostics?.map(
           (item) =>
             `${item.line != null ? `Line ${item.line}${item.column != null ? `:${item.column}` : ""}: ` : ""}${item.message}`,
         )
       : undefined;
   return (
-    <div className="case-verdict-group" aria-live="polite" aria-atomic="true">
+    <div ref={motion} className="case-verdict-group" aria-live="polite" aria-atomic="true">
       <div className="case-verdict-text">
         <span className={`case-verdict ${tone}`}>
-          <Icon name={verdictIcon(result.status)} />
+          {pending ? <Spinner /> : <Icon name={verdictIcon(result?.status)} />}
           {label}
         </span>
-        {!!messages?.length && (
-          <code className="case-error-message" tabIndex={0}>
-            {messages.join("\n")}
+        {(hasStderr || !!messages?.length) && (
+          <code className="case-error-message">
+            {hasStderr && <span aria-label="stderr">{stderr}</span>}
+            {hasStderr && !!messages?.length && !stderr.endsWith("\n") && "\n"}
+            {messages?.join("\n")}
           </code>
         )}
       </div>
@@ -260,18 +273,9 @@ export function CaseOutput({
           </div>
         </CasePreviewLayout>
       )}
-      {(!!result.stdout?.trim() || !!result.stderr?.trim()) && (
+      {!!result.stdout?.trim() && (
         <ConsoleSection label="Standard output">
-          {!!result.stdout?.trim() && (
-            <span className="console-stream" aria-label="stdout">
-              {result.stdout}
-            </span>
-          )}
-          {!!result.stderr?.trim() && (
-            <span className="console-stream console-error" aria-label="stderr">
-              {result.stderr}
-            </span>
-          )}
+          <span aria-label="stdout">{result.stdout}</span>
         </ConsoleSection>
       )}
       {tone !== "verdict-error" && !!result.diagnostics?.length && (

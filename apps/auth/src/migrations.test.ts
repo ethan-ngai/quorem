@@ -16,23 +16,18 @@ describe.skipIf(!url)("auth schema migrations", () => {
       );
       expect(
         (await database.query("SELECT name FROM quorem_auth.schema_migrations ORDER BY name")).rows,
-      ).toEqual([
-        { name: "001_schema.sql" },
-        { name: "002_profile_color.sql" },
-        { name: "003_account_user_index.sql" },
-        { name: "004_social_email_expiry.sql" },
-        { name: "005_mail_intents.sql" },
-        { name: "006_profile_budgets.sql" },
-      ]);
+      ).toEqual([{ name: "007_baseline.sql" }]);
       firstChecksum = (
         await database.query(
-          "SELECT checksum FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'",
+          "SELECT checksum FROM quorem_auth.schema_migrations WHERE name='007_baseline.sql'",
         )
       ).rows[0].checksum;
-      await database.query("DELETE FROM quorem_auth.schema_migrations WHERE name='001_schema.sql'");
-      await expect(migrateAuth(database)).rejects.toThrow("not a contiguous prefix");
       await database.query(
-        "INSERT INTO quorem_auth.schema_migrations(name,checksum) VALUES('001_schema.sql',$1)",
+        "UPDATE quorem_auth.schema_migrations SET checksum='invalid' WHERE name='007_baseline.sql'",
+      );
+      await expect(migrateAuth(database)).rejects.toThrow("checksum mismatch");
+      await database.query(
+        "UPDATE quorem_auth.schema_migrations SET checksum=$1 WHERE name='007_baseline.sql'",
         [firstChecksum],
       );
       await database.query(
@@ -48,7 +43,7 @@ describe.skipIf(!url)("auth schema migrations", () => {
       ).toBe(1);
     } finally {
       await database.query(
-        "INSERT INTO quorem_auth.schema_migrations(name,checksum) VALUES('001_schema.sql',$1) ON CONFLICT DO NOTHING",
+        "UPDATE quorem_auth.schema_migrations SET checksum=$1 WHERE name='007_baseline.sql' AND checksum='invalid'",
         [firstChecksum ?? null],
       );
       await database.query(

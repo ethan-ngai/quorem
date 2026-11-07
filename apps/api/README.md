@@ -17,6 +17,8 @@ DATABASE_URL="$QUOREM_OPERATOR_DATABASE_URL" vp exec node packages/database/src/
 
 Existing name-only migration history requires the [audited checksum baseline](../../docs/plans/hono-workers-migration/execution/38f-migration-checksums.md); do not replace its history or run migration commands with the restricted runtime role.
 
+Fresh databases use one baseline per schema. Existing databases retain their checksummed receipts and finish any pending upgrades from `migrations/legacy/`. Add new migrations after the baseline in the top-level migration directory.
+
 For a self-contained local browser stack with real fixture accounts and Docker execution, follow [the browser fixture instructions](../../docs/plans/hono-workers-migration/execution/37j-browser-smoke.md). Its reset is destructive and accepts only the dedicated loopback `127.0.0.1:55701/quorem_hono_runtime_test` database. Never point integration tests at the development database; they truncate data.
 
 ### Normalize retained result sidecars

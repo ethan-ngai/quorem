@@ -27,13 +27,16 @@ void test(
       await db.query("INSERT INTO execution_jobs(id,attempt_id) VALUES($1,$2)", [job, old]);
       await db.query(
         await readFile(
-          new URL("../apps/api/migrations/048_execution_reclaim_fence.sql", import.meta.url),
+          new URL("../apps/api/migrations/legacy/048_execution_reclaim_fence.sql", import.meta.url),
           "utf8",
         ),
       );
       await db.query(
         await readFile(
-          new URL("../apps/api/migrations/062_execution_attempt_inventory.sql", import.meta.url),
+          new URL(
+            "../apps/api/migrations/legacy/062_execution_attempt_inventory.sql",
+            import.meta.url,
+          ),
           "utf8",
         ),
       );

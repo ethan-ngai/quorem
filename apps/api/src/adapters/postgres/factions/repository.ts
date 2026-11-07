@@ -14,6 +14,13 @@ import { teamLobby, organizeTeams } from "./lobby.ts";
 import { pullTeamDocument, pushTeamDocument } from "./document.ts";
 import { teamPeers, publishTeamPresence } from "./presence.ts";
 import { teamVoteCommand, type TeamActionExecutor } from "./votes.ts";
+import {
+  activateDeadline,
+  matchDeadlineShard,
+  type Coordinator,
+  type Receipts,
+} from "../../../modules/events/scheduling/scheduling.ts";
+import { consumePrearm } from "../events/scheduling/prearm.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export async function teamSnapshot(
   tx: Transaction,
@@ -51,6 +58,7 @@ export function factionRepository(
   run: Run,
   executor: TeamActionExecutor,
   wake: () => Promise<void> = async () => {},
+  deadline?: { coordinator: Coordinator; receipts: Receipts; shards: number },
 ): Factions {
   const transaction = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, fn));
@@ -64,28 +72,36 @@ export function factionRepository(
     execute: (tx: Transaction) => Promise<unknown>,
   ) {
     const hash = await fingerprint(body);
-    const result = await transaction(async (tx) => {
-      await lockMatchOwner(tx, actor);
-      await validateGuest(tx, actor);
-      await authorize(tx);
-      const prior = (
-        await tx.execute<{ hash: string; response: unknown }>(
-          sql`SELECT body_hash AS hash,response FROM match_idempotency WHERE owner_id=${actor.userId} AND route=${route + ":" + id} AND key=${key} AND expires_at>clock_timestamp()`,
-        )
-      ).rows[0];
-      if (prior) {
-        if (prior.hash !== hash)
-          throw new ApplicationError("idempotency_conflict", "Key used for another command", 409);
-        return prior.response;
-      }
-      const value = await execute(tx);
-      await tx.execute(
-        sql`INSERT INTO match_idempotency(owner_id,route,key,body_hash,response,expires_at) VALUES(${actor.userId},${route + ":" + id},${key},${hash},${JSON.stringify(value)}::jsonb,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,route,key) DO UPDATE SET body_hash=excluded.body_hash,response=excluded.response,expires_at=excluded.expires_at`,
-      );
-      return value;
-    });
+    const vote = route === "factions:vote" || route === "factions:propose";
+    const shard = deadline ? matchDeadlineShard(id, deadline.shards) : 0;
+    const perform = (receipt?: string) =>
+      transaction(async (tx) => {
+        if (receipt) await consumePrearm(tx, receipt, shard);
+        await lockMatchOwner(tx, actor);
+        await validateGuest(tx, actor);
+        await authorize(tx);
+        const prior = (
+          await tx.execute<{ hash: string; response: unknown }>(
+            sql`SELECT body_hash AS hash,response FROM match_idempotency WHERE owner_id=${actor.userId} AND route=${route + ":" + id} AND key=${key} AND expires_at>clock_timestamp()`,
+          )
+        ).rows[0];
+        if (prior) {
+          if (prior.hash !== hash)
+            throw new ApplicationError("idempotency_conflict", "Key used for another command", 409);
+          return prior.response;
+        }
+        const value = await execute(tx);
+        await tx.execute(
+          sql`INSERT INTO match_idempotency(owner_id,route,key,body_hash,response,expires_at) VALUES(${actor.userId},${route + ":" + id},${key},${hash},${JSON.stringify(value)}::jsonb,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,route,key) DO UPDATE SET body_hash=excluded.body_hash,response=excluded.response,expires_at=excluded.expires_at`,
+        );
+        return value;
+      });
+    const result =
+      vote && deadline
+        ? await activateDeadline(deadline.receipts, deadline.coordinator, shard, perform)
+        : await perform();
     try {
-      if (route === "factions:vote" || route === "factions:propose") await wake();
+      if (vote) await wake();
     } catch {
       /* Durable execution intents recover a missed wake. */
     }

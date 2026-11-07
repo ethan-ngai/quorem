@@ -184,8 +184,28 @@ async function streamSnapshot(
       if (header && !["completed", "failed", "cancelled"].includes(row.state))
         throw new Error("Result is not terminal");
       const value = snapshot({ ...row, result: header?.data ?? null }, !interviewId);
-      const matchSubmission = !!row.match && row.kind === "submit";
-      if (matchSubmission) delete value.hiddenCases;
+      if (row.workspace && !row.interview && row.kind === "submit" && row.state === "running") {
+        // Partial feedback contains only statuses signed for the current runner attempt.
+        const progress = (
+          await tx.execute<{ index: number; status: string; hidden: boolean }>(sql`
+            SELECT CASE WHEN v.ordinal<i.case_count THEN v.ordinal ELSE v.ordinal-i.case_count END AS index,
+              CASE WHEN v.ordinal<i.case_count AND v.status NOT IN ('accepted','time_limit')
+                THEN 'wrong_answer' ELSE v.status END AS status,
+              v.ordinal<i.case_count AS hidden
+            FROM execution_jobs j
+            JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed
+            JOIN execution_verified_cases v ON v.job_id=j.id AND v.attempt_id=j.attempt_id
+              AND v.sandbox_scope=j.sandbox_scope
+            WHERE j.submission_id=${id}::uuid AND NOT j.finished AND j.lease_until>clock_timestamp()
+            ORDER BY v.ordinal`)
+        ).rows;
+        const hidden: JsonValue[] = [];
+        const samples: JsonValue[] = [];
+        for (const { index, status, hidden: isHidden } of progress)
+          (isHidden ? hidden : samples).push({ index: new JsonNumber(String(index)), status });
+        if (hidden.length) value.hiddenCases = hidden;
+        if (samples.length) value.publicCases = samples;
+      }
       const hidden = Array.isArray(value.hiddenCases) ? value.hiddenCases : [];
       let hiddenCount = hidden.length;
       const headerFields: Record<string, string> = {};
@@ -324,7 +344,6 @@ async function streamSnapshot(
       }
       return {
         row,
-        matchSubmission,
         value,
         access,
         count,
@@ -408,7 +427,6 @@ async function streamSnapshot(
     for (const field of ["verdict", "infrastructureError", "hiddenCases", "diagnostics"]) {
       if (
         !prepared.headerFields[field] ||
-        (prepared.matchSubmission && field === "hiddenCases") ||
         (prepared.row.interview &&
           (!interviewId || prepared.access?.role !== "interviewer") &&
           prepared.row.kind === "submit" &&

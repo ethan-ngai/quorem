@@ -53,9 +53,10 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     ] as const) {
       const partial = join(temporary, owner);
       await import("node:fs/promises").then((fs) => fs.mkdir(partial));
-      const names = (await readdir(dir)).filter((name) => name.endsWith(".sql")).sort();
+      const legacy = join(dir, "legacy");
+      const names = (await readdir(legacy)).filter((name) => name.endsWith(".sql")).sort();
       for (const name of names.slice(0, prefix))
-        await copyFile(join(dir, name), join(partial, name));
+        await copyFile(join(legacy, name), join(partial, name));
       await migrate(pool, owner, partial);
       await migrate(pool, owner, dir);
       await migrate(pool, owner, dir);
@@ -354,7 +355,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       }
     }
     const viewSource = await readFile(
-      join(productDir, "051_interview_public_examples.sql"),
+      join(productDir, "legacy", "051_interview_public_examples.sql"),
       "utf8",
     );
     for (const name of [
@@ -386,6 +387,8 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         )
       ).rows;
     const upgraded = await snapshot();
+    const gcState = (await pool.query("SELECT * FROM public.runner_input_gc_state")).rows;
+    assert.equal(gcState.length, 1);
     // A fresh database has no session-local migration helpers from the previous build.
     await pool.query(
       "DISCARD TEMP; DROP SCHEMA quorem_auth CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public",
@@ -393,6 +396,10 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);
     assert.deepEqual(await snapshot(), upgraded);
+    assert.deepEqual(
+      (await pool.query("SELECT * FROM public.runner_input_gc_state")).rows,
+      gcState,
+    );
     const service = betterAuth({
       baseURL: "http://localhost:18878",
       secret: "fixture-only-secret-at-least-32-characters-long",

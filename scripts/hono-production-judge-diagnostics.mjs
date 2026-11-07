@@ -45,7 +45,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
   );
   const { rows: databaseState } = await database.query(
     `SELECT
-    EXISTS(SELECT 1 FROM public.schema_migrations WHERE name='072_sealed_suite_digests.sql') AS migrated,
+    EXISTS(SELECT 1 FROM public.schema_migrations WHERE name IN ('072_sealed_suite_digests.sql', '083_baseline.sql')) AS migrated,
     has_table_privilege($1,'public.runner_job_input_digests','SELECT,INSERT,UPDATE,DELETE') AS digest_access,
     (SELECT count(*)::int FROM runner_job_inputs i WHERE i.sealed AND NOT EXISTS
       (SELECT 1 FROM runner_job_input_digests d WHERE d.job_id=i.job_id)) AS missing_digests`,

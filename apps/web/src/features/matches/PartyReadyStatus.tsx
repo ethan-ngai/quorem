@@ -1,12 +1,14 @@
 /** @file PartyReadyStatus.tsx @description Shared per-member readiness and automatic-start feedback. @module matches */
 import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { StateIcon } from "../../ui/StateIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
-import type { PartyMember } from "@quorem/contracts";
+import { PARTY_READY_COUNTDOWN_SECONDS, type PartyMember } from "@quorem/contracts";
+import { MatchTimeRing } from "./MatchDurationRing";
 import "./party-ready.css";
 
 type ReadyMember = Pick<
@@ -91,31 +93,65 @@ export function PartyMemberReadiness({
 export function PartyReadyStatus({
   countdownEndsAt,
   queueError,
+  firstMatch = false,
 }: {
   countdownEndsAt: string | null;
   queueError?: string | null;
+  firstMatch?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!countdownEndsAt) return;
     setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    const timer = window.setInterval(() => {
+      const sample = Date.now();
+      setNow(sample);
+      if (sample >= Date.parse(countdownEndsAt)) window.clearInterval(timer);
+    }, 250);
     return () => window.clearInterval(timer);
   }, [countdownEndsAt]);
-  const seconds = countdownEndsAt
-    ? Math.max(0, Math.ceil((Date.parse(countdownEndsAt) - now) / 1000))
-    : null;
-  const counting = seconds !== null && Number.isFinite(seconds);
+  const remaining = countdownEndsAt ? Date.parse(countdownEndsAt) - now : NaN;
+  const counting = Number.isFinite(remaining);
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
+  const starting = seconds === 0;
+  const matchLabel = firstMatch ? "Match" : "Next match";
+  const title = firstMatch ? "Starting match" : "Starting next match";
   if (!counting && !queueError) return null;
   return (
-    <div className="party-ready-feedback">
+    <>
       {counting && (
-        <p className="party-ready-status" role="status">
-          {seconds === 0 ? "Starting match…" : `Next match in ${seconds}s`}
-        </p>
+        <>
+          <span className="sr-only" role="alert">
+            {starting ? `${title}.` : `${matchLabel} starts shortly.`}
+          </span>
+          <span className="sr-only" role="timer">
+            {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
+          </span>
+          {typeof document !== "undefined" &&
+            createPortal(
+              <div className="party-countdown-popup" aria-hidden="true">
+                <span className="party-countdown-ring">
+                  <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
+                  <span>{seconds}</span>
+                </span>
+                <span className="party-countdown-label">
+                  {title}
+                  {starting ? "…" : ""}
+                </span>
+              </div>,
+              document.body,
+            )}
+        </>
       )}
-      <PersistentNotice message={queueError} label="Next match unavailable" />
-    </div>
+      {queueError && (
+        <div className="party-ready-feedback">
+          <PersistentNotice
+            message={queueError}
+            label={firstMatch ? "Match unavailable" : "Next match unavailable"}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

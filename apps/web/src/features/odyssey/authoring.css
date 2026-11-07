@@ -91,6 +91,7 @@
 .question-authoring .case-browser {
   --case-rail-width: 104px;
   --narrow-case-rail-width: 104px;
+  --case-detail-end-padding: 0px;
 }
 .question-authoring .case-rail {
   padding-inline: 0;

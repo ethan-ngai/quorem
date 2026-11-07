@@ -88,11 +88,14 @@ export function composeHttp(ports: HttpPorts) {
     defer: ports.deferExecution,
     shard: 0,
   };
-  const matches = matchLifecycle(run, {
-    inviteKey: ports.inviteKey,
+  const deadline = {
     receipts: prearmReceipts(run),
     coordinator: ports.deadline,
     shards: ports.shards,
+  };
+  const matches = matchLifecycle(run, {
+    ...deadline,
+    inviteKey: ports.inviteKey,
     guestCreation: ports.guestCreation,
   });
   const budget = { allow: (peer: string) => run((scope) => publicGuestBudget(scope).allow(peer)) };
@@ -121,9 +124,12 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     factionRoutes({
       identify,
-      factions: factionRepository(run, teamActionExecutor(paidTeamActions(options)), async () => {
-        await ports.execution.wake(0);
-      }),
+      factions: factionRepository(
+        run,
+        teamActionExecutor(paidTeamActions(options)),
+        () => ports.execution.wake(0),
+        deadline,
+      ),
     }),
   );
   app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));

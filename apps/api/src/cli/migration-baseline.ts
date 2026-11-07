@@ -72,13 +72,11 @@ export async function runMigrationBaseline(
     authNames: owner === "auth" ? names : [],
     request: dependencies.request,
   });
-  const directory = resolve(
-    root,
-    owner === "product" ? "apps/api/migrations" : "apps/auth/migrations",
-  );
+  const base = owner === "product" ? "apps/api/migrations" : "apps/auth/migrations";
+  const directory = resolve(root, base, "legacy");
   const files: Record<string, string> = {};
   for (const name of names) {
-    const path = `${owner === "product" ? "apps/api/migrations" : "apps/auth/migrations"}/${name}`;
+    const path = `${base}/${name}`;
     const expected = provenance.files[path];
     if (!expected || sha(await readFile(resolve(directory, name))) !== expected)
       throw new Error("Local migration artifact mismatch");

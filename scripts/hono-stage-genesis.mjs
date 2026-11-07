@@ -1,13 +1,15 @@
 /** Preserve the independently verified first case-control authority for stage recovery. */
 import { createHash, createPublicKey } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { verifyMigrationReceipts } from "../packages/database/src/migrations.ts";
 import { readVerifiedCaseProbe } from "../deploy/case-proof.js";
 import { assertStageRuntimeFenced, stageRecoveryLockKey } from "./hono-stage-recovery-fence.mjs";
 
 const hex = (n) => new RegExp(`^[a-f0-9]{${n}}$`);
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const migration = new URL(
-  "../apps/api/migrations/062_execution_attempt_inventory.sql",
+  "../apps/api/migrations/legacy/062_execution_attempt_inventory.sql",
   import.meta.url,
 );
 async function evidence(options, initial) {
@@ -130,11 +132,11 @@ async function transaction(client, options, initial) {
       EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid WHERE t.tgrelid=i.oid AND t.tgname='execution_attempt_inventory_immutable' AND t.tgenabled='O' AND p.oid='public.guard_execution_attempt_inventory()'::regprocedure AND p.proowner=i.relowner) AS safe
       FROM pg_class j, pg_class i WHERE j.oid='public.execution_jobs'::regclass AND i.oid='public.execution_attempt_inventory'::regclass`);
     if (inventoryGuard.rows[0]?.safe !== true) throw new Error("Stage inventory guard unavailable");
-    const ledger = await db.query(
-      "SELECT checksum FROM public.schema_migrations WHERE name='062_execution_attempt_inventory.sql'",
+    await verifyMigrationReceipts(
+      fileURLToPath(new URL("../apps/api/migrations/", import.meta.url)),
+      "product",
+      (await db.query("SELECT name,checksum FROM public.schema_migrations")).rows,
     );
-    if (ledger.rows.length !== 1 || ledger.rows[0].checksum !== value.checksum)
-      throw new Error("Stage inventory migration checksum mismatch");
     await db.query(
       "LOCK TABLE public.execution_jobs, public.execution_attempt_inventory, public.stage_genesis IN SHARE ROW EXCLUSIVE MODE",
     );

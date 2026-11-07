@@ -97,7 +97,10 @@ void test(
         for (const actor of actors) await json(`/v1/parties/${id}/ready`, actor, { ready: true });
       }
       await readyAll();
-      const started = await json<PartySnapshot>(`/v1/parties/${id}/start`, alice, {});
+      const started = await waitFor(
+        () => json<PartySnapshot>(`/v1/parties/${id}`, alice, undefined, "GET"),
+        (value) => !!value.currentMatchId,
+      );
       assert.ok(started.currentMatchId);
       const firstId = started.currentMatchId;
       async function submit(actor: Actor, source: string) {

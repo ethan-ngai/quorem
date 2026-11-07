@@ -5,6 +5,7 @@ import { questionRuntime } from "../../problems/runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { MatchLanguageSelection } from "../../../../modules/matches/selection/model.ts";
 import { matchEvent } from "../reconcile/repository.ts";
+import { matchSubmissionDeadline } from "../rules/ledger.ts";
 import {
   lockMatch,
   lockMatchHost,
@@ -41,7 +42,7 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
             throw new ApplicationError("vote_required", "Propose a team language change", 409);
           const state = (
             await tx.execute<{ active: boolean; version: string; forfeited: boolean }>(
-              sql`SELECT m.state='active' AND m.deadline>clock_timestamp() AS active,m.problem_version_id::text AS version,p.forfeited FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${who.userId} WHERE m.id=${id}::uuid`,
+              sql`SELECT m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>clock_timestamp() AS active,m.problem_version_id::text AS version,p.forfeited FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${who.userId} WHERE m.id=${id}::uuid`,
             )
           ).rows[0];
           if (!state?.active || state.forfeited)

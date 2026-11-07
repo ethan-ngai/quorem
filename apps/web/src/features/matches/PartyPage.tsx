@@ -20,6 +20,8 @@ import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { usePageTitle } from "../navigation/PageMetadata";
+import { matchModeLabels } from "./ModeIcon";
 import { readPendingCommand } from "./commandRecovery";
 import { Trash2, Info, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
@@ -27,6 +29,9 @@ import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { RejectedMatchCommand } from "./errors";
 import { ContentTransition } from "../../ui/ContentTransition";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 
 const factionReadyHint = "Every faction needs at least one player";
 
@@ -50,9 +55,13 @@ export function PartyPage() {
   const [disbanding, setDisbanding] = useState(false);
   const [error, setError] = useState("");
   const [, setRecoveryRevision] = useState(0);
-  const party = query.data?.party;
-  const rosterMode = party?.currentMatchId ? undefined : party?.settings.mode;
-  const factions = useFactionLobby(party?.id, party?.settings.mode === "factions");
+  const status = query.error instanceof RejectedMatchCommand ? query.error.status : undefined;
+  const denied = isRouteDenied(status);
+  const party = denied || status === 401 ? undefined : query.data?.party;
+  const mode = party?.settings.mode;
+  usePageTitle(mode ? `${matchModeLabels[mode]} Lobby - Quorem` : undefined);
+  const rosterMode = party?.currentMatchId ? undefined : mode;
+  const factions = useFactionLobby(party?.id, mode === "factions");
   const showFactions = rosterMode === "factions" && (!!factions.data || factions.isError);
   const factionsReady =
     party?.settings.mode !== "factions" ||
@@ -67,7 +76,7 @@ export function PartyPage() {
   const recovery =
     !pending &&
     party &&
-    ["settings", "ready", "start", "leave", "disband", "kick"]
+    ["settings", "ready", "leave", "disband", "kick"]
       .map((operation) => ({
         operation,
         command: readPendingCommand<unknown>(
@@ -146,34 +155,24 @@ export function PartyPage() {
   const readyLabel = own?.ready ? "Unready" : "Ready up";
   const host = party?.hostUserId === identity;
   const nav = <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />;
-  if (account.isPending || (!!account.data && query.isPending))
+  if (account.isPending || query.isPending)
     return (
       <main className="match-page">
         {nav}
         <p role="status">Loading lobby…</p>
       </main>
     );
-  if (!account.data)
-    return (
-      <main className="match-page">
-        {nav}
-        <section className="match-page-content">
-          <h1>Sign in to open your lobby</h1>
-          <a href="/login">Sign in</a>
-        </section>
-      </main>
-    );
+  if (status === 401) return <SignInRedirect />;
+  if (denied || (!query.isError && !party)) return <NotFoundPage />;
   if (!party)
     return (
       <main className="match-page">
         {nav}
         <section className="match-page-content">
           <h1>Lobby unavailable</h1>
-          {query.isError && (
-            <button className="button button-secondary" onClick={() => void query.refetch()}>
-              Try again
-            </button>
-          )}
+          <button className="button button-secondary" onClick={() => void query.refetch()}>
+            Try again
+          </button>
           <a href="/practice">Back to practice</a>
         </section>
       </main>
@@ -213,21 +212,6 @@ export function PartyPage() {
                   off={readyLabel}
                   on={<Spinner active={readyPending} />}
                 />
-              </button>
-            </Tooltip>
-          )}
-          {host && own?.ready && !party.currentMatchId && !party.latestMatchId && (
-            <Tooltip content={factionReadyHint} disabled={factionsReady}>
-              <button
-                className="button button-primary"
-                disabled={
-                  !!recovery ||
-                  !party.members.every((member) => member.ready && member.online) ||
-                  !factionsReady
-                }
-                onClick={() => void run("start")}
-              >
-                Start match
               </button>
             </Tooltip>
           )}
@@ -348,6 +332,7 @@ export function PartyPage() {
           {!party.currentMatchId && (
             <PartyReadyStatus
               countdownEndsAt={party.countdownEndsAt}
+              firstMatch={!party.latestMatchId}
               queueError={party.queueError}
             />
           )}

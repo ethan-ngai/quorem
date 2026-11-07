@@ -1,5 +1,5 @@
-import { catalogSearch } from "../practice/catalogSearch";
 /** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
+import { catalogSearch } from "../practice/catalogSearch";
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
 import { canAccess } from "../auth/adminAccess";
@@ -74,14 +74,30 @@ export function GlobalNav({
   const session = useSession();
   const actor = (session.data?.user.id ?? identity) as DevelopmentIdentity;
   const location = useLocation();
-  const pathname = location.pathname;
+  const pathname = location.pathname.replace(/\/$/, "") || "/";
   const navigate = useNavigate();
   const consumedCreation = useRef(false);
-  const inMatch = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
-  const activeMatch = useActiveMatch(actor, !!session.data && !inMatch && !mode);
+  const hideCreation = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
+  const activeMatch = useActiveMatch(actor, !!session.data);
   const party = useParty(actor, !!session.data);
   const checkingMatch =
     session.isPending || activeMatch.checking || (!!session.data && party.isPending);
+  const currentMatch = activeMatch.match;
+  const currentMatchPath = currentMatch ? `/match/${currentMatch.id}` : null;
+  const returnMatch =
+    currentMatch &&
+    pathname !== currentMatchPath &&
+    !(mode && pathname === `${currentMatchPath}/review`)
+      ? currentMatch
+      : null;
+  const hasParty = !!session.data && !!party.data?.party;
+  const returnLobby =
+    !currentMatch &&
+    !activeMatch.checking &&
+    !activeMatch.failed &&
+    hasParty &&
+    pathname !== "/party";
+  const returnLabel = returnMatch ? activeMatch.label : returnLobby ? "Return to lobby" : null;
   const [creating, setCreating] = useState(false);
   function signInToCreate() {
     const destination = matchSignInLocation(
@@ -97,18 +113,18 @@ export function GlobalNav({
     }
     if (consumedCreation.current) return;
     if (session.isPending) return;
-    if (session.data && (activeMatch.checking || activeMatch.failed)) return;
+    if (session.data && (checkingMatch || activeMatch.failed)) return;
     consumedCreation.current = true;
     if (!session.data || session.data.kind === "guest") {
       signInToCreate();
       return;
     }
-    if (party.data?.party && !readPendingCommand(actor, "party:/v1/parties")) {
-      window.location.assign("/party");
+    if (currentMatchPath) {
+      window.location.assign(currentMatchPath);
       return;
     }
-    if (activeMatch.match) {
-      window.location.assign(`/match/${activeMatch.match.id}`);
+    if (hasParty && !readPendingCommand(actor, "party:/v1/parties")) {
+      window.location.assign("/party");
       return;
     }
     setCreating(true);
@@ -126,21 +142,16 @@ export function GlobalNav({
     navigate,
     session.isPending,
     session.data,
-    activeMatch.checking,
+    checkingMatch,
     activeMatch.failed,
-    activeMatch.match,
-    party.data?.party,
+    currentMatchPath,
+    hasParty,
     actor,
   ]);
   return (
     <>
       <div className="global-nav-slot">
         <header className="topbar global-nav">
-          {party.data?.party && pathname !== "/party" && (
-            <a className="button button-secondary" href="/party">
-              Return to lobby
-            </a>
-          )}
           <WorkspaceSidebar
             pathname={pathname}
             admin={canAccess(session.data, "admin")}
@@ -165,28 +176,31 @@ export function GlobalNav({
                 </button>
               </Tooltip>
             )}
-            {mode ? (
+            {mode && (
               <span className="global-mode">
                 <span key={mode} className="mode-icon-enter">
                   <ModeIcon mode={mode} />
                 </span>
                 <ModeText mode={mode} showdown="Showdown" freeForAll="Free-for-all" />
               </span>
+            )}
+            {returnLabel ? (
+              <Tooltip content={returnLabel} disabled={!compactActions}>
+                <Link
+                  className="nav-match-action"
+                  aria-label={returnLabel}
+                  {...(returnMatch
+                    ? { to: "/match/$id", params: { id: returnMatch.id } }
+                    : { to: "/party" })}
+                >
+                  <ArrowRight size={18} />
+                  <span>{returnLabel}</span>
+                </Link>
+              </Tooltip>
             ) : (
-              !inMatch &&
-              (activeMatch.match ? (
-                <Tooltip content="Finish or leave your current match before creating another.">
-                  <Link
-                    className="nav-match-action active-match-trigger"
-                    aria-label={activeMatch.label ?? undefined}
-                    to="/match/$id"
-                    params={{ id: activeMatch.match.id }}
-                  >
-                    <ArrowRight size={18} />
-                    <span>{activeMatch.label}</span>
-                  </Link>
-                </Tooltip>
-              ) : (
+              !mode &&
+              !hideCreation &&
+              !currentMatch && (
                 <Tooltip
                   disabled={!compactActions}
                   content={
@@ -229,7 +243,7 @@ export function GlobalNav({
                     </span>
                   </button>
                 </Tooltip>
-              ))
+              )
             )}
             <AccountMenu
               triggerRef={profileTrigger}

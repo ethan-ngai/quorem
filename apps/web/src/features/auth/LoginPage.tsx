@@ -30,16 +30,19 @@ import { useCooldown } from "../../ui/useCooldown";
 import { UsernameRules } from "./UsernameRules";
 import { SocialProviderIcon } from "./SocialProviderIcon";
 import { PasswordReset } from "./PasswordReset";
+import { usePageTitle } from "../navigation/PageMetadata";
 import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
 
 export function LoginPage() {
-  if (
-    new URLSearchParams(location.search).has("socialEmail") ||
-    new URLSearchParams(location.search).has("socialEmailToken")
-  )
-    return <SocialEmailSetup />;
-  if (new URLSearchParams(location.search).get("reset") === "1") return <PasswordReset />;
+  const search = new URLSearchParams(location.search);
+  const socialEmail = search.has("socialEmail") || search.has("socialEmailToken");
+  const reset = search.get("reset") === "1";
+  usePageTitle(
+    socialEmail ? "Verify Email - Quorem" : reset ? "Reset Password - Quorem" : undefined,
+  );
+  if (socialEmail) return <SocialEmailSetup />;
+  if (reset) return <PasswordReset />;
   return <SessionAwareLogin />;
 }
 
@@ -104,6 +107,18 @@ function LoginForm() {
   const [modeChanged, setModeChanged] = useState(false);
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const heading = setup.data?.registered
+    ? "Account already exists"
+    : setup.isError
+      ? "Link unavailable"
+      : submittedEmail
+        ? "Check your email"
+        : finishing
+          ? "Finish your account"
+          : creating
+            ? "Create your account"
+            : "Sign in to Quorem";
+  usePageTitle(heading === "Sign in to Quorem" ? undefined : `${heading} - Quorem`);
   const resend = useCooldown();
   const verified = new URLSearchParams(location.search).get("verified") === "1";
   const [name, setName] = useState("");
@@ -195,19 +210,7 @@ function LoginForm() {
                 : undefined
             }
           >
-            <h1 id="sign-in-title">
-              {setup.data?.registered
-                ? "Account already exists"
-                : setup.isError
-                  ? "Link unavailable"
-                  : submittedEmail
-                    ? "Check your email"
-                    : finishing
-                      ? "Finish your account"
-                      : creating
-                        ? "Create your account"
-                        : "Sign in to Quorem"}
-            </h1>
+            <h1 id="sign-in-title">{heading}</h1>
           </NoticeRegion>
           <p>
             {setup.data?.registered || setup.isError

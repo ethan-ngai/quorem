@@ -3802,54 +3802,6 @@
         }
       }
     },
-    "/v1/parties/{id}/start": {
-      "post": {
-        "operationId": "startParty",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PartySnapshot"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Safe application error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/parties/{id}/leave": {
       "post": {
         "operationId": "leaveParty",
@@ -4879,6 +4831,14 @@
           },
           "hasComplexity": {
             "type": "boolean"
+          },
+          "hiddenCaseCounts": {
+            "description": "Number of hidden cases by stage. Stage 0 is the base suite.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "required": [
@@ -5334,6 +5294,11 @@
           "deadline": {
             "type": "string",
             "format": "date-time"
+          },
+          "submissionDeadline": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Earlier shared cutoff when every remaining competitor has settled time penalties."
           },
           "finalizingAt": {
             "type": "string",

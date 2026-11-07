@@ -91,27 +91,54 @@ function checkedHistory(files: Migration[], rows: LedgerRow[], owner: MigrationO
     }
   return applied;
 }
+async function history(
+  directory: string,
+  owner: MigrationOwner,
+  rows: LedgerRow[],
+  files: Migration[],
+): Promise<Migration[]> {
+  const [first, ...later] = files;
+  if (
+    !first.name.endsWith("_baseline.sql") ||
+    !rows.length ||
+    rows.some((row) => row.name === first.name)
+  )
+    return files;
+
+  // Existing databases retain their original receipts and apply any missing upgrades.
+  return [...(await source(join(directory, "legacy"), owner)), ...later];
+}
+
+/** Verify receipts for either a fresh baseline or a fully upgraded historical database. */
+export async function verifyMigrationReceipts(
+  directory: string,
+  owner: MigrationOwner,
+  rows: LedgerRow[],
+): Promise<void> {
+  const files = await history(directory, owner, rows, await source(directory, owner));
+  checkedHistory(files, rows, owner);
+  if (rows.length !== files.length) throw new Error(`Incomplete ${owner} migration history`);
+}
 /** Caller holds the migration locks and transaction throughout verification. */
 export async function verifyCompleteHistory(
   client: PoolClient,
   owner: MigrationOwner,
   directory: string,
 ): Promise<void> {
-  const files = await source(directory, owner);
   const ledger = owner === "auth" ? "quorem_auth.schema_migrations" : "public.schema_migrations";
   const rows = (await client.query<LedgerRow>(`SELECT name,checksum FROM ${ledger}`)).rows;
-  checkedHistory(files, rows, owner);
-  if (rows.length !== files.length) throw new Error(`Incomplete ${owner} migration history`);
+  await verifyMigrationReceipts(directory, owner, rows);
 }
 /** Hash and verify all committed history before executing any pending SQL. */
 export async function migrate(pool: Pool, owner: MigrationOwner, directory: string): Promise<void> {
-  const files = await source(directory, owner);
+  const active = await source(directory, owner);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const ledger = await prepare(client, owner);
     const rows = (await client.query<LedgerRow>(`SELECT name,checksum FROM ${ledger} FOR UPDATE`))
       .rows;
+    const files = await history(directory, owner, rows, active);
     const applied = checkedHistory(files, rows, owner);
     for (const file of files) {
       if (applied.has(file.name)) continue;

@@ -1,5 +1,5 @@
 /** @file RoomAlerts.tsx @description Shared monitoring toast and persistent alert history. @module rooms */
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, ClipboardPaste, Copy, EyeOff, Focus, Send, Tags, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { AnimatedRows } from "../../ui/AnimatedRows";
@@ -19,30 +19,150 @@ const alertIcons = {
   submission: Send,
 };
 
+const relativeTime = new Intl.RelativeTimeFormat(undefined, { style: "narrow" });
+const exactTime = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZoneName: "short",
+});
+const ageUnits = [
+  ["day", 86_400],
+  ["hour", 3_600],
+  ["minute", 60],
+  ["second", 1],
+] as const;
+
 export type RoomAlert = {
   id: string;
+  userId: string;
   name: string;
   kind: keyof typeof alertIcons;
   description: string;
   occurredAt: string;
+  seconds?: number;
+  points?: number;
 };
 
-function EventIcon({ kind }: { kind: RoomAlert["kind"] }) {
+function EventIcon({ event }: { event: RoomAlert }) {
+  const { kind, seconds, points } = event;
   const Icon = alertIcons[kind];
-  return <Icon className="room-event-icon" size={16} aria-hidden="true" />;
+  const tone =
+    seconds || points
+      ? "error"
+      : kind === "topics" || kind === "complexity" || kind === "hiddenCase"
+        ? "info"
+        : "warning";
+  return <Icon className="room-event-icon" data-tone={tone} size={16} aria-hidden="true" />;
+}
+
+function AlertMessage({ event, count = 1 }: { event: RoomAlert; count?: number }) {
+  const countMotion = useChangeMotion<HTMLSpanElement>(count);
+  return (
+    <>
+      <strong>{event.name}</strong> {event.description}
+      {count > 1 && (
+        <span ref={countMotion} className="room-alert-repeat motion-reveal">
+          ×{count}
+        </span>
+      )}
+      {!!event.seconds && <span className="room-alert-penalty">+{event.seconds}s</span>}
+      {!!event.points && (
+        <span className="room-alert-penalty">
+          −{event.points} {event.points === 1 ? "point" : "points"}
+        </span>
+      )}
+    </>
+  );
+}
+
+function AlertTimestamp({
+  occurredAt,
+  now,
+  grouped,
+}: {
+  occurredAt: string;
+  now: number;
+  grouped: boolean;
+}) {
+  const timestamp = Date.parse(occurredAt);
+  if (!Number.isFinite(timestamp)) return null;
+  const seconds = Math.floor(Math.max(0, now - timestamp) / 1000);
+  const [unit, size] = ageUnits.find(([, size]) => seconds >= size) ?? ageUnits[3];
+  return (
+    <Tooltip
+      content={
+        grouped ? `Latest event · ${exactTime.format(timestamp)}` : exactTime.format(timestamp)
+      }
+    >
+      <time className="room-alert-age" dateTime={occurredAt} tabIndex={0}>
+        {seconds ? relativeTime.format(-Math.floor(seconds / size), unit) : "Just now"}
+      </time>
+    </Tooltip>
+  );
+}
+
+function groupAlerts(events: readonly RoomAlert[]) {
+  const groups: (RoomAlert & { count: number })[] = [];
+  for (const event of events) {
+    const previous = groups.at(-1);
+    if (
+      previous &&
+      previous.userId === event.userId &&
+      previous.kind === event.kind &&
+      Boolean(previous.seconds || previous.points) === Boolean(event.seconds || event.points)
+    ) {
+      previous.count++;
+      previous.occurredAt = event.occurredAt;
+      previous.seconds = (previous.seconds ?? 0) + (event.seconds ?? 0);
+      previous.points = (previous.points ?? 0) + (event.points ?? 0);
+    } else {
+      groups.push({ ...event, count: 1 });
+    }
+  }
+  return groups.reverse();
+}
+
+function AlertHistory({ events }: { events: readonly RoomAlert[] }) {
+  const [now, setNow] = useState(Date.now);
+  const items = useMemo(() => groupAlerts(events), [events]);
+  const hasEvents = items.length > 0;
+  useEffect(() => {
+    if (!hasEvents) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [hasEvents]);
+  return (
+    <AnimatedRows
+      as="ol"
+      className="room-alerts-history"
+      items={items}
+      getKey={(event) => event.id}
+      renderRow={(event) => (
+        <>
+          <EventIcon event={event} />
+          <div>
+            <AlertMessage event={event} count={event.count} />
+            <AlertTimestamp occurredAt={event.occurredAt} now={now} grouped={event.count > 1} />
+          </div>
+        </>
+      )}
+    />
+  );
 }
 
 export function RoomAlerts({
   scope,
   events,
   version,
-  limit,
   label,
 }: {
   scope: string;
   events: readonly RoomAlert[];
   version: bigint;
-  limit: number;
   label: string;
 }) {
   const count = useChangeMotion<HTMLSpanElement>(events.length);
@@ -54,17 +174,14 @@ export function RoomAlerts({
     for (const event of tracking.track(version, events)) {
       const id = `room-alert:${scope}:${event.id}`;
       tracking.notified.add(id);
-      if (tracking.notified.size > limit) {
-        const oldest = tracking.notified.values().next().value!;
-        toast.dismiss(oldest);
-        tracking.notified.delete(oldest);
-      }
-      toast.warning(`${event.name} ${event.description}`, {
+      toast.warning(<AlertMessage event={event} />, {
         id,
-        icon: <EventIcon kind={event.kind} />,
+        icon: <EventIcon event={event} />,
+        onDismiss: () => tracking.notified.delete(id),
+        onAutoClose: () => tracking.notified.delete(id),
       });
     }
-  }, [events, version, scope, tracking, limit]);
+  }, [events, version, scope, tracking]);
   useEffect(
     () => () => {
       for (const id of tracking.notified) toast.dismiss(id);
@@ -94,29 +211,8 @@ export function RoomAlerts({
         <Popover.Content className="room-alerts-popover" align="end">
           <header>
             <strong>Alerts</strong>
-            {events.length === limit && <small>Most recent {limit} events</small>}
           </header>
-          <AnimatedRows
-            as="ol"
-            className="room-alerts-history"
-            items={[...events].reverse()}
-            getKey={(event) => event.id}
-            renderRow={(event) => (
-              <>
-                <EventIcon kind={event.kind} />
-                <div>
-                  <strong>{event.name}</strong> {event.description}
-                  <time dateTime={event.occurredAt}>
-                    {new Date(event.occurredAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
-                  </time>
-                </div>
-              </>
-            )}
-          />
+          <AlertHistory events={events} />
           {events.length === 0 && <p className="motion-reveal">No monitoring events.</p>}
         </Popover.Content>
       </Popover.Portal>

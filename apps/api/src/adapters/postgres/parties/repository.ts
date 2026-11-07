@@ -3,11 +3,7 @@ import { requireReadyTeams } from "../../../modules/factions/policy.ts";
 /** @file repository.ts @description Transactional party commands and snapshots. @module parties */
 import { sql } from "drizzle-orm";
 import { readinessSettings } from "@quorem/contracts/match-rules";
-import {
-  classifyDatabaseError,
-  type ConnectionScope,
-  type Transaction,
-} from "@quorem/database/core";
+import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
   activateDeadline,
   type Receipts,
@@ -30,7 +26,7 @@ import { validateSelectedMatchProblem } from "../matches/selection/repository.ts
 import { matchEvent, finishMatch, reconcileMatch } from "../matches/reconcile/repository.ts";
 
 import { uuid, missing, conflict, validateGuest, lockParty, snapshot, reset } from "./store.ts";
-import { startRound, transferHost, reconcileParty, scheduleIfReady } from "./reconcile.ts";
+import { transferHost, reconcileParty, scheduleIfReady } from "./reconcile.ts";
 export { reconcileParty } from "./reconcile.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -382,18 +378,6 @@ export function partyRepository(
                 sql`UPDATE parties SET countdown_ends_at=NULL,queue_error=NULL,version=version+1 WHERE id=${id}::uuid`,
               );
               if (body) await scheduleIfReady(tx, id);
-            }
-          } else if (action === "start") {
-            if (p.host !== who.userId)
-              throw new ApplicationError("forbidden", "Only the host can start", 403);
-            if (p.current) throw conflict("A round is already active");
-            if (p.latest) throw conflict("Ready players to start the next round");
-            try {
-              await startRound(tx, id, p);
-            } catch (error) {
-              if (classifyDatabaseError(error) === "lock_timeout")
-                throw conflict("Party is updating. Try again.");
-              throw error;
             }
           } else if (action === "kick") {
             if (p.host !== who.userId)

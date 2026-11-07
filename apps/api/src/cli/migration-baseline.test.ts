@@ -90,7 +90,7 @@ void test(
                     ? "apps/api/src/cli/fixtures/deployed-postgres-store.go.txt"
                     : name === "apps/auth/package.json"
                       ? "apps/api/src/cli/fixtures/deployed-auth-package.json.txt"
-                      : name,
+                      : name.replace(/\/migrations\//, "/migrations/legacy/"),
           ),
         );
       return {
@@ -112,8 +112,8 @@ void test(
       await lock.query(
         "DROP SCHEMA IF EXISTS quorem_auth CASCADE; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public",
       );
-      await migrate(pool, "product", resolve(root, "apps/api/migrations"));
-      await migrate(pool, "auth", resolve(root, "apps/auth/migrations"));
+      await migrate(pool, "product", resolve(root, "apps/api/migrations/legacy"));
+      await migrate(pool, "auth", resolve(root, "apps/auth/migrations/legacy"));
       await pool.query("INSERT INTO users(id,display_name,role) VALUES($1,'Operator','admin')", [
         operator,
       ]);

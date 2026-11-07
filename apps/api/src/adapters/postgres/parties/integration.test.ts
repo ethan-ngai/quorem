@@ -168,9 +168,30 @@ test("completion resets readiness and requeue freezes settings exactly once", as
   await repo.join(d, "join", created.inviteUrl.slice(8));
   await repo.heartbeat(d, crypto.randomUUID());
   await repo.mutate(c, id, "ready-1", "ready", true);
-  await repo.mutate(d, id, "ready-1", "ready", true);
-  const started = (await repo.mutate(c, id, "start", "start", null)) as { currentMatchId: string };
-  const first = started.currentMatchId;
+  const firstQueued = (await repo.mutate(d, id, "ready-1", "ready", true)) as {
+    currentMatchId: string | null;
+    latestMatchId: string | null;
+    countdownEndsAt: string;
+  };
+  expect(firstQueued.currentMatchId).toBeNull();
+  expect(firstQueued.latestMatchId).toBeNull();
+  expect(Date.parse(firstQueued.countdownEndsAt)).toBeGreaterThan(Date.now());
+  await pool.query("UPDATE parties SET countdown_ends_at=NULL WHERE id=$1", [id]);
+  expect(await repo.read(c, id)).toMatchObject({
+    currentMatchId: null,
+    countdownEndsAt: expect.any(String),
+  });
+  expect(await repo.mutate(c, id, "cancel-first", "ready", false)).toMatchObject({
+    currentMatchId: null,
+    countdownEndsAt: null,
+  });
+  await repo.mutate(c, id, "restart-first", "ready", true);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1 AND countdown_ends_at IS NOT NULL",
+    [id],
+  );
+  const { currentMatchId: first } = (await repo.read(c, id)) as { currentMatchId: string };
+  expect(first).toBeTruthy();
   expect(
     (await pool.query("SELECT share_code_after_match FROM matches WHERE id=$1", [first])).rows[0]
       .share_code_after_match,
@@ -412,33 +433,12 @@ test("guest identity locks do not block party reads or durable round start", asy
   await repo.heartbeat(guest, crypto.randomUUID());
   await repo.mutate(owner, id, "ready-owner", "ready", true);
   await repo.mutate(guest, id, "ready-guest", "ready", true);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1 AND countdown_ends_at IS NOT NULL",
+    [id],
+  );
   const blocker = await pool.connect();
   try {
-    await blocker.query("BEGIN");
-    await blocker.query("SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", [guest.userId]);
-    await blocker.query("SELECT token_hash FROM guest_sessions WHERE token_hash=$1 FOR UPDATE", [
-      hash,
-    ]);
-    await expect(repo.mutate(owner, id, "first-attempt", "start", null)).rejects.toMatchObject({
-      status: 409,
-    });
-    await blocker.query("ROLLBACK");
-    const started = (await repo.mutate(owner, id, "first-attempt", "start", null)) as {
-      currentMatchId: string;
-    };
-    expect(started.currentMatchId).toBeTruthy();
-    await pool.query(
-      'UPDATE matches SET state=\'completed\',completed_at=clock_timestamp(),outcome=\'{"kind":"draw","reason":"deadline_score"}\'::jsonb WHERE id=$1',
-      [started.currentMatchId],
-    );
-    await pool.query("DELETE FROM match_reservations WHERE match_id=$1", [started.currentMatchId]);
-    await repo.read(owner, id);
-    await repo.mutate(owner, id, "again-owner", "ready", true);
-    await repo.mutate(guest, id, "again-guest", "ready", true);
-    await pool.query(
-      "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
-      [id],
-    );
     await blocker.query("BEGIN");
     await blocker.query("SELECT id FROM users WHERE id=$1 FOR NO KEY UPDATE", [guest.userId]);
     await blocker.query("SELECT token_hash FROM guest_sessions WHERE token_hash=$1 FOR UPDATE", [
@@ -568,7 +568,13 @@ test("only hosts remove lobby members, reset readiness, and replay safely", asyn
   await repo.join(member, "rejoin", created.inviteUrl.split("/").at(-1)!);
   await repo.mutate(host, id, "host-ready", "ready", true);
   await repo.mutate(member, id, "member-ready", "ready", true);
-  await repo.mutate(host, id, "start", "start", null);
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1 AND countdown_ends_at IS NOT NULL",
+    [id],
+  );
+  expect((await repo.read(host, id)) as { currentMatchId: string }).toMatchObject({
+    currentMatchId: expect.any(String),
+  });
   await expect(repo.mutate(host, id, "active-kick", "kick", target)).rejects.toMatchObject({
     status: 409,
   });

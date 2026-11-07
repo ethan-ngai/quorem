@@ -1,8 +1,18 @@
 import type { SharedWorkspaceDocument } from "../collaboration/sharedWorkspace";
-import { MatchAssistance, ruleCostLabel } from "../matches/MatchAssistance";
+import {
+  MatchAssistance,
+  ruleCostLabel,
+  type MatchDisclosureControls,
+} from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
 import type { RuleActionQuote } from "@quorem/contracts/match-rules";
-import { matchCompletionOutcome } from "../matches/matchState";
+import {
+  matchCompletionOutcome,
+  ownParticipant,
+  submissionTimeEndedLabel,
+} from "../matches/matchState";
+import { personalSubmissionDeadline } from "../matches/matchTime";
+import { useSubmissionTimeEnded } from "../matches/useSubmissionTimeEnded";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
@@ -25,7 +35,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
 import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
-import { EditorialPanel } from "./components/EditorialPanel";
+import { EditorialPanel, type EditorialComplexity } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
@@ -69,6 +79,8 @@ function errorMessage(error: unknown) {
 import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
 import { problemQueryOptions } from "../practice/problemQueries";
+import { usePageTitle } from "../navigation/PageMetadata";
+import { matchModeLabels } from "../matches/ModeIcon";
 import { languageFileNames, type EditorLanguage } from "./editorLanguages";
 
 export function WorkspacePage({
@@ -159,6 +171,16 @@ export function WorkspacePage({
         : problemOptions.queryFn,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
   });
+  const question = problemQuery.data;
+  const currentQuestion = match
+    ? account.data && match.startedAt && question?.id === match.problemVersionId
+    : question?.slug === slug;
+  const mode = match ? matchModeLabels[match.mode] : "Practice";
+  usePageTitle(
+    currentQuestion && question?.title
+      ? `${question.title} - ${mode}${reviewRequested || review ? " Review" : ""}`
+      : undefined,
+  );
   const activeLanguage = problemQuery.data?.languages?.some(
     (item) => item.language === selectedLanguage,
   )
@@ -229,6 +251,17 @@ export function WorkspacePage({
     workspaceQuery.data,
   ]);
 
+  const matchDeadline = match && !review ? (match.submissionDeadline ?? match.deadline) : undefined;
+  const personalDeadline =
+    match && !review
+      ? personalSubmissionDeadline(match, ownParticipant(match, identity)?.penaltySeconds)
+      : undefined;
+  const matchTimeEnded = useSubmissionTimeEnded(match?.serverNow, matchDeadline);
+  const personalTimeEnded = useSubmissionTimeEnded(
+    match?.serverNow,
+    personalDeadline === matchDeadline ? undefined : personalDeadline,
+  );
+  const submitClosed = matchTimeEnded || personalTimeEnded;
   const frozenMatch =
     !!match &&
     !review &&
@@ -450,6 +483,7 @@ export function WorkspacePage({
       .finally(() => setLanguageSwitching(false));
   };
   const run = useCallback(async () => {
+    if (matchTimeEnded) return;
     if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
@@ -457,14 +491,14 @@ export function WorkspacePage({
     }
     setActivePanel("results");
     await execution.run();
-  }, [execution.run, account.data, match]);
+  }, [execution.run, account.data, match, matchTimeEnded]);
   const submit = useCallback(async () => {
     if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
-    if (quotingSubmission || submissionConfirmation) return;
+    if (submitClosed || quotingSubmission || submissionConfirmation) return;
     setActivePanel("results");
     if (match && !review) {
       setQuotingSubmission(true);
@@ -492,6 +526,7 @@ export function WorkspacePage({
     match,
     review,
     identity,
+    submitClosed,
     quotingSubmission,
     submissionConfirmation,
     sharedDocument,
@@ -598,7 +633,78 @@ export function WorkspacePage({
     />
   );
 
-  return (
+  const assistance = review ? undefined : match?.rules.assistance;
+  const renderProblem = (controls?: MatchDisclosureControls) => {
+    const topicControls = {
+      allowTopics: assistance?.topics.access !== "blocked",
+      topicsDisabled: controls?.disabled,
+      requestTopics:
+        controls &&
+        assistance &&
+        assistance.topics.access !== "free" &&
+        assistance.topics.access !== "blocked"
+          ? (anchor: HTMLButtonElement, open: (tags: string[]) => void) =>
+              controls.reveal("topics", anchor, ({ topics }) => {
+                if (topics) open(topics);
+              })
+          : undefined,
+    };
+    const editorial = (
+      <EditorialPanel
+        key={`${identity}:${workspace.id}:${problem.id}`}
+        theme={theme}
+        colorScheme={editorSchemes[theme]}
+        available={problem.hasComplexity ?? false}
+        solutionAvailable={!problem.odyssey && (!match || review) && !!problem.hasSolutions}
+        identity={identity}
+        versionId={problem.id}
+        language={documentLanguage}
+        inMatch={!!assistance && assistance.complexity.access !== "free"}
+        complexityDisabled={controls?.disabled}
+        requestComplexity={
+          controls &&
+          assistance &&
+          assistance.complexity.access !== "free" &&
+          assistance.complexity.access !== "blocked"
+            ? (anchor, open) =>
+                controls.reveal("complexity", anchor, ({ complexity }) => {
+                  if (complexity) open(JSON.parse(complexity) as EditorialComplexity);
+                })
+            : undefined
+        }
+      />
+    );
+    if (!problem.odyssey) {
+      return (
+        <ProblemStatement problem={problem} {...topicControls}>
+          {editorial}
+        </ProblemStatement>
+      );
+    }
+    if (displayedOdyssey) {
+      return (
+        <OdysseyPanel
+          {...topicControls}
+          progress={displayedOdyssey}
+          problem={problem}
+          selectedLevel={selectedLevel}
+        >
+          {editorial}
+        </OdysseyPanel>
+      );
+    }
+    return (
+      <p className="result-message" role="status">
+        {!account.data
+          ? "Sign in to start Odyssey."
+          : odyssey.isError
+            ? "Odyssey is unavailable for this account. Reload to retry."
+            : "Loading levels…"}
+      </p>
+    );
+  };
+
+  const renderWorkspace = (controls?: MatchDisclosureControls) => (
     <>
       {loading && (
         <div className="workspace-loading workspace-transition" role="status">
@@ -719,69 +825,7 @@ export function WorkspacePage({
         }
         panel={activePanel}
         onPanelChange={setActivePanel}
-        problem={
-          <>
-            {match && !review && (
-              <MatchAssistance
-                key={match.id}
-                match={match}
-                identity={identity}
-                submission={submission}
-                complexityAvailable={problem.hasComplexity ?? false}
-                onPaidAction={sharedDocument?.requestPaidAction}
-              />
-            )}
-            {problem.odyssey ? (
-              displayedOdyssey ? (
-                <OdysseyPanel
-                  allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
-                  progress={displayedOdyssey}
-                  problem={problem}
-                  selectedLevel={selectedLevel}
-                >
-                  <EditorialPanel
-                    theme={theme}
-                    colorScheme={editorSchemes[theme]}
-                    available={problem.hasComplexity ?? false}
-                    identity={identity}
-                    versionId={problem.id}
-                    language={documentLanguage}
-                    inMatch={
-                      !!match && !review && match.rules.assistance.complexity.access !== "free"
-                    }
-                  />
-                </OdysseyPanel>
-              ) : (
-                <p className="result-message" role="status">
-                  {!account.data
-                    ? "Sign in to start Odyssey."
-                    : odyssey.isError
-                      ? "Odyssey is unavailable for this account. Reload to retry."
-                      : "Loading levels…"}
-                </p>
-              )
-            ) : (
-              <ProblemStatement
-                problem={problem}
-                allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
-              >
-                <EditorialPanel
-                  theme={theme}
-                  colorScheme={editorSchemes[theme]}
-                  available={problem.hasComplexity ?? false}
-                  solutionAvailable={(!match || review) && (problem.hasSolutions ?? false)}
-                  key={`${identity}:${problem.id}`}
-                  identity={identity}
-                  versionId={problem.id}
-                  language={documentLanguage}
-                  inMatch={
-                    !!match && !review && match.rules.assistance.complexity.access !== "free"
-                  }
-                />
-              </ProblemStatement>
-            )}
-          </>
-        }
+        problem={renderProblem(controls)}
         editor={
           <>
             {review && reviewQuery.data && (
@@ -901,21 +945,27 @@ export function WorkspacePage({
             progress={displayedOdyssey}
             submission={submission}
             busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+            pendingKind={execution.pendingKind}
             error={execution.error}
-            customMode={customMode}
+            customMode={execution.pendingKind === "submit" ? false : customMode}
             onCustomModeChange={setCustomMode}
             drafts={customDrafts}
             onDraftsChange={frozenMatch ? undefined : changeCustomDrafts}
             snapshot={execution.runSnapshot}
+            hiddenCaseDetails={controls?.hiddenCaseDetails}
           />
         }
         actions={
           <>
             <ExecutionActions
+              submitDisabledReason={submitClosed ? submissionTimeEndedLabel : undefined}
               disabled={
-                submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+                submitClosed ||
+                submissionBusy ||
+                (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
               }
               runDisabled={
+                matchTimeEnded ||
                 (submissionBusy && !execution.canReplaceRun) ||
                 (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
               }
@@ -956,7 +1006,11 @@ export function WorkspacePage({
           }}
           pending={execution.admissionPending}
           title="Submit with penalty?"
-          description={`Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`}
+          description={
+            submitClosed
+              ? "Your submission window has closed."
+              : `Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`
+          }
         >
           <div className="competitive-dialog-actions">
             <button
@@ -968,9 +1022,9 @@ export function WorkspacePage({
             </button>
             <button
               className="button button-primary"
-              disabled={execution.admissionPending}
+              disabled={execution.admissionPending || submitClosed}
               onClick={async () => {
-                if (!submissionConfirmation) return;
+                if (!submissionConfirmation || submitClosed) return;
                 if (
                   await execution.submit(
                     submissionConfirmation.quote,
@@ -1019,5 +1073,19 @@ export function WorkspacePage({
         )}
       </WorkspaceLayout>
     </>
+  );
+
+  return match && !review ? (
+    <MatchAssistance
+      key={`${match.id}:${identity}:${workspace.id}`}
+      match={match}
+      identity={identity}
+      submission={submission}
+      onPaidAction={sharedDocument?.requestPaidAction}
+    >
+      {renderWorkspace}
+    </MatchAssistance>
+  ) : (
+    renderWorkspace()
   );
 }

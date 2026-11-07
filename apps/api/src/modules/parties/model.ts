@@ -31,7 +31,7 @@ export interface Parties {
     who: Principal,
     id: string,
     key: string,
-    action: "settings" | "ready" | "start" | "leave" | "disband" | "kick",
+    action: "settings" | "ready" | "leave" | "disband" | "kick",
     body: PartySettings | boolean | string | null,
   ): Promise<unknown>;
   heartbeat(who: Principal, windowId: string): Promise<unknown>;

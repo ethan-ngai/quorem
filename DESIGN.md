@@ -89,6 +89,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Animate language/content switches, disclosures, overlays, selections and row changes through shared owners. Use short, reversible transitions and shared motion tokens.
 - Apply state immediately. Retain old asynchronous content until its replacement is ready; transition content and dimensions smoothly.
 - Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
+- Use the shared `ScrollCue` for overflow hints in scrollable panes. Match its axis to the scroll direction.
 - Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.
 - Dismiss hover tooltips when the pointer leaves the trigger. Empty hints show no tooltip.
 - Preserve disabled/pending geometry, prevent duplicate actions and use shared destructive-action treatment.

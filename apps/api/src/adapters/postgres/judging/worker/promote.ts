@@ -17,14 +17,20 @@ type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const encoder = new TextEncoder();
 /** Caller must have actually awaited teardown of this exact scope and attempt. */
-export function postgresCompletionPromotion(run: Run, seal = false) {
+export function postgresCompletionPromotion(
+  run: Run,
+  seal = false,
+  wakeMatchDeadline?: (match: string) => Promise<void>,
+) {
   return async (job: Job, proof: AttemptFence): Promise<void> => {
     assertAttemptFence(job, proof);
-    await run((scope) =>
+    const deadlineMatch = await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
         const initial = (
-          await tx.execute<{ match: string | null }>(
-            sql`SELECT s.match_id::text AS match FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
+          await tx.execute<{ match: string | null; paidTime: boolean }>(
+            sql`SELECT s.match_id::text AS match,EXISTS(
+              SELECT 1 FROM match_rule_events e WHERE e.match_id=s.match_id AND e.submission_id=s.id AND e.seconds>0
+            ) AS "paidTime" FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
           )
         ).rows[0];
         if (!initial) throw new Error("Unknown completion");
@@ -62,7 +68,7 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
               WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
           )
         ).rows[0];
-        if (state?.receipt) return;
+        if (state?.receipt) return initial.paidTime ? initial.match : undefined;
         if (!state?.live || !state.sealedInputs || (!seal && (!state.eof || !state.header)))
           throw new Error("Stale or incomplete completion");
         // Atomic promotion consumes staging in this transaction, so only standalone sealing needs EOF.
@@ -248,7 +254,15 @@ export function postgresCompletionPromotion(run: Run, seal = false) {
         FROM receipt WHERE execution_jobs.id=receipt.job_id RETURNING execution_jobs.id`);
         if (!finished.rows.length) throw new Error("Stale completion");
         if (initial.match) await reconcileMatch(tx, initial.match);
+        return initial.paidTime ? initial.match : undefined;
       }),
     );
+    if (deadlineMatch && wakeMatchDeadline) {
+      try {
+        await wakeMatchDeadline(deadlineMatch);
+      } catch {
+        /* The submission transition and scheduled repair are durable. */
+      }
+    }
   };
 }
