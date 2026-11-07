@@ -3,6 +3,8 @@ import { isMatchWinner } from "./competitors";
 import type { CompletionOutcome } from "../../ui/completionOutcome";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 
+export const submissionTimeEndedLabel = "Submission time ended";
+
 /** @returns A return label only for a current, non-forfeited member of a live match. */
 export function activeMatchReturnLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   const participant = ownParticipant(snapshot, identity);

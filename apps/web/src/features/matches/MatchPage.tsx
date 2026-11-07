@@ -28,7 +28,12 @@ import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
-import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import {
+  outcomeLabel,
+  ownParticipant,
+  remainingTime,
+  submissionTimeEndedLabel,
+} from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { ApiError } from "../../api/client";
 import { SignInRedirect } from "../auth/RouteAccess";
@@ -103,23 +108,29 @@ function MatchClock({
             if (!open) setDismissedCutoff(personalDeadline);
           }}
         >
-          <Popover.Anchor asChild>
-            <span className="match-clock match-clock-personal" data-closed={personalClosed}>
-              <span className="match-clock-label">Submit</span>
-              {personal}
-            </span>
-          </Popover.Anchor>
+          <Tooltip content={submissionTimeEndedLabel} disabled={!personalClosed}>
+            <Popover.Anchor asChild>
+              <span
+                className="match-clock match-clock-personal"
+                data-closed={personalClosed}
+                tabIndex={personalClosed ? 0 : undefined}
+              >
+                <span className="match-clock-label">Submit</span>
+                {personal}
+              </span>
+            </Popover.Anchor>
+          </Tooltip>
           {cutoffOpen && (
             <Popover.Portal>
               <Popover.Content
                 className="match-cutoff-popover"
-                aria-label="Submission time ended"
+                aria-label={submissionTimeEndedLabel}
                 align="end"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onCloseAutoFocus={(event) => event.preventDefault()}
               >
                 <div role="alert">
-                  <strong>Submission time ended</strong>
+                  <strong>{submissionTimeEndedLabel}</strong>
                   <p>You can still run tests until the match ends.</p>
                 </div>
                 <Popover.Close asChild>

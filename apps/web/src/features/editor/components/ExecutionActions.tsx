@@ -7,16 +7,24 @@ import { Tooltip } from "../../../ui/Tooltip";
 export function ExecutionActions({
   disabled,
   runDisabled = disabled,
+  submitDisabledReason,
   onRun,
   onSubmit,
   onCancel,
 }: {
   disabled: boolean;
   runDisabled?: boolean;
+  submitDisabledReason?: string;
   onRun: () => void;
   onSubmit: () => void;
   onCancel?: () => void;
 }) {
+  const submit = (
+    <button className="button button-primary" disabled={disabled} onClick={onSubmit}>
+      <Icon name="submit" />
+      Submit
+    </button>
+  );
   return (
     <div className="run-actions">
       {onCancel && (
@@ -30,12 +38,15 @@ export function ExecutionActions({
           Run
         </button>
       </Tooltip>
-      <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>
-        <button className="button button-primary" disabled={disabled} onClick={onSubmit}>
-          <Icon name="submit" />
-          Submit
-        </button>
-      </Tooltip>
+      {disabled && submitDisabledReason ? (
+        <Tooltip content={submitDisabledReason}>
+          <span className="disabled-action-hint" role="group" aria-label="Submit" tabIndex={0}>
+            {submit}
+          </span>
+        </Tooltip>
+      ) : (
+        <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.submit} />}>{submit}</Tooltip>
+      )}
     </div>
   );
 }

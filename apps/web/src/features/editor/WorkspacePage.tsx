@@ -6,7 +6,11 @@ import {
 } from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
 import type { RuleActionQuote } from "@quorem/contracts/match-rules";
-import { matchCompletionOutcome, ownParticipant } from "../matches/matchState";
+import {
+  matchCompletionOutcome,
+  ownParticipant,
+  submissionTimeEndedLabel,
+} from "../matches/matchState";
 import { personalSubmissionDeadline } from "../matches/matchTime";
 import { useSubmissionTimeEnded } from "../matches/useSubmissionTimeEnded";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
@@ -966,6 +970,7 @@ export function WorkspacePage({
         actions={
           <>
             <ExecutionActions
+              submitDisabledReason={submitClosed ? submissionTimeEndedLabel : undefined}
               disabled={
                 submitClosed ||
                 submissionBusy ||
