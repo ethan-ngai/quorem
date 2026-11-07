@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MatchSettings } from "../../../web/src/features/matches/MatchControls";
 import { SelfIndicator } from "../../../web/src/ui/SelfIndicator";
@@ -9,7 +10,7 @@ const settings = {
   selectedProblemVersionId: "two-sum-preview",
   durationMinutes: 30 as const,
   shareCodeAfterMatch: true,
-  rules: { clipboard: "warning" as const, focus: "announce" as const },
+  rules: matchPreset("balanced"),
 };
 /** Server-rendered shared controls: no session, hydration or catalog request. */
 export default function LobbyPreview() {
@@ -46,7 +47,6 @@ export default function LobbyPreview() {
             identity="alice"
             catalog={catalog}
             participantCount={3}
-            showHostRules
             disabled
             onChange={() => {}}
           />

@@ -503,6 +503,12 @@
       "packet": "17",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/odyssey.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/rule-actions",
+      "registration": "apps/api/src/modules/matches/lifecycle/routes.ts",
+      "contract": "packages/contracts/openapi/api.json"
     }
   ],
   "websocketCommands": [

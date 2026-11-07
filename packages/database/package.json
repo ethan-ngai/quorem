@@ -16,6 +16,7 @@
     "test:workers": "node test/worker-check.mjs"
   },
   "dependencies": {
+    "@quorem/contracts": "workspace:*",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   },

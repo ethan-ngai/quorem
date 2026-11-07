@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { createReconnectScheduler } from "./reconnectScheduler";
 /** @file matchSync.test.ts @description Regression coverage for match event guards and ordering. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
@@ -21,7 +22,7 @@ function snapshot(version: string, state: MatchSnapshot["state"] = "active"): Ma
     state,
     mode: "showdown",
     difficulties: ["easy"],
-    rules: { clipboard: "off", focus: "off" },
+    rules: { ...matchPreset("casual"), clipboard: "off", focus: "off" },
     ruleEvents: [],
     serverNow: "2026-10-10T12:00:00Z",
     difficulty: "easy",

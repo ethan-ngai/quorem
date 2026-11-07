@@ -149,7 +149,9 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const w = await workspace(tx, principal, id);
-          const problem = await projectAuthorizedVersion(tx, w.problemVersionId);
+          const problem = await projectAuthorizedVersion(tx, w.problemVersionId, {
+            userId: principal.userId,
+          });
           if (!problem) throw missing();
           return problem;
         }),

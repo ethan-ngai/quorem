@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 // @vitest-environment happy-dom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
@@ -43,7 +44,7 @@ const snapshot: MatchSnapshot = {
   state: "completed",
   mode: "showdown",
   difficulties: ["easy"],
-  rules: { clipboard: "off", focus: "off" },
+  rules: { ...matchPreset("casual"), clipboard: "off", focus: "off" },
   ruleEvents: [],
   serverNow: "2026-11-06T12:00:00Z",
   difficulty: "easy",

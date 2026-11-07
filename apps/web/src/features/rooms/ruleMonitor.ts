@@ -1,36 +1,52 @@
-type RuleAction = "off" | "warning" | "announce";
-export type RuleKind = "clipboard" | "focus";
-
-/** One focus violation per absence, even when blur and visibility fire together. */
+/** @file ruleMonitor.ts @description Deduplicated browser observations with focus grace. @module rooms */
+type RuleAction = "off" | "warning" | "announce" | "penalty";
+export type RuleKind = "clipboard" | "copy" | "focus";
 export function createRuleMonitor(
-  rules: { clipboard: RuleAction; focus: RuleAction },
+  rules: {
+    clipboard: RuleAction;
+    copy?: RuleAction;
+    focus: RuleAction;
+    focusGraceSeconds?: number;
+  },
   report: (kind: RuleKind, action: RuleAction) => void,
   now = Date.now,
 ) {
   let absent = false;
-  let lastClipboard = -Infinity;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const last = { clipboard: -Infinity, copy: -Infinity };
+  const clipboard = (kind: "clipboard" | "copy" = "clipboard") => {
+    const action = rules[kind] ?? "off";
+    if (action === "off") return false;
+    if (now() - last[kind] >= 1000) {
+      last[kind] = now();
+      report(kind, action);
+    }
+    return action === "warning";
+  };
   return {
-    clipboard() {
-      if (rules.clipboard === "off") return false;
-      if (now() - lastClipboard >= 1000) {
-        lastClipboard = now();
-        report("clipboard", rules.clipboard);
-      }
-      return true;
-    },
+    clipboard,
     focus(this: void, present: boolean) {
       if (present) {
         absent = false;
+        clearTimeout(timer);
+        timer = undefined;
         return;
       }
       if (absent) return;
       absent = true;
-      if (rules.focus !== "off") report("focus", rules.focus);
+      if (rules.focus === "off") return;
+      const delay = (rules.focusGraceSeconds ?? 0) * 1000;
+      if (!delay) report("focus", rules.focus);
+      else
+        timer = setTimeout(() => {
+          if (absent) report("focus", rules.focus);
+        }, delay);
+    },
+    dispose() {
+      clearTimeout(timer);
     },
   };
 }
-
-/** Shared browser signals; the rule monitor deduplicates blur and visibility changes. */
 export function observeWindowFocus(focus: (present: boolean) => void) {
   const lost = () => focus(false);
   const restored = () => focus(document.visibilityState === "visible" && document.hasFocus());

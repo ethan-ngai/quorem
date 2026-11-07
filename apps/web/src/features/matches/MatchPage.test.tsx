@@ -1,3 +1,4 @@
+import { matchPreset } from "@quorem/contracts/match-rules";
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -56,7 +57,7 @@ it("keeps the workspace mounted when the match finishes and results reopen", asy
     state: "active",
     mode: "showdown",
     difficulties: ["easy"],
-    rules: { clipboard: "off", focus: "off" },
+    rules: { ...matchPreset("casual"), clipboard: "off", focus: "off" },
     ruleEvents: [],
     serverNow: "2026-11-06T12:00:00Z",
     deadline: "2026-11-06T12:30:00Z",

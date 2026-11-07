@@ -1,3 +1,4 @@
+import type { RuleApproval } from "@quorem/contracts/match-rules";
 import { sha256 } from "../../sha256";
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -204,7 +205,7 @@ export function useSubmission({
       : undefined;
 
   const dispatch = useCallback(
-    async (kind: "run" | "submit") => {
+    async (kind: "run" | "submit", approval?: RuleApproval, frozenSource?: string) => {
       const replacement = kind === "run" ? replaceableRun : undefined;
       if (!enabled || !workspace || !problem || admissionLock.current || (busy && !replacement))
         return false;
@@ -225,7 +226,7 @@ export function useSubmission({
               customMode ? drafts : undefined,
             )
           : undefined;
-      const source = editorRef.current?.getSource() ?? sourceRef.current;
+      const source = frozenSource ?? editorRef.current?.getSource() ?? sourceRef.current;
       admissionLock.current = true;
       setAdmissionPending(true);
       setError(undefined);
@@ -243,7 +244,7 @@ export function useSubmission({
           if (scopeRef.current !== scope) return false;
         }
         const fingerprint = await sha256(
-          JSON.stringify({ scope, kind, source, customCases, level }),
+          JSON.stringify({ scope, kind, source, customCases, level, approval }),
         );
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
         pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
@@ -255,6 +256,7 @@ export function useSubmission({
           customCases,
           pendingRequest.current.key,
           level,
+          ...(approval ? [approval] : []),
         );
         if (scopeRef.current === scope) {
           setActive({ scope, id: admission.id, level });
@@ -317,7 +319,10 @@ export function useSubmission({
   }, [identity, submission, busy, workspace]);
 
   const run = useCallback(() => dispatch("run"), [dispatch]);
-  const submit = useCallback(() => dispatch("submit"), [dispatch]);
+  const submit = useCallback(
+    (approval?: RuleApproval, frozenSource?: string) => dispatch("submit", approval, frozenSource),
+    [dispatch],
+  );
 
   return {
     submission,
