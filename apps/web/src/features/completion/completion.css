@@ -70,6 +70,9 @@
   gap: var(--space-2);
   margin-top: var(--space-5);
 }
+.completion-dialog--competitive .completion-actions {
+  margin-top: var(--space-3);
+}
 .completion-actions > * {
   display: inline-flex;
   align-items: center;
@@ -117,6 +120,8 @@
 
 .match-result-players .match-result-score {
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .completion-trophy {

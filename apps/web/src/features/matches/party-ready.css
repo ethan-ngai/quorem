@@ -77,6 +77,9 @@
 .party-ready-heading h3 {
   margin: 0;
 }
+.match-lobby-joined > .party-ready-heading:last-child {
+  margin-bottom: 0;
+}
 .party-ready-heading > span {
   margin-left: auto;
   color: var(--color-text-secondary);

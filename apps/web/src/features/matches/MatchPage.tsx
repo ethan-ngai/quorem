@@ -5,7 +5,7 @@ import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
-import { Clock3, Trophy } from "lucide-react";
+import { ScorePenalty } from "./ScorePenalty";
 /** @file MatchPage.tsx @description Match ledger and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
 import { MatchEndView } from "./MatchEndView";
@@ -153,23 +153,6 @@ function MatchClock({
         global
       )}
     </div>
-  );
-}
-
-/** @returns A compact penalty total with its effect available on focus or hover. */
-function ScorePenalty({ value, unit }: { value: number; unit: "seconds" | "points" }) {
-  const time = unit === "seconds";
-  const duration = time ? formatPenaltyDuration(value) : "";
-  const label = time
-    ? `Submission cutoff is ${duration} before the scheduled end`
-    : `${value} ${value === 1 ? "point" : "points"} deducted from score`;
-  return (
-    <Tooltip content={label}>
-      <span className="score-penalty" role="img" aria-label={label} tabIndex={0}>
-        {time ? <Clock3 size={12} aria-hidden="true" /> : <Trophy size={12} aria-hidden="true" />}−
-        {time ? duration : `${value} pt${value === 1 ? "" : "s"}`}
-      </span>
-    </Tooltip>
   );
 }
 
