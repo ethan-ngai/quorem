@@ -89,6 +89,19 @@ void test("controller changes reuse artifacts; Docker input changes require new 
   }
 });
 
+void test("unproven release ancestry requires a fresh build", async () => {
+  const commands = [];
+  const run = (_command, args) => {
+    commands.push(args[0]);
+    throw new Error("Prior release is not an ancestor");
+  };
+  const read = () => {
+    assert.fail("Release metadata must not be read without proven ancestry");
+  };
+  assert.equal(await reusableNativeImages(env, prior, read, run), undefined);
+  assert.deepEqual(commands, ["merge-base"]);
+});
+
 void test("reuse rejects ambiguous deployment, mismatched release and unpinned artifacts", async () => {
   for (const fixture of [
     { release: "e".repeat(40) },

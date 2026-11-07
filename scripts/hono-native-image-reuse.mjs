@@ -29,8 +29,9 @@ export async function reusableNativeImages(env, priorRelease, send = fetch, run 
     !/^[a-f0-9]{32}$/.test(env.CLOUDFLARE_ACCOUNT_ID ?? "")
   )
     throw new Error("Invalid native image provenance");
-  run("git", ["merge-base", "--is-ancestor", priorRelease, env.GITHUB_SHA], env);
   try {
+    // A rewritten release history requires a fresh build from validated inputs.
+    run("git", ["merge-base", "--is-ancestor", priorRelease, env.GITHUB_SHA], env);
     run(
       "git",
       ["diff", "--exit-code", priorRelease, env.GITHUB_SHA, "--", ...nativeImageInputs],
