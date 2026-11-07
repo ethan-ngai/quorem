@@ -113,7 +113,7 @@ export function localJudgingDrain(
     const headers = new Headers(response.headers);
     const timing = JSON.parse(profile.header());
     headers.set("x-quorem-judging-profile", JSON.stringify(timing));
-    if (timing.metrics["sandbox.runCase"]?.calls)
+    if (timing.metrics["sandbox.runCase"]?.calls || timing.failures?.length)
       console.log(JSON.stringify({ event: "judging-drain-completed", ...timing }));
     return new Response(response.body, { status: response.status, headers });
   };
