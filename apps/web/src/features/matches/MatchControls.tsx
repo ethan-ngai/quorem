@@ -97,7 +97,7 @@ export function MatchSettings({
           Game mode
         </span>
         <div className="match-difficulty match-modes" role="group" aria-label="Game mode">
-          {(["showdown", "free-for-all"] as const).map((mode) => (
+          {(["showdown", "free-for-all", "factions"] as const).map((mode) => (
             <Tooltip
               key={mode}
               content={
@@ -115,7 +115,11 @@ export function MatchSettings({
                 onClick={() => onChange({ ...value, mode })}
               >
                 <ModeIcon mode={mode} />
-                {mode === "showdown" ? "Showdown" : "Free-for-all"}
+                {mode === "showdown"
+                  ? "Showdown"
+                  : mode === "factions"
+                    ? "Factions"
+                    : "Free-for-all"}
               </button>
             </Tooltip>
           ))}

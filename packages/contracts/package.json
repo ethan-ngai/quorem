@@ -15,6 +15,7 @@
     "./node-type": "./src/node-type.ts",
     "./long": "./src/long.ts",
     "./questions/schema": "./questions/question-v1.schema.json",
+    "./factions": "./src/factions.ts",
     "./match-rules": "./src/match-rules.ts"
   },
   "scripts": {

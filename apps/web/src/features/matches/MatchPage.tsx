@@ -1,3 +1,5 @@
+import { matchCompetitors, isMatchWinner } from "./competitors";
+import { FactionWorkspace } from "../factions/FactionWorkspace";
 import { RoomAlerts } from "../rooms/RoomAlerts";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
@@ -71,6 +73,11 @@ function MatchLedger({
   onResults?: () => void;
 }) {
   const own = ownParticipant(snapshot, identity);
+  const competitors = matchCompetitors(snapshot).sort(
+    (a, b) =>
+      Number(snapshot.mode === "factions" ? b.team === own?.team : b.userId === own?.userId) -
+      Number(snapshot.mode === "factions" ? a.team === own?.team : a.userId === own?.userId),
+  );
   return (
     <SessionBar
       label="Match progress"
@@ -116,7 +123,7 @@ function MatchLedger({
               active={snapshot.state === "active" && !own?.forfeited}
             />
           )}
-          {!own?.forfeited && snapshot.state === "active" && (
+          {!own?.forfeited && snapshot.state === "active" && snapshot.mode !== "factions" && (
             <Tooltip content="Forfeit match">
               <button
                 className="icon-button destructive-icon"
@@ -130,50 +137,52 @@ function MatchLedger({
         </>
       }
     >
-      {[own, ...snapshot.participants.filter((player) => player.userId !== own?.userId)].map(
-        (player, index) => (
-          <div className="competitive-player-score" key={index}>
-            <Tooltip
-              content={
-                player?.presence === "online" ? "Online" : "Disconnected; the clock continues"
-              }
-            >
-              <span
-                className={`presence-dot ${player?.presence ?? "offline"}`}
-                role="img"
-                aria-label={player?.presence ?? "offline"}
-              />
-            </Tooltip>
-            <strong>
-              {player ? <ParticipantName participant={player} self={index === 0} /> : "Opponent"}
-            </strong>
-            {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
-            <ScoreProgress
-              score={player?.bestScore}
-              color={participantColor(player?.userId ?? "opponent", player?.color)}
+      {competitors.map((player, index) => (
+        <div className="competitive-player-score" key={index}>
+          <Tooltip
+            content={player?.presence === "online" ? "Online" : "Disconnected; the clock continues"}
+          >
+            <span
+              className={`presence-dot ${player?.presence ?? "offline"}`}
+              role="img"
+              aria-label={player?.presence ?? "offline"}
             />
-            {snapshot.rules.victory === "high_score" && (
-              <span className="score-judging">
-                {Math.round((player?.adjustedScore ?? 0) * 100) / 100} points
-              </span>
+          </Tooltip>
+          <strong>
+            {snapshot.mode === "factions" ? (
+              <Tooltip content={player.members.map((member) => member.displayName).join(", ")}>
+                <span>{player.displayName}</span>
+              </Tooltip>
+            ) : (
+              <ParticipantName participant={player} self={index === 0} />
             )}
-            {!!player?.penaltySeconds && (
-              <span className="score-judging">+{player.penaltySeconds}s</span>
-            )}
-            {!!player?.penaltyPoints && (
-              <span className="score-judging">−{player.penaltyPoints} points</span>
-            )}
-            {player?.eligibleFinishAt && snapshot.state === "active" && (
-              <span className="score-judging">
-                Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
-              </span>
-            )}
-            {(player?.submissionState === "running" || player?.submissionState === "queued") && (
-              <span className="score-judging motion-reveal">Judging…</span>
-            )}
-          </div>
-        ),
-      )}
+          </strong>
+          {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
+          <ScoreProgress
+            score={player?.bestScore}
+            color={participantColor(player?.userId ?? "opponent", player?.color)}
+          />
+          {snapshot.rules.victory === "high_score" && (
+            <span className="score-judging">
+              {Math.round((player?.adjustedScore ?? 0) * 100) / 100} points
+            </span>
+          )}
+          {!!player?.penaltySeconds && (
+            <span className="score-judging">+{player.penaltySeconds}s</span>
+          )}
+          {!!player?.penaltyPoints && (
+            <span className="score-judging">−{player.penaltyPoints} points</span>
+          )}
+          {player?.eligibleFinishAt && snapshot.state === "active" && (
+            <span className="score-judging">
+              Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
+            </span>
+          )}
+          {(player?.submissionState === "running" || player?.submissionState === "queued") && (
+            <span className="score-judging motion-reveal">Judging…</span>
+          )}
+        </div>
+      ))}
     </SessionBar>
   );
 }
@@ -280,7 +289,7 @@ export function MatchPage({
       />
       {snapshot.state === "finalizing" && (
         <div
-          className={`match-terminal competitive-outcome ${snapshot.outcome?.winnerUserId === participantUserId(identity) ? "is-winner" : ""}`}
+          className={`match-terminal competitive-outcome ${isMatchWinner(snapshot, ownParticipant(snapshot, identity)) ? "is-winner" : ""}`}
           role="status"
         >
           <strong>{outcomeLabel(snapshot, identity)}</strong>
@@ -309,6 +318,8 @@ export function MatchPage({
       )}
     </>
   );
+  if (snapshot.mode === "factions" && ownWorkspaceId && !reviewing)
+    return <FactionWorkspace match={snapshot} identity={identity} header={ledger} />;
   if (ownWorkspaceId && snapshot.problemVersionId)
     return (
       <WorkspacePage

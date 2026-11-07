@@ -1,3 +1,4 @@
+import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
 import { useEffect, useState } from "react";
@@ -144,11 +145,16 @@ export function PartyPage() {
             Copy invitation
           </button>
         )}
-        <PartyMemberReadiness
-          ownUserId={participantUserId(identity)}
-          members={party.members}
-          hostUserId={party.hostUserId}
-        />
+        {party.settings.mode === "factions" && !party.currentMatchId && (
+          <TeamOrganizer party={party} identity={identity} />
+        )}
+        {(party.settings.mode !== "factions" || !!party.currentMatchId) && (
+          <PartyMemberReadiness
+            ownUserId={participantUserId(identity)}
+            members={party.members}
+            hostUserId={party.hostUserId}
+          />
+        )}
         {!party.currentMatchId && (
           <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
         )}

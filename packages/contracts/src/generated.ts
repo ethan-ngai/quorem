@@ -1367,6 +1367,7 @@ export interface components {
             reason: string;
             /** Format: date-time */
             completedAt: string;
+            winnerTeam?: number;
         };
         MatchParticipant: {
             /** Format: uuid */
@@ -1392,6 +1393,7 @@ export interface components {
             /** Format: date-time */
             eligibleFinishAt?: string;
             revealedAssistance?: ("topics" | "complexity")[];
+            team?: number;
         };
         MatchSnapshot: {
             /** Format: uuid */
