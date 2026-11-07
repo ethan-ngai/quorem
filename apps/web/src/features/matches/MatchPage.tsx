@@ -29,6 +29,10 @@ import { ConcessionDialog } from "./ConcessionDialog";
 import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { ApiError } from "../../api/client";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
@@ -256,6 +260,8 @@ export function MatchPage({
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId, true);
+  const httpStatus = error instanceof ApiError ? error.status : undefined;
+  const denied = isRouteDenied(httpStatus);
   const finished =
     snapshot &&
     account.data &&
@@ -270,7 +276,9 @@ export function MatchPage({
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
   useErrorNotification(
-    snapshot && error ? "Connection interrupted. Refreshing match state." : undefined,
+    snapshot && error && !denied && httpStatus !== 401
+      ? "Connection interrupted. Refreshing match state."
+      : undefined,
   );
   const [conceding, setConceding] = useState(false);
   useEffect(() => {
@@ -296,18 +304,8 @@ export function MatchPage({
       setPending(false);
     }
   };
-  if (!account.isPending && !account.data && !finished)
-    return (
-      <main className="match-page">
-        <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
-        <section className="match-page-content">
-          <h1>Sign in to join the match</h1>
-          <a className="button button-primary" href="/login">
-            Sign in
-          </a>
-        </section>
-      </main>
-    );
+  if (httpStatus === 401) return <SignInRedirect />;
+  if (denied) return <NotFoundPage />;
   if (!snapshot)
     return (
       <main className="match-page">

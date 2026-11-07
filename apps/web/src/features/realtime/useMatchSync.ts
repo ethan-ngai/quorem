@@ -1,6 +1,7 @@
 import { createReconnectingSocket } from "./reconnectingSocket";
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
-import { api, requireData } from "../../api/client";
+import { api, ApiError, requireData } from "../../api/client";
+import { isRouteDenied } from "../auth/protectedRoute";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -33,13 +34,14 @@ async function fetchMatchSnapshot(
   matchId: string,
   signal: AbortSignal,
 ): Promise<MatchSnapshot> {
-  const { data, error } = await api(identity).GET("/v1/matches/{id}", {
+  const { data, error, response } = await api(identity).GET("/v1/matches/{id}", {
     params: { path: { id: matchId } },
     signal,
   });
-  requireData(data, error);
-  if (!isMatchSnapshot(data, matchId)) throw new Error("Match response did not match the contract");
-  return data;
+  const snapshot = requireData(data, error, response.status);
+  if (!isMatchSnapshot(snapshot, matchId))
+    throw new Error("Match response did not match the contract");
+  return snapshot;
 }
 
 /** Keeps one owner-scoped match snapshot synchronized over events and REST recovery. */
@@ -100,9 +102,13 @@ export function useMatchSync(
   }
 
   const refetch = useCallback(() => query.refetch(), [query.refetch]);
+  const httpStatus = query.error instanceof ApiError ? query.error.status : undefined;
+  const accessFailed = httpStatus === 401 || isRouteDenied(httpStatus);
+  // A new visit can regain access after being invited or switching sessions.
+  const deniedThisVisit = accessFailed && query.isFetchedAfterMount;
 
   useEffect(() => {
-    if (!matchId || !enabled) {
+    if (!matchId || !enabled || deniedThisVisit) {
       setReadyOwner("");
       setStatus("connecting");
       syncState.disposed = true;
@@ -188,11 +194,21 @@ export function useMatchSync(
       syncState.events = [];
       syncState.overflow = false;
     };
-  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState, enabled]);
+  }, [
+    identity,
+    matchId,
+    ownerKey,
+    queryClient,
+    queryKey,
+    refetch,
+    syncState,
+    enabled,
+    deniedThisVisit,
+  ]);
 
   return {
-    snapshot: query.data,
-    error: transportError ?? (query.error instanceof Error ? query.error : null),
+    snapshot: accessFailed ? undefined : query.data,
+    error: deniedThisVisit ? query.error : (transportError ?? (accessFailed ? null : query.error)),
     status,
     refetch,
   };

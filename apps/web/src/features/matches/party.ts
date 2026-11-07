@@ -43,7 +43,7 @@ async function request<T>(path: string, method = "GET", body?: unknown, key?: st
   });
   if (!response.ok) {
     if (response.status >= 400 && response.status < 500)
-      throw new RejectedMatchCommand("Party request rejected.");
+      throw new RejectedMatchCommand("Party request rejected.", response.status);
     throw new Error("Party request failed");
   }
   return (await response.json()) as T;

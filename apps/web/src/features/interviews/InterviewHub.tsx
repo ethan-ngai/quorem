@@ -18,7 +18,10 @@ import type {
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
-import { interviewRequest } from "./api";
+import { InterviewError, interviewRequest } from "./api";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 import { InterviewInvitationLinks } from "./InterviewInvitations";
 import { QuestionSetup } from "./QuestionSetup";
 import { useErrorNotification } from "../../ui/Notifications";
@@ -122,6 +125,9 @@ export function InterviewHub() {
       setBusy(false);
     }
   }
+  const status = sessions.error instanceof InterviewError ? sessions.error.status : undefined;
+  if (status === 401) return <SignInRedirect />;
+  if (isRouteDenied(status)) return <NotFoundPage />;
   return (
     <div className="practice-page">
       <GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />
@@ -144,145 +150,132 @@ export function InterviewHub() {
           )
         }
       >
-        {!account.isPending && !account.data ? (
-          <div className="practice-state">
-            <p>
-              <a className="text-link" href="/login?returnTo=%2Finterviews">
-                Sign in
-              </a>{" "}
-              to host or return to an interview. Guests can open their invitation directly.
-            </p>
-          </div>
-        ) : (
-          <section
-            className="practice-catalog interview-catalog"
-            aria-label="Interviews"
-            aria-busy={sessions.isFetching}
-          >
-            {sessions.isPending ? (
-              <LoadingScreen inline label="Loading interviews…" />
-            ) : sessions.isError ? (
-              <div className="practice-state" role="alert">
-                <p>Could not load interviews.</p>
-                <button className="practice-retry" onClick={() => void sessions.refetch()}>
-                  Retry
-                </button>
-              </div>
-            ) : (
-              <>
-                <Table
-                  label="Interviews"
-                  heading={
-                    <tr>
-                      <TableSortHeader column={table.getColumn("title")!}>
-                        Interview
-                      </TableSortHeader>
-                      <TableSortHeader
-                        column={table.getColumn("role")!}
-                        className="interview-role-column"
-                      >
-                        Your role
-                      </TableSortHeader>
-                      <th scope="col">
-                        <span className="sr-only">Actions</span>
-                      </th>
-                    </tr>
-                  }
-                >
-                  {sessions.data?.items.map((session) => (
-                    <TableRow
-                      key={session.id}
-                      onOpen={() =>
-                        void navigate({ to: "/interview/$id", params: { id: session.id } })
-                      }
+        <section
+          className="practice-catalog interview-catalog"
+          aria-label="Interviews"
+          aria-busy={sessions.isFetching}
+        >
+          {sessions.isPending ? (
+            <LoadingScreen inline label="Loading interviews…" />
+          ) : sessions.isError ? (
+            <div className="practice-state" role="alert">
+              <p>Could not load interviews.</p>
+              <button className="practice-retry" onClick={() => void sessions.refetch()}>
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <Table
+                label="Interviews"
+                heading={
+                  <tr>
+                    <TableSortHeader column={table.getColumn("title")!}>Interview</TableSortHeader>
+                    <TableSortHeader
+                      column={table.getColumn("role")!}
+                      className="interview-role-column"
                     >
-                      <td>
-                        <div className="interview-title-line">
-                          <Tooltip
-                            content={
-                              session.state === "closed"
-                                ? "Closed: read-only interview"
-                                : "Active: editing available"
+                      Your role
+                    </TableSortHeader>
+                    <th scope="col">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                }
+              >
+                {sessions.data?.items.map((session) => (
+                  <TableRow
+                    key={session.id}
+                    onOpen={() =>
+                      void navigate({ to: "/interview/$id", params: { id: session.id } })
+                    }
+                  >
+                    <td>
+                      <div className="interview-title-line">
+                        <Tooltip
+                          content={
+                            session.state === "closed"
+                              ? "Closed: read-only interview"
+                              : "Active: editing available"
+                          }
+                        >
+                          <span
+                            className="interview-row-status"
+                            data-state={session.state}
+                            tabIndex={0}
+                            role="img"
+                            aria-label={
+                              session.state === "closed" ? "Closed interview" : "Active interview"
                             }
                           >
-                            <span
-                              className="interview-row-status"
-                              data-state={session.state}
-                              tabIndex={0}
-                              role="img"
-                              aria-label={
-                                session.state === "closed" ? "Closed interview" : "Active interview"
-                              }
-                            >
-                              {session.state === "closed" ? (
-                                <Archive size={15} aria-hidden="true" />
-                              ) : (
-                                <CircleDot size={15} aria-hidden="true" />
-                              )}
-                            </span>
-                          </Tooltip>
-                          <Link to="/interview/$id" params={{ id: session.id }}>
-                            {session.title}
-                          </Link>
-                        </div>
-                        <span className="interview-row-detail">{session.problemTitle}</span>
-                        <span className="interview-mobile-meta">
-                          {session.role === "interviewer" ? "Interviewer" : "Interviewee"} ·{" "}
-                          {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
-                        </span>
-                      </td>
-                      <td className="interview-role-column">
-                        {session.role === "interviewer" ? "Interviewer" : "Interviewee"}
-                        <span className="interview-row-detail interview-member-count">
-                          <Users size={13} aria-hidden="true" />
-                          {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
-                        </span>
-                      </td>
-                      <td className="table-actions">
-                        {session.hostId === account.data?.user.id && (
-                          <Tooltip
-                            content={
-                              session.state === "closed" ? "Delete interview" : "End interview"
+                            {session.state === "closed" ? (
+                              <Archive size={15} aria-hidden="true" />
+                            ) : (
+                              <CircleDot size={15} aria-hidden="true" />
+                            )}
+                          </span>
+                        </Tooltip>
+                        <Link to="/interview/$id" params={{ id: session.id }}>
+                          {session.title}
+                        </Link>
+                      </div>
+                      <span className="interview-row-detail">{session.problemTitle}</span>
+                      <span className="interview-mobile-meta">
+                        {session.role === "interviewer" ? "Interviewer" : "Interviewee"} ·{" "}
+                        {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
+                      </span>
+                    </td>
+                    <td className="interview-role-column">
+                      {session.role === "interviewer" ? "Interviewer" : "Interviewee"}
+                      <span className="interview-row-detail interview-member-count">
+                        <Users size={13} aria-hidden="true" />
+                        {session.memberCount} {session.memberCount === 1 ? "member" : "members"}
+                      </span>
+                    </td>
+                    <td className="table-actions">
+                      {session.hostId === account.data?.user.id && (
+                        <Tooltip
+                          content={
+                            session.state === "closed" ? "Delete interview" : "End interview"
+                          }
+                        >
+                          <button
+                            className="icon-button destructive-icon"
+                            aria-label={`${session.state === "closed" ? "Delete" : "End"} ${session.title}`}
+                            disabled={busy}
+                            onClick={() =>
+                              setLifecycle({
+                                session,
+                                action: session.state === "closed" ? "delete" : "end",
+                              })
                             }
                           >
-                            <button
-                              className="icon-button destructive-icon"
-                              aria-label={`${session.state === "closed" ? "Delete" : "End"} ${session.title}`}
-                              disabled={busy}
-                              onClick={() =>
-                                setLifecycle({
-                                  session,
-                                  action: session.state === "closed" ? "delete" : "end",
-                                })
-                              }
-                            >
-                              {session.state === "closed" ? (
-                                <Trash2 size={16} />
-                              ) : (
-                                <Power size={16} />
-                              )}
-                            </button>
-                          </Tooltip>
-                        )}
-                      </td>
-                    </TableRow>
-                  ))}
-                </Table>
-                <TablePagination table={table} disabled={busy} />
-                {!sessions.data?.items.length && (
-                  <div className="practice-state">
-                    <h2>No interviews yet</h2>
-                    <p>
-                      {account.data?.capabilities?.interviews
-                        ? "Create one or open an invitation."
-                        : "Open an invitation to join. Hosting is not enabled for this account."}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        )}
+                            {session.state === "closed" ? (
+                              <Trash2 size={16} />
+                            ) : (
+                              <Power size={16} />
+                            )}
+                          </button>
+                        </Tooltip>
+                      )}
+                    </td>
+                  </TableRow>
+                ))}
+              </Table>
+              <TablePagination table={table} disabled={busy} />
+              {!sessions.data?.items.length && (
+                <div className="practice-state">
+                  <h2>No interviews yet</h2>
+                  <p>
+                    {account.data?.capabilities?.interviews
+                      ? "Create one or open an invitation."
+                      : "Open an invitation to join. Hosting is not enabled for this account."}
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+        </section>
       </CatalogLayout>
       <InterviewLifecycleDialog
         action={lifecycle?.action}

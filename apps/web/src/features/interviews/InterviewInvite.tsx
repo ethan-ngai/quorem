@@ -9,7 +9,9 @@ import type { InterviewPreview } from "@quorem/contracts";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
-import { interviewRequest } from "./api";
+import { InterviewError, interviewRequest } from "./api";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 import "../../styles/workspace.css";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { InvitationLayout } from "../../ui/InvitationLayout";
@@ -52,6 +54,8 @@ export function InterviewInvite({ token }: { token: string }) {
       setBusy(false);
     }
   }
+  if (preview.error instanceof InterviewError && isRouteDenied(preview.error.status))
+    return <NotFoundPage />;
   return (
     <InvitationLayout
       navigation={<GlobalNav theme={theme.preference} onThemeChange={theme.setPreference} />}

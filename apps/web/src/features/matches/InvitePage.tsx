@@ -6,6 +6,11 @@ import { useAccountIdentity } from "./MatchControls";
 import { partyCommand, partyRequest, useParty } from "./party";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { hasRouteSession, isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
+import { RouteError } from "../../ui/RouteError";
+import { RejectedMatchCommand } from "./errors";
 
 export function InvitePage({ token }: { token: string }) {
   const { identity, account } = useAccountIdentity();
@@ -47,11 +52,22 @@ export function InvitePage({ token }: { token: string }) {
       setPending(false);
     }
   };
+  const status =
+    invitation.error instanceof RejectedMatchCommand ? invitation.error.status : undefined;
+  if (isRouteDenied(status)) return <NotFoundPage />;
+  const alreadyJoined = !!invitation.data && current.data?.party?.id === invitation.data.id;
+  const requiresAccount = invitation.data && !invitation.data.guestAllowed && !alreadyJoined;
+  const checkingAccount =
+    requiresAccount && (account.isPending || (account.data?.kind === "guest" && current.isPending));
+  if (requiresAccount && account.isError)
+    return <RouteError reset={() => void account.refetch()} />;
+  if (requiresAccount && !checkingAccount && !hasRouteSession(account.data))
+    return <SignInRedirect />;
   return (
     <main className="match-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
       <section className="match-page-content">
-        {invitation.isPending ? (
+        {invitation.isPending || checkingAccount ? (
           <p role="status">Opening invitation…</p>
         ) : !invitation.data ? (
           <>
@@ -65,7 +81,7 @@ export function InvitePage({ token }: { token: string }) {
               {invitation.data.participantCount} of {invitation.data.capacity} seats filled
             </p>
             {error && <p role="alert">{error}</p>}
-            {account.data && current.data?.party?.id === invitation.data.id ? (
+            {alreadyJoined ? (
               <a className="button button-primary" href="/party">
                 Return to lobby
               </a>

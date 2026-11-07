@@ -32,19 +32,25 @@ export class ApiError extends UserFacingError {
   constructor(
     message: string,
     readonly code: string,
+    readonly status?: number,
   ) {
     super(message);
   }
 }
 
 /** Turns typed API error responses into messages suitable for the workspace. */
-export function requireData<T>(data: T | undefined, error: unknown): T {
+export function requireData<T>(data: T | undefined, error: unknown, status?: number): T {
   if (data !== undefined) return data;
   const detail = error && typeof error === "object" && "error" in error ? error.error : undefined;
   const code = detail && typeof detail === "object" && "code" in detail ? detail.code : undefined;
   const serverMessage =
     detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
   const message = safeErrorMessage(code, serverMessage);
-  if (message) throw new ApiError(message, typeof code === "string" ? code : "unknown");
+  if (message || status !== undefined)
+    throw new ApiError(
+      message ?? "API request failed",
+      typeof code === "string" ? code : "unknown",
+      status,
+    );
   throw new Error("API request failed");
 }

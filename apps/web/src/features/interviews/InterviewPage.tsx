@@ -60,6 +60,9 @@ import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 import "../../styles/workspace.css";
 const keepSource = () => {};
 function resultAccessFor(snapshot: InterviewSnapshot) {
@@ -82,7 +85,7 @@ function InterviewSession({ id }: { id: string }) {
   const theme = useTheme();
   const query = useQuery({
     queryKey: ["interview", id],
-    queryFn: () => interviewRequest<InterviewSnapshot>(`/v1/interviews/${id}`),
+    queryFn: () => interviewRequest<InterviewSnapshot>(`/v1/interviews/${encodeURIComponent(id)}`),
     retry: false,
     structuralSharing(previous, next) {
       const before = previous as InterviewSnapshot | undefined;
@@ -92,10 +95,16 @@ function InterviewSession({ id }: { id: string }) {
     },
   });
   const [initial, setInitial] = useState<InterviewSnapshot>();
-  usePageTitle(query.data?.title ? `${query.data.title} - Coding Interview` : undefined);
+  // The interview endpoint recognizes its own guest cookie independently of the account session.
+  const status = query.error instanceof InterviewError ? query.error.status : undefined;
+  const denied = isRouteDenied(status);
+  const title = status === 401 || denied ? undefined : query.data?.title;
+  usePageTitle(title ? `${title} - Coding Interview` : undefined);
   useEffect(() => {
     if (query.data && !initial) setInitial(query.data);
   }, [query.data, initial]);
+  if (status === 401) return <SignInRedirect />;
+  if (denied) return <NotFoundPage />;
   return initial && query.data ? (
     <InterviewPad
       key={initial.document.epoch}
@@ -111,7 +120,7 @@ function InterviewSession({ id }: { id: string }) {
         title={query.isError ? "Interview unavailable" : "Opening interview"}
         message={
           query.isError
-            ? "Open your invitation or sign in to restore access."
+            ? "Could not connect to the shared workspace. Try again."
             : "Connecting to the shared workspace…"
         }
         onRetry={() => query.refetch()}
