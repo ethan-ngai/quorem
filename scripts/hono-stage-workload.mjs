@@ -45,7 +45,14 @@ export async function runStageWorkload(env, deps = {}) {
   async function request(
     actor,
     path,
-    { method = "GET", body, expected = 200, command = false, cleanup = false } = {},
+    {
+      method = "GET",
+      body,
+      expected = 200,
+      command = false,
+      cleanup = false,
+      idempotencyKey = command ? randomUUID() : undefined,
+    } = {},
   ) {
     const start = now();
     try {
@@ -55,7 +62,7 @@ export async function runStageWorkload(env, deps = {}) {
           origin: browser,
           ...(actor?.token ? { authorization: `Bearer ${actor.token}` } : { cookie: actor.cookie }),
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
-          ...(command ? { "idempotency-key": randomUUID() } : {}),
+          ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         },
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         redirect: "error",
@@ -65,7 +72,7 @@ export async function runStageWorkload(env, deps = {}) {
       });
       if (response.status !== expected) {
         await response.body?.cancel();
-        throw new Error("Workload HTTP request failed");
+        throw Object.assign(new Error("Workload HTTP request failed"), { status: response.status });
       }
       return await json(response);
     } catch (error) {
@@ -75,6 +82,25 @@ export async function runStageWorkload(env, deps = {}) {
       const ms = now() - start;
       stats.http.push(ms);
       if (command) stats.command.push(ms);
+    }
+  }
+  async function leaveParty(actor, partyId) {
+    const idempotencyKey = randomUUID();
+    // A finishing judge can briefly hold the match lock during teardown.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await request(actor, `/v1/parties/${partyId}/leave`, {
+          method: "POST",
+          command: true,
+          body: {},
+          cleanup: true,
+          idempotencyKey,
+        });
+        return;
+      } catch (error) {
+        if (error?.status !== 503 || attempt >= 3) throw error;
+        await wait(250 * 2 ** attempt);
+      }
     }
   }
   async function connect(actor, path, refresh, notice = () => {}) {
@@ -409,12 +435,7 @@ export async function runStageWorkload(env, deps = {}) {
     for (const party of parties) {
       for (const actor of party.actors) {
         try {
-          await request(actor, `/v1/parties/${party.id}/leave`, {
-            method: "POST",
-            command: true,
-            body: {},
-            cleanup: true,
-          });
+          await leaveParty(actor, party.id);
         } catch {
           cleanupFailure = true;
         }

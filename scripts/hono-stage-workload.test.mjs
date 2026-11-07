@@ -17,6 +17,7 @@ function fixture({
   badToken = false,
   badFrame = false,
   lostNotice = false,
+  leaveFailures = 0,
 } = {}) {
   let requests = 0,
     clock = 1000,
@@ -124,7 +125,11 @@ function fixture({
       if (path === "/v1/presence/heartbeat" || path === `/v1/parties/${room}/ready`)
         return Response.json({});
       if (path === `/v1/parties/${room}/leave`) {
-        leaves.push(init.headers.authorization);
+        leaves.push({
+          actor: init.headers.authorization,
+          key: init.headers["idempotency-key"],
+        });
+        if (leaves.length <= leaveFailures) return new Response(null, { status: 503 });
         return Response.json({});
       }
       throw new Error(`Unexpected workload route: ${path}`);
@@ -149,7 +154,22 @@ void test("drives public match, receipt acknowledgements, paced runs and cleanup
   assert.deepEqual(state.messages[0], { type: "receipt", id: receipt });
   assert.equal(state.disposed, 2);
   assert.equal(state.closed, 2);
-  assert.equal(new Set(state.leaves).size, 2);
+  assert.equal(new Set(state.leaves.map(({ actor }) => actor)).size, 2);
+});
+void test("retries temporary cleanup contention with the original command key", async () => {
+  const f = fixture({ leaveFailures: 1 });
+  await runStageWorkload(env, f.deps);
+  const [first, retry, other] = f.state().leaves;
+  assert.ok(first.key);
+  assert.deepEqual(first, retry);
+  assert.notEqual(first.actor, other.actor);
+  assert.notEqual(first.key, other.key);
+});
+void test("fails when bounded cleanup retries cannot confirm departure", async () => {
+  const f = fixture({ leaveFailures: 4 });
+  await assert.rejects(runStageWorkload(env, f.deps), /Workload cleanup unconfirmed/);
+  assert.equal(f.state().leaves.length, 5);
+  assert.equal(f.state().disposed, 2);
 });
 void test("partial admission failure still closes sockets and revokes sessions", async () => {
   const f = fixture({ failAdmission: true });
