@@ -94,7 +94,7 @@ function MatchLedger({
               name:
                 snapshot.participants.find((player) => player.userId === event.userId)
                   ?.displayName ?? "Player",
-              kind: event.kind === "clipboard" ? "paste" : "focus",
+              kind: event.kind === "clipboard" ? "paste" : event.kind,
               description:
                 {
                   clipboard: "pasted",
@@ -102,8 +102,8 @@ function MatchLedger({
                   focus: "left the match window",
                   topics: "revealed topics",
                   complexity: "revealed complexity",
-                  hiddenCase: "revealed a failed case",
-                  submission: "submitted",
+                  hiddenCase: "revealed a hidden case",
+                  submission: "exceeded the submission allowance",
                 }[event.kind] +
                 (event.seconds
                   ? ` (+${event.seconds}s)`

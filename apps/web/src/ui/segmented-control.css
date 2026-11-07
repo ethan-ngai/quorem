@@ -1,4 +1,6 @@
 .segmented-control {
+  --interaction-hover-filter: none;
+  --segment-hover: var(--color-control-hover);
   position: relative;
   isolation: isolate;
   display: inline-grid;
@@ -9,12 +11,16 @@
   background: var(--color-field);
   border: 1px solid var(--color-border);
 }
+:root[data-theme="dark"] .segmented-control {
+  --segment-hover: color-mix(in oklch, var(--color-control-hover) 65%, transparent);
+}
 .segmented-control-selection {
   position: absolute;
+  z-index: -1;
   inset: 3px auto 3px 3px;
   width: calc((100% - 6px) / var(--segment-count));
   border-radius: calc(var(--radius-sm) - 2px);
-  background: var(--color-overlay);
+  background: var(--color-control-selected);
   transform: translateX(calc(var(--segment-index) * 100%));
   transition: transform var(--motion-standard) var(--motion-easing);
   pointer-events: none;
@@ -36,12 +42,28 @@
   white-space: nowrap;
   transition:
     color var(--motion-fast) var(--motion-easing),
-    background-color var(--motion-fast) var(--motion-easing),
     opacity var(--motion-fast) var(--motion-easing),
     translate var(--motion-fast) var(--motion-easing);
 }
-.segmented-control > button:not(:disabled):hover {
-  background-color: color-mix(in oklch, var(--color-overlay) 65%, transparent);
+.segmented-control > button[aria-checked="false"]:not(:disabled) {
+  cursor: pointer;
+}
+.segmented-control > button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* The moving selection stays above fading hover fills. */
+  z-index: -2;
+  border-radius: inherit;
+  background: var(--segment-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+@media (hover: hover) {
+  .segmented-control > button[aria-checked="false"]:not(:disabled):hover::before {
+    opacity: 1;
+  }
 }
 .segmented-control > button:disabled {
   opacity: 0.5;
@@ -51,7 +73,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .segmented-control-selection,
-  .segmented-control > button {
+  .segmented-control > button,
+  .segmented-control > button::before {
     transition: none;
   }
 }
@@ -81,4 +104,12 @@
 
 .segmented-control[data-has-selection="false"] > .segmented-control-selection {
   opacity: 0;
+}
+
+@container (max-width: 340px) {
+  .segmented-control[data-compact] > button {
+    flex-direction: column;
+    padding-inline: var(--space-1);
+    font-size: var(--text-label);
+  }
 }

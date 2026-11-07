@@ -3,6 +3,7 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
 import { Tooltip } from "./Tooltip";
+import { useChangeMotion } from "./useChangeMotion";
 
 export type SelectOption = {
   value: string;
@@ -53,6 +54,7 @@ export function SelectField({
   const [open, setOpen] = useState(false);
   const closingPointer = useRef(false);
   const selected = options.find((option) => option.value === value);
+  const selectionMotion = useChangeMotion<HTMLSpanElement>(value, "slide");
   const trigger = (
     <Select.Trigger
       {...triggerProps}
@@ -80,17 +82,19 @@ export function SelectField({
         closingPointer.current = false;
       }}
     >
-      {selected?.leading}
-      {!iconOnly && (
-        <>
+      <span className="select-field-selection" ref={selectionMotion}>
+        {selected?.leading}
+        {!iconOnly && (
           <span className="select-field-label">
             <Select.Value placeholder={selected?.label}>{optionContent(selected)}</Select.Value>
             {selected?.trailing}
           </span>
-          <Select.Icon className="select-field-chevron">
-            <ChevronDown size={14} aria-hidden="true" />
-          </Select.Icon>
-        </>
+        )}
+      </span>
+      {!iconOnly && (
+        <Select.Icon className="select-field-chevron">
+          <ChevronDown size={14} aria-hidden="true" />
+        </Select.Icon>
       )}
     </Select.Trigger>
   );

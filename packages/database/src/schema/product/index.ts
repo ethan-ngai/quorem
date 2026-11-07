@@ -734,6 +734,7 @@ export const matches = pgTable(
       .default(sql`'-infinity'`)
       .notNull(),
     mode: text().default("showdown").notNull(),
+    faction_names: jsonb().default([]).notNull(),
     difficulties: text().array().notNull(),
     selected_problem_version_id: uuid(),
     rules: jsonb().default(matchPreset()).notNull(),
@@ -2282,6 +2283,7 @@ export const parties = pgTable(
     invite_hash: text().notNull(),
     settings: jsonb().notNull(),
     team_count: smallint().default(2).notNull(),
+    faction_names: jsonb().default([]).notNull(),
     guest_joins: integer().default(0).notNull(),
     version: bigint({ mode: "bigint" }).default(0n).notNull(),
     current_match_id: uuid(),

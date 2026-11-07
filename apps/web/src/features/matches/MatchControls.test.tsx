@@ -24,7 +24,13 @@ describe("server-rendered match settings", () => {
         />
       </QueryClientProvider>,
     );
-    for (const label of ["Two Sum", "30 minutes", "Warn", "Notify"]) expect(html).toContain(label);
+    for (const label of ["Two Sum", "30 min", "Paste: Block", "Leave window: Notify"])
+      expect(html).toContain(label);
+    expect(html.match(/aria-label="Leave window: [^"]+"/g)).toEqual([
+      'aria-label="Leave window: Allow"',
+      'aria-label="Leave window: Notify"',
+      'aria-label="Leave window: Penalize"',
+    ]);
     expect(html.match(/aria-label="Difficulty filter"/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Question filters"');
     expect(html).toContain('aria-label="SQL questions"');

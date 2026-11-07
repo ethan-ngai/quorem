@@ -10,7 +10,7 @@ export function teamActionLabel(action: TeamAction) {
     case "submit":
       return "Submit the proposed code";
     case "reveal":
-      return action.target === "case" ? "Reveal a failed test case" : `Reveal ${action.target}`;
+      return action.target === "case" ? "Reveal a hidden test case" : `Reveal ${action.target}`;
     case "language":
       return `Change language to ${action.language}`;
     case "reset":

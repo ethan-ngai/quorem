@@ -14,17 +14,25 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
   transition:
+    opacity var(--motion-fast) var(--motion-easing),
     color var(--motion-fast),
     background var(--motion-fast),
     translate var(--motion-fast) var(--motion-easing);
   text-decoration: none;
+}
+.icon-button-danger {
+  color: var(--color-error-button);
+}
+.icon-button[aria-pressed="true"] {
+  color: var(--color-primary);
+  background: var(--color-overlay);
 }
 .icon-button:hover:not(:disabled),
 .quiet-button:hover:not(:disabled) {
@@ -117,6 +125,7 @@
 .icon-button.destructive-icon,
 .button.button-destructive-hover {
   transition:
+    opacity var(--motion-fast) var(--motion-easing),
     color var(--motion-fast) var(--motion-easing),
     background-color var(--motion-fast) var(--motion-easing),
     border-color var(--motion-fast) var(--motion-easing),
@@ -203,7 +212,7 @@
 
 @media (hover: hover) and (pointer: fine) {
   :where(button, summary, a):not(:disabled, [aria-disabled="true"]):hover {
-    filter: brightness(1.06);
+    filter: var(--interaction-hover-filter, brightness(1.06));
   }
 }
 
@@ -216,5 +225,28 @@
     :where(.motion-reveal) {
       opacity: 0;
     }
+  }
+}
+
+/* Keep hitboxes fixed and don't pin hover actions open after a pointer click. */
+.icon-button[data-reveal] {
+  opacity: 0;
+  pointer-events: none;
+}
+.action-reveal-group:is(:hover, :has(:focus-visible)) > .icon-button[data-reveal],
+.icon-button[data-reveal]:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.action-reveal-group:is(:hover, :has(:focus-visible)) > .icon-button[data-reveal]:disabled {
+  opacity: var(--revealed-disabled-opacity, 0.45);
+}
+@media (hover: none) {
+  .icon-button[data-reveal] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .icon-button[data-reveal]:disabled {
+    opacity: var(--revealed-disabled-opacity, 0.45);
   }
 }

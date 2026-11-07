@@ -15,7 +15,13 @@ export function SegmentedControl<Value extends string>({
 }: {
   label: string;
   value: Value;
-  options: readonly { value: Value; label: string; icon?: ReactNode; hint?: string }[];
+  options: readonly {
+    value: Value;
+    label: string;
+    icon?: ReactNode;
+    hint?: string;
+    disabled?: boolean;
+  }[];
   iconOnly?: boolean;
   mono?: boolean;
   compact?: boolean;
@@ -27,6 +33,9 @@ export function SegmentedControl<Value extends string>({
     0,
     options.findIndex((option) => option.value === value),
   );
+  const choose = (next: Value) => {
+    if (next !== value) onChange(next);
+  };
   return (
     <div
       className="segmented-control"
@@ -52,9 +61,9 @@ export function SegmentedControl<Value extends string>({
             role="radio"
             aria-label={option.label}
             aria-checked={option.value === value}
-            disabled={disabled}
+            disabled={disabled || option.disabled}
             tabIndex={index === selected ? 0 : -1}
-            onClick={() => onChange(option.value)}
+            onClick={() => choose(option.value)}
             onKeyDown={(event) => {
               if (
                 !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
@@ -63,7 +72,7 @@ export function SegmentedControl<Value extends string>({
               )
                 return;
               event.preventDefault();
-              const next =
+              let next =
                 event.key === "Home"
                   ? 0
                   : event.key === "End"
@@ -72,7 +81,11 @@ export function SegmentedControl<Value extends string>({
                         (["ArrowLeft", "ArrowUp"].includes(event.key) ? -1 : 1) +
                         options.length) %
                       options.length;
-              onChange(options[next]!.value);
+              const direction = ["ArrowLeft", "ArrowUp", "End"].includes(event.key) ? -1 : 1;
+              for (let count = 0; options[next]?.disabled && count < options.length; count++)
+                next = (next + direction + options.length) % options.length;
+              if (options[next]?.disabled) return;
+              choose(options[next]!.value);
               document.getElementById(`${id}-${next}`)?.focus();
             }}
           >

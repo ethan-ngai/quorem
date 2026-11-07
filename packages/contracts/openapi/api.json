@@ -4288,6 +4288,73 @@
           }
         }
       }
+    },
+    "/v1/parties/{id}/kick": {
+      "post": {
+        "operationId": "kickPartyMember",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["userId"],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5329,6 +5396,12 @@
           },
           "reviewPending": {
             "type": "boolean"
+          },
+          "factionNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -5728,7 +5801,7 @@
                 "properties": {
                   "access": {
                     "type": "string",
-                    "enum": ["blocked", "free", "penalty"]
+                    "enum": ["blocked", "free", "announce", "penalty"]
                   },
                   "seconds": {
                     "type": "integer",
@@ -5749,7 +5822,7 @@
                 "properties": {
                   "access": {
                     "type": "string",
-                    "enum": ["blocked", "free", "penalty"]
+                    "enum": ["blocked", "free", "announce", "penalty"]
                   },
                   "seconds": {
                     "type": "integer",
@@ -5770,7 +5843,7 @@
                 "properties": {
                   "access": {
                     "type": "string",
-                    "enum": ["blocked", "free", "penalty"]
+                    "enum": ["blocked", "free", "announce", "penalty"]
                   },
                   "seconds": {
                     "type": "integer",
@@ -5790,10 +5863,6 @@
             "required": ["topics", "complexity", "hiddenCase"],
             "additionalProperties": false
           },
-          "feedback": {
-            "type": "string",
-            "enum": ["verdicts", "aggregate"]
-          },
           "submissions": {
             "type": "object",
             "properties": {
@@ -5803,9 +5872,7 @@
                 "maximum": 300
               },
               "freeSubmissions": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 100
+                "anyOf": [{ "type": "integer", "minimum": 0, "maximum": 100 }, { "type": "null" }]
               },
               "seconds": {
                 "type": "integer",
@@ -5833,7 +5900,6 @@
           "focusGraceSeconds",
           "focusFreeWarnings",
           "assistance",
-          "feedback",
           "submissions"
         ],
         "additionalProperties": false
@@ -7288,6 +7354,9 @@
           "shareCodeAfterMatch": {
             "type": "boolean",
             "default": true
+          },
+          "factionChangesLocked": {
+            "type": "boolean"
           }
         },
         "required": ["durationMinutes"],
@@ -7336,6 +7405,9 @@
       "PartyMember": {
         "type": "object",
         "properties": {
+          "previousWinner": {
+            "type": "boolean"
+          },
           "userId": {
             "type": "string",
             "format": "uuid"

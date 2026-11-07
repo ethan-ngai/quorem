@@ -37,13 +37,15 @@ export async function submissionPolicy(
       sql`SELECT count(*)::int AS count,GREATEST(0,ceil(extract(epoch FROM max(e.occurred_at)+make_interval(secs=>${rules.submissions.cooldownSeconds})-clock_timestamp())))::int AS remaining FROM match_rule_events e WHERE e.match_id=${match}::uuid AND e.competitor_id=${subject} AND e.kind='submission' AND ${effectiveEvent(sql`e`)}`,
     )
   ).rows[0];
+  const allowance = rules.submissions.freeSubmissions;
+  const penalized = allowance !== null && row.count >= allowance;
   return {
     count: row.count,
     remaining: row.remaining ?? 0,
     ...victoryCost(
       rules,
-      row.count >= rules.submissions.freeSubmissions ? rules.submissions.seconds : 0,
-      row.count >= rules.submissions.freeSubmissions ? rules.submissions.points : 0,
+      penalized ? rules.submissions.seconds : 0,
+      penalized ? rules.submissions.points : 0,
     ),
   };
 }

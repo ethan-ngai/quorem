@@ -249,16 +249,17 @@ export async function admitWorkspaceInTransaction(
     sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,
   );
   if (row.matchId && command.kind === "submit" && rulePlan) {
+    const penalized = rulePlan.quote.seconds > 0 || rulePlan.quote.points > 0;
     await recordRuleEvent(tx, {
       match: row.matchId,
       actor: principal.userId,
       subject: rulePlan.subject,
       kind: "submission",
-      action: rulePlan.quote.seconds || rulePlan.quote.points ? "penalty" : "announce",
+      action: penalized ? "penalty" : "announce",
       cost: rulePlan.quote,
       submission: id,
     });
-    await reconcileMatch(tx, row.matchId);
+    await reconcileMatch(tx, row.matchId, { ruleEventAdded: penalized });
   }
   await checkAdmissionCapacity(tx);
   return {

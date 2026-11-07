@@ -188,10 +188,13 @@ export function MatchEndView({
                 <ParticipantName
                   participant={player}
                   self={player.userId === participantUserId(identity)}
+                  nameSuffix={isMatchWinner(snapshot, player) && <MatchWinnerMetadata />}
                 />
               )}
             </strong>
-            {isMatchWinner(snapshot, player) && <MatchWinnerMetadata />}
+            {snapshot.mode === "factions" && isMatchWinner(snapshot, player) && (
+              <MatchWinnerMetadata />
+            )}
           </span>
           <span className="match-result-score">
             {party && snapshot.mode !== "factions" && (

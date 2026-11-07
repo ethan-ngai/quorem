@@ -13,6 +13,8 @@ colors:
     surface: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.205 0.005 255)" }
     overlay: { light: "oklch(0.98 0.002 255)", dark: "oklch(0.25 0.008 255)" }
     field: { light: "oklch(1 0 0)", dark: "oklch(0.205 0.005 255)" }
+    controlHover: { light: "oklch(0.95 0.003 255)", dark: "oklch(0.25 0.008 255)" }
+    controlSelected: { light: "oklch(0.94 0.004 255)", dark: "oklch(0.25 0.008 255)" }
     border: { light: "oklch(0.925 0.003 255)", dark: "oklch(0.28 0.006 255)" }
     text:
       primary: { light: "oklch(0.24 0.006 255)", dark: "oklch(0.91 0.004 255)" }
@@ -65,6 +67,7 @@ All agents must apply this contract to UI planning, implementation, refactors an
 - Compose the whole page. Align related labels, icons, controls and content through shared insets; give each gap a purpose.
 - Group flat task surfaces with spacing and restrained separators. Use backgrounds, borders and elevation to communicate structure; retain meaningful grouping when simplifying.
 - Establish compact controls, readable line lengths and consistent heading/body/metadata hierarchy across views.
+- Use shared control colors for hover, selection and open triggers. Fade hover fills in place and keep selected radio choices stable on hover.
 - Use Geist for UI/prose; JetBrains Mono for code, parameters, identifiers, machine values and units. Disable code ligatures.
 - Render math with proper symbols and spacing. Keep literal brackets/punctuation neutral while values retain syntax colors.
 - Use white light-mode reading/editor surfaces, neutral controls, blue actions/focus and semantic colors with text/icons. Maintain contrast in both themes.
@@ -87,6 +90,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Apply state immediately. Retain old asynchronous content until its replacement is ready; transition content and dimensions smoothly.
 - Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
 - Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.
+- Dismiss hover tooltips when the pointer leaves the trigger. Empty hints show no tooltip.
 - Preserve disabled/pending geometry, prevent duplicate actions and use shared destructive-action treatment.
 
 ## Feedback and recovery

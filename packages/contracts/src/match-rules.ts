@@ -2,8 +2,10 @@ import { z } from "zod";
 
 const amount = z.number().int().min(0).max(3600);
 const points = z.number().int().min(0).max(100);
+export const MAX_FREE_SUBMISSIONS = 100;
+export const freeSubmissionsSchema = z.number().int().min(0).max(MAX_FREE_SUBMISSIONS).nullable();
 export const assistancePolicySchema = z.strictObject({
-  access: z.enum(["blocked", "free", "penalty"]),
+  access: z.enum(["blocked", "free", "announce", "penalty"]),
   seconds: amount,
   points,
 });
@@ -22,15 +24,33 @@ export const matchRulesSchema = z.strictObject({
     complexity: assistancePolicySchema,
     hiddenCase: assistancePolicySchema,
   }),
-  feedback: z.enum(["verdicts", "aggregate"]),
   submissions: z.strictObject({
     cooldownSeconds: z.number().int().min(0).max(300),
-    freeSubmissions: z.number().int().min(0).max(100),
+    freeSubmissions: freeSubmissionsSchema,
     seconds: amount,
     points,
   }),
 });
 export type MatchRuleSettings = z.infer<typeof matchRulesSchema>;
+
+/** Compare round settings without lobby permissions or reduced code visibility. */
+export function readinessSettings<
+  Settings extends {
+    rules?: Pick<MatchRuleSettings, "settingsEditors">;
+    admissionLocked?: boolean;
+    factionChangesLocked?: boolean;
+    shareCodeAfterMatch?: boolean;
+  },
+>(settings: Settings, nextSharesCode = settings.shareCodeAfterMatch) {
+  return {
+    ...settings,
+    admissionLocked: undefined,
+    factionChangesLocked: undefined,
+    shareCodeAfterMatch: nextSharesCode ? settings.shareCodeAfterMatch : undefined,
+    rules: settings.rules && { ...settings.rules, settingsEditors: undefined },
+  };
+}
+
 export type AssistanceKind = keyof MatchRuleSettings["assistance"];
 export type MatchPreset = "casual" | "balanced" | "strict" | "tournament";
 export const MATCH_PRESETS: readonly MatchPreset[] = ["casual", "balanced", "strict", "tournament"];
@@ -38,6 +58,7 @@ export const MATCH_PRESETS: readonly MatchPreset[] = ["casual", "balanced", "str
 /** Fresh values prevent lobby edits from mutating preset defaults. */
 export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings {
   const strict = preset === "strict" || preset === "tournament";
+  const assistanceMultiplier = preset === "strict" ? 2 : 1;
   const access = preset === "casual" ? "free" : preset === "tournament" ? "blocked" : "penalty";
   return {
     victory: "race",
@@ -57,11 +78,14 @@ export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings
     focusGraceSeconds: 3,
     focusFreeWarnings: 1,
     assistance: {
-      topics: { access, seconds: 30, points: 3 },
-      complexity: { access, seconds: 60, points: 5 },
-      hiddenCase: { access, seconds: 120, points: 10 },
+      topics: { access, seconds: 30 * assistanceMultiplier, points: 3 * assistanceMultiplier },
+      complexity: { access, seconds: 60 * assistanceMultiplier, points: 5 * assistanceMultiplier },
+      hiddenCase: {
+        access,
+        seconds: 120 * assistanceMultiplier,
+        points: 10 * assistanceMultiplier,
+      },
     },
-    feedback: preset === "tournament" ? "aggregate" : "verdicts",
     submissions: {
       cooldownSeconds: preset === "casual" ? 0 : 10,
       freeSubmissions: 3,
