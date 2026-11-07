@@ -76,7 +76,7 @@ export function PartyPage() {
   const recovery =
     !pending &&
     party &&
-    ["settings", "ready", "start", "leave", "disband", "kick"]
+    ["settings", "ready", "leave", "disband", "kick"]
       .map((operation) => ({
         operation,
         command: readPendingCommand<unknown>(
@@ -215,21 +215,6 @@ export function PartyPage() {
               </button>
             </Tooltip>
           )}
-          {host && own?.ready && !party.currentMatchId && !party.latestMatchId && (
-            <Tooltip content={factionReadyHint} disabled={factionsReady}>
-              <button
-                className="button button-primary"
-                disabled={
-                  !!recovery ||
-                  !party.members.every((member) => member.ready && member.online) ||
-                  !factionsReady
-                }
-                onClick={() => void run("start")}
-              >
-                Start match
-              </button>
-            </Tooltip>
-          )}
         </div>
       </div>
     </fieldset>
@@ -347,6 +332,7 @@ export function PartyPage() {
           {!party.currentMatchId && (
             <PartyReadyStatus
               countdownEndsAt={party.countdownEndsAt}
+              firstMatch={!party.latestMatchId}
               queueError={party.queueError}
             />
           )}

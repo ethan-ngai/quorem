@@ -93,9 +93,11 @@ export function PartyMemberReadiness({
 export function PartyReadyStatus({
   countdownEndsAt,
   queueError,
+  firstMatch = false,
 }: {
   countdownEndsAt: string | null;
   queueError?: string | null;
+  firstMatch?: boolean;
 }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
@@ -112,16 +114,18 @@ export function PartyReadyStatus({
   const counting = Number.isFinite(remaining);
   const seconds = Math.max(0, Math.ceil(remaining / 1000));
   const starting = seconds === 0;
+  const matchLabel = firstMatch ? "Match" : "Next match";
+  const title = firstMatch ? "Starting match" : "Starting next match";
   if (!counting && !queueError) return null;
   return (
     <>
       {counting && (
         <>
           <span className="sr-only" role="alert">
-            {starting ? "Starting next match." : "Next match starts shortly."}
+            {starting ? `${title}.` : `${matchLabel} starts shortly.`}
           </span>
           <span className="sr-only" role="timer">
-            {starting ? "Starting match…" : `Next match in ${seconds}s`}
+            {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
           </span>
           {typeof document !== "undefined" &&
             createPortal(
@@ -130,7 +134,10 @@ export function PartyReadyStatus({
                   <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
                   <span>{seconds}</span>
                 </span>
-                <strong>{starting ? "Starting next match…" : "Starting next match"}</strong>
+                <span className="party-countdown-label">
+                  {title}
+                  {starting ? "…" : ""}
+                </span>
               </div>,
               document.body,
             )}
@@ -138,7 +145,10 @@ export function PartyReadyStatus({
       )}
       {queueError && (
         <div className="party-ready-feedback">
-          <PersistentNotice message={queueError} label="Next match unavailable" />
+          <PersistentNotice
+            message={queueError}
+            label={firstMatch ? "Match unavailable" : "Next match unavailable"}
+          />
         </div>
       )}
     </>

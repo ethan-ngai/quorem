@@ -163,7 +163,7 @@ export function partyRoutes(deps: {
       throw new ApplicationError("invalid_input", "User is required", 400);
     return c.json(await deps.parties.mutate(who, c.req.param("id"), k, "kick", input.userId));
   });
-  for (const action of ["start", "leave", "disband"] as const)
+  for (const action of ["leave", "disband"] as const)
     app.post(`/v1/parties/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         k = key(c.req.raw),

@@ -392,9 +392,14 @@ test("private lobby organizes uneven teams and starts shared workspaces", async 
   await parties.mutate(user("a"), id, "unready-empty", "ready", false);
   // Start independently rechecks occupancy even if readiness was previously recorded.
   await pool.query("UPDATE party_members SET ready=true WHERE party_id=$1", [id]);
-  await expect(
-    parties.mutate(user("a"), id, "blocked-empty-start", "start", null),
-  ).rejects.toMatchObject({ status: 409 });
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+    [id],
+  );
+  expect(await parties.read(user("a"), id)).toMatchObject({
+    currentMatchId: null,
+    queueError: expect.any(String),
+  });
   expect(
     (await pool.query("SELECT current_match_id FROM parties WHERE id=$1", [id])).rows[0]
       .current_match_id,
@@ -431,9 +436,13 @@ test("private lobby organizes uneven teams and starts shared workspaces", async 
       members: [{ ready: true }, { ready: true }, { ready: true }],
     });
   }
-  await parties.mutate(user("a"), id, "start-lobby", "start", null);
-  const round = (await pool.query("SELECT current_match_id AS id FROM parties WHERE id=$1", [id]))
-    .rows[0].id;
+  await pool.query(
+    "UPDATE parties SET countdown_ends_at=clock_timestamp()-interval '1 second' WHERE id=$1 AND countdown_ends_at IS NOT NULL",
+    [id],
+  );
+  const { currentMatchId: round } = (await parties.read(user("a"), id)) as {
+    currentMatchId: string;
+  };
   expect(round).toBeTruthy();
   expect(
     (await pool.query("SELECT faction_names FROM matches WHERE id=$1", [round])).rows[0]

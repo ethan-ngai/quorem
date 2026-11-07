@@ -40,8 +40,9 @@
 .party-countdown-ring .match-duration-fill {
   transition: stroke-dasharray 250ms linear;
 }
-.party-countdown-popup strong {
+.party-countdown-label {
   font-size: var(--text-body);
+  font-weight: 400;
 }
 @keyframes party-countdown-enter {
   from {

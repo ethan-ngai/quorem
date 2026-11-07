@@ -395,11 +395,6 @@
     },
     {
       "method": "POST",
-      "path": "/v1/parties/{id}/start",
-      "registration": "apps/api/src/modules/parties/routes.ts"
-    },
-    {
-      "method": "POST",
       "path": "/v1/presence/heartbeat",
       "registration": "apps/api/src/runtime/composition/http.ts"
     },

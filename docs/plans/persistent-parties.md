@@ -12,9 +12,9 @@ Confirmed: automatic post-match code sharing between that round's participants, 
 
 - One active party membership per account or guest identity. Joining another party requires an explicit Leave first.
 - Party identity, invitation and membership survive rounds and navigation within Quorem.
-- Host chooses settings and queues the initial round after everyone is ready. Mode rules validate size and eligibility; Showdown and Free-for-all retain their current competitive rules.
+- Host chooses settings. Mode rules validate size and eligibility before each round.
 - Completing a round clears readiness once and exposes its results. Each player can Ready up directly from results or from the lobby. Those are two views of the same authoritative readiness state.
-- When every current party member is online, eligible and ready after a round, start the next round automatically with the current lobby settings. A short cancellable countdown exposes who is ready and allows Unready. Membership/settings changes cancel it and clear readiness.
+- When every current party member is online, eligible and ready, start the first or next round automatically after a five-second countdown. Players can Unready during the countdown. Membership/settings changes cancel it and clear readiness.
 - Return to lobby changes the view; it preserves membership and readiness. Reviewing code also preserves membership; it never readies the viewer automatically.
 - Ready and queued players can Unready until the round-start transaction commits. Duplicate commands and reconnects cannot create duplicate rounds.
 - Party membership cannot join an already-started round. New invitees wait in the lobby for the following round. They receive no current-round source or private problem access.

@@ -250,11 +250,18 @@ export async function runStageWorkload(env, deps = {}) {
           body: { ready: true },
         });
       }
-      const started = await request(host, `/v1/parties/${party.id}/start`, {
-        method: "POST",
-        command: true,
-        body: {},
-      });
+    }
+    for (const {
+      id,
+      actors: [host, guest],
+    } of parties) {
+      const startDeadline = now() + 15000;
+      let started;
+      do {
+        started = await request(host, `/v1/parties/${id}`);
+        if (started.currentMatchId || started.queueError || now() >= startDeadline) break;
+        await wait(250);
+      } while (true);
       const room = { id: started.currentMatchId };
       if (!uuid.test(room.id ?? "")) throw new Error("Match did not start");
       for (const actor of [host, guest]) {

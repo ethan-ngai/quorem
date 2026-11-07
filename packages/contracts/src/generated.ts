@@ -952,22 +952,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/parties/{id}/start": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["startParty"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/parties/{id}/leave": {
         parameters: {
             query?: never;
@@ -4524,39 +4508,6 @@ export interface operations {
                 "application/json": components["schemas"]["PartyReadyRequest"];
             };
         };
-        responses: {
-            /** @description Success */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PartySnapshot"];
-                };
-            };
-            /** @description Safe application error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    startParty: {
-        parameters: {
-            query?: never;
-            header: {
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Success */
             200: {

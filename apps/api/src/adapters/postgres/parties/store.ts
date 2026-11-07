@@ -30,9 +30,8 @@ export async function lockParty(tx: Transaction, id: string, owner: string) {
       host: string;
       settings: PartySettings;
       current: string | null;
-      latest: string | null;
     }>(
-      sql`SELECT p.host_owner_id AS host,p.settings,p.current_match_id::text AS current,p.latest_match_id::text AS latest FROM parties p JOIN party_members pm ON pm.party_id=p.id AND pm.owner_id=${owner} WHERE p.id=${id}::uuid AND p.disbanded_at IS NULL FOR UPDATE OF p`,
+      sql`SELECT p.host_owner_id AS host,p.settings,p.current_match_id::text AS current FROM parties p JOIN party_members pm ON pm.party_id=p.id AND pm.owner_id=${owner} WHERE p.id=${id}::uuid AND p.disbanded_at IS NULL FOR UPDATE OF p`,
     )
   ).rows[0];
   if (!row) throw missing();
