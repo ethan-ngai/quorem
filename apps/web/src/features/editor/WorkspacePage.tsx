@@ -1,5 +1,9 @@
 import type { SharedWorkspaceDocument } from "../collaboration/sharedWorkspace";
-import { MatchAssistance, ruleCostLabel } from "../matches/MatchAssistance";
+import {
+  MatchAssistance,
+  ruleCostLabel,
+  type MatchDisclosureControls,
+} from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
 import type { RuleActionQuote } from "@quorem/contracts/match-rules";
 import { matchCompletionOutcome } from "../matches/matchState";
@@ -25,7 +29,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
 import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
-import { EditorialPanel } from "./components/EditorialPanel";
+import { EditorialPanel, type EditorialComplexity } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
@@ -598,6 +602,77 @@ export function WorkspacePage({
     />
   );
 
+  const assistance = review ? undefined : match?.rules.assistance;
+  const renderProblem = (controls?: MatchDisclosureControls) => {
+    const topicControls = {
+      allowTopics: assistance?.topics.access !== "blocked",
+      topicsDisabled: controls?.disabled,
+      requestTopics:
+        controls &&
+        assistance &&
+        assistance.topics.access !== "free" &&
+        assistance.topics.access !== "blocked"
+          ? (open: (tags: string[]) => void) =>
+              controls.reveal("topics", ({ topics }) => {
+                if (topics) open(topics);
+              })
+          : undefined,
+    };
+    const editorial = (
+      <EditorialPanel
+        key={`${identity}:${workspace.id}:${problem.id}`}
+        theme={theme}
+        colorScheme={editorSchemes[theme]}
+        available={problem.hasComplexity ?? false}
+        solutionAvailable={!problem.odyssey && (!match || review) && !!problem.hasSolutions}
+        identity={identity}
+        versionId={problem.id}
+        language={documentLanguage}
+        inMatch={!!assistance && assistance.complexity.access !== "free"}
+        complexityDisabled={controls?.disabled}
+        requestComplexity={
+          controls &&
+          assistance &&
+          assistance.complexity.access !== "free" &&
+          assistance.complexity.access !== "blocked"
+            ? (open) =>
+                controls.reveal("complexity", ({ complexity }) => {
+                  if (complexity) open(JSON.parse(complexity) as EditorialComplexity);
+                })
+            : undefined
+        }
+      />
+    );
+    if (!problem.odyssey) {
+      return (
+        <ProblemStatement problem={problem} {...topicControls}>
+          {editorial}
+        </ProblemStatement>
+      );
+    }
+    if (displayedOdyssey) {
+      return (
+        <OdysseyPanel
+          {...topicControls}
+          progress={displayedOdyssey}
+          problem={problem}
+          selectedLevel={selectedLevel}
+        >
+          {editorial}
+        </OdysseyPanel>
+      );
+    }
+    return (
+      <p className="result-message" role="status">
+        {!account.data
+          ? "Sign in to start Odyssey."
+          : odyssey.isError
+            ? "Odyssey is unavailable for this account. Reload to retry."
+            : "Loading levels…"}
+      </p>
+    );
+  };
+
   return (
     <>
       {loading && (
@@ -720,67 +795,19 @@ export function WorkspacePage({
         panel={activePanel}
         onPanelChange={setActivePanel}
         problem={
-          <>
-            {match && !review && (
-              <MatchAssistance
-                key={match.id}
-                match={match}
-                identity={identity}
-                submission={submission}
-                complexityAvailable={problem.hasComplexity ?? false}
-                onPaidAction={sharedDocument?.requestPaidAction}
-              />
-            )}
-            {problem.odyssey ? (
-              displayedOdyssey ? (
-                <OdysseyPanel
-                  allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
-                  progress={displayedOdyssey}
-                  problem={problem}
-                  selectedLevel={selectedLevel}
-                >
-                  <EditorialPanel
-                    theme={theme}
-                    colorScheme={editorSchemes[theme]}
-                    available={problem.hasComplexity ?? false}
-                    identity={identity}
-                    versionId={problem.id}
-                    language={documentLanguage}
-                    inMatch={
-                      !!match && !review && match.rules.assistance.complexity.access !== "free"
-                    }
-                  />
-                </OdysseyPanel>
-              ) : (
-                <p className="result-message" role="status">
-                  {!account.data
-                    ? "Sign in to start Odyssey."
-                    : odyssey.isError
-                      ? "Odyssey is unavailable for this account. Reload to retry."
-                      : "Loading levels…"}
-                </p>
-              )
-            ) : (
-              <ProblemStatement
-                problem={problem}
-                allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
-              >
-                <EditorialPanel
-                  theme={theme}
-                  colorScheme={editorSchemes[theme]}
-                  available={problem.hasComplexity ?? false}
-                  solutionAvailable={(!match || review) && (problem.hasSolutions ?? false)}
-                  key={`${identity}:${problem.id}`}
-                  identity={identity}
-                  versionId={problem.id}
-                  language={documentLanguage}
-                  inMatch={
-                    !!match && !review && match.rules.assistance.complexity.access !== "free"
-                  }
-                />
-              </ProblemStatement>
-            )}
-          </>
+          match && !review ? (
+            <MatchAssistance
+              key={`${match.id}:${identity}:${workspace.id}`}
+              match={match}
+              identity={identity}
+              submission={submission}
+              onPaidAction={sharedDocument?.requestPaidAction}
+            >
+              {renderProblem}
+            </MatchAssistance>
+          ) : (
+            renderProblem()
+          )
         }
         editor={
           <>

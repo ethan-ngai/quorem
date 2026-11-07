@@ -21,6 +21,8 @@ async function loadComplexity(identity: DevelopmentIdentity, id: string) {
   return requireData(data, error);
 }
 
+export type EditorialComplexity = Awaited<ReturnType<typeof loadComplexity>>;
+
 export function EditorialPanel({
   identity,
   versionId,
@@ -30,6 +32,8 @@ export function EditorialPanel({
   inMatch = false,
   available = true,
   solutionAvailable = false,
+  requestComplexity,
+  complexityDisabled = false,
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
@@ -39,21 +43,31 @@ export function EditorialPanel({
   inMatch?: boolean;
   available?: boolean;
   solutionAvailable?: boolean;
+  requestComplexity?: (open: (value: EditorialComplexity) => void) => void;
+  complexityDisabled?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string>();
   const [active, setActive] = useState<"complexity" | "solution" | null>(null);
   const [displayed, setDisplayed] = useState<"complexity" | "solution" | null>(null);
+  const [grantedComplexity, setGrantedComplexity] = useState<EditorialComplexity>();
+  function open(item: "complexity" | "solution") {
+    setDisplayed(item);
+    setActive(item);
+  }
   function toggle(item: "complexity" | "solution") {
     if (active === item) setActive(null);
-    else {
-      setDisplayed(item);
-      setActive(item);
-    }
+    else if (item === "complexity" && requestComplexity && !grantedComplexity) {
+      if (complexityDisabled) return;
+      requestComplexity((value) => {
+        setGrantedComplexity(value);
+        open(item);
+      });
+    } else open(item);
   }
   const complexity = useQuery({
     queryKey: ["complexity", "approaches", identity, versionId],
     queryFn: () => loadComplexity(identity, versionId),
-    enabled: !inMatch && available,
+    enabled: !inMatch && !requestComplexity && available,
     staleTime: Infinity,
     retry: false,
   });
@@ -69,11 +83,12 @@ export function EditorialPanel({
     staleTime: Infinity,
     retry: false,
   });
-  if (inMatch || (!available && !solutionAvailable)) return null;
+  if ((inMatch && !requestComplexity) || (!available && !solutionAvailable)) return null;
+  const complexityData = requestComplexity ? grantedComplexity : complexity.data;
   const selectedComplexity = selectApproach(
-    complexity.data?.items,
+    complexityData?.items,
     selectedId,
-    complexity.data?.canonicalApproachId ?? "",
+    complexityData?.canonicalApproachId ?? "",
   );
   const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
@@ -84,6 +99,7 @@ export function EditorialPanel({
             className="topics-toggle"
             aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
             aria-expanded={active === "complexity"}
+            aria-disabled={!!requestComplexity && !grantedComplexity && complexityDisabled}
             onClick={() => toggle("complexity")}
           >
             <Clock3 aria-hidden="true" /> Complexity
@@ -112,20 +128,20 @@ export function EditorialPanel({
           }}
         >
           {displayed === "complexity" &&
-            complexity.data &&
-            complexity.data.items.length > 1 &&
+            complexityData &&
+            complexityData.items.length > 1 &&
             selectedComplexity && (
               <ApproachPicker
-                approaches={complexity.data.items}
-                canonicalId={complexity.data.canonicalApproachId}
+                approaches={complexityData.items}
+                canonicalId={complexityData.canonicalApproachId}
                 selectedId={selectedComplexity.id}
                 onChange={setSelectedId}
               />
             )}
           {displayed === "complexity" ? (
-            complexity.isPending ? (
+            !requestComplexity && complexity.isPending ? (
               <p role="status">Loading complexity…</p>
-            ) : complexity.isError ? (
+            ) : !requestComplexity && complexity.isError ? (
               <p role="alert">
                 {userFacingErrorMessage(
                   complexity.error,

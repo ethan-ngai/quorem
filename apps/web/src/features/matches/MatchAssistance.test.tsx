@@ -43,12 +43,7 @@ it("selects a passed hidden case and binds approval to that case", async () => {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
-        <MatchAssistance
-          match={match}
-          identity="alice"
-          submission={submission}
-          complexityAvailable={false}
-        />
+        <MatchAssistance match={match} identity="alice" submission={submission} />
       </QueryClientProvider>,
     ),
   );
