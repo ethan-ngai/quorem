@@ -106,7 +106,7 @@ function MatchClock({
           <Popover.Anchor asChild>
             <span className="match-clock match-clock-personal" data-closed={personalClosed}>
               <span className="match-clock-label">Submit</span>
-              {personalClosed ? "Closed" : personal}
+              {personal}
             </span>
           </Popover.Anchor>
           {cutoffOpen && (
