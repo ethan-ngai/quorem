@@ -1,7 +1,7 @@
 import "./results.css";
 /** @file CaseBrowserLayout.tsx @description Shared case rail/detail geometry for execution and authoring. @module editor */
 import { useChangeMotion } from "../../../ui/useChangeMotion";
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 export function CaseBrowserLayout({
   rail,
   railLabel,
@@ -20,6 +20,10 @@ export function CaseBrowserLayout({
   actions?: ReactNode;
 }) {
   const detail = useChangeMotion<HTMLDivElement>(selection);
+  const scroll = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (scroll.current) scroll.current.scrollTop = 0;
+  }, [selection]);
   return (
     <div className="case-browser" aria-busy={busy}>
       <div className="case-rail" aria-label={railLabel}>
@@ -27,9 +31,11 @@ export function CaseBrowserLayout({
       </div>
       <div className="case-detail-panel">
         {actions && <div className="case-visibility-action">{actions}</div>}
-        {status}
-        <div ref={detail} className="case-details">
-          {children}
+        <div ref={scroll} className="case-detail-scroll">
+          {status}
+          <div ref={detail} className="case-details">
+            {children}
+          </div>
         </div>
       </div>
     </div>

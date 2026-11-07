@@ -44,7 +44,12 @@ const submission: Submission = {
   updatedAt: "2026-10-12T12:00:01Z",
 };
 
-function renderCases(result?: Submission, busy = false, customMode = false) {
+function renderCases(
+  result?: Submission,
+  busy = false,
+  customMode = false,
+  pendingKind?: Submission["kind"],
+) {
   return renderToStaticMarkup(
     <TestCases
       problem={problem}
@@ -53,6 +58,8 @@ function renderCases(result?: Submission, busy = false, customMode = false) {
       onDraftsChange={() => {}}
       submission={result}
       busy={busy}
+      pendingKind={pendingKind}
+      hiddenCaseCount={3}
     />,
   );
 }
@@ -63,13 +70,14 @@ describe("pending case execution", () => {
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('aria-label="Case 1: pending"');
     expect(html).toContain('class="case-spinner" aria-hidden="true"');
-    expect(html).toContain("Running cases…");
+    expect(html).toContain("Judging test case");
+    expect(html).not.toContain("case-loading");
     expect(html).not.toContain('aria-label="Case 1: accepted"');
   });
 
   it("shows a queued state and an initial admission state", () => {
-    expect(renderCases({ ...submission, state: "queued" })).toContain("Waiting for judge…");
-    expect(renderCases(undefined, true)).toContain("Starting…");
+    expect(renderCases({ ...submission, state: "queued" })).toContain("Judging test case");
+    expect(renderCases(undefined, true)).toContain("Judging test case");
   });
 
   it("suppresses an earlier result while a fresh admission is pending", () => {
@@ -81,7 +89,7 @@ describe("pending case execution", () => {
       },
       true,
     );
-    expect(html).toContain("Starting…");
+    expect(html).toContain("Judging test case");
     expect(html).not.toContain("stale-output");
     expect(html).not.toContain('aria-label="Case 1: accepted"');
   });
@@ -90,10 +98,25 @@ describe("pending case execution", () => {
     expect(renderCases(submission, false, true)).not.toContain("case-spinner");
   });
 
-  it("labels a full-suite run without claiming samples are being judged", () => {
-    const html = renderCases({ ...submission, kind: "submit" });
-    expect(html).toContain("Judging hidden cases…");
-    expect(html).not.toContain('aria-label="Case 1: pending"');
+  it("shows all public and hidden spinners immediately when submitting", () => {
+    const html = renderCases(undefined, true, false, "submit");
+    expect(html).toContain("Judging test case");
+    expect(html).toContain('aria-label="Case 1: pending"');
+    expect(html.match(/aria-label="Hidden case \d: pending"/g)).toHaveLength(3);
+  });
+
+  it("replaces the selected spinner as soon as its verdict arrives", () => {
+    const html = renderCases({
+      ...submission,
+      kind: "submit",
+      publicCases: [{ index: 0, status: "runtime_error" }],
+      hiddenCases: [{ index: 1, status: "accepted" }],
+    });
+    expect(html).toContain("Runtime error");
+    expect(html).not.toContain("Judging test case");
+    expect(html).toContain('aria-label="Hidden case 1: pending"');
+    expect(html).toContain('aria-label="Hidden case 2: passed"');
+    expect(html).toContain('aria-label="Case 2: pending"');
   });
 
   it("removes loading indicators after execution finishes", () => {

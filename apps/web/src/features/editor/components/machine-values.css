@@ -45,12 +45,6 @@
 .console-value-row .field-purpose {
   height: 34px;
 }
-.console-stream {
-  display: block;
-}
-.console-stream.console-error {
-  color: var(--color-error);
-}
 .case-run-output {
   display: grid;
   gap: 12px;
@@ -61,7 +55,7 @@
   gap: var(--space-2);
   flex: 0 0 auto;
   min-width: 0;
-  padding: var(--space-1) var(--space-2);
+  padding-block: var(--space-1);
   border-radius: var(--radius-sm);
 }
 .case-verdict-text {
@@ -77,16 +71,10 @@
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--color-inline-code);
-  max-height: 28px;
-  overflow: auto;
   color: var(--color-error);
   font: 12px/1.5 var(--font-code);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-.case-error-message:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
 }
 .field-purpose {
   display: flex;

@@ -6,7 +6,7 @@ import { CaseFields } from "./CaseFields";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { QuestionProblem, PublicCaseResult, Submission } from "@quorem/contracts";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
@@ -21,6 +21,12 @@ import { CaseArguments, CaseOutput, CaseValue, CaseVerdict } from "./CaseOutput"
 import { SequenceCaseValues } from "./SequenceCaseValues";
 import { SqlCaseEditor } from "./SqlCaseEditor";
 
+export type HiddenCaseDetails = {
+  example?: QuestionProblem["examples"][number];
+  result?: PublicCaseResult;
+  action?: ReactNode;
+};
+
 export function TestCases({
   problem,
   customMode,
@@ -30,6 +36,8 @@ export function TestCases({
   snapshot,
   selectedSampleIndex,
   busy = false,
+  pendingKind,
+  hiddenCaseCount,
   minimumCases = 1,
   maximumCases = 20,
   requiredExpected = false,
@@ -37,6 +45,7 @@ export function TestCases({
   customCaseDetails,
   caseResults,
   caseStatuses,
+  hiddenCaseDetails,
   caseGroups,
   currentCaseGroup,
   selectedCustomId,
@@ -50,6 +59,8 @@ export function TestCases({
   snapshot?: RunSnapshot;
   selectedSampleIndex?: number;
   busy?: boolean;
+  pendingKind?: Submission["kind"];
+  hiddenCaseCount?: number;
   minimumCases?: number;
   maximumCases?: number;
   requiredExpected?: boolean;
@@ -61,20 +72,46 @@ export function TestCases({
   onSelectCustomCase?: (id: string | undefined) => void;
   caseResults?: readonly (PublicCaseResult | undefined)[];
   caseStatuses?: readonly PublicCaseResult[];
+  hiddenCaseDetails?: (index: number) => HiddenCaseDetails | undefined;
 }) {
-  const hiddenCases =
+  const browseSubmission = !customMode && !caseResults && !busy && !submission?.customRun;
+  const submit = browseSubmission && submission?.kind === "submit" ? submission : undefined;
+  const liveSubmit = submit?.state === "running";
+  const submitFeedback = submit?.state === "completed" || liveSubmit ? submit : undefined;
+  const hiddenCases = submitFeedback?.hiddenCases;
+  const hiddenVerdicts = new Map(hiddenCases?.map((item) => [item.index, item]));
+  const submitSamples = new Map(submitFeedback?.publicCases?.map((item) => [item.index, item]));
+  const kind = pendingKind ?? submission?.kind;
+  const pendingSubmit =
     !customMode &&
     !caseResults &&
-    !busy &&
-    submission?.kind === "submit" &&
-    submission.state === "completed"
-      ? submission.hiddenCases
-      : undefined;
+    kind === "submit" &&
+    (busy || submission?.state === "queued" || submission?.state === "running");
+  const hiddenIndexes =
+    pendingSubmit && hiddenCaseCount !== undefined
+      ? Array.from({ length: hiddenCaseCount }, (_, index) => index)
+      : [...hiddenVerdicts.keys()];
   const [selectedHidden, setSelectedHidden] = useState<number>();
+  const previousSubmissionId = useRef(submission?.id);
   useEffect(() => {
-    setSelectedHidden(undefined);
-  }, [submission?.id, busy]);
-  const showingHidden = selectedHidden !== undefined && !!hiddenCases?.[selectedHidden];
+    if (busy) setSelectedHidden(undefined);
+  }, [busy]);
+  useEffect(() => {
+    if (
+      previousSubmissionId.current &&
+      submission?.id &&
+      previousSubmissionId.current !== submission.id
+    )
+      setSelectedHidden(undefined);
+    previousSubmissionId.current = submission?.id;
+  }, [submission?.id]);
+  const showingHidden = selectedHidden !== undefined && hiddenIndexes.includes(selectedHidden);
+  const hidden = showingHidden ? hiddenVerdicts.get(selectedHidden!) : undefined;
+  const revealed = hidden && !pendingSubmit ? hiddenCaseDetails?.(hidden.index) : undefined;
+  const hiddenSelector = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (revealed?.example) hiddenSelector.current?.focus({ preventScroll: true });
+  }, [revealed?.example]);
   const currentGroupStart = Math.max(0, caseGroups?.indexOf(currentCaseGroup) ?? 0);
   const [selectedSample, setSelectedSample] = useState(currentGroupStart);
   useEffect(() => {
@@ -87,19 +124,14 @@ export function TestCases({
   }
   // Recovered output without an admission snapshot belongs in this same case rail.
   const recoveredCases =
-    !caseResults &&
-    !busy &&
-    !submission?.customRun &&
-    (!snapshot || submission?.kind === "submit" || !!problem.odyssey) &&
-    !customMode &&
-    (submission?.kind === "run" || submission?.kind === "submit") &&
+    browseSubmission &&
+    (!snapshot || !!problem.odyssey) &&
+    submission?.kind === "run" &&
     submission.state === "completed"
       ? submission.publicCases
       : undefined;
   // Unlocked samples outlive a submission; hidden verdicts are a different indexed suite.
-  const displayCases =
-    (submission?.kind === "submit" || problem.odyssey ? undefined : recoveredCases) ??
-    problem.examples;
+  const displayCases = (!problem.odyssey ? recoveredCases : undefined) ?? problem.examples;
   const sampleIndex = Math.min(
     selectedSampleIndex ?? selectedSample,
     Math.max(0, displayCases.length - 1),
@@ -109,7 +141,7 @@ export function TestCases({
     drafts.findIndex((draft) => draft.id === (selectedCustomId ?? requestedCustomId)),
   );
   const draft = drafts[customIndex];
-  const example = problem.examples[sampleIndex];
+  const example = showingHidden ? revealed?.example : problem.examples[sampleIndex];
   let currentValue;
   let currentError: Error | undefined;
   try {
@@ -135,7 +167,7 @@ export function TestCases({
   const inputErrors = currentError
     ? Object.fromEntries(errorFields.map((name) => [name, currentError.message]))
     : undefined;
-  const expectedExample = example && (
+  const expectedExample = example && example.expected !== undefined && (
     <CaseValue
       name="Expected output"
       purpose="target"
@@ -148,20 +180,28 @@ export function TestCases({
       sql={problem.sql}
     />
   );
-  const caseId = customMode ? draft?.id : String(sampleIndex);
+  const caseId = showingHidden
+    ? `hidden:${selectedHidden}`
+    : customMode
+      ? draft?.id
+      : String(sampleIndex);
   const matchingSnapshot = snapshot?.problemVersionId === problem.id ? snapshot : undefined;
   const pending =
     (busy || submission?.state === "queued" || submission?.state === "running") &&
-    (submission?.kind === "submit" ? !customMode : customMode === !!matchingSnapshot?.custom);
-  const runningSamples = pending && submission?.kind !== "submit";
+    (kind === "submit" ? !customMode : customMode === !!matchingSnapshot?.custom);
+  const runningSamples = pending && kind !== "submit";
   const resultIndex = caseId
     ? associatedResultIndex(matchingSnapshot, customMode, caseId, currentValue)
     : -1;
-  const result =
-    (!pending ? caseResults?.[customMode ? customIndex : sampleIndex] : undefined) ??
-    (!pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
+  const runResult =
+    !pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
       ? submission.publicCases?.[resultIndex]
-      : recoveredCases?.[sampleIndex]);
+      : recoveredCases?.[sampleIndex];
+  const result = showingHidden
+    ? revealed?.result
+    : ((!pending ? caseResults?.[customMode ? customIndex : sampleIndex] : undefined) ??
+      submitSamples.get(sampleIndex) ??
+      runResult);
   const syntaxResult: PublicCaseResult | undefined =
     !pending &&
     !result &&
@@ -172,7 +212,7 @@ export function TestCases({
       : !customMode && !submission.customRun)
       ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
       : undefined;
-  const combinedPreview = !showingHidden && !problem.sql && !problem.odyssey;
+  const combinedPreview = !problem.sql && !problem.odyssey;
   const previewContext = problem.sql
     ? undefined
     : {
@@ -189,11 +229,12 @@ export function TestCases({
   }
   function caseStatus(index: number) {
     const retained = caseStatuses?.find((result) => result.index === index)?.status;
+    if (pendingSubmit && submitSamples.has(index)) return submitSamples.get(index)?.status;
     if (pending)
       return currentCaseGroup && caseGroups?.[index] !== currentCaseGroup ? retained : undefined;
     if (caseResults) return caseResults[index]?.status ?? retained;
     if (!submission || submission.state !== "completed") return retained;
-    if (submission.kind === "submit") return recoveredCases?.[index]?.status ?? retained;
+    if (submission.kind === "submit") return submitSamples.get(index)?.status ?? retained;
     if (recoveredCases) return recoveredCases[index]?.status ?? retained;
     let value;
     try {
@@ -214,10 +255,15 @@ export function TestCases({
   const statuses = (customMode ? drafts : displayCases).map((_, index) => caseStatus(index));
   const items = customMode ? drafts : displayCases;
   const groups = [...new Set(caseGroups?.filter((group): group is string => !!group))];
+  function casePending(index: number) {
+    return (
+      (pendingSubmit && !submitSamples.has(index) && !statuses[index]) ||
+      (runningSamples && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup))
+    );
+  }
   function caseButton(index: number) {
     const item = items[index]!;
-    const runningCase =
-      runningSamples && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup);
+    const runningCase = casePending(index);
     return (
       <button
         type="button"
@@ -231,135 +277,141 @@ export function TestCases({
           else setSelectedSample(index);
         }}
       >
-        {runningCase && <span className="case-spinner" aria-hidden="true" />}
-        {statuses[index] && statuses[index] !== "executed" && (
-          <Icon
-            name={statuses[index] === "accepted" ? "submit" : "close"}
-            className={statuses[index] === "accepted" ? "verdict-success" : "verdict-error"}
-          />
-        )}
+        <CaseIndicator pending={runningCase} status={statuses[index]} />
         Case {index + 1}
       </button>
     );
   }
   return (
-    <NodeReferenceScope key={caseId}>
-      <CaseBrowserLayout
-        busy={pending}
-        actions={
-          !showingHidden && customMode && draft ? (
-            <>
-              {currentError && (
-                <PersistentNotice
-                  label={`Check case ${customIndex + 1}`}
-                  message={currentError.message}
-                />
-              )}
-              <Tooltip content="Remove case">
-                <button
-                  type="button"
-                  className="icon-button destructive-icon"
-                  disabled={drafts.length <= minimumCases}
-                  aria-label={`Remove custom case ${customIndex + 1}`}
-                  onClick={() => {
-                    const remaining = drafts.filter((item) => item.id !== draft.id);
-                    onDraftsChange(remaining);
-                    setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
-                  }}
-                >
-                  <Icon name="trash" />
-                </button>
-              </Tooltip>
-            </>
-          ) : undefined
-        }
-        status={<CaseVerdict result={showingHidden ? undefined : (result ?? syntaxResult)} />}
-        selection={showingHidden ? `hidden:${selectedHidden}` : `${customMode}:${caseId}`}
-        railLabel={customMode ? "Select custom case" : "Select test case"}
-        rail={
+    <CaseBrowserLayout
+      busy={pending}
+      actions={
+        !showingHidden && customMode && draft ? (
           <>
-            {!customMode && groups.length
-              ? groups.map((group, groupIndex) => {
-                  const indexes = items.flatMap((_, index) =>
-                    caseGroups?.[index] === group ? [index] : [],
-                  );
-                  const previous =
-                    !!currentCaseGroup && groupIndex < groups.indexOf(currentCaseGroup);
-                  const failed = indexes.some(
-                    (index) =>
-                      statuses[index] && !["accepted", "executed"].includes(statuses[index]!),
-                  );
-                  const passed =
-                    indexes.length > 0 && indexes.every((index) => statuses[index] === "accepted");
-                  const buttons = indexes.map(caseButton);
-                  return previous ? (
-                    <CaseGroupDisclosure
-                      key={group}
-                      label={group}
-                      failed={failed}
-                      passed={passed}
-                      executionID={submission?.id}
-                    >
-                      {buttons}
-                    </CaseGroupDisclosure>
-                  ) : (
-                    <div className="case-group" key={group}>
-                      <div className="case-group-label">
-                        {group}
-                        <CaseGroupStatus failed={failed} passed={passed} />
-                      </div>
-                      {buttons}
-                    </div>
-                  );
-                })
-              : items.map((_, index) => caseButton(index))}
-            {!!hiddenCases?.length && (
-              <CaseGroupDisclosure
-                label="Hidden"
-                icon="lock"
-                executionID={submission?.id}
-                failed={hiddenCases.some((item) => item.status !== "accepted")}
-                passed={hiddenCases.every((item) => item.status === "accepted")}
-                onClose={() => setSelectedHidden(undefined)}
+            {currentError && (
+              <PersistentNotice
+                label={`Check case ${customIndex + 1}`}
+                message={currentError.message}
+              />
+            )}
+            <Tooltip content="Remove case">
+              <button
+                type="button"
+                className="icon-button destructive-icon"
+                disabled={drafts.length <= minimumCases}
+                aria-label={`Remove custom case ${customIndex + 1}`}
+                onClick={() => {
+                  const remaining = drafts.filter((item) => item.id !== draft.id);
+                  onDraftsChange(remaining);
+                  setSelectedCustomId(remaining[Math.min(customIndex, remaining.length - 1)]?.id);
+                }}
               >
-                {hiddenCases.map((item, index) => (
+                <Icon name="trash" />
+              </button>
+            </Tooltip>
+          </>
+        ) : undefined
+      }
+      status={
+        <CaseVerdict
+          result={result ?? hidden ?? syntaxResult}
+          pending={
+            showingHidden
+              ? pendingSubmit && !hidden
+              : casePending(customMode ? customIndex : sampleIndex)
+          }
+        />
+      }
+      selection={`${customMode}:${caseId}:${!!revealed?.example}`}
+      railLabel={customMode ? "Select custom case" : "Select test case"}
+      rail={
+        <>
+          {!customMode && groups.length
+            ? groups.map((group, groupIndex) => {
+                const indexes = items.flatMap((_, index) =>
+                  caseGroups?.[index] === group ? [index] : [],
+                );
+                const previous =
+                  !!currentCaseGroup && groupIndex < groups.indexOf(currentCaseGroup);
+                const failed = indexes.some(
+                  (index) =>
+                    statuses[index] && !["accepted", "executed"].includes(statuses[index]!),
+                );
+                const passed =
+                  indexes.length > 0 && indexes.every((index) => statuses[index] === "accepted");
+                const buttons = indexes.map(caseButton);
+                return previous ? (
+                  <CaseGroupDisclosure
+                    key={group}
+                    label={group}
+                    failed={failed}
+                    passed={passed}
+                    executionID={submission?.id}
+                  >
+                    {buttons}
+                  </CaseGroupDisclosure>
+                ) : (
+                  <div className="case-group" key={group}>
+                    <div className="case-group-label">
+                      {group}
+                      <CaseGroupStatus failed={failed} passed={passed} />
+                    </div>
+                    {buttons}
+                  </div>
+                );
+              })
+            : items.map((_, index) => caseButton(index))}
+          {!!hiddenIndexes.length && (
+            <CaseGroupDisclosure
+              label="Hidden"
+              icon="lock"
+              executionID={submission?.id}
+              pending={pendingSubmit}
+              failed={hiddenCases?.some((item) => item.status !== "accepted") ?? false}
+              passed={!pendingSubmit && !!hiddenCases?.every((item) => item.status === "accepted")}
+              keepOpen={showingHidden}
+              onClose={() => setSelectedHidden(undefined)}
+            >
+              {hiddenIndexes.map((index) => {
+                const status = hiddenVerdicts.get(index)?.status;
+                return (
                   <button
                     type="button"
                     key={index}
+                    ref={selectedHidden === index ? hiddenSelector : undefined}
                     className="case-selector"
                     aria-pressed={showingHidden && selectedHidden === index}
-                    aria-label={`Hidden case ${index + 1}: ${item.status === "accepted" ? "passed" : item.status === "time_limit" ? "time limit exceeded" : "failed"}`}
+                    aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : status === "time_limit" ? "time limit exceeded" : status ? "failed" : "pending"}`}
                     onClick={() => setSelectedHidden(index)}
                   >
-                    <Icon
-                      name={item.status === "accepted" ? "submit" : "close"}
-                      className={item.status === "accepted" ? "verdict-success" : "verdict-error"}
-                    />
+                    <CaseIndicator pending={!status} status={status} />
                     Case {index + 1}
                   </button>
-                ))}
-              </CaseGroupDisclosure>
-            )}
-            {customMode && (
-              <button
-                type="button"
-                className="case-selector add-case"
-                disabled={drafts.length >= maximumCases}
-                onClick={() => {
-                  const added = {
-                    ...createCustomDraft(problem),
-                    expectedEnabled: requiredExpected,
-                  };
-                  onDraftsChange([...drafts, added]);
-                  setSelectedCustomId(added.id);
-                }}
-              >
-                <Icon name="plus" /> Add case
-              </button>
-            )}
-          </>
-        }
-      >
+                );
+              })}
+            </CaseGroupDisclosure>
+          )}
+          {customMode && (
+            <button
+              type="button"
+              className="case-selector add-case"
+              disabled={drafts.length >= maximumCases}
+              onClick={() => {
+                const added = {
+                  ...createCustomDraft(problem),
+                  expectedEnabled: requiredExpected,
+                };
+                onDraftsChange([...drafts, added]);
+                setSelectedCustomId(added.id);
+              }}
+            >
+              <Icon name="plus" /> Add case
+            </button>
+          )}
+        </>
+      }
+    >
+      <NodeReferenceScope key={caseId}>
         <CasePreviewLayout
           enabled={combinedPreview}
           editable={customMode}
@@ -369,28 +421,11 @@ export function TestCases({
           expectedSource={customMode && draft?.expectedEnabled ? draft.expected : undefined}
         >
           {!showingHidden && caseActions?.(sampleIndex)}
-          {showingHidden && hiddenCases ? (
+          {showingHidden && !example ? (
             <div className="locked-case">
-              <Icon
-                name="lock"
-                className={
-                  hiddenCases[selectedHidden]!.status === "accepted"
-                    ? "verdict-success"
-                    : "verdict-error"
-                }
-              />
-              <span>Hidden case {selectedHidden + 1}</span>
-              <span
-                className={
-                  hiddenCases[selectedHidden]!.status === "accepted"
-                    ? "verdict-success"
-                    : "verdict-error"
-                }
-              >
-                {hiddenCases[selectedHidden]!.status === "time_limit"
-                  ? "Time limit exceeded"
-                  : null}
-              </span>
+              <Icon name="lock" />
+              <span>Hidden case {selectedHidden! + 1}</span>
+              {revealed?.action}
             </div>
           ) : customMode && draft ? (
             <>
@@ -475,7 +510,7 @@ export function TestCases({
             </>
           ) : customMode ? (
             <p className="result-message">Add a case to get started.</p>
-          ) : recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
+          ) : !showingHidden && recoveredCases?.[sampleIndex] ? null : example?.calls?.length ? (
             !result && <SequenceCaseValues problem={problem} calls={example.calls} />
           ) : example ? (
             <>
@@ -505,21 +540,7 @@ export function TestCases({
           {editedAfterRun && (
             <p className="case-stale">Edited since last run. Run again for this input.</p>
           )}
-          {pending && (
-            <div className="case-loading" role="status">
-              <span className="case-spinner" aria-hidden="true" />
-              <span>
-                {submission?.state === "running"
-                  ? submission.kind === "submit"
-                    ? "Judging hidden cases…"
-                    : "Running cases…"
-                  : submission?.state === "queued"
-                    ? "Waiting for judge…"
-                    : "Starting…"}
-              </span>
-            </div>
-          )}
-          {!showingHidden && result && (
+          {result && (
             <CaseOutput
               result={result}
               showVerdict={false}
@@ -544,13 +565,14 @@ export function TestCases({
               showExpected={
                 !!example?.calls?.length ||
                 !!recoveredCases?.length ||
+                (!customMode && example?.expected === undefined) ||
                 (customMode && !draft?.expectedEnabled)
               }
             />
           )}
         </CasePreviewLayout>
-      </CaseBrowserLayout>
-    </NodeReferenceScope>
+      </NodeReferenceScope>
+    </CaseBrowserLayout>
   );
 }
 
@@ -560,6 +582,8 @@ function CaseGroupDisclosure({
   failed,
   passed,
   executionID,
+  keepOpen,
+  pending = false,
   icon,
   onClose,
   children,
@@ -570,13 +594,16 @@ function CaseGroupDisclosure({
   failed: boolean;
   passed: boolean;
   executionID?: string;
+  keepOpen?: boolean;
+  pending?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(failed);
+  const [open, setOpen] = useState(failed || pending);
+  const hasSelectedCase = useEffectEvent(() => keepOpen);
   useEffect(() => {
-    if (failed) setOpen(true);
-    else if (passed) setOpen(false);
-  }, [failed, passed, executionID]);
+    if (failed || pending) setOpen(true);
+    else if (passed && !hasSelectedCase()) setOpen(false);
+  }, [failed, passed, executionID, pending]);
   return (
     <details
       className="case-group disclosure"
@@ -596,6 +623,23 @@ function CaseGroupDisclosure({
       </summary>
       {children}
     </details>
+  );
+}
+
+function CaseIndicator({
+  pending,
+  status,
+}: {
+  pending: boolean;
+  status?: PublicCaseResult["status"];
+}) {
+  if (pending) return <span className="case-spinner" aria-hidden="true" />;
+  if (!status || status === "executed") return null;
+  return (
+    <Icon
+      name={status === "accepted" ? "submit" : "close"}
+      className={status === "accepted" ? "verdict-success" : "verdict-error"}
+    />
   );
 }
 

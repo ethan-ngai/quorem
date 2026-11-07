@@ -5,12 +5,22 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
 import type { MatchSnapshot, Submission } from "@quorem/contracts";
 import { matchPreset } from "@quorem/contracts/match-rules";
+import { WorkspaceTests } from "../editor/components/WorkspaceTests";
+import { publicQuestionFixture } from "../../test/questionFixture";
+import fixture from "../../../../../fixtures/problems/run-widths.json";
 import { MatchAssistance } from "./MatchAssistance";
 const action = vi.hoisted(() => vi.fn());
 vi.mock("./api", () => ({ matchRuleAction: action }));
 
 it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const matchMedia = window.matchMedia.bind(window);
+  const reducedMotion = vi.spyOn(window, "matchMedia").mockImplementation((query) => {
+    const media = matchMedia(query);
+    if (query === "(prefers-reduced-motion: reduce)")
+      Object.defineProperty(media, "matches", { value: true });
+    return media;
+  });
   action.mockReset();
   action.mockImplementation(async (_identity, _match, input) => ({
     quote: {
@@ -22,7 +32,18 @@ it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
       cooldownSeconds: 0,
       alreadyRevealed: false,
     },
-    ...(input.approval ? { revealed: { input: "case input", result: "accepted" } } : {}),
+    ...(input.approval
+      ? {
+          revealed: {
+            input: JSON.stringify({ args: ["private-case-input"], expected: "private-expected" }),
+            result: JSON.stringify({
+              index: input.caseIndex,
+              status: "accepted",
+              actual: "private-actual",
+            }),
+          },
+        }
+      : {}),
   }));
   const match = {
     id: "match",
@@ -35,7 +56,11 @@ it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
     id: "submission",
     kind: "submit",
     state: "completed",
-    score: { passed: 3, total: 3 },
+    score: { passed: 1, total: 2 },
+    hiddenCases: [
+      { index: 0, status: "wrong_answer" },
+      { index: 1, status: "accepted" },
+    ],
   } as Submission;
   const client = new QueryClient();
   const container = document.createElement("div");
@@ -44,21 +69,32 @@ it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
-        <MatchAssistance match={match} identity="alice" submission={submission} />
+        <MatchAssistance match={match} identity="alice" submission={submission}>
+          {({ hiddenCaseDetails }) => (
+            <WorkspaceTests
+              problem={publicQuestionFixture(fixture)}
+              busy={false}
+              submission={submission}
+              hiddenCaseDetails={hiddenCaseDetails}
+            />
+          )}
+        </MatchAssistance>
       </QueryClientProvider>,
     ),
   );
-  const input = container.querySelector<HTMLInputElement>('[aria-label="Hidden case number"]')!;
-  expect(input.max).toBe("3");
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "2");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  const caseButton = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Hidden case 2: passed"]',
+  )!;
+  await act(async () => caseButton.click());
+  expect(container.textContent).not.toContain("private-case-input");
   const trigger = [...container.querySelectorAll("button")].find(
-    (button) => button.textContent === "Reveal case",
+    (button) => button.textContent?.trim() === "Reveal case",
   )!;
   vi.spyOn(trigger, "getClientRects").mockReturnValue([new DOMRect()] as unknown as DOMRectList);
-  await act(async () => trigger.click());
+  await act(async () => {
+    trigger.click();
+    trigger.click();
+  });
   expect(action).toHaveBeenNthCalledWith(1, "alice", "match", {
     kind: "hiddenCase",
     submissionId: "submission",
@@ -66,13 +102,17 @@ it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
   });
   if (seconds) {
     expect(action).toHaveBeenCalledTimes(1);
+    expect(container.textContent).not.toContain("private-case-input");
     const popover = document.querySelector(".assistance-confirmation")!;
     expect(popover.textContent).toContain("+30s");
     expect(popover.textContent).toContain("Added to finish time");
     const confirm = [...popover.querySelectorAll("button")].find(
       (button) => button.textContent === "Reveal hidden case 2",
     )!;
-    await act(async () => confirm.click());
+    await act(async () => {
+      confirm.click();
+      confirm.click();
+    });
   }
   expect(action).toHaveBeenNthCalledWith(
     2,
@@ -80,9 +120,20 @@ it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
     "match",
     expect.objectContaining({ caseIndex: 1, approval: expect.objectContaining({ seconds }) }),
   );
-  expect(container.textContent).toContain("Hidden case 2");
+  expect(action).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain("private-case-input");
+  expect(container.textContent).toContain("private-expected");
+  expect(container.textContent).toContain("private-actual");
+  const locked = container.querySelector<HTMLButtonElement>(
+    '[aria-label="Hidden case 1: failed"]',
+  )!;
+  await act(async () => locked.click());
+  expect(container.textContent).not.toContain("private-case-input");
+  await act(async () => caseButton.click());
+  expect(container.textContent).toContain("private-case-input");
   await act(async () => root.unmount());
   client.clear();
   container.remove();
+  reducedMotion.mockRestore();
   vi.unstubAllGlobals();
 });
