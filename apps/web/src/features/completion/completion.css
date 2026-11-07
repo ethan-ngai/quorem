@@ -123,6 +123,12 @@
   justify-content: flex-end;
   flex-wrap: wrap;
 }
+.match-result-score-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: end;
+  gap: var(--space-1);
+}
 
 .completion-trophy {
   color: var(--color-warning);

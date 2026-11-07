@@ -206,17 +206,19 @@ export function MatchEndView({
             {!player.forfeited && highScore && (
               <span>{player.adjustedScore ?? player.bestScore?.passed ?? 0} points</span>
             )}
-            {!player.forfeited && highScore && !!player.penaltyPoints && (
-              <ScorePenalty unit="points" value={player.penaltyPoints} />
-            )}
-            {!player.forfeited && !highScore && !!player.penaltySeconds && (
-              <ScorePenalty unit="seconds" value={player.penaltySeconds} />
-            )}
-            <ScoreProgress
-              score={player.forfeited ? undefined : player.bestScore}
-              color={participantColor(player.userId, player.color)}
-              unavailableLabel={player.forfeited ? "Forfeited" : undefined}
-            />
+            <span className="match-result-score-stack">
+              <ScoreProgress
+                score={player.forfeited ? undefined : player.bestScore}
+                color={participantColor(player.userId, player.color)}
+                unavailableLabel={player.forfeited ? "Forfeited" : undefined}
+              />
+              {!player.forfeited && highScore && !!player.penaltyPoints && (
+                <ScorePenalty unit="points" value={player.penaltyPoints} />
+              )}
+              {!player.forfeited && !highScore && !!player.penaltySeconds && (
+                <ScorePenalty unit="seconds" value={player.penaltySeconds} />
+              )}
+            </span>
           </span>
         </li>
       ))}
