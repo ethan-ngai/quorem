@@ -16,7 +16,6 @@ export function InterviewAlerts({
     <RoomAlerts
       scope={`interview:${sessionId}`}
       version={BigInt(version)}
-      limit={100}
       label="Interview alerts"
       events={events.map((event) => ({
         ...event,

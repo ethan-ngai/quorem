@@ -1,6 +1,6 @@
 /** @file OdysseyPanel.tsx @description Authorized levels composed into the shared problem statement. @module odyssey */
 import { MethodSignature } from "../editor/components/MethodSignature";
-import { type ReactNode } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import type { OdysseyProgress } from "@quorem/contracts";
 import { ProblemStatement, type StatementProblem } from "../editor/components/ProblemStatement";
 import { StatementMarkdown } from "../editor/components/StatementMarkdown";
@@ -13,7 +13,9 @@ export function OdysseyPanel({
   introduction,
   children,
   selectedLevel,
-  allowTopics = true,
+  allowTopics,
+  requestTopics,
+  topicsDisabled,
 }: {
   progress: OdysseyProgress;
   problem?: StatementProblem;
@@ -21,8 +23,10 @@ export function OdysseyPanel({
   introduction?: string;
   children?: ReactNode;
   selectedLevel?: number;
-  allowTopics?: boolean;
-}) {
+} & Pick<
+  ComponentProps<typeof ProblemStatement>,
+  "allowTopics" | "requestTopics" | "topicsDisabled"
+>) {
   const index = Math.min((selectedLevel ?? progress.level) - 1, progress.levels.length - 1);
   const level = progress.levels[index];
   if (!level) return null;
@@ -42,6 +46,8 @@ export function OdysseyPanel({
     <ProblemStatement
       problem={statement}
       allowTopics={allowTopics}
+      requestTopics={requestTopics}
+      topicsDisabled={topicsDisabled}
       navigation={
         <>
           {(problem?.statementMarkdown ?? introduction) && (
