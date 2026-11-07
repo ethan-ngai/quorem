@@ -1,7 +1,8 @@
 /** @file adminAccess.ts @description Shared admin and authoring route admission. @module auth */
 import { notFound, redirect } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
-import { sessionQueryOptions, type Session } from "./session";
+import { hasRouteSession, readRouteSession, signInRedirectOptions } from "./protectedRoute";
+import type { Session } from "./session";
 
 type Access = "admin" | "authoring";
 export function canAccess(session: Session | null | undefined, access: Access) {
@@ -17,14 +18,12 @@ export function requireAdminSession(
   href: string,
   access: Access = "admin",
 ) {
-  if (!session || session.kind === "guest")
-    throw redirect({ href: `/login?${new URLSearchParams({ returnTo: href })}`, replace: true });
+  if (!hasRouteSession(session)) throw redirect(signInRedirectOptions(href));
   if (!canAccess(session, access)) throw notFound();
 }
 
-/** Recheck permissions at navigation; cached display hints cannot admit a revoked account. */
 async function requireAccess(cache: QueryClient, href: string, access: Access) {
-  const session = await cache.fetchQuery({ ...sessionQueryOptions(), staleTime: 0 });
+  const session = await readRouteSession(cache);
   requireAdminSession(session, href, access);
 }
 export const requireAdminAccess = (cache: QueryClient, href: string) =>

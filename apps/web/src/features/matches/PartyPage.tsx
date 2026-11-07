@@ -29,6 +29,9 @@ import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { RejectedMatchCommand } from "./errors";
 import { ContentTransition } from "../../ui/ContentTransition";
+import { SignInRedirect } from "../auth/RouteAccess";
+import { isRouteDenied } from "../auth/protectedRoute";
+import { NotFoundPage } from "../public/NotFoundPage";
 
 const factionReadyHint = "Every faction needs at least one player";
 
@@ -52,7 +55,9 @@ export function PartyPage() {
   const [disbanding, setDisbanding] = useState(false);
   const [error, setError] = useState("");
   const [, setRecoveryRevision] = useState(0);
-  const party = query.data?.party;
+  const status = query.error instanceof RejectedMatchCommand ? query.error.status : undefined;
+  const denied = isRouteDenied(status);
+  const party = denied || status === 401 ? undefined : query.data?.party;
   const mode = party?.settings.mode;
   usePageTitle(mode ? `${matchModeLabels[mode]} Lobby - Quorem` : undefined);
   const rosterMode = party?.currentMatchId ? undefined : mode;
@@ -150,34 +155,24 @@ export function PartyPage() {
   const readyLabel = own?.ready ? "Unready" : "Ready up";
   const host = party?.hostUserId === identity;
   const nav = <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />;
-  if (account.isPending || (!!account.data && query.isPending))
+  if (account.isPending || query.isPending)
     return (
       <main className="match-page">
         {nav}
         <p role="status">Loading lobby…</p>
       </main>
     );
-  if (!account.data)
-    return (
-      <main className="match-page">
-        {nav}
-        <section className="match-page-content">
-          <h1>Sign in to open your lobby</h1>
-          <a href="/login">Sign in</a>
-        </section>
-      </main>
-    );
+  if (status === 401) return <SignInRedirect />;
+  if (denied || (!query.isError && !party)) return <NotFoundPage />;
   if (!party)
     return (
       <main className="match-page">
         {nav}
         <section className="match-page-content">
           <h1>Lobby unavailable</h1>
-          {query.isError && (
-            <button className="button button-secondary" onClick={() => void query.refetch()}>
-              Try again
-            </button>
-          )}
+          <button className="button button-secondary" onClick={() => void query.refetch()}>
+            Try again
+          </button>
           <a href="/practice">Back to practice</a>
         </section>
       </main>

@@ -22,6 +22,7 @@ import { LoginPage } from "./features/auth/LoginPage";
 import { sessionQueryOptions, type Session } from "./features/auth/session";
 import { requireAdminAccess, requireAuthoringAccess } from "./features/auth/adminAccess";
 import { RouteAccess } from "./features/auth/RouteAccess";
+import { requireRouteSession } from "./features/auth/protectedRoute";
 import { primeProfile } from "./features/auth/profile";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { InvitePage } from "./features/matches/InvitePage";
@@ -140,12 +141,15 @@ const problemRoute = createRoute({
 const matchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/match/$id",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href, true),
   loader: () => loadMatchPage().then(() => undefined),
   component: function MatchRoute() {
     const { id } = matchRoute.useParams();
     return (
       <Suspense fallback={<LoadingScreen label="Opening match…" />}>
-        <MatchPage matchId={id} />
+        <RouteAccess allowGuest>
+          <MatchPage matchId={id} />
+        </RouteAccess>
       </Suspense>
     );
   },
@@ -153,11 +157,14 @@ const matchRoute = createRoute({
 const reviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/match/$id/review",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href, true),
   component: function ReviewRoute() {
     const { id } = reviewRoute.useParams();
     return (
       <Suspense fallback={<LoadingScreen label="Opening review…" />}>
-        <MatchPage matchId={id} reviewEntry />
+        <RouteAccess allowGuest>
+          <MatchPage matchId={id} reviewEntry />
+        </RouteAccess>
       </Suspense>
     );
   },
@@ -165,9 +172,12 @@ const reviewRoute = createRoute({
 const partyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/party",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href, true),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening lobby…" />}>
-      <PartyPage />
+      <RouteAccess allowGuest>
+        <PartyPage />
+      </RouteAccess>
     </Suspense>
   ),
 });
@@ -233,10 +243,13 @@ const questionsRoute = createRoute({
 const interviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/interviews",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href),
   loader: () => loadInterviewHub().then(() => undefined),
   component: () => (
     <Suspense fallback={<LoadingScreen label="Opening interviews…" />}>
-      <InterviewHub />
+      <RouteAccess>
+        <InterviewHub />
+      </RouteAccess>
     </Suspense>
   ),
 });
