@@ -332,9 +332,9 @@ export function CompletionDemo() {
                       <ParticipantName
                         participant={demoReview.participants[lost ? 1 : 0]!}
                         self={!lost}
+                        nameSuffix={<MatchWinnerMetadata />}
                       />
                     </strong>
-                    <MatchWinnerMetadata />
                   </span>
                   <span className="match-result-score">
                     {inLobby && (

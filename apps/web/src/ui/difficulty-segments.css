@@ -22,7 +22,9 @@
   padding: 3px 12px;
   line-height: 1.5;
   cursor: pointer;
-  transition: border-radius var(--motion-standard) var(--motion-easing);
+  transition:
+    border-radius var(--motion-standard) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
 }
 .difficulty-segments button:disabled {
   opacity: 0.5;

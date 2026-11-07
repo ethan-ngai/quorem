@@ -8,7 +8,7 @@ import { projectAuthorizedVersion } from "../problems/queries/repository.ts";
 import { projectQuestionRuntime } from "../problems/runtime.ts";
 import { finishMatch, matchEvent } from "../matches/reconcile/repository.ts";
 import type { TeamActionExecutor } from "./votes.ts";
-const invalid = () => new ApplicationError("invalid_input", "Invalid team action", 400);
+const invalid = () => new ApplicationError("invalid_input", "Invalid faction action", 400);
 const changed = () =>
   new ApplicationError("document_changed", "The proposed document changed. Propose again.", 409);
 /** Paid action ports share the rule owner's transaction, price checks and admission. */
@@ -98,7 +98,7 @@ export function teamActionExecutor(paid: TeamActionExecutor): TeamActionExecutor
           )
         ).rows.length
       )
-        throw new ApplicationError("user_busy", "Wait for team execution to finish", 409);
+        throw new ApplicationError("user_busy", "Wait for faction execution to finish", 409);
       let workspaceId = team.workspaceId;
       if (language !== workspace.language) {
         const selected = (

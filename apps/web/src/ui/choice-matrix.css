@@ -1,0 +1,109 @@
+.choice-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+.choice-matrix th {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.choice-matrix thead th {
+  font-size: var(--text-label);
+  padding: var(--space-2) var(--space-1);
+}
+.choice-matrix th span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.choice-matrix thead th span {
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.choice-matrix svg {
+  flex-shrink: 0;
+}
+.choice-matrix tbody th {
+  text-align: left;
+  width: 34%;
+}
+.choice-matrix tbody tr {
+  border-top: 1px solid var(--color-border);
+}
+.choice-matrix td label {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 40px;
+  cursor: pointer;
+}
+.choice-matrix input {
+  position: absolute;
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  cursor: inherit;
+}
+.choice-matrix-indicator {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--color-text-secondary);
+  border-radius: var(--radius-full);
+  background: var(--color-field);
+  pointer-events: none;
+  transition: border-color var(--motion-fast) var(--motion-easing);
+}
+.choice-matrix-indicator::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: inherit;
+  background: var(--color-primary);
+  opacity: 0;
+  scale: 0.4;
+  transition:
+    opacity var(--motion-standard) var(--motion-easing),
+    scale var(--motion-standard) var(--motion-easing);
+}
+.choice-matrix input:checked + .choice-matrix-indicator {
+  border-color: var(--color-primary);
+}
+.choice-matrix input:checked + .choice-matrix-indicator::before {
+  opacity: 1;
+  scale: 1;
+}
+@media (hover: hover) {
+  .choice-matrix label:hover input:not(:disabled) + .choice-matrix-indicator {
+    border-color: var(--color-primary);
+  }
+}
+.choice-matrix input:focus-visible + .choice-matrix-indicator {
+  outline: 2px solid var(--color-primary);
+  outline-offset: var(--space-1);
+}
+.choice-matrix label:has(input:disabled) {
+  cursor: default;
+}
+.choice-matrix input:disabled + .choice-matrix-indicator {
+  opacity: 0.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .choice-matrix-indicator,
+  .choice-matrix-indicator::before {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .choice-matrix input {
+    position: static;
+    opacity: 1;
+  }
+  .choice-matrix-indicator {
+    display: none;
+  }
+}

@@ -10,6 +10,9 @@ export async function freezePartyTeams(tx: Transaction, partyId: string, matchId
   const lobby = await teamLobby(tx, partyId);
   requireReadyTeams(lobby.assignments, lobby.teamCount);
   await tx.execute(
+    sql`UPDATE matches SET faction_names=${JSON.stringify(lobby.names)}::jsonb WHERE id=${matchId}::uuid`,
+  );
+  await tx.execute(
     sql`UPDATE match_participants p SET team=pm.team,competitor_id='team:'||pm.team::text FROM party_members pm WHERE p.match_id=${matchId}::uuid AND pm.party_id=${partyId}::uuid AND pm.owner_id=p.owner_id`,
   );
 }

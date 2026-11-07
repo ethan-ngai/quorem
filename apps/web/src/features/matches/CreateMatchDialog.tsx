@@ -1,12 +1,17 @@
 import { useState } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
-import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { useSession } from "../auth/session";
 import { GuestAccessToggle } from "./GuestAccessToggle";
 import { MatchSettings, defaultMatchSettings } from "./MatchControls";
 import { readPendingCommand } from "./commandRecovery";
-import { partyCommand, useParty, type Party, type PartySettings } from "./party";
+import {
+  partyCommand,
+  savePartyInvitation,
+  useParty,
+  type Party,
+  type PartySettings,
+} from "./party";
 
 export function CreateMatchDialog({
   identity,
@@ -80,14 +85,7 @@ export function CreateMatchDialog({
                 "POST",
                 settings,
               );
-              try {
-                localStorage.setItem(
-                  `quorem.party-invite.v1:${created.party.id}`,
-                  created.inviteUrl,
-                );
-              } catch {
-                /* Party remains accessible without browser storage. */
-              }
+              savePartyInvitation(created.party.id, created.inviteUrl);
               window.location.assign("/party");
             } catch {
               setRecovering(!!readPendingCommand(identity, "party:/v1/parties"));
@@ -102,15 +100,6 @@ export function CreateMatchDialog({
             onChange={setSettings}
             disabled={pending || recovering}
           />
-          <div className="match-option">
-            <span>Share code after match</span>
-            <ToggleSwitch
-              label="Share code after match"
-              checked={settings.shareCodeAfterMatch}
-              disabled={pending || recovering}
-              onChange={(shareCodeAfterMatch) => setSettings({ ...settings, shareCodeAfterMatch })}
-            />
-          </div>
           {recovering && (
             <p role="status">Retry the previous request to recover your invitation.</p>
           )}

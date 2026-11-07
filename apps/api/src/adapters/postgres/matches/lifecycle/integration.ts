@@ -222,6 +222,16 @@ void test("settings lock preserves readiness while rule changes reset it and lea
   await repo.mutate(host, created.id, "ready-settings", "ready", true);
   const locked = normalizeSettings({ ...settings, admissionLocked: true });
   await repo.mutate(host, created.id, "lock", "settings", locked);
+  const everyone = normalizeSettings({
+    ...locked,
+    rules: { ...locked.rules, settingsEditors: "everyone" },
+  });
+  const permissions = await repo.mutate(host, created.id, "permissions", "settings", everyone);
+  const unchanged = await repo.mutate(host, created.id, "same-settings", "settings", everyone);
+  assert.deepEqual(
+    { ...(permissions as object), serverNow: undefined },
+    { ...(unchanged as object), serverNow: undefined },
+  );
   assert.equal(
     (
       await pool.query(
@@ -488,7 +498,7 @@ void test("invitation ciphertext replays and complete settings fingerprints rema
   const { fingerprint, settingsBody, inviteCipher } = await import("./crypto.ts");
   assert.equal(
     await fingerprint(settingsBody(settings)),
-    "7e5f67ef4cb1be1041b17604569daee24ae9ff676bd53c46d83410b4e749c73b",
+    "6d0bc6476f64fb6303298e3fe80497c7610fbfdd2972490edec438951e0a8473",
   );
   const value = await inviteCipher(new Uint8Array(32).fill(3)).open({
     encrypted:
@@ -1076,10 +1086,38 @@ void test("paid assistance confirms exact cost, grants once, shares penalties, a
   )) as import("@quorem/contracts").MatchSnapshot;
   assert.ok(snapshot.participants.every((p) => p.penaltySeconds === 30));
   assert.equal(snapshot.ruleEvents.length, 1);
+  assert.equal(snapshot.ruleEvents[0].action, "penalty");
   await assert.rejects(repo.ruleAction(outsider, room.id, "outsider", { kind: "topics" }));
   const strict = await rulesRoom(matchPreset("tournament"));
   await activateRulesRoom(strict);
   await assert.rejects(repo.ruleAction(strict.actor, strict.id, "blocked", { kind: "topics" }));
+});
+void test("assistance can unlock silently or notify once without charging", async () => {
+  for (const access of ["free", "announce"] as const) {
+    const rules = matchPreset();
+    rules.assistance.topics.access = access;
+    const room = await rulesRoom(rules);
+    await activateRulesRoom(room);
+    const { quote } = await repo.ruleAction(room.actor, room.id, "quote", { kind: "topics" });
+    assert.equal(quote.seconds, 0);
+    assert.equal(quote.points, 0);
+    const opened = await repo.ruleAction(room.actor, room.id, "open", {
+      kind: "topics",
+      approval: quote,
+    });
+    assert.deepEqual(opened.revealed?.topics, ["arrays"]);
+    const again = await repo.ruleAction(room.actor, room.id, "again", { kind: "topics" });
+    assert.equal(again.quote.alreadyRevealed, true);
+    await repo.ruleAction(room.actor, room.id, "reopen", { kind: "topics", approval: again.quote });
+    const snapshot = (await repo.read(
+      room.peer,
+      room.id,
+    )) as import("@quorem/contracts").MatchSnapshot;
+    assert.deepEqual(
+      snapshot.ruleEvents.map((event) => [event.kind, event.action]),
+      access === "announce" ? [["topics", "announce"]] : [],
+    );
+  }
 });
 void test("members edit lobby rules only with host permission; permission edits stay host-only", async () => {
   const rules = matchPreset();
@@ -1184,6 +1222,10 @@ void test("paid submission admission binds approval, cooldown and failed-job ref
     room.id,
   )) as import("@quorem/contracts").MatchSnapshot;
   assert.equal(snapshot.participants.find((p) => p.penaltySeconds === 10)?.penaltySeconds, 10);
+  assert.deepEqual(
+    snapshot.ruleEvents.map(({ kind, action, seconds }) => [kind, action, seconds]),
+    [["submission", "penalty", 10]],
+  );
   await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [admitted.id]);
   await pool.query("UPDATE submissions SET state='failed' WHERE id=$1", [admitted.id]);
   const retry = await repo.ruleAction(room.actor, room.id, "retry-quote", { kind: "submission" });
@@ -1193,85 +1235,83 @@ void test("paid submission admission binds approval, cooldown and failed-job ref
     room.id,
   )) as import("@quorem/contracts").MatchSnapshot;
   assert.ok(refunded.participants.every((p) => p.penaltySeconds === 0));
+  assert.equal(refunded.ruleEvents.length, 0);
 });
-void test("failed hidden reveal exposes only its sealed input and result after payment", async () => {
-  const { postgresWorkspaceAdmission } = await import("../../judging/admission/repository.ts");
-  const { parseWorkspaceCommand } =
-    await import("../../../../modules/judging/admission/command.ts");
-  const { submissionSnapshots } = await import("../../judging/results/repository.ts");
-  const { ruleApproval } = await import("@quorem/contracts/match-rules");
-  const room = await rulesRoom();
-  await activateRulesRoom(room);
-  const workspace = (
-    await pool.query(
-      "SELECT workspace_id FROM match_participants WHERE match_id=$1 AND owner_id=$2",
-      [room.id, room.actor.userId],
-    )
-  ).rows[0].workspace_id;
-  const jobId = crypto.randomUUID();
-  const command = await parseWorkspaceCommand(
-    JSON.stringify({
-      workspaceId: workspace,
-      kind: "submit",
-      source: "class Solution:\n def f(self,x): return x",
-    }),
-    "hidden-run",
-  );
-  const admitted = await postgresWorkspaceAdmission(run, {
-    losslessCases: true,
-    guestExecution: true,
-  })(room.actor, "hidden-run", command, { receiptId: null, shard: 0, jobId });
-  const verifier = await localVerifier(run);
-  const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-hidden-reveal-")));
-  try {
-    const sandbox = await dockerSandbox({
-      socket: process.env.QUOREM_TEST_DOCKER_SOCKET!,
-      stateRoot: root,
-      namespace: "hidden-reveal",
-      cleanupMs: 10000,
-    });
-    const port = postgresExecutionCommands(
-      run,
-      { inputProtocol: "manifest-v1", resumable: true, losslessCases: true, losslessResults: true },
-      verifier.verification,
+for (const accepted of [false, true])
+  void test(`${accepted ? "passed" : "failed"} hidden reveal exposes only its sealed input and result after approval`, async () => {
+    const { postgresWorkspaceAdmission } = await import("../../judging/admission/repository.ts");
+    const { parseWorkspaceCommand } =
+      await import("../../../../modules/judging/admission/command.ts");
+    const { submissionSnapshots } = await import("../../judging/results/repository.ts");
+    const { ruleApproval } = await import("@quorem/contracts/match-rules");
+    const room = await rulesRoom({ ...matchPreset(), victory: "high_score" });
+    await activateRulesRoom(room);
+    const workspace = (
+      await pool.query(
+        "SELECT workspace_id FROM match_participants WHERE match_id=$1 AND owner_id=$2",
+        [room.id, room.actor.userId],
+      )
+    ).rows[0].workspace_id;
+    const jobId = crypto.randomUUID();
+    const command = await parseWorkspaceCommand(
+      JSON.stringify({
+        workspaceId: workspace,
+        kind: "submit",
+        source: `class Solution:\n def f(self,x): return x${accepted ? "+1" : ""}`,
+      }),
+      "hidden-run",
     );
-    const job = await port.claimAfterTeardown(true, sandbox.scope, null);
-    assert.equal(job?.jobId, jobId);
-    await executeAndStage(job!, port, sandbox);
-    await finishAfterTeardown(port, sandbox, job!);
-  } finally {
-    await verifier.close();
-    await rm(root, { recursive: true, force: true });
-  }
-  const publicResult = JSON.parse(
-    await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
-  );
-  assert.equal(publicResult.hiddenCases[0].status, "wrong_answer");
-  assert.equal(publicResult.hiddenCases[0].actual, undefined);
-  await pool.query(
-    "UPDATE matches SET rules=jsonb_set(rules,'{feedback}','\"aggregate\"') WHERE id=$1",
-    [room.id],
-  );
-  const aggregateResult = JSON.parse(
-    await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
-  );
-  assert.equal(aggregateResult.hiddenCases, undefined);
-  assert.equal(aggregateResult.verdict, "wrong_answer");
-  const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
-  const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);
-  assert.equal(quoted.revealed, undefined);
-  assert.equal(quoted.quote.seconds, 120);
-  await assert.rejects(repo.ruleAction(room.peer, room.id, "foreign-case", request));
-  await assert.rejects(
-    repo.ruleAction(room.actor, room.id, "missing-case", { ...request, caseIndex: 1 }),
-  );
-  const revealed = await repo.ruleAction(room.actor, room.id, "hidden-open", {
-    ...request,
-    approval: ruleApproval(quoted.quote),
+    const admitted = await postgresWorkspaceAdmission(run, {
+      losslessCases: true,
+      guestExecution: true,
+    })(room.actor, "hidden-run", command, { receiptId: null, shard: 0, jobId });
+    const verifier = await localVerifier(run);
+    const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-hidden-reveal-")));
+    try {
+      const sandbox = await dockerSandbox({
+        socket: process.env.QUOREM_TEST_DOCKER_SOCKET!,
+        stateRoot: root,
+        namespace: "hidden-reveal",
+        cleanupMs: 10000,
+      });
+      const port = postgresExecutionCommands(
+        run,
+        {
+          inputProtocol: "manifest-v1",
+          resumable: true,
+          losslessCases: true,
+          losslessResults: true,
+        },
+        verifier.verification,
+      );
+      const job = await port.claimAfterTeardown(true, sandbox.scope, null);
+      assert.equal(job?.jobId, jobId);
+      await executeAndStage(job!, port, sandbox);
+      await finishAfterTeardown(port, sandbox, job!);
+    } finally {
+      await verifier.close();
+      await rm(root, { recursive: true, force: true });
+    }
+    const publicResult = JSON.parse(
+      await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
+    );
+    assert.equal(publicResult.hiddenCases, undefined);
+    assert.equal(publicResult.verdict, accepted ? "accepted" : "wrong_answer");
+    const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
+    const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);
+    assert.equal(quoted.revealed, undefined);
+    assert.equal(quoted.quote.points, 10);
+    await assert.rejects(repo.ruleAction(room.peer, room.id, "foreign-case", request));
+    await assert.rejects(
+      repo.ruleAction(room.actor, room.id, "missing-case", { ...request, caseIndex: 1 }),
+    );
+    const revealed = await repo.ruleAction(room.actor, room.id, "hidden-open", {
+      ...request,
+      approval: ruleApproval(quoted.quote),
+    });
+    assert.equal(JSON.parse(revealed.revealed!.result!).actual, accepted ? 4 : 3);
+    assert.equal(JSON.parse(revealed.revealed!.result!).expected, 4);
+    assert.ok(revealed.revealed!.input!.includes("3"));
+    const again = await repo.ruleAction(room.actor, room.id, "hidden-again", request);
+    assert.equal(again.quote.points, 0);
   });
-  assert.equal(JSON.parse(revealed.revealed!.result!).actual, 3);
-  assert.equal(JSON.parse(revealed.revealed!.result!).expected, 4);
-  assert.ok(revealed.revealed!.input!.includes("3"));
-  const again = await repo.ruleAction(room.actor, room.id, "hidden-again", request);
-  assert.equal(again.quote.seconds, 0);
-});

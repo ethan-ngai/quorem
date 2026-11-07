@@ -1,3 +1,4 @@
+import type { TeamLobby } from "@quorem/contracts/factions";
 import { postgresDispatch } from "../events/dispatch.ts";
 import { postgresWorkspaceAdmission } from "../judging/admission/repository.ts";
 import { parseWorkspaceCommand } from "../../../modules/judging/admission/command.ts";
@@ -193,7 +194,7 @@ test("paid submit freezes source, requires majority, shares result and charges o
       direct,
       { receiptId: null, jobId: crypto.randomUUID(), shard: 0 },
     ),
-  ).rejects.toThrow("team vote");
+  ).rejects.toThrow("faction vote");
 
   const before = (await live.read(user("a"), match)) as any;
   await live.command(user("a"), match, "post-proposal-edit", "push", {
@@ -227,6 +228,15 @@ test("paid submit freezes source, requires majority, shares result and charges o
     [match],
   );
   expect(events.rows).toEqual([{ seconds: 10, competitor_id: "team:1" }]);
+  const unlimited = matchPreset("strict");
+  unlimited.submissions.freeSubmissions = null;
+  const allowance = await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      prepareRuleAction(tx, match, "a", unlimited, { kind: "submission" }),
+    ),
+  );
+  expect(allowance.quote.seconds).toBe(0);
+  expect(allowance.quote.cooldownSeconds).toBeGreaterThan(0);
   const results = submissionSnapshots(run);
   const teammate = await results.read(user("a"), rows.rows[0].id);
   // Streams reauthorize on consumption as well as creation.
@@ -243,7 +253,7 @@ test("direct paid reveal cannot bypass team vote", async () => {
         await executeRuleAction(tx, match, "a", rules, { kind: "topics", approval: plan.quote });
       }),
     ),
-  ).rejects.toThrow("team vote");
+  ).rejects.toThrow("faction vote");
   const vote = (await live.command(user("a"), match, "reveal-proposal", "propose", {
     action: { kind: "reveal", target: "topics" },
   })) as any;
@@ -281,20 +291,154 @@ test("private lobby organizes uneven teams and starts shared workspaces", async 
   const id = created.party.id;
   for (const actor of ["b", "c"])
     await parties.join(user(actor), "join-lobby", created.inviteUrl.slice("/invite/".length));
+  const initial = (await live.lobby(user("a"), id)) as TeamLobby;
+  expect(initial.assignments.every((member) => member.team !== null)).toBe(true);
+  await expect(
+    live.organize(user("a"), id, "unassign-rejected", {
+      action: "assign",
+      userId: ids.c,
+      team: null,
+    }),
+  ).rejects.toThrow("Invalid faction");
+  await expect(
+    live.organize(user("b"), id, "nonhost-create", { action: "create" }),
+  ).rejects.toMatchObject({ status: 403 });
+  const added = (await live.organize(user("a"), id, "add-third", {
+    action: "create",
+  })) as TeamLobby;
+  expect(added.teamCount).toBe(3);
+  expect(added.assignments).toEqual(initial.assignments);
+  await live.organize(user("a"), id, "add-fourth", { action: "create" });
+  await expect(live.organize(user("a"), id, "add-fifth", { action: "create" })).rejects.toThrow();
+  await live.organize(user("a"), id, "occupy-third", { action: "assign", userId: ids.c, team: 3 });
+  const reduced = (await live.organize(user("a"), id, "remove-occupied", {
+    action: "delete",
+    team: 3,
+  })) as TeamLobby;
+  expect(reduced.teamCount).toBe(3);
+  expect(reduced.assignments.every((member) => member.team !== null && member.team <= 3)).toBe(
+    true,
+  );
+  await live.organize(user("a"), id, "remove-third", { action: "delete", team: 3 });
+  await expect(
+    live.organize(user("a"), id, "remove-below-minimum", { action: "delete", team: 1 }),
+  ).rejects.toThrow();
+  await expect(
+    live.organize(user("b"), id, "nonhost-lock", { action: "lock", locked: true }),
+  ).rejects.toMatchObject({ status: 403 });
+  await live.organize(user("a"), id, "host-lock", { action: "lock", locked: true });
+  await expect(
+    live.organize(user("b"), id, "locked-own-move", { action: "assign", userId: ids.b, team: 2 }),
+  ).rejects.toMatchObject({ status: 403 });
+  await live.organize(user("a"), id, "host-locked-move", {
+    action: "assign",
+    userId: ids.b,
+    team: 2,
+  });
+  await live.organize(user("a"), id, "host-unlock", { action: "lock", locked: false });
   await live.organize(user("a"), id, "choose-a", { action: "assign", userId: ids.a, team: 1 });
   await live.organize(user("b"), id, "choose-b", { action: "assign", userId: ids.b, team: 1 });
   await expect(
     live.organize(user("b"), id, "move-c", { action: "assign", userId: ids.c, team: 2 }),
   ).rejects.toThrow();
   await live.organize(user("a"), id, "host-move-c", { action: "assign", userId: ids.c, team: 2 });
-  for (const actor of ["a", "b", "c"]) {
-    await parties.heartbeat(user(actor), crypto.randomUUID());
-    await parties.mutate(user(actor), id, "ready-lobby", "ready", true);
+  const blue = "Blue 👩🏽‍💻";
+  const named = (await live.organize(user("b"), id, "name-own", {
+    action: "rename",
+    team: 1,
+    name: ` ${blue} `,
+  })) as TeamLobby;
+  expect(named.names?.[0]).toBe(blue);
+  await expect(
+    live.organize(user("b"), id, "name-other", { action: "rename", team: 2, name: "Other" }),
+  ).rejects.toMatchObject({ status: 403 });
+  await expect(
+    live.organize(user("a"), id, "name-blank", { action: "rename", team: 1, name: " " }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    live.organize(user("a"), id, "name-duplicate", {
+      action: "rename",
+      team: 2,
+      name: blue.toLowerCase(),
+    }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    live.organize(user("a"), id, "name-long", { action: "rename", team: 2, name: "x".repeat(41) }),
+  ).rejects.toMatchObject({ status: 400 });
+  for (const name of ["Gold!", "Gold\u200d", "Gold\n", "Gold  2"])
+    await expect(
+      live.organize(user("a"), id, `invalid-${name}`, { action: "rename", team: 2, name }),
+    ).rejects.toMatchObject({ status: 400 });
+  await live.organize(user("a"), id, "name-lock", { action: "lock", locked: true });
+  await expect(
+    live.organize(user("b"), id, "name-locked-member", {
+      action: "rename",
+      team: 1,
+      name: "Blocked",
+    }),
+  ).rejects.toMatchObject({ status: 403 });
+  await live.organize(user("a"), id, "name-locked-host", {
+    action: "rename",
+    team: 2,
+    name: "Gold",
+  });
+  expect(((await live.lobby(user("b"), id)) as TeamLobby).names).toEqual([blue, "Gold"]);
+  await live.organize(user("a"), id, "name-unlock", { action: "lock", locked: false });
+  await live.organize(user("a"), id, "empty-third", { action: "create" });
+  for (const actor of ["a", "b", "c"]) await parties.heartbeat(user(actor), crypto.randomUUID());
+  await expect(parties.mutate(user("a"), id, "ready-empty", "ready", true)).rejects.toMatchObject({
+    status: 409,
+  });
+  await parties.mutate(user("a"), id, "unready-empty", "ready", false);
+  // Start independently rechecks occupancy even if readiness was previously recorded.
+  await pool.query("UPDATE party_members SET ready=true WHERE party_id=$1", [id]);
+  await expect(
+    parties.mutate(user("a"), id, "blocked-empty-start", "start", null),
+  ).rejects.toMatchObject({ status: 409 });
+  expect(
+    (await pool.query("SELECT current_match_id FROM parties WHERE id=$1", [id])).rows[0]
+      .current_match_id,
+  ).toBeNull();
+  await live.organize(user("a"), id, "delete-empty-third", { action: "delete", team: 3 });
+  for (const actor of ["a", "b", "c"])
+    await parties.mutate(user(actor), id, "ready-before-move", "ready", true);
+  await live.organize(user("a"), id, "move-clears-ready", {
+    action: "assign",
+    userId: ids.c,
+    team: 1,
+  });
+  const moved = await pool.query("SELECT ready FROM party_members WHERE party_id=$1", [id]);
+  expect(moved.rows.every((member) => !member.ready)).toBe(true);
+  await live.organize(user("a"), id, "restore-occupied", {
+    action: "assign",
+    userId: ids.c,
+    team: 2,
+  });
+  for (const actor of ["a", "b", "c"])
+    await parties.mutate(user(actor), id, "ready-filled", "ready", true);
+  await live.organize(user("b"), id, "name-preserves-ready", {
+    action: "rename",
+    team: 1,
+    name: "Azure",
+  });
+  expect(await parties.read(user("a"), id)).toMatchObject({
+    members: [{ ready: true }, { ready: true }, { ready: true }],
+  });
+  for (const locked of [true, false]) {
+    await live.organize(user("a"), id, `ready-lock-${locked}`, { action: "lock", locked });
+    expect(await parties.read(user("a"), id)).toMatchObject({
+      settings: { factionChangesLocked: locked },
+      members: [{ ready: true }, { ready: true }, { ready: true }],
+    });
   }
   await parties.mutate(user("a"), id, "start-lobby", "start", null);
   const round = (await pool.query("SELECT current_match_id AS id FROM parties WHERE id=$1", [id]))
     .rows[0].id;
   expect(round).toBeTruthy();
+  expect(
+    (await pool.query("SELECT faction_names FROM matches WHERE id=$1", [round])).rows[0]
+      .faction_names,
+  ).toEqual(["Azure", "Gold"]);
   const a = (await live.read(user("a"), round)) as any,
     b = (await live.read(user("b"), round)) as any,
     c = (await live.read(user("c"), round)) as any;
@@ -330,4 +474,11 @@ test("private lobby organizes uneven teams and starts shared workspaces", async 
     (await pool.query("SELECT outcome FROM matches WHERE id=$1", [round])).rows[0].outcome
       .winnerTeam,
   ).toBe(1);
+  await parties.join(user("d"), "join-after-win", created.inviteUrl.slice("/invite/".length));
+  const after = (await parties.read(user("d"), id)) as {
+    members: { userId: string; previousWinner?: boolean }[];
+  };
+  expect(
+    after.members.filter((member) => member.previousWinner).map((member) => member.userId),
+  ).toEqual([ids.a, ids.b]);
 });

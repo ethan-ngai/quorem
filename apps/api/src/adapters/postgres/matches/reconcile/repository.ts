@@ -39,7 +39,11 @@ const timestamp = (expr: ReturnType<typeof sql>) =>
   sql`floor(extract(epoch FROM ${expr})*1000000)::bigint::text`;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Caller owns the transaction; admission locks owner first, then this match. */
-export async function reconcileMatch(tx: Transaction, id: string): Promise<void> {
+export async function reconcileMatch(
+  tx: Transaction,
+  id: string,
+  { ruleEventAdded = false } = {},
+): Promise<void> {
   if (!uuid.test(id)) throw new ApplicationError("not_found", "Match not found", 404);
   // Sample only after the aggregate lock, including after a long lock wait.
   const locked = await tx.execute(sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE`);
@@ -161,7 +165,8 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
     );
     changed = true;
   }
-  if (changed) await matchEvent(tx, id, decision.outcome ? "match.completed" : "match.updated");
+  if (changed || ruleEventAdded)
+    await matchEvent(tx, id, decision.outcome ? "match.completed" : "match.updated");
 }
 /** Caller holds the match lock and emits the versioned notice. */
 export async function finishMatch(

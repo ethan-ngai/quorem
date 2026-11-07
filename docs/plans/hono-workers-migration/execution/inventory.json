@@ -554,6 +554,11 @@
       "method": "POST",
       "path": "/v1/matches/{id}/team/cancel",
       "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/kick",
+      "registration": "apps/api/src/modules/parties/routes.ts"
     }
   ],
   "websocketCommands": [
