@@ -7,6 +7,7 @@ type Props<Item> = {
   items: readonly Item[];
   heading?: ReactNode;
   className?: string;
+  rowClassName?: string;
   as?: "ul" | "ol" | "tbody";
   label?: string;
   inline?: boolean;
@@ -183,9 +184,18 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
   }
 
   render() {
-    const { as: Container = "div", heading, className, label, empty, renderRow } = this.props;
+    const {
+      as: Container = "div",
+      heading,
+      className,
+      rowClassName,
+      label,
+      empty,
+      renderRow,
+    } = this.props;
     const Row = Container === "tbody" ? "tr" : Container === "div" ? "div" : "li";
-    const rowClass = Row === "div" ? "animated-row" : undefined;
+    const rowClass =
+      Row === "div" ? ["animated-row", rowClassName].filter(Boolean).join(" ") : rowClassName;
     return (
       <Container ref={this.setContainer} className={className} aria-label={label}>
         {heading && this.state.rows.length > 0 && (

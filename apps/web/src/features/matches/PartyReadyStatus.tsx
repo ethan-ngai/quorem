@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { StateIcon } from "../../ui/StateIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -59,13 +60,17 @@ export function PartyMemberReadiness({
   actions?: (member: ReadyMember) => ReactNode;
 }) {
   return (
-    <ul
-      className="party-ready-members"
-      data-actions={actions ? true : undefined}
-      aria-label="Lobby readiness"
-    >
-      {members.map((member) => (
-        <li key={member.userId} className="action-reveal-group">
+    <AnimatedRows
+      as="ul"
+      className={
+        actions ? "party-ready-members party-ready-members-with-actions" : "party-ready-members"
+      }
+      rowClassName="action-reveal-group"
+      label="Lobby readiness"
+      items={members}
+      getKey={(member) => member.userId}
+      renderRow={(member) => (
+        <>
           <span className="party-ready-person">
             <ParticipantName
               participant={member}
@@ -84,9 +89,9 @@ export function PartyMemberReadiness({
             <PartyReadinessIndicator member={member} />
           </span>
           {actions?.(member)}
-        </li>
-      ))}
-    </ul>
+        </>
+      )}
+    />
   );
 }
 
@@ -176,9 +181,7 @@ export function MatchLobbyReadiness({
           {ready} / {members.length} ready
         </span>
       </div>
-      {joined.length > 0 && (
-        <PartyMemberReadiness members={joined} hostUserId={hostUserId} ownUserId={ownUserId} />
-      )}
+      <PartyMemberReadiness members={joined} hostUserId={hostUserId} ownUserId={ownUserId} />
     </section>
   );
 }
