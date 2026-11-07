@@ -1,3 +1,4 @@
+import { organizeFactionFixture, saveFixtureSettings } from "./factionLobbyFixture";
 import { useState } from "react";
 import { TeamVoteToast } from "../features/factions/TeamVoteToast";
 import type { TeamVote } from "@quorem/contracts/factions";
@@ -67,30 +68,15 @@ window.fetch = async (url, options) => {
   if (path === "/v1/matches/current") return reply(null);
   if (path === "/v1/problems") return reply({ items: [] });
   if (path.endsWith("/teams")) {
-    if (request.method === "POST") {
-      const b = await request.json();
-      if (b.action === "assign")
-        teams = {
-          ...teams,
-          assignments: teams.assignments.map((m) =>
-            m.userId === b.userId ? { ...m, team: b.team } : m,
-          ),
-        };
-      if (b.action === "count") teams = { ...teams, teamCount: b.count };
-      if (b.action === "balance")
-        teams = {
-          ...teams,
-          assignments: teams.assignments.map((m, i) => ({ ...m, team: (i % teams.teamCount) + 1 })),
-        };
-      party.members.forEach((m) => (m.ready = false));
-    }
+    if (request.method === "POST")
+      teams = organizeFactionFixture(party, teams, await request.json());
     return reply(teams);
   }
   if (path.endsWith("/ready")) {
     const b = await request.json();
     party.members[0]!.ready = b.ready;
   }
-  if (path.endsWith("/settings")) party.settings = await request.json();
+  if (path.endsWith("/settings")) return reply(saveFixtureSettings(party, await request.json()));
   return reply({ party });
 };
 const client = new QueryClient();
@@ -123,7 +109,7 @@ function Preview() {
             })
           }
         >
-          Preview team vote
+          Preview faction vote
         </button>
         {vote && (
           <TeamVoteToast

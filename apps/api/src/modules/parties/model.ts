@@ -2,14 +2,23 @@
 import { ApplicationError } from "../../application/error.ts";
 import type { Principal } from "../identity/model.ts";
 import { normalizeSettings, type Settings } from "../matches/lifecycle/model.ts";
-export type PartySettings = Settings & { shareCodeAfterMatch: boolean };
+export type PartySettings = Settings & {
+  shareCodeAfterMatch: boolean;
+  factionChangesLocked?: boolean;
+};
 export function normalizePartySettings(value: unknown): PartySettings {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new ApplicationError("invalid_input", "Invalid party settings", 400);
-  const { shareCodeAfterMatch, ...rest } = value as Record<string, unknown>;
+  const { shareCodeAfterMatch, factionChangesLocked, ...rest } = value as Record<string, unknown>;
   if (shareCodeAfterMatch !== undefined && typeof shareCodeAfterMatch !== "boolean")
     throw new ApplicationError("invalid_input", "Invalid sharing setting", 400);
-  return { ...normalizeSettings(rest), shareCodeAfterMatch: shareCodeAfterMatch !== false };
+  if (factionChangesLocked !== undefined && typeof factionChangesLocked !== "boolean")
+    throw new ApplicationError("invalid_input", "Invalid faction lock", 400);
+  return {
+    ...normalizeSettings(rest),
+    shareCodeAfterMatch: shareCodeAfterMatch !== false,
+    factionChangesLocked: factionChangesLocked === true,
+  };
 }
 export interface Parties {
   current(who: Principal): Promise<unknown>;
@@ -22,8 +31,8 @@ export interface Parties {
     who: Principal,
     id: string,
     key: string,
-    action: "settings" | "ready" | "start" | "leave" | "disband",
-    body: PartySettings | boolean | null,
+    action: "settings" | "ready" | "start" | "leave" | "disband" | "kick",
+    body: PartySettings | boolean | string | null,
   ): Promise<unknown>;
   heartbeat(who: Principal, windowId: string): Promise<unknown>;
 }

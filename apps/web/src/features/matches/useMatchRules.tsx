@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { reportRuleEvent } from "./api";
+import { observeMatchEditorInput } from "./matchEditorInput";
 import { createRuleMonitor, observeWindowFocus } from "../rooms/ruleMonitor";
 
 export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapshot) {
@@ -38,27 +39,15 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
           });
       },
     );
-    const clipboardAttempt = (event: Event) => {
-      const anchor = window.getSelection()?.anchorNode;
-      const selectionTarget = anchor instanceof Element ? anchor : anchor?.parentElement;
-      const target = event.target instanceof Element ? event.target : undefined;
-      if (
-        !target?.closest(".coding-pane, .problem-pane") &&
-        !selectionTarget?.closest(".coding-pane, .problem-pane")
-      )
-        return;
-      if (monitor.clipboard(event.type === "paste" ? "clipboard" : "copy")) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-      }
-    };
-    for (const type of ["copy", "cut", "paste"])
-      document.addEventListener(type, clipboardAttempt, true);
+    const stopEditorInput = observeMatchEditorInput(monitor.clipboard, () =>
+      toast.warning("Dragging code or files into the match editor is disabled.", {
+        id: `match-rule:${scope}`,
+      }),
+    );
     const stopFocus = observeWindowFocus(monitor.focus);
     return () => {
       disposed = true;
-      for (const type of ["copy", "cut", "paste"])
-        document.removeEventListener(type, clipboardAttempt, true);
+      stopEditorInput();
       stopFocus();
       monitor.dispose();
       toast.dismiss(`match-rule:${scope}`);

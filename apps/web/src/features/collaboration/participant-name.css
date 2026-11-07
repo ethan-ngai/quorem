@@ -14,3 +14,18 @@
 .participant-name-text > span:first-child {
   overflow-wrap: anywhere;
 }
+
+.participant-name-label {
+  position: relative;
+}
+.participant-name-adornment {
+  position: absolute;
+  bottom: calc(100% - var(--space-1) / 4);
+  left: 50%;
+  translate: -50% 0;
+  display: inline-flex;
+  line-height: 0;
+}
+.participant-name-adornment > span {
+  display: inline-flex;
+}

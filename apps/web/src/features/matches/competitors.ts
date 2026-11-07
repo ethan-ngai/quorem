@@ -1,3 +1,4 @@
+import { factionName } from "@quorem/contracts/factions";
 /** @file competitors.ts @description Shared individual/team standings projection. @module matches */
 import type { MatchSnapshot } from "@quorem/contracts";
 type Player = MatchSnapshot["participants"][number];
@@ -14,7 +15,7 @@ export function matchCompetitors(snapshot: MatchSnapshot): Competitor[] {
   }
   return [...teams].map(([team, members]) => ({
     ...(members.find((p) => !p.forfeited) ?? members[0]!),
-    displayName: `Team ${team}`,
+    displayName: factionName(team, snapshot.factionNames),
     members,
     forfeited: members.every((p) => p.forfeited),
     presence: members.some((p) => p.presence === "online") ? "online" : "offline",
@@ -23,6 +24,7 @@ export function matchCompetitors(snapshot: MatchSnapshot): Competitor[] {
 export function isMatchWinner(snapshot: MatchSnapshot, player: Player | undefined) {
   return (
     !!player &&
+    snapshot.outcome?.kind === "win" &&
     (snapshot.mode === "factions"
       ? player.team !== undefined && player.team === snapshot.outcome?.winnerTeam
       : player.userId === snapshot.outcome?.winnerUserId)

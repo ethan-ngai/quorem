@@ -1,12 +1,9 @@
 /** @file contentChangeMotion.ts @description Crossfade replaced content without moving its controls. @module ui */
 import { motion } from "@quorem/ui/tokens";
 
-/** Snapshot only the outgoing surface; the live content retains focus and accessibility. */
-export function contentChangeMotion(surface: HTMLElement, replace: () => void): () => void {
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    replace();
-    return () => {};
-  }
+/** Capture the outgoing surface before a synchronous or React-driven update. */
+export function prepareContentChangeMotion(surface: HTMLElement): (() => () => void) | undefined {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const height = surface.getBoundingClientRect().height;
   const outgoing = surface.cloneNode(true) as HTMLElement;
   outgoing.inert = true;
@@ -17,36 +14,48 @@ export function contentChangeMotion(surface: HTMLElement, replace: () => void): 
     position: "absolute",
     inset: "0",
     width: "100%",
+    height: `${height}px`,
     pointerEvents: "none",
     zIndex: "1",
   });
-  const previousPosition = surface.style.position;
-  const previousOverflow = surface.style.overflow;
-  surface.style.position = "relative";
-  replace();
-  surface.append(outgoing);
-  const animations: Animation[] = [];
-  let done = false;
-  const clear = () => {
-    if (done) return;
-    done = true;
-    cancelAnimationFrame(frame);
-    animations.forEach((animation) => animation.cancel());
-    outgoing.remove();
-    surface.style.position = previousPosition;
-    surface.style.overflow = previousOverflow;
-  };
-  const frame = requestAnimationFrame(() => {
+  return () => {
     const nextHeight = surface.getBoundingClientRect().height;
-    const timing = { duration: Number.parseFloat(motion.standard), easing: motion.easing };
-    surface.style.overflow = "hidden";
-    animations.push(outgoing.animate([{ opacity: 1 }, { opacity: 0 }], timing));
     const live = surface.firstElementChild;
+    const previousPosition = surface.style.position;
+    const previousOverflow = surface.style.overflow;
+    surface.style.position = "relative";
+    surface.style.overflow = "clip";
+    surface.append(outgoing);
+
+    const timing = {
+      duration: Number.parseFloat(motion.standard),
+      easing: motion.easing,
+      fill: "both" as const,
+    };
+    const animations = [outgoing.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
     if (live) animations.push(live.animate([{ opacity: 0 }, { opacity: 1 }], timing));
-    animations.push(
-      surface.animate([{ height: `${height}px` }, { height: `${nextHeight}px` }], timing),
-    );
-    Promise.all(animations.map((animation) => animation.finished)).then(clear, clear);
-  });
-  return clear;
+    if (height !== nextHeight)
+      animations.push(
+        surface.animate([{ height: `${height}px` }, { height: `${nextHeight}px` }], timing),
+      );
+
+    let done = false;
+    const clear = () => {
+      if (done) return;
+      done = true;
+      animations.forEach((animation) => animation.cancel());
+      outgoing.remove();
+      surface.style.position = previousPosition;
+      surface.style.overflow = previousOverflow;
+    };
+    void Promise.all(animations.map((animation) => animation.finished)).then(clear, clear);
+    return clear;
+  };
+}
+
+/** Snapshot only the outgoing surface; the live content retains focus and accessibility. */
+export function contentChangeMotion(surface: HTMLElement, replace: () => void): () => void {
+  const start = prepareContentChangeMotion(surface);
+  replace();
+  return start?.() ?? (() => {});
 }

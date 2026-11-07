@@ -2,6 +2,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
+import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
+import { StateIcon } from "../../ui/StateIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import type { PartyMember } from "@quorem/contracts";
@@ -9,7 +11,7 @@ import "./party-ready.css";
 
 type ReadyMember = Pick<
   PartyMember,
-  "userId" | "displayName" | "ready" | "online" | "image" | "color"
+  "userId" | "displayName" | "ready" | "online" | "image" | "color" | "previousWinner"
 >;
 
 export function PartyReadinessIndicator({
@@ -26,21 +28,17 @@ export function PartyReadinessIndicator({
         : "Not ready";
   return (
     <Tooltip content={status}>
-      <span
-        className="party-readiness-indicator"
-        data-ready={!!member?.online && member.ready}
-        role="img"
-        aria-label={status}
-        tabIndex={0}
-      >
+      <span className="party-readiness-indicator" role="img" aria-label={status} tabIndex={0}>
         {!member ? (
           <LogOut size={16} aria-hidden="true" />
         ) : !member.online ? (
           <WifiOff size={16} aria-hidden="true" />
-        ) : member.ready ? (
-          <CircleCheck size={16} className="party-ready-check" aria-hidden="true" />
         ) : (
-          <CircleDashed size={16} aria-hidden="true" />
+          <StateIcon
+            active={member.ready}
+            on={<CircleCheck size={16} className="party-ready-check" />}
+            off={<CircleDashed size={16} />}
+          />
         )}
       </span>
     </Tooltip>
@@ -65,16 +63,24 @@ export function PartyMemberReadiness({
       aria-label="Lobby readiness"
     >
       {members.map((member) => (
-        <li key={member.userId}>
-          <ParticipantName participant={member} self={member.userId === ownUserId} />
-          {hostUserId && member.userId === hostUserId && (
-            <Tooltip content="Host">
-              <span role="img" aria-label="Host" tabIndex={0}>
-                <Crown size={14} aria-hidden="true" />
-              </span>
-            </Tooltip>
-          )}
-          <PartyReadinessIndicator member={member} />
+        <li key={member.userId} className="action-reveal-group">
+          <span className="party-ready-person">
+            <ParticipantName
+              participant={member}
+              self={member.userId === ownUserId}
+              nameSuffix={member.previousWinner && <MatchWinnerMetadata previous />}
+              nameAdornment={
+                hostUserId && member.userId === hostUserId ? (
+                  <Tooltip content="Lobby host">
+                    <span role="img" aria-label="Lobby host" tabIndex={0}>
+                      <Crown size={12} aria-hidden="true" />
+                    </span>
+                  </Tooltip>
+                ) : undefined
+              }
+            />
+            <PartyReadinessIndicator member={member} />
+          </span>
           {actions?.(member)}
         </li>
       ))}

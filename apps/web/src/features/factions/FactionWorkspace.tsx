@@ -1,3 +1,4 @@
+import { factionName } from "@quorem/contracts/factions";
 /** @file FactionWorkspace.tsx @description Team collaboration composed into the common coding workspace. @module factions */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,8 +31,8 @@ export function FactionWorkspace({
     return (
       <WorkspaceRecovery
         failed={query.isError}
-        title="Opening team workspace"
-        message={query.isError ? "Could not connect to your team." : "Connecting…"}
+        title="Opening faction workspace"
+        message={query.isError ? "Could not connect to your faction." : "Connecting…"}
         onRetry={() => query.refetch()}
         backHref="/party"
         backLabel="Back to lobby"
@@ -92,7 +93,7 @@ function TeamWorkspace({
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Team action failed");
+      setError(e instanceof Error ? e.message : "Faction action failed");
     }
   }
   const activeVote = snapshot.votes.find((v) => v.state === "pending");
@@ -130,7 +131,7 @@ function TeamWorkspace({
         <>
           {header?.(problem)}
           <div className="faction-toolbar">
-            <strong>Team {snapshot.team}</strong>
+            <strong>{factionName(snapshot.team, match.factionNames)}</strong>
             <span>{snapshot.members.map((m) => m.name).join(", ")}</span>
             {status !== "connected" && (
               <span role="status">
@@ -163,7 +164,7 @@ function TeamWorkspace({
                 identity={identity}
                 proposerName={
                   snapshot.members.find((m) => m.userId === activeVote.proposerId)?.name ??
-                  "Teammate"
+                  "Faction member"
                 }
                 serverNow={snapshot.serverNow}
                 onVote={async (id, approve) => {

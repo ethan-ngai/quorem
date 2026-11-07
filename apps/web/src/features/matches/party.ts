@@ -9,6 +9,28 @@ import { RejectedMatchCommand } from "./errors";
 
 export type Party = PartySnapshot;
 export type { PartySettings };
+const invitationKey = (partyId: string) => `quorem.party-invite.v1:${partyId}`;
+
+export function savePartyInvitation(partyId: string, path: string) {
+  try {
+    localStorage.setItem(invitationKey(partyId), path);
+  } catch {
+    // Storage restrictions must not prevent entering the lobby.
+  }
+}
+
+export function readPartyInvitation(partyId: string) {
+  try {
+    const path = localStorage.getItem(invitationKey(partyId));
+    if (!path) return;
+    const url = new URL(path, window.location.origin);
+    if (url.origin === window.location.origin && url.pathname.startsWith("/invite/"))
+      return url.href;
+  } catch {
+    // The lobby still works when the saved link is unavailable.
+  }
+}
+
 const origin = () => import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
 async function request<T>(path: string, method = "GET", body?: unknown, key?: string): Promise<T> {
   const response = await authenticatedFetch(new URL(path, origin()), {

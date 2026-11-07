@@ -24,7 +24,7 @@ export async function requireTeamApproval(
   ).rows[0];
   if (participant?.team == null) return;
   const rejected = () =>
-    new ApplicationError("vote_required", "This action requires a team vote", 409);
+    new ApplicationError("vote_required", "This action requires a faction vote", 409);
   if (!approvedVoteId) throw rejected();
   const vote = (
     await tx.execute<{ vote: TeamVote }>(

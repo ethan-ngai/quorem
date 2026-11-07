@@ -32,7 +32,16 @@ describe("team organization", () => {
       { userId: "d", team: 2 },
     ]);
   });
-  it("allows uneven occupied teams but rejects unassigned players or one occupied team", () => {
+  it("allows uneven occupied teams but rejects empty factions and unassigned players", () => {
+    expect(() =>
+      requireReadyTeams(
+        [
+          { userId: "a", team: 1 },
+          { userId: "b", team: 2 },
+        ],
+        3,
+      ),
+    ).toThrow("Every faction needs at least one player");
     expect(() =>
       requireReadyTeams(
         [
