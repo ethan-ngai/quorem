@@ -87,7 +87,6 @@ function MatchLedger({
           <RoomAlerts
             scope={`match:${snapshot.id}:${identity}`}
             version={BigInt(snapshot.version)}
-            limit={20}
             label="Match alerts"
             events={snapshot.ruleEvents.map((event) => ({
               ...event,
@@ -95,21 +94,15 @@ function MatchLedger({
                 snapshot.participants.find((player) => player.userId === event.userId)
                   ?.displayName ?? "Player",
               kind: event.kind === "clipboard" ? "paste" : event.kind,
-              description:
-                {
-                  clipboard: "pasted",
-                  copy: "copied",
-                  focus: "left the match window",
-                  topics: "revealed topics",
-                  complexity: "revealed complexity",
-                  hiddenCase: "revealed a hidden case",
-                  submission: "exceeded the submission allowance",
-                }[event.kind] +
-                (event.seconds
-                  ? ` (+${event.seconds}s)`
-                  : event.points
-                    ? ` (−${event.points} points)`
-                    : ""),
+              description: {
+                clipboard: "pasted",
+                copy: "copied",
+                focus: "left the match window",
+                topics: "revealed topics",
+                complexity: "revealed complexity",
+                hiddenCase: "revealed a hidden case",
+                submission: "exceeded the submission allowance",
+              }[event.kind],
             }))}
           />
           {status !== "live" && snapshot.state === "active" && !own?.forfeited && (
