@@ -65,13 +65,13 @@ function ScorePenalty({ value, unit }: { value: number; unit: "seconds" | "point
   const time = unit === "seconds";
   const duration = time ? formatPenaltyDuration(value) : "";
   const label = time
-    ? `${duration} added to finish time`
+    ? `Submissions must arrive ${duration} before the match ends to count`
     : `${value} ${value === 1 ? "point" : "points"} deducted from score`;
   return (
     <Tooltip content={label}>
       <span className="score-penalty" role="img" aria-label={label} tabIndex={0}>
-        {time ? <Clock3 size={12} aria-hidden="true" /> : <Trophy size={12} aria-hidden="true" />}
-        {time ? `+${duration}` : `−${value} pt${value === 1 ? "" : "s"}`}
+        {time ? <Clock3 size={12} aria-hidden="true" /> : <Trophy size={12} aria-hidden="true" />}−
+        {time ? duration : `${value} pt${value === 1 ? "" : "s"}`}
       </span>
     </Tooltip>
   );
