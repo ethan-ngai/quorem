@@ -21,6 +21,7 @@ export function useWorkspaceDraft({
   editorRef,
   initialSource: providedInitialSource,
   canEdit = true,
+  authoritative = false,
   onError,
 }: {
   identity: DevelopmentIdentity;
@@ -30,6 +31,7 @@ export function useWorkspaceDraft({
   editorRef: RefObject<PythonEditorHandle | null>;
   initialSource?: string;
   canEdit?: boolean;
+  authoritative?: boolean;
   onError: (error: unknown) => void;
 }) {
   const editable = useRef(canEdit);
@@ -108,27 +110,36 @@ export function useWorkspaceDraft({
     setWorkspace(loadedWorkspace);
     setCustomMode(false);
     setCustomDrafts(readCustomDrafts(nextContext.key, queriedProblem));
-    const initialSource =
-      readBrowserDraft(identity, nextContext.storageId, queriedProblem.id) ??
-      (accountPresent
-        ? readBrowserDraft(
-            "anonymous" as DevelopmentIdentity,
-            nextContext.storageId,
-            queriedProblem.id,
-          )
-        : undefined) ??
-      providedInitialSource ??
-      queriedProblem.languages?.find((item) => item.language === loadedWorkspace.language)
-        ?.starterSource ??
-      queriedProblem.starterSource;
+    const initialSource = authoritative
+      ? (providedInitialSource ?? "")
+      : (readBrowserDraft(identity, nextContext.storageId, queriedProblem.id) ??
+        (accountPresent
+          ? readBrowserDraft(
+              "anonymous" as DevelopmentIdentity,
+              nextContext.storageId,
+              queriedProblem.id,
+            )
+          : undefined) ??
+        providedInitialSource ??
+        queriedProblem.languages?.find((item) => item.language === loadedWorkspace.language)
+          ?.starterSource ??
+        queriedProblem.starterSource);
     setSource(initialSource);
     sourceRef.current = initialSource;
     dirtyRef.current = false;
     setSaveState("saved");
-  }, [queriedProblem, loadedWorkspace, identity, accountPresent, providedInitialSource]);
+  }, [
+    queriedProblem,
+    loadedWorkspace,
+    identity,
+    accountPresent,
+    providedInitialSource,
+    authoritative,
+  ]);
 
   useEffect(() => {
-    if (!workspace || !problem || draftContextRef.current?.identity !== identity) return;
+    if (authoritative || !workspace || !problem || draftContextRef.current?.identity !== identity)
+      return;
     let active = true;
     const context = draftContextRef.current;
     const generation = editGeneration.current;

@@ -41,7 +41,7 @@ export async function authorizeReview(
       AND (${!settled} OR NOT (${reviewPending(sql`m.id`)}))
       AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
         WHERE later.owner_id=viewer.owner_id AND next.started_at IS NOT NULL AND (next.started_at,next.id)>(m.started_at,m.id))
-      AND (${sourceOwner ?? null}::text IS NULL OR EXISTS (SELECT 1 FROM match_participants source WHERE source.match_id=m.id AND source.owner_id=${sourceOwner ?? null} AND (source.owner_id=viewer.owner_id OR m.share_code_after_match)))
+      AND (${sourceOwner ?? null}::text IS NULL OR EXISTS (SELECT 1 FROM match_participants source WHERE source.match_id=m.id AND source.owner_id=${sourceOwner ?? null} AND (source.owner_id=viewer.owner_id OR (source.team IS NOT NULL AND source.team=viewer.team) OR m.share_code_after_match)))
   `)
   ).rows[0];
   if (!row) throw missing();

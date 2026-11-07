@@ -40,6 +40,8 @@ export function useSubmission({
   enabled = true,
   level,
   runExamples,
+  beforeExecution,
+  sharedSubmissionId,
 }: {
   identity: DevelopmentIdentity;
   workspace?: Workspace;
@@ -49,6 +51,8 @@ export function useSubmission({
   drafts: CustomCaseDraft[];
   problem?: ProblemVersion;
   enabled?: boolean;
+  beforeExecution?: (kind: "run" | "submit") => Promise<boolean>;
+  sharedSubmissionId?: string;
   level?: number;
   runExamples?: ProblemVersion["examples"];
 }) {
@@ -65,7 +69,8 @@ export function useSubmission({
   const admissionLock = useRef(false);
   const pendingRequest = useRef<PendingExecution | undefined>(undefined);
   const scope = workspace ? `${identity}:${workspace.id}` : "";
-  const activeSubmissionId = active?.scope === scope ? active.id : undefined;
+  const activeSubmissionId =
+    sharedSubmissionId ?? (active?.scope === scope ? active.id : undefined);
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
 
@@ -226,11 +231,12 @@ export function useSubmission({
               customMode ? drafts : undefined,
             )
           : undefined;
-      const source = frozenSource ?? editorRef.current?.getSource() ?? sourceRef.current;
       admissionLock.current = true;
       setAdmissionPending(true);
       setError(undefined);
       try {
+        if (beforeExecution && !(await beforeExecution(kind))) return false;
+        const source = frozenSource ?? editorRef.current?.getSource() ?? sourceRef.current;
         if (replacement) {
           let previous = await cancelSubmission(identity, replacement);
           const deadline = Date.now() + 30_000;
@@ -304,6 +310,7 @@ export function useSubmission({
       scope,
       queryClient,
       enabled,
+      beforeExecution,
       level,
     ],
   );

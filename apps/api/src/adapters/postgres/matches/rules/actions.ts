@@ -1,3 +1,4 @@
+import { requireTeamApproval } from "../../factions/approval.ts";
 /** @file actions.ts @description Exact-cost assistance authorization and execution. @module matches */
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -132,12 +133,14 @@ export async function executeRuleAction(
   actor: string,
   rules: MatchRuleSettings,
   input: RuleActionRequest,
+  approvedTeamVoteId?: string,
 ): Promise<RuleActionResult> {
   const plan = await prepareRuleAction(tx, match, actor, rules, input);
   if (!input.approval || input.kind === "submission") return { quote: plan.quote };
   if (input.kind === "hiddenCase" && input.caseIndex === undefined)
     throw new ApplicationError("invalid_input", "Confirm the selected case", 400);
   assertRuleApproval(plan.quote, input.approval);
+  await requireTeamApproval(tx, match, actor, plan.quote, input, approvedTeamVoteId);
   if (!plan.quote.alreadyRevealed)
     await recordRuleEvent(tx, {
       match,

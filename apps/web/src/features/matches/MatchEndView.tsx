@@ -1,3 +1,4 @@
+import { matchCompetitors, isMatchWinner } from "./competitors";
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
@@ -26,15 +27,15 @@ export function matchEndDescription(snapshot: MatchSnapshot, identity: Developme
     return "You forfeited. The remaining players are still competing.";
   switch (snapshot.outcome?.reason) {
     case "first_correct":
-      return "The first correct submission decided this match.";
+      return "The earliest correct submission after time penalties decided this match.";
     case "forfeit":
       return own?.forfeited
         ? "You forfeited this match."
         : "The match ended after a player forfeited.";
     case "host_left":
       return "The host closed the lobby before the match started.";
-    case "deadline":
-      return "Time is up. Final scores decided the result.";
+    case "deadline_score":
+      return "Time is up. Final scores after penalties decided the result.";
   }
   if (snapshot.outcome?.kind === "no_contest")
     return "Judging could not finish reliably. No winner was declared.";
@@ -155,10 +156,10 @@ export function MatchEndView({
   const outcome = matchCompletionOutcome(snapshot, identity);
   const title = forfeited ? "You forfeited" : outcomeLabel(snapshot, identity);
   const description = matchEndDescription(snapshot, identity);
-  const players = [...snapshot.participants].sort(
+  const players = matchCompetitors(snapshot).sort(
     (a, b) =>
       Number(a.forfeited) - Number(b.forfeited) ||
-      (b.bestScore?.passed ?? 0) - (a.bestScore?.passed ?? 0),
+      (b.adjustedScore ?? b.bestScore?.passed ?? 0) - (a.adjustedScore ?? a.bestScore?.passed ?? 0),
   );
   const partyStatus = (
     <div className="match-party-status">
@@ -178,19 +179,35 @@ export function MatchEndView({
         <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
           <span>
             <strong>
-              <ParticipantName
-                participant={player}
-                self={player.userId === participantUserId(identity)}
-              />
+              {snapshot.mode === "factions" ? (
+                <span>
+                  {player.displayName} ·{" "}
+                  {player.members.map((member) => member.displayName).join(", ")}
+                </span>
+              ) : (
+                <ParticipantName
+                  participant={player}
+                  self={player.userId === participantUserId(identity)}
+                />
+              )}
             </strong>
-            {player.userId === snapshot.outcome?.winnerUserId && <MatchWinnerMetadata />}
+            {isMatchWinner(snapshot, player) && <MatchWinnerMetadata />}
           </span>
           <span className="match-result-score">
-            {party && (
+            {party && snapshot.mode !== "factions" && (
               <PartyReadinessIndicator
                 member={party.members.find((member) => member.userId === player.userId)}
               />
             )}
+            {!player.forfeited && snapshot.rules?.victory === "high_score" && (
+              <span>
+                {player.adjustedScore ?? player.bestScore?.passed ?? 0} points · −
+                {player.penaltyPoints ?? 0} penalty
+              </span>
+            )}
+            {!player.forfeited &&
+              snapshot.rules?.victory !== "high_score" &&
+              !!player.penaltySeconds && <span>+{player.penaltySeconds}s penalty</span>}
             <ScoreProgress
               score={player.forfeited ? undefined : player.bestScore}
               color={participantColor(player.userId, player.color)}
@@ -243,7 +260,7 @@ export function MatchEndView({
         {party && !partyQuery.isError && (
           <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
         )}
-        {party && (
+        {party && snapshot.mode !== "factions" && (
           <MatchLobbyReadiness
             ownUserId={participantUserId(identity)}
             members={party.members}

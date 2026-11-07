@@ -124,6 +124,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         text: "text",
         uuid: "uuid",
         integer: "int4",
+        smallint: "int2",
         boolean: "bool",
         bigint: "int8",
         bigserial: "int8",

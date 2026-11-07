@@ -409,7 +409,7 @@ export function partyRepository(
                 );
                 const remaining = (
                   await tx.execute<{ n: number; winner: string | null }>(
-                    sql`SELECT count(*)::int AS n,min(owner_id) AS winner FROM match_participants WHERE match_id=${p.current}::uuid AND NOT forfeited`,
+                    sql`SELECT count(DISTINCT COALESCE(competitor_id,owner_id))::int AS n,min(COALESCE(competitor_id,owner_id)) AS winner FROM match_participants WHERE match_id=${p.current}::uuid AND NOT forfeited`,
                   )
                 ).rows[0];
                 if (remaining.n === 1)

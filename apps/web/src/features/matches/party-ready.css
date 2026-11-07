@@ -26,6 +26,20 @@
   gap: var(--space-1);
   min-width: 0;
 }
+/* Action controls need a full roster row, including inside narrow team groups. */
+.party-ready-members[data-actions] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.party-ready-members[data-actions] li {
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+.party-ready-members[data-actions] .participant-name {
+  flex: 1 1 100px;
+}
+.party-ready-members[data-actions] .party-readiness-indicator {
+  margin-left: 0;
+}
 .party-ready-name {
   overflow-wrap: anywhere;
 }

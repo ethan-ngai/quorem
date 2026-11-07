@@ -1,9 +1,10 @@
+import { requireTeamApproval } from "../../factions/approval.ts";
 import { prepareRuleAction, assertRuleApproval } from "../../matches/rules/actions.ts";
 import { recordRuleEvent } from "../../matches/rules/ledger.ts";
 import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
 import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
-import type { ConnectionScope } from "@quorem/database/core";
+import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import type { WorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
@@ -37,223 +38,233 @@ const failure = (code: string, message: string, status: 400 | 403 | 404 | 409 | 
   new ApplicationError(code, message, status);
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 2000 };
 export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
-  return async (
+  return (
     principal: Principal,
     key: string,
     command: WorkspaceCommand,
     fence: AdmissionFence,
   ): Promise<AdmissionResult> =>
     run((scope) =>
-      scope.transaction(options, async (tx) => {
-        if (fence.receiptId !== null)
-          await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
-        const user = (
-          await tx.execute<{ kind: string }>(
-            sql`SELECT kind FROM users WHERE id=${principal.userId} AND NOT disabled FOR NO KEY UPDATE`,
-          )
-        ).rows[0];
-        if (!user) throw failure("not_found", "Workspace not found", 404);
-        if ((user.kind === "guest") !== (principal.kind === "guest"))
-          throw failure("forbidden", "Guest membership unavailable", 403);
-        const prior = (
-          await tx.execute<{
-            hash: string;
-            id: string;
-            state: string;
-            sourceHash: string;
-            admittedAt: string;
-          }>(
-            sql`SELECT i.body_hash AS hash,s.id::text,s.state,s.source_hash AS "sourceHash",to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM execution_idempotency i JOIN submissions s ON s.id=i.submission_id WHERE i.owner_id=${principal.userId} AND i.key=${key} AND i.expires_at>clock_timestamp()`,
-          )
-        ).rows[0];
-        if (prior && prior.hash !== command.fingerprint)
-          throw failure("idempotency_conflict", "Key was used for a different command", 409);
-        const replay = () => ({
-          id: prior!.id,
-          state: prior!.state,
-          sourceHash: prior!.sourceHash,
-          admittedAt: prior!.admittedAt,
-        });
-        const row = (
-          await tx.execute<{
-            version: string;
-            matchId: string | null;
-            reviewMatchId: string | null;
-            reviewSourceOwnerId: string | null;
-            language: string;
-            isSql: boolean;
-            stages: number;
-          }>(
-            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
-          )
-        ).rows[0];
-        if (!row) throw failure("not_found", "Workspace not found", 404);
-        const runtime = questionRuntime(row.language, row.isSql);
-        let rulePlan: Awaited<ReturnType<typeof prepareRuleAction>> | undefined;
-        let matchSequence: string | null = null,
-          admissionTime: string | null = null,
-          sponsor: string | null = null;
-        if (row.reviewMatchId && row.reviewSourceOwnerId) {
-          const review = await authorizeReview(
-            tx,
-            principal,
-            row.reviewMatchId,
-            row.reviewSourceOwnerId,
-          );
-          if (review.problemId !== row.version)
-            throw failure("not_found", "Workspace not found", 404);
-          if (principal.kind === "guest") {
-            if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
-            if (!config.guestExecution)
-              throw failure(
-                "temporarily_unavailable",
-                "Guest execution is temporarily paused",
-                503,
-              );
-            sponsor = review.host;
-          }
-        } else if (row.matchId) {
-          const locked = await tx.execute(
-            sql`SELECT id FROM matches WHERE id=${row.matchId}::uuid FOR UPDATE`,
-          );
-          if (!locked.rows.length) throw failure("not_found", "Workspace not found", 404);
-          const match = (
-            await tx.execute<{
-              host: string;
-              enabled: boolean;
-              active: boolean;
-              admittedAt: string;
-              rules: MatchRuleSettings;
-            }>(
-              sql`SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,m.state='active' AND m.deadline>clock_timestamp() AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${row.matchId}::uuid`,
-            )
-          ).rows[0];
-          if (!match?.enabled) throw failure("not_found", "Workspace not found", 404);
-          const member = await tx.execute(
-            sql`SELECT 1 FROM match_participants WHERE match_id=${row.matchId}::uuid AND owner_id=${principal.userId} AND NOT forfeited`,
-          );
-          if (!member.rows.length)
-            throw failure("invalid_transition", "Match participant is forfeited", 409);
-          if (principal.kind === "guest") {
-            if (!config.guestExecution)
-              throw failure(
-                "temporarily_unavailable",
-                "Guest execution is temporarily paused",
-                503,
-              );
-            if (!(await guestMayReadMatch(tx, principal, row.matchId)))
-              throw failure("forbidden", "Guest membership unavailable", 403);
-            sponsor = match.host;
-          }
-          if (prior) return replay();
-          if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
-          admissionTime = match.admittedAt;
-          if (command.kind === "submit") {
-            rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
-              kind: "submission",
-            });
-            if (rulePlan.quote.cooldownSeconds > 0)
-              throw failure(
-                "submission_cooldown",
-                `Submit available in ${rulePlan.quote.cooldownSeconds}s`,
-                429,
-              );
-            if (rulePlan.quote.seconds || rulePlan.quote.points || command.matchApproval)
-              assertRuleApproval(rulePlan.quote, command.matchApproval);
-
-            matchSequence = String(
-              (
-                await tx.execute(
-                  sql`UPDATE matches SET admission_sequence=admission_sequence+1 WHERE id=${row.matchId}::uuid RETURNING admission_sequence::text AS sequence`,
-                )
-              ).rows[0].sequence,
-            );
-          }
-        } else if (principal.kind === "guest")
-          throw failure("forbidden", "Guests can execute only in their match", 403);
-        if (prior) return replay();
-        if (!config.losslessCases)
-          throw failure("temporarily_unavailable", "Runner input protocol unavailable", 503);
-        if (row.stages < 0 || row.stages > 8) throw new Error("Invalid Odyssey metadata");
-        const odyssey = row.stages > 0;
-        let level: number | null = null;
-        if (odyssey) {
-          await tx.execute(
-            sql`INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES(${command.workspaceId}::uuid,${row.version}::uuid) ON CONFLICT DO NOTHING`,
-          );
-          level = Number(
-            (
-              await tx.execute(
-                sql`SELECT level FROM odyssey_progress WHERE scope_id=${command.workspaceId}::uuid AND problem_version_id=${row.version}::uuid FOR UPDATE`,
-              )
-            ).rows[0].level,
-          );
-          if (command.level !== level)
-            throw failure("revision_conflict", "Odyssey level changed; reload progress", 409);
-          if (level < 1 || level > row.stages)
-            throw failure("revision_conflict", "Odyssey level changed; reload progress", 409);
-        }
-        const owner = { version: row.version };
-        if (command.customCases)
-          validateExecutionCases(
-            await customValidationMetadata(tx, owner, level ?? 0),
-            level ?? 0,
-            command.customCases,
-          );
-        const input = await prepareExecutionInputs(
-          tx,
-          owner,
-          command.kind,
-          level ?? 0,
-          command.customCases,
-          false,
-          odyssey,
-        );
-        const inserted = await insertAdmittedExecution(tx, {
-          ownerId: principal.userId,
-          jobId: fence.jobId,
-          kind: command.kind,
-          source: command.source,
-          sourceHash: command.sourceHash,
-          customRun: command.customCases !== null,
-          language: row.language,
-          runtimeRevision: runtime.revision,
-          harnessRevision: runtime.harness,
-          sponsorId: sponsor,
-          sponsorMatchId: row.reviewMatchId,
-          context: {
-            kind: "workspace",
-            workspaceId: command.workspaceId,
-            matchId: row.matchId,
-            matchSequence,
-            admittedAt: admissionTime,
-            odysseyLevel: level,
-          },
-        });
-        await bindJobInputs(tx, { jobId: fence.jobId, owner, ...input });
-        const id = inserted.id;
-        await tx.execute(
-          sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,
-        );
-        if (row.matchId && command.kind === "submit" && rulePlan) {
-          await recordRuleEvent(tx, {
-            match: row.matchId,
-            actor: principal.userId,
-            subject: rulePlan.subject,
-            kind: "submission",
-            action: rulePlan.quote.seconds || rulePlan.quote.points ? "penalty" : "announce",
-            cost: rulePlan.quote,
-            submission: id,
-          });
-          await reconcileMatch(tx, row.matchId);
-        }
-        await checkAdmissionCapacity(tx);
-        return {
-          id,
-          state: "queued",
-          sourceHash: command.sourceHash,
-          admittedAt: inserted.admittedAt,
-        };
-      }),
+      scope.transaction(options, (tx) =>
+        admitWorkspaceInTransaction(tx, config, principal, key, command, fence),
+      ),
     );
+}
+/** Shared transaction entry for team-majority actions; the caller owns locks and post-commit wake. */
+export async function admitWorkspaceInTransaction(
+  tx: Transaction,
+  config: AdmissionOptions,
+  principal: Principal,
+  key: string,
+  command: WorkspaceCommand,
+  fence: AdmissionFence,
+  approvedTeamVoteId?: string,
+): Promise<AdmissionResult> {
+  if (fence.receiptId !== null) await consumePrearm(tx, fence.receiptId, fence.shard, "execution");
+  const user = (
+    await tx.execute<{ kind: string }>(
+      sql`SELECT kind FROM users WHERE id=${principal.userId} AND NOT disabled FOR NO KEY UPDATE`,
+    )
+  ).rows[0];
+  if (!user) throw failure("not_found", "Workspace not found", 404);
+  if ((user.kind === "guest") !== (principal.kind === "guest"))
+    throw failure("forbidden", "Guest membership unavailable", 403);
+  const prior = (
+    await tx.execute<{
+      hash: string;
+      id: string;
+      state: string;
+      sourceHash: string;
+      admittedAt: string;
+    }>(
+      sql`SELECT i.body_hash AS hash,s.id::text,s.state,s.source_hash AS "sourceHash",to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM execution_idempotency i JOIN submissions s ON s.id=i.submission_id WHERE i.owner_id=${principal.userId} AND i.key=${key} AND i.expires_at>clock_timestamp()`,
+    )
+  ).rows[0];
+  if (prior && prior.hash !== command.fingerprint)
+    throw failure("idempotency_conflict", "Key was used for a different command", 409);
+  const replay = () => ({
+    id: prior!.id,
+    state: prior!.state,
+    sourceHash: prior!.sourceHash,
+    admittedAt: prior!.admittedAt,
+  });
+  const row = (
+    await tx.execute<{
+      version: string;
+      matchId: string | null;
+      reviewMatchId: string | null;
+      reviewSourceOwnerId: string | null;
+      language: string;
+      isSql: boolean;
+      stages: number;
+    }>(
+      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
+    )
+  ).rows[0];
+  if (!row) throw failure("not_found", "Workspace not found", 404);
+  const runtime = questionRuntime(row.language, row.isSql);
+  let rulePlan: Awaited<ReturnType<typeof prepareRuleAction>> | undefined;
+  let matchSequence: string | null = null,
+    admissionTime: string | null = null,
+    sponsor: string | null = null;
+  if (row.reviewMatchId && row.reviewSourceOwnerId) {
+    const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
+    if (review.problemId !== row.version) throw failure("not_found", "Workspace not found", 404);
+    if (principal.kind === "guest") {
+      if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
+      if (!config.guestExecution)
+        throw failure("temporarily_unavailable", "Guest execution is temporarily paused", 503);
+      sponsor = review.host;
+    }
+  } else if (row.matchId) {
+    const locked = await tx.execute(
+      sql`SELECT id FROM matches WHERE id=${row.matchId}::uuid FOR UPDATE`,
+    );
+    if (!locked.rows.length) throw failure("not_found", "Workspace not found", 404);
+    const match = (
+      await tx.execute<{
+        host: string;
+        enabled: boolean;
+        active: boolean;
+        admittedAt: string;
+        rules: MatchRuleSettings;
+      }>(
+        sql`SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,m.state='active' AND m.deadline>clock_timestamp() AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${row.matchId}::uuid`,
+      )
+    ).rows[0];
+    if (!match?.enabled) throw failure("not_found", "Workspace not found", 404);
+    const member = await tx.execute(
+      sql`SELECT 1 FROM match_participants WHERE match_id=${row.matchId}::uuid AND owner_id=${principal.userId} AND NOT forfeited`,
+    );
+    if (!member.rows.length)
+      throw failure("invalid_transition", "Match participant is forfeited", 409);
+    if (principal.kind === "guest") {
+      if (!config.guestExecution)
+        throw failure("temporarily_unavailable", "Guest execution is temporarily paused", 503);
+      if (!(await guestMayReadMatch(tx, principal, row.matchId)))
+        throw failure("forbidden", "Guest membership unavailable", 403);
+      sponsor = match.host;
+    }
+    if (prior) return replay();
+    if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
+    admissionTime = match.admittedAt;
+    if (command.kind === "submit") {
+      rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
+        kind: "submission",
+      });
+      if (rulePlan.quote.cooldownSeconds > 0)
+        throw failure(
+          "submission_cooldown",
+          `Submit available in ${rulePlan.quote.cooldownSeconds}s`,
+          429,
+        );
+      if (rulePlan.quote.seconds || rulePlan.quote.points || command.matchApproval)
+        assertRuleApproval(rulePlan.quote, command.matchApproval);
+
+      await requireTeamApproval(
+        tx,
+        row.matchId,
+        principal.userId,
+        rulePlan.quote,
+        {
+          kind: "submit",
+          source: command.source,
+          workspaceId: command.workspaceId,
+          level: command.level,
+        },
+        approvedTeamVoteId,
+      );
+      matchSequence = String(
+        (
+          await tx.execute(
+            sql`UPDATE matches SET admission_sequence=admission_sequence+1 WHERE id=${row.matchId}::uuid RETURNING admission_sequence::text AS sequence`,
+          )
+        ).rows[0].sequence,
+      );
+    }
+  } else if (principal.kind === "guest")
+    throw failure("forbidden", "Guests can execute only in their match", 403);
+  if (prior) return replay();
+  if (!config.losslessCases)
+    throw failure("temporarily_unavailable", "Runner input protocol unavailable", 503);
+  if (row.stages < 0 || row.stages > 8) throw new Error("Invalid Odyssey metadata");
+  const odyssey = row.stages > 0;
+  let level: number | null = null;
+  if (odyssey) {
+    await tx.execute(
+      sql`INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES(${command.workspaceId}::uuid,${row.version}::uuid) ON CONFLICT DO NOTHING`,
+    );
+    level = Number(
+      (
+        await tx.execute(
+          sql`SELECT level FROM odyssey_progress WHERE scope_id=${command.workspaceId}::uuid AND problem_version_id=${row.version}::uuid FOR UPDATE`,
+        )
+      ).rows[0].level,
+    );
+    if (command.level !== level)
+      throw failure("revision_conflict", "Odyssey level changed; reload progress", 409);
+    if (level < 1 || level > row.stages)
+      throw failure("revision_conflict", "Odyssey level changed; reload progress", 409);
+  }
+  const owner = { version: row.version };
+  if (command.customCases)
+    validateExecutionCases(
+      await customValidationMetadata(tx, owner, level ?? 0),
+      level ?? 0,
+      command.customCases,
+    );
+  const input = await prepareExecutionInputs(
+    tx,
+    owner,
+    command.kind,
+    level ?? 0,
+    command.customCases,
+    false,
+    odyssey,
+  );
+  const inserted = await insertAdmittedExecution(tx, {
+    ownerId: principal.userId,
+    jobId: fence.jobId,
+    kind: command.kind,
+    source: command.source,
+    sourceHash: command.sourceHash,
+    customRun: command.customCases !== null,
+    language: row.language,
+    runtimeRevision: runtime.revision,
+    harnessRevision: runtime.harness,
+    sponsorId: sponsor,
+    sponsorMatchId: row.reviewMatchId,
+    context: {
+      kind: "workspace",
+      workspaceId: command.workspaceId,
+      matchId: row.matchId,
+      matchSequence,
+      admittedAt: admissionTime,
+      odysseyLevel: level,
+    },
+  });
+  await bindJobInputs(tx, { jobId: fence.jobId, owner, ...input });
+  const id = inserted.id;
+  await tx.execute(
+    sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,
+  );
+  if (row.matchId && command.kind === "submit" && rulePlan) {
+    await recordRuleEvent(tx, {
+      match: row.matchId,
+      actor: principal.userId,
+      subject: rulePlan.subject,
+      kind: "submission",
+      action: rulePlan.quote.seconds || rulePlan.quote.points ? "penalty" : "announce",
+      cost: rulePlan.quote,
+      submission: id,
+    });
+    await reconcileMatch(tx, row.matchId);
+  }
+  await checkAdmissionCapacity(tx);
+  return {
+    id,
+    state: "queued",
+    sourceHash: command.sourceHash,
+    admittedAt: inserted.admittedAt,
+  };
 }

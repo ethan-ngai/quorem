@@ -36,7 +36,9 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
         key,
         null,
         async (tx) => {
-          await authorize(tx);
+          const match = await authorize(tx);
+          if (match.mode === "factions")
+            throw new ApplicationError("vote_required", "Propose a team language change", 409);
           const state = (
             await tx.execute<{ active: boolean; version: string; forfeited: boolean }>(
               sql`SELECT m.state='active' AND m.deadline>clock_timestamp() AS active,m.problem_version_id::text AS version,p.forfeited FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${who.userId} WHERE m.id=${id}::uuid`,

@@ -509,6 +509,51 @@
       "path": "/v1/matches/{id}/rule-actions",
       "registration": "apps/api/src/modules/matches/lifecycle/routes.ts",
       "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/parties/{id}/teams",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{id}/teams",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/matches/{id}/team",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/pull",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/push",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/presence",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/propose",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/vote",
+      "registration": "apps/api/src/modules/factions/routes.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/team/cancel",
+      "registration": "apps/api/src/modules/factions/routes.ts"
     }
   ],
   "websocketCommands": [
