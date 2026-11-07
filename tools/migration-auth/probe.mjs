@@ -13,7 +13,7 @@ import * as schema from './schema.js';
 const client = new pg.Client({connectionString:'postgres://postgres:fixture-only@127.0.0.1:55432/quorem_hono_auth_runtime_test'});
 await client.connect();
 await client.query('DROP SCHEMA IF EXISTS quorem_auth CASCADE; CREATE SCHEMA quorem_auth');
-for (const file of ['001_schema.sql','002_profile_color.sql','003_account_user_index.sql','004_social_email_expiry.sql']) await client.query(await readFile(new URL(`../../apps/auth/migrations/${file}`,import.meta.url),'utf8'));
+for (const file of ['001_schema.sql','002_profile_color.sql','003_account_user_index.sql','004_social_email_expiry.sql']) await client.query(await readFile(new URL(`../../apps/auth/migrations/legacy/${file}`,import.meta.url),'utf8'));
 const proc = spawn('./node_modules/.bin/wrangler',['dev','--local','--ip','127.0.0.1','--port','18878'],{cwd:new URL('.',import.meta.url),stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}});
 let logs=''; proc.stdout.on('data',x=>logs+=x); proc.stderr.on('data',x=>logs+=x);
 const base='http://127.0.0.1:18878';

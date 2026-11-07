@@ -1,7 +1,7 @@
 /** @file staged-actor.ts @description Short-lived synthetic stage identity. @module runtime */
 import { randomBytes, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { readdir } from "node:fs/promises";
+import { verifyMigrationReceipts } from "@quorem/database/migrations";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { sql } from "drizzle-orm";
@@ -110,26 +110,26 @@ export async function createStagedActor(options: {
       ),
     );
     if (database !== expectedDatabase) throw new Error("Invalid stage fixture database");
-    for (const [directory, ledger] of [
-      [new URL("../../../../migrations/", import.meta.url), "public.schema_migrations"],
+    for (const [owner, directory, ledger] of [
+      ["product", new URL("../../../../migrations/", import.meta.url), "public.schema_migrations"],
       [
+        "auth",
         new URL("../../../../../auth/migrations/", import.meta.url),
         "quorem_auth.schema_migrations",
       ],
     ] as const) {
       options.signal?.throwIfAborted();
-      const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
       const rows = await read((scope) =>
-        scope.withDatabase(async (db) =>
-          (
-            await db.execute<{ name: string }>(
-              sql`SELECT name FROM ${sql.raw(ledger)} ORDER BY name`,
-            )
-          ).rows.map((row) => row.name),
+        scope.withDatabase(
+          async (db) =>
+            (
+              await db.execute<{ name: string; checksum: string | null }>(
+                sql`SELECT name,checksum FROM ${sql.raw(ledger)} ORDER BY name`,
+              )
+            ).rows,
         ),
       );
-      if (!files.length || JSON.stringify(files) !== JSON.stringify(rows))
-        throw new Error("Stage migrations are incomplete");
+      await verifyMigrationReceipts(fileURLToPath(directory), owner, rows);
     }
     options.signal?.throwIfAborted();
     await seedCatalog(pool, false, options.signal);
