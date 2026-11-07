@@ -62,7 +62,12 @@ async function fixture() {
     "apps/auth/src/migrations.ts": "apps/api/src/cli/fixtures/deployed-auth-migrations.ts.txt",
   };
   const files = new Map(
-    await Promise.all(paths.map(async (path) => [path, await readFile(frozen[path] ?? path)])),
+    await Promise.all(
+      paths.map(async (path) => [
+        path,
+        await readFile(frozen[path] ?? path.replace(/\/migrations\//, "/migrations/legacy/")),
+      ]),
+    ),
   );
   const request = async (path) => {
     if (path === `${root}/actions/runs/${runId}`) return structuredClone(run);

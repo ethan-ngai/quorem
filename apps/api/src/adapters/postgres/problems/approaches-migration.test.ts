@@ -20,7 +20,7 @@ it.skipIf(!url)(
       onIdleError: () => {},
     });
     const dir = await mkdtemp(join(tmpdir(), "quorem-approaches-"));
-    const migrations = new URL("../../../../migrations/", import.meta.url);
+    const migrations = new URL("../../../../migrations/legacy/", import.meta.url);
     try {
       await pool.query("DROP SCHEMA public CASCADE; CREATE SCHEMA public");
       for (const file of await readdir(migrations))
