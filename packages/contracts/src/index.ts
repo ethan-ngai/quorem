@@ -81,6 +81,7 @@ export function createApiClient(
 export type InterviewMonitoring = components["schemas"]["InterviewMonitoring"];
 export type InterviewRuleEvent = components["schemas"]["InterviewRuleEvent"];
 
+export const PARTY_READY_COUNTDOWN_SECONDS = 5;
 export type PartySettings = components["schemas"]["PartySettings"];
 export type PartyMember = components["schemas"]["PartyMember"];
 export type PartySnapshot = components["schemas"]["PartySnapshot"];

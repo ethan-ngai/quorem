@@ -5,11 +5,57 @@
   gap: var(--space-2);
   margin-block: var(--space-2);
 }
-.party-ready-status {
-  min-height: 1.5em;
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--text-small);
+.party-countdown-popup {
+  position: fixed;
+  z-index: var(--layer-popover);
+  inset: calc(var(--navigation-height) + var(--space-3)) 0 auto;
+  margin-inline: auto;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - 2 * var(--space-4));
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-text);
+  pointer-events: none;
+  animation: party-countdown-enter var(--motion-standard) var(--motion-easing);
+}
+.party-countdown-ring {
+  --match-time-ring-fill: var(--color-primary);
+  display: grid;
+  place-items: center;
+  inline-size: var(--narrow-touch-target);
+  block-size: var(--narrow-touch-target);
+  flex: none;
+  font: 600 var(--text-h3) / 1 var(--font-code);
+  font-variant-numeric: tabular-nums;
+}
+.party-countdown-ring > * {
+  grid-area: 1 / 1;
+}
+.party-countdown-ring .match-duration-fill {
+  transition: stroke-dasharray 250ms linear;
+}
+.party-countdown-popup strong {
+  font-size: var(--text-body);
+}
+@keyframes party-countdown-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .party-countdown-popup {
+    animation: none;
+  }
+  .party-countdown-ring .match-duration-fill {
+    transition: none;
+  }
 }
 .party-ready-members {
   display: flex;

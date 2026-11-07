@@ -1,5 +1,6 @@
 import { freezePartyTeams, initializeTeamWorkspaces } from "../factions/start.ts";
 /** @file reconcile.ts @description Party presence and round transitions. @module parties */
+import { PARTY_READY_COUNTDOWN_SECONDS } from "@quorem/contracts";
 import { sql } from "drizzle-orm";
 import { classifyDatabaseError, type Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../application/error.ts";
@@ -208,6 +209,6 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
 }
 export async function scheduleIfReady(tx: Transaction, id: string) {
   await tx.execute(
-    sql`UPDATE parties p SET countdown_ends_at=clock_timestamp()+interval '5 seconds' WHERE p.id=${id}::uuid AND p.current_match_id IS NULL AND p.latest_match_id IS NOT NULL AND (SELECT count(*) FROM party_members WHERE party_id=p.id)>=2 AND (p.settings->>'mode'<>'showdown' OR (SELECT count(*) FROM party_members WHERE party_id=p.id)=2) AND NOT EXISTS(SELECT 1 FROM party_members pm WHERE pm.party_id=p.id AND (NOT pm.ready OR NOT (${online})))`,
+    sql`UPDATE parties p SET countdown_ends_at=clock_timestamp()+make_interval(secs=>${PARTY_READY_COUNTDOWN_SECONDS}) WHERE p.id=${id}::uuid AND p.current_match_id IS NULL AND p.latest_match_id IS NOT NULL AND (SELECT count(*) FROM party_members WHERE party_id=p.id)>=2 AND (p.settings->>'mode'<>'showdown' OR (SELECT count(*) FROM party_members WHERE party_id=p.id)=2) AND NOT EXISTS(SELECT 1 FROM party_members pm WHERE pm.party_id=p.id AND (NOT pm.ready OR NOT (${online})))`,
   );
 }

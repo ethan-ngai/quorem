@@ -28,19 +28,7 @@ export function MatchDurationRing({
         ) : (
           <>
             <span className="match-duration-ring" aria-hidden="true">
-              <svg className="match-duration-track-svg" viewBox="0 0 24 24" fill="none">
-                <circle className="match-duration-track" cx="12" cy="12" r="10" strokeWidth="2" />
-                <circle
-                  className="match-duration-fill"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  strokeWidth="2"
-                  pathLength="1"
-                  strokeDasharray={`${fraction} 1`}
-                  transform="rotate(-90 12 12)"
-                />
-              </svg>
+              <MatchTimeRing fraction={fraction} />
               <Clock className="match-duration-clock" size={16} />
             </span>
             <span className="match-duration-value" aria-hidden="true">
@@ -50,5 +38,24 @@ export function MatchDurationRing({
         )}
       </span>
     </Tooltip>
+  );
+}
+
+/** @returns The shared visual track and bounded progress stroke for a match timer. */
+export function MatchTimeRing({ fraction }: { fraction: number }) {
+  return (
+    <svg className="match-duration-track-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="match-duration-track" cx="12" cy="12" r="10" strokeWidth="2" />
+      <circle
+        className="match-duration-fill"
+        cx="12"
+        cy="12"
+        r="10"
+        strokeWidth="2"
+        pathLength="1"
+        strokeDasharray={`${Math.max(0, Math.min(1, fraction))} 1`}
+        transform="rotate(-90 12 12)"
+      />
+    </svg>
   );
 }

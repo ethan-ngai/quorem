@@ -109,6 +109,27 @@ it("returns to a different current party while retaining round review", () => {
   expect(html).not.toContain('aria-label="Leave lobby"');
 });
 
+it("renders one countdown while the results dialog is open", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const previousPartyId = snapshot.partyId;
+  snapshot.partyId = "party";
+  partyState.data = {
+    party: { id: "party", members: [], countdownEndsAt: new Date(Date.now() + 5000).toISOString() },
+  };
+  partyState.isPending = false;
+  const panel = document.createElement("div");
+  const root = createRoot(panel);
+  try {
+    await act(async () => root.render(view()));
+    expect(panel.querySelectorAll('[role="timer"]')).toHaveLength(1);
+    expect(document.body.querySelectorAll(".party-countdown-popup")).toHaveLength(1);
+  } finally {
+    await act(async () => root.unmount());
+    snapshot.partyId = previousPartyId;
+    vi.unstubAllGlobals();
+  }
+});
+
 it("leaves only this match's party, exposes failure for retry, then preserves review", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const member = {

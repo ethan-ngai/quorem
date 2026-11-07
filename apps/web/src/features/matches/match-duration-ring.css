@@ -41,6 +41,6 @@
   stroke: var(--color-border);
 }
 .match-duration-fill {
-  stroke: var(--color-text-secondary);
+  stroke: var(--match-time-ring-fill, var(--color-text-secondary));
   stroke-linecap: round;
 }

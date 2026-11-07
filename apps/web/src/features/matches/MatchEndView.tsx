@@ -224,11 +224,12 @@ export function MatchEndView({
       ))}
     </ol>
   );
+  const readyStatus = party && !partyQuery.isError && (
+    <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
+  );
   return (
     <>
-      {party && !partyQuery.isError && (
-        <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
-      )}
+      {!open && readyStatus}
       <CompletionDialog
         open={open}
         onOpenChange={(next) => {
@@ -263,9 +264,7 @@ export function MatchEndView({
         {reviewPending && (
           <p role="status">Code review will be available when the round and judging finish.</p>
         )}
-        {party && !partyQuery.isError && (
-          <PartyReadyStatus countdownEndsAt={party.countdownEndsAt} queueError={party.queueError} />
-        )}
+        {open && readyStatus}
         {party && snapshot.mode !== "factions" && (
           <MatchLobbyReadiness
             ownUserId={participantUserId(identity)}
