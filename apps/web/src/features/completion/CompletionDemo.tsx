@@ -1,5 +1,5 @@
 /** @file CompletionDemo.tsx @description Development-only completion fixtures. @module completion */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { ParticipantName } from "../collaboration/ParticipantName";
@@ -23,6 +23,7 @@ import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/Works
 import { PythonEditor } from "../editor/PythonEditor";
 import { useTheme } from "../editor/useTheme";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
+import { usePageTitle } from "../navigation/PageMetadata";
 import "../../styles/workspace.css";
 
 const source =
@@ -58,13 +59,7 @@ const demoReview = {
 } as MatchReview;
 
 export function CompletionDemo() {
-  useEffect(() => {
-    const previous = document.title;
-    document.title = "Completion demo - Quorem";
-    return () => {
-      document.title = previous;
-    };
-  }, []);
+  usePageTitle("Completion Demo - Quorem");
   const [review, setReview] = useState(false);
   const [participant, setParticipant] = useState("you");
   const [drafts, setDrafts] = useState<Record<string, string>>({

@@ -1,37 +1,20 @@
 /** @file seo.ts @description Shared search and social metadata for static HTML and client navigation. @module site */
-export const siteTitle = "Quorem - Compete Beyond the Algorithm";
+export const siteTitle = "Quorem - Competitive Coding and Practice";
 export const siteDescription =
-  "Challenge friends in private coding matches. Go head-to-head in Showdown or compete with a group in Free-for-all. First correct submission wins.";
+  "Challenge friends in Showdown and Free-for-all coding matches. Practice coding problems at your own pace and tackle multi-stage Odyssey challenges.";
 export const socialImage = "/social-preview.jpg";
 export const socialImageAlt =
   "Quorem dark hero: pixel logo and wordmark beside a Python coding workspace. Compete beyond the algorithm.";
 export const publicPaths = ["/", "/practice", "/privacy", "/terms"];
-export const appPaths = [
-  "/practice",
-  "/privacy",
-  "/terms",
-  "/login",
-  "/interviews",
-  "/admin",
-  "/questions",
-  "/match",
-  "/invite",
-  "/interview",
-  "/interview-invite",
-];
 
 const pages: Record<string, { title: string; description: string }> = {
   "/": { title: siteTitle, description: siteDescription },
-  "/app": {
-    title: "Workspace - Quorem",
-    description: "Write, run and test your code in your Quorem workspace.",
-  },
   "/practice": {
-    title: "Practice - Quorem",
+    title: "Coding Practice - Quorem",
     description:
-      "Sharpen your skills between matches. Solve coding problems, test your solutions and tackle multi-stage Odyssey challenges.",
+      "Browse coding problems by topic and difficulty. Run test cases in the editor and work through multi-stage Odyssey challenges at your own pace.",
   },
-  "/practice/workspace": {
+  "/practice/:slug": {
     title: "Practice Workspace - Quorem",
     description:
       "Work through the problem, write your solution and run test cases in Quorem's coding editor.",
@@ -49,7 +32,7 @@ const pages: Record<string, { title: string; description: string }> = {
   "/login": {
     title: "Sign In - Quorem",
     description:
-      "Sign in to join matches, create a lobby and keep your coding practice in one place.",
+      "Sign in or create a Quorem account to join coding matches, host a lobby and save your practice progress.",
   },
   "/interviews": {
     title: "Interviews - Quorem",
@@ -64,43 +47,61 @@ const pages: Record<string, { title: string; description: string }> = {
     description:
       "Create and edit coding questions, define test cases and build multi-stage Odyssey challenges.",
   },
-  "/match": {
+  "/party": {
+    title: "Match Lobby - Quorem",
+    description: "Invite players, choose a coding question and configure your next private match.",
+  },
+  "/match/:id": {
     title: "Coding Match - Quorem",
     description:
-      "Compete in Showdown or Free-for-all. Write your solution, test it and race to the first correct submission.",
+      "Write and test your solution in a competitive Showdown, Free-for-all or Factions match.",
   },
-  "/invite": {
+  "/match/:id/review": {
+    title: "Match Review - Quorem",
+    description: "Revisit the question and review submissions from a completed coding match.",
+  },
+  "/invite/:token": {
     title: "Join a Coding Match - Quorem",
     description:
-      "Accept your match invitation, join the lobby and get ready to compete in Showdown or Free-for-all.",
+      "Accept your invitation to join a private Quorem lobby and get ready for the next coding match.",
   },
-  "/interview": {
+  "/interview/:id": {
     title: "Coding Interview - Quorem",
     description:
       "Collaborate in a shared code editor, run test cases and work through staged coding challenges.",
   },
-  "/interview-invite": {
+  "/interview-invite/:token": {
     title: "Join a Coding Interview - Quorem",
     description: "Open your invitation to join a shared coding workspace.",
   },
 };
 
+export const appPaths = Object.keys(pages).filter((path) => path !== "/");
+const dynamicPages = appPaths
+  .filter((path) => path.includes("/:"))
+  .map((path) => [path, new RegExp(`^${path.replace(/:\w+/g, "[^/]+")}$`)] as const);
+
 /** @returns Metadata without private identifiers, invitation tokens or query parameters. */
 export function pageSeo(pathname: string) {
-  const path = pathname.replace(/\/+$/, "") || "/";
-  const section = `/${path.split("/")[1]}`;
-  const page =
-    pages[path] ?? (path.startsWith("/practice/") ? pages["/practice/workspace"] : pages[section]);
-  const indexable = publicPaths.includes(path);
+  const path = pathname.split(/[?#]/, 1)[0]!.replace(/\/+$/, "").toLowerCase() || "/";
+  const route = dynamicPages.find(([, pattern]) => pattern.test(path))?.[0] ?? path;
+  const page = pages[route];
+  const canonicalPath = publicPaths.find((publicPath) => publicPath === path);
   return {
     ...(page ?? {
       title: "Page not found - Quorem",
       description: "This page could not be found. Return to practice or start a match on Quorem.",
     }),
-    path,
-    indexable,
-    robots: indexable ? "index, follow, max-image-preview:large" : "noindex, follow",
+    canonicalPath,
+    route: page ? route : undefined,
+    indexable: !!canonicalPath,
+    robots: canonicalPath ? "index, follow, max-image-preview:large" : "noindex, follow",
   };
+}
+
+/** @returns The generated HTML shell's basename for an app route. */
+export function routeSeoFile(route: string) {
+  return `route-${route.slice(1).replace(/\/:?/g, "-")}`;
 }
 
 /** @returns Escaped HTML attribute or text value. */
@@ -115,7 +116,6 @@ export function escapeHtml(value: string) {
 /** @returns Search and sharing tags; the origin comes from deployment configuration. */
 export function seoMarkup(pathname: string, origin = "https://quorem.app") {
   const page = pageSeo(pathname);
-  const url = new URL(page.path, origin).href;
   const image = new URL(socialImage, origin).href;
   const tags = [
     `<title>${escapeHtml(page.title)}</title>`,
@@ -143,11 +143,13 @@ export function seoMarkup(pathname: string, origin = "https://quorem.app") {
       ([property, content]) => `<meta property="${property}" content="${escapeHtml(content)}" />`,
     ),
   ];
-  if (page.indexable)
+  if (page.canonicalPath) {
+    const url = new URL(page.canonicalPath, origin).href;
     tags.push(
       `<link rel="canonical" href="${escapeHtml(url)}" />`,
       `<meta property="og:url" content="${escapeHtml(url)}" />`,
     );
+  }
   return `<!-- seo:start -->\n${tags.join("\n")}\n<!-- seo:end -->`;
 }
 

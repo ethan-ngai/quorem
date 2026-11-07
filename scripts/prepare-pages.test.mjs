@@ -22,33 +22,48 @@ await test("static routes expose metadata before JavaScript; private routes and 
     );
     const read = (name) => readFileSync(join(artifact, name), "utf8");
     const redirects = read("_redirects").split("\n");
-    for (const route of ["privacy", "terms", "practice", "interview", "invite", "login"]) {
-      assert.ok(redirects.includes(`/${route} /route-${route} 200`));
-      const html = read(`route-${route}.html`);
+    const routes = {
+      "/privacy": "privacy",
+      "/terms": "terms",
+      "/practice": "practice",
+      "/practice/:slug": "practice-slug",
+      "/party": "party",
+      "/match/:id": "match-id",
+      "/match/:id/review": "match-id-review",
+      "/invite/:token": "invite-token",
+      "/login": "login",
+      "/admin": "admin",
+      "/questions": "questions",
+      "/interviews": "interviews",
+      "/interview/:id": "interview-id",
+      "/interview-invite/:token": "interview-invite-token",
+    };
+    for (const [path, file] of Object.entries(routes)) {
+      assert.ok(redirects.includes(`${path} /route-${file} 200`));
+      assert.ok(redirects.includes(`${path}/ /route-${file} 200`));
+      const html = read(`route-${file}.html`);
       assert.equal((html.match(/<title>/g) ?? []).length, 1);
       assert.ok(html.includes('src="/assets/app.js"'));
       assert.ok(html.includes('content="https://example.test/social-preview.jpg"'));
+      assert.ok(html.includes('name="description"'));
+      assert.ok(html.includes('property="og:description"'));
+      assert.ok(html.includes('name="twitter:description"'));
+      assert.equal(html.includes('content="noindex, follow"'), !pageSeo(path).indexable);
+      assert.equal(html.includes('rel="canonical"'), pageSeo(path).indexable);
+      assert.equal(html.includes('property="og:url"'), pageSeo(path).indexable);
     }
-    assert.ok(redirects.includes("/practice/* /route-workspace 200"));
-    assert.ok(!redirects.some((line) => line.startsWith("/* ")));
+    assert.ok(!redirects.some((line) => line.includes("*")));
+    assert.ok(read("route-match-id-review.html").includes("<title>Match Review - Quorem</title>"));
     assert.ok(
       read("route-practice.html").includes('rel="canonical" href="https://example.test/practice"'),
     );
-    for (const file of [
-      "route-invite.html",
-      "route-interview.html",
-      "route-workspace.html",
-      "404.html",
-    ]) {
-      assert.ok(read(file).includes('name="robots" content="noindex, follow"'));
-      assert.ok(!read(file).includes('rel="canonical"'));
-    }
-    assert.ok(read("404.html").includes("Page not found"));
+    assert.ok(read("404.html").includes('name="robots" content="noindex, follow"'));
+    assert.ok(read("404.html").includes("<title>Page not found - Quorem</title>"));
     assert.equal(read("app.html"), entry);
     assert.ok(read("robots.txt").includes("Sitemap: https://example.test/sitemap.xml"));
     const sitemap = read("sitemap.xml");
     assert.ok(sitemap.includes("https://example.test/practice</loc>"));
-    assert.ok(!/invite|interview|login|admin/.test(sitemap));
+    assert.ok(!/invite|interview|login|admin|party|match|questions/.test(sitemap));
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
@@ -61,4 +76,7 @@ await test("invitation metadata never exposes tokens and metadata text is escape
   assert.ok(seoMarkup("/practice/workspace").includes("Quorem&#39;s coding editor"));
   assert.equal(pageSeo("/practice/").indexable, true);
   assert.equal(pageSeo("/practice/private-question").indexable, false);
+  assert.equal(pageSeo("/match/private-id/review").title, "Match Review - Quorem");
+  assert.equal(pageSeo("/match/private-id/missing").title, "Page not found - Quorem");
+  assert.equal(pageSeo("/privacy/missing").title, "Page not found - Quorem");
 });

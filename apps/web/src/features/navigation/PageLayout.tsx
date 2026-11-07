@@ -49,9 +49,10 @@ export function PageLayout() {
   }, [light, dark]);
   return (
     <div className="page-layout">
-      <PageMetadata />
       <div className="page-content">
-        <Outlet />
+        <PageMetadata>
+          <Outlet />
+        </PageMetadata>
       </div>
       <SiteFooter pathname={pathname} />
     </div>
