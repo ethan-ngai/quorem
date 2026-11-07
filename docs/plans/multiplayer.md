@@ -14,7 +14,7 @@ Persist the visibility policy on the match, show it to both participants before 
 
 ## Lifecycle
 
-waiting → ready → active → finalizing → completed; cancelled for pre-start abandonment. Showdown has two seats and starts when both ready; Free-for-all has up to eight seats and requires an explicit host start with at least two players, all ready. Join and readiness transitions atomic. Server fixes problem version, selected duration, start/deadline. Clients display estimated time from server timestamps; server decides whether submission is eligible. Finalizing represents pending eligible submissions, not permission to accept new work after deadline.
+waiting → ready → active → finalizing → completed; cancelled for pre-start abandonment. Showdown has two seats. Free-for-all supports two to eight players. In a persistent party, the countdown starts when every player is online and ready. Join and readiness transitions atomic. Server fixes problem version, selected duration, start/deadline. Clients display estimated time from server timestamps; server decides whether submission is eligible. Finalizing represents pending eligible submissions, not permission to accept new work after deadline.
 
 Completion transaction updates once and records event. Rank correct submissions by actual database time sampled after taking the match lock and locked total-order sequence. Use `clock_timestamp()`, never transaction-start `now()`. Eligible iff admission is strictly before deadline; exact-deadline/lock-delayed late requests rejected. Equal timestamps ordered by sequence. Test-only random source injectable.
 

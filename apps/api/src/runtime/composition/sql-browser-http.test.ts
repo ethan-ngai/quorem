@@ -60,9 +60,14 @@ void test(
       await json("/v1/presence/heartbeat", bob, { windowId: randomUUID() });
       await json(`/v1/parties/${partyId}/ready`, alice, { ready: true });
       await json(`/v1/parties/${partyId}/ready`, bob, { ready: true });
-      const started = await json(`/v1/parties/${partyId}/start`, alice, {});
-      assert.ok(started.currentMatchId);
-      const match = { id: started.currentMatchId };
+      const deadline = Date.now() + 15000;
+      let matchId: string | undefined;
+      while (!matchId && Date.now() < deadline) {
+        matchId = (await json(`/v1/parties/${partyId}`, alice, undefined, "GET")).currentMatchId;
+        if (!matchId) await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      assert.ok(matchId);
+      const match = { id: matchId };
       const session = await json("/v1/session", bob, undefined, "GET");
       const snapshot = await json(`/v1/matches/${match.id}`, bob, undefined, "GET");
       const own = snapshot.participants.find(

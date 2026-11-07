@@ -94,7 +94,7 @@ function fixture({
             { workspaceId: `33333333-3333-4333-8333-${String(++requests).padStart(12, "0")}` },
           ],
         });
-      if (path.endsWith("/start")) return Response.json({ currentMatchId: room });
+      if (path === `/v1/parties/${room}`) return Response.json({ currentMatchId: room });
       if (path === "/v1/submissions") {
         admissions.push({ at: clock, body: JSON.parse(init.body) });
         return failAdmission

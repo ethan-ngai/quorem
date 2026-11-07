@@ -53,6 +53,7 @@ describe("party cutover", () => {
       ["PUT", "/v1/matches/id/settings"],
       ["POST", "/v1/matches/id/ready"],
       ["POST", "/v1/matches/id/start"],
+      ["POST", "/v1/parties/id/start"],
       ["POST", "/v1/matches/id/rotate-invite"],
       ["POST", "/v1/matches/id/guests/guest/remove"],
     ])
