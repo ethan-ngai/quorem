@@ -20,7 +20,7 @@ import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { socketTarget } from "./worker/socket/target.ts";
 import { installNodeSockets } from "./node/socket/server.ts";
 import { nodeCoordinator } from "../adapters/scheduling/shells.ts";
-import { drainDeadlines } from "../modules/events/scheduling/scheduling.ts";
+import { drainDeadlines, matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
 import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts";
 import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadlines.ts";
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
@@ -273,7 +273,10 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         return admit(request, async () => {
           const peer = validPeer(info.incoming.socket.remoteAddress);
           if (path.startsWith("/internal/runner/") || path.startsWith("/internal/verification/")) {
-            const handlers = await composePrivate(runWith(request.signal), privateConfig(env));
+            const handlers = await composePrivate(runWith(request.signal), {
+              ...privateConfig(env),
+              wakeMatchDeadline: (id) => deadlines.wake(matchDeadlineShard(id, shards)),
+            });
             return privateResponse(
               await (path.startsWith("/internal/runner/")
                 ? handlers.runner(request)

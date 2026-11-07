@@ -1,6 +1,10 @@
 import { requireTeamApproval } from "../../factions/approval.ts";
 import { prepareRuleAction, assertRuleApproval } from "../../matches/rules/actions.ts";
-import { recordRuleEvent } from "../../matches/rules/ledger.ts";
+import {
+  matchSubmissionDeadline,
+  recordRuleEvent,
+  requireSubmissionTime,
+} from "../../matches/rules/ledger.ts";
 import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
 import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
@@ -129,7 +133,11 @@ export async function admitWorkspaceInTransaction(
         admittedAt: string;
         rules: MatchRuleSettings;
       }>(
-        sql`SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,m.state='active' AND m.deadline>clock_timestamp() AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${row.matchId}::uuid`,
+        sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now)
+          SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,
+          m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>sampled.now AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,
+          to_char(sampled.now AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt"
+          FROM matches m JOIN users h ON h.id=m.host_owner_id CROSS JOIN sampled WHERE m.id=${row.matchId}::uuid`,
       )
     ).rows[0];
     if (!match?.enabled) throw failure("not_found", "Workspace not found", 404);
@@ -152,6 +160,14 @@ export async function admitWorkspaceInTransaction(
       rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
         kind: "submission",
       });
+      if (match.rules.victory === "race")
+        await requireSubmissionTime(
+          tx,
+          row.matchId,
+          rulePlan.subject,
+          admissionTime,
+          rulePlan.quote.seconds,
+        );
       if (rulePlan.quote.cooldownSeconds > 0)
         throw failure(
           "submission_cooldown",
@@ -259,7 +275,7 @@ export async function admitWorkspaceInTransaction(
       cost: rulePlan.quote,
       submission: id,
     });
-    await reconcileMatch(tx, row.matchId, { ruleEventAdded: penalized });
+    await reconcileMatch(tx, row.matchId, { publishUpdate: penalized });
   }
   await checkAdmissionCapacity(tx);
   return {

@@ -5,6 +5,7 @@ import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
+import { ScorePenalty } from "./ScorePenalty";
 /** @file MatchPage.tsx @description Match ledger and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
 import { MatchEndView } from "./MatchEndView";
@@ -17,6 +18,7 @@ import {
   type ProblemVersion,
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
+import * as Popover from "../../ui/Popover";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
 import { Icon } from "../../ui/Icon";
@@ -25,12 +27,26 @@ import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
-import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
+import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
+import {
+  outcomeLabel,
+  ownParticipant,
+  remainingTime,
+  submissionTimeEndedLabel,
+} from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
 
 /** @returns A deadline clock anchored to each authoritative server snapshot. */
-function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boolean }) {
+function MatchClock({
+  snapshot,
+  active,
+  penaltySeconds = 0,
+}: {
+  snapshot: MatchSnapshot;
+  active: boolean;
+  penaltySeconds?: number;
+}) {
   const received = useRef({ version: snapshot.serverNow, at: Date.now() });
   const frozen = useRef<string | undefined>(undefined);
   if (active && received.current.version !== snapshot.serverNow)
@@ -38,23 +54,101 @@ function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boo
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
     return () => window.clearInterval(timer);
   }, [active]);
+
+  const deadline = snapshot.submissionDeadline ?? snapshot.deadline;
+  const elapsed = Math.max(0, now - received.current.at);
   const remaining = active
-    ? remainingTime(snapshot.deadline, snapshot.serverNow, Math.max(0, now - received.current.at))
+    ? remainingTime(deadline, snapshot.serverNow, elapsed)
     : (frozen.current ??= remainingTime(
-        snapshot.deadline,
+        deadline,
         snapshot.state === "finalizing"
-          ? (snapshot.deadline ?? snapshot.serverNow)
+          ? (deadline ?? snapshot.serverNow)
           : (snapshot.outcome?.completedAt ?? snapshot.serverNow),
-        0,
       ));
-  return (
-    <span className="match-clock">
+  const showPersonal = active && snapshot.rules.victory === "race" && penaltySeconds > 0;
+  const personalDeadline = showPersonal
+    ? personalSubmissionDeadline(snapshot, penaltySeconds)
+    : undefined;
+  const personal = personalDeadline
+    ? remainingTime(personalDeadline, snapshot.serverNow, elapsed)
+    : undefined;
+  const personalClosed = personal === "00:00";
+  const [dismissedCutoff, setDismissedCutoff] = useState<string>();
+  const cutoffOpen =
+    personalClosed && remaining !== "00:00" && dismissedCutoff !== personalDeadline;
+  const shortenedBy =
+    snapshot.deadline && snapshot.submissionDeadline
+      ? Math.round((Date.parse(snapshot.deadline) - Date.parse(snapshot.submissionDeadline)) / 1000)
+      : 0;
+  const shortened = shortenedBy > 0;
+  const global = (
+    <span className="match-clock" data-shortened={shortened} tabIndex={shortened ? 0 : undefined}>
       <Icon name="clock" />
+      {(showPersonal || shortened) && <span className="match-clock-label">Match</span>}
       {remaining}
+      {shortened && (
+        <span className="match-clock-label">−{formatPenaltyDuration(shortenedBy)}</span>
+      )}
     </span>
+  );
+
+  return (
+    <div className="match-timers">
+      {personal && (
+        <Popover.Root
+          open={cutoffOpen}
+          onOpenChange={(open) => {
+            if (!open) setDismissedCutoff(personalDeadline);
+          }}
+        >
+          <Tooltip content={submissionTimeEndedLabel} disabled={!personalClosed}>
+            <Popover.Anchor asChild>
+              <span
+                className="match-clock match-clock-personal"
+                data-closed={personalClosed}
+                tabIndex={personalClosed ? 0 : undefined}
+              >
+                <span className="match-clock-label">Submit</span>
+                {personal}
+              </span>
+            </Popover.Anchor>
+          </Tooltip>
+          {cutoffOpen && (
+            <Popover.Portal>
+              <Popover.Content
+                className="match-cutoff-popover"
+                aria-label={submissionTimeEndedLabel}
+                align="end"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                <div role="alert">
+                  <strong>{submissionTimeEndedLabel}</strong>
+                  <p>You can still run tests until the match ends.</p>
+                </div>
+                <Popover.Close asChild>
+                  <button type="button" className="icon-button" aria-label="Dismiss cutoff notice">
+                    <Icon name="close" />
+                  </button>
+                </Popover.Close>
+              </Popover.Content>
+            </Popover.Portal>
+          )}
+        </Popover.Root>
+      )}
+      {shortened ? (
+        <Tooltip
+          content={`Match closes ${formatPenaltyDuration(shortenedBy)} early when the last submission window ends.`}
+        >
+          {global}
+        </Tooltip>
+      ) : (
+        global
+      )}
+    </div>
   );
 }
 
@@ -113,6 +207,7 @@ function MatchLedger({
           {snapshot.startedAt && (
             <MatchClock
               snapshot={snapshot}
+              penaltySeconds={own?.penaltySeconds}
               active={snapshot.state === "active" && !own?.forfeited}
             />
           )}
@@ -161,11 +256,9 @@ function MatchLedger({
             </span>
           )}
           {!!player?.penaltySeconds && (
-            <span className="score-judging">+{player.penaltySeconds}s</span>
+            <ScorePenalty unit="seconds" value={player.penaltySeconds} />
           )}
-          {!!player?.penaltyPoints && (
-            <span className="score-judging">−{player.penaltyPoints} points</span>
-          )}
+          {!!player?.penaltyPoints && <ScorePenalty unit="points" value={player.penaltyPoints} />}
           {player?.eligibleFinishAt && snapshot.state === "active" && (
             <span className="score-judging">
               Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}

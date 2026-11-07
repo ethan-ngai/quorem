@@ -19,6 +19,11 @@ export interface Receipts {
 }
 export type Reconcile = (candidate: DeadlineCandidate) => Promise<void>;
 
+/** @returns The same match shard used by PostgreSQL deadline discovery. */
+export function matchDeadlineShard(id: string, shards: number) {
+  return parseInt(id.slice(0, 8), 16) % shards;
+}
+
 /** The activation consumes its receipt inside its own transaction. */
 export async function activateDeadline<T>(
   receipts: Receipts,

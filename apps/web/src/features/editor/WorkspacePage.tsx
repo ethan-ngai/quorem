@@ -6,7 +6,13 @@ import {
 } from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
 import type { RuleActionQuote } from "@quorem/contracts/match-rules";
-import { matchCompletionOutcome } from "../matches/matchState";
+import {
+  matchCompletionOutcome,
+  ownParticipant,
+  submissionTimeEndedLabel,
+} from "../matches/matchState";
+import { personalSubmissionDeadline } from "../matches/matchTime";
+import { useSubmissionTimeEnded } from "../matches/useSubmissionTimeEnded";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
 import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences";
@@ -233,6 +239,17 @@ export function WorkspacePage({
     workspaceQuery.data,
   ]);
 
+  const matchDeadline = match && !review ? (match.submissionDeadline ?? match.deadline) : undefined;
+  const personalDeadline =
+    match && !review
+      ? personalSubmissionDeadline(match, ownParticipant(match, identity)?.penaltySeconds)
+      : undefined;
+  const matchTimeEnded = useSubmissionTimeEnded(match?.serverNow, matchDeadline);
+  const personalTimeEnded = useSubmissionTimeEnded(
+    match?.serverNow,
+    personalDeadline === matchDeadline ? undefined : personalDeadline,
+  );
+  const submitClosed = matchTimeEnded || personalTimeEnded;
   const frozenMatch =
     !!match &&
     !review &&
@@ -454,6 +471,7 @@ export function WorkspacePage({
       .finally(() => setLanguageSwitching(false));
   };
   const run = useCallback(async () => {
+    if (matchTimeEnded) return;
     if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
@@ -461,14 +479,14 @@ export function WorkspacePage({
     }
     setActivePanel("results");
     await execution.run();
-  }, [execution.run, account.data, match]);
+  }, [execution.run, account.data, match, matchTimeEnded]);
   const submit = useCallback(async () => {
     if (!account.data || (account.data.kind === "guest" && !match)) {
       signInPromptOrigin.current = document.activeElement as HTMLElement | null;
       setSignInPrompt(true);
       return;
     }
-    if (quotingSubmission || submissionConfirmation) return;
+    if (submitClosed || quotingSubmission || submissionConfirmation) return;
     setActivePanel("results");
     if (match && !review) {
       setQuotingSubmission(true);
@@ -496,6 +514,7 @@ export function WorkspacePage({
     match,
     review,
     identity,
+    submitClosed,
     quotingSubmission,
     submissionConfirmation,
     sharedDocument,
@@ -939,10 +958,14 @@ export function WorkspacePage({
         actions={
           <>
             <ExecutionActions
+              submitDisabledReason={submitClosed ? submissionTimeEndedLabel : undefined}
               disabled={
-                submissionBusy || (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
+                submitClosed ||
+                submissionBusy ||
+                (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
               }
               runDisabled={
+                matchTimeEnded ||
                 (submissionBusy && !execution.canReplaceRun) ||
                 (serverWorkspace ? !actionsEnabled : loading || languageSwitching)
               }
@@ -983,7 +1006,11 @@ export function WorkspacePage({
           }}
           pending={execution.admissionPending}
           title="Submit with penalty?"
-          description={`Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`}
+          description={
+            submitClosed
+              ? "Your submission window has closed."
+              : `Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`
+          }
         >
           <div className="competitive-dialog-actions">
             <button
@@ -995,9 +1022,9 @@ export function WorkspacePage({
             </button>
             <button
               className="button button-primary"
-              disabled={execution.admissionPending}
+              disabled={execution.admissionPending || submitClosed}
               onClick={async () => {
-                if (!submissionConfirmation) return;
+                if (!submissionConfirmation || submitClosed) return;
                 if (
                   await execution.submit(
                     submissionConfirmation.quote,

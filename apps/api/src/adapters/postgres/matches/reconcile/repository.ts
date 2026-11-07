@@ -1,6 +1,6 @@
 /** @file repository.ts @description Atomic PostgreSQL match reconciliation. @module matches */
 import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
-import { effectiveEvent } from "../rules/ledger.ts";
+import { effectiveEvent, matchSubmissionDeadline } from "../rules/ledger.ts";
 import { reviewPending } from "../review/pending.ts";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -14,6 +14,7 @@ type MatchRow = {
   started: boolean;
   expired: boolean;
   deadline: string | null;
+  submissionDeadline: string | null;
   finalizing: string | null;
   now: string;
   outcome: unknown;
@@ -42,7 +43,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function reconcileMatch(
   tx: Transaction,
   id: string,
-  { ruleEventAdded = false } = {},
+  { publishUpdate = false } = {},
 ): Promise<void> {
   if (!uuid.test(id)) throw new ApplicationError("not_found", "Match not found", 404);
   // Sample only after the aggregate lock, including after a long lock wait.
@@ -50,7 +51,7 @@ export async function reconcileMatch(
   if (!locked.rows.length) throw new ApplicationError("not_found", "Match not found", 404);
   const match = (
     await tx.execute<MatchRow>(
-      sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now) SELECT id::text,state,started_at IS NOT NULL AS started,expires_at<=sampled.now AS expired,${timestamp(sql`deadline`)} AS deadline,${timestamp(sql`finalizing_at`)} AS finalizing,${timestamp(sql`sampled.now`)} AS now,outcome,rules FROM matches,sampled WHERE id=${id}::uuid`,
+      sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now) SELECT m.id::text,m.state,m.started_at IS NOT NULL AS started,m.expires_at<=sampled.now AS expired,${timestamp(sql`m.deadline`)} AS deadline,${timestamp(matchSubmissionDeadline(sql`m`))} AS "submissionDeadline",${timestamp(sql`m.finalizing_at`)} AS finalizing,${timestamp(sql`sampled.now`)} AS now,m.outcome,m.rules FROM matches m,sampled WHERE m.id=${id}::uuid`,
     )
   ).rows[0];
   if (!match || match.outcome !== null) return;
@@ -130,7 +131,11 @@ export async function reconcileMatch(
     match.finalizing === null ? null : BigInt(match.finalizing),
     [...new Set(people.map((p) => p.subject))],
     submissions,
-    { victory: match.rules.victory, penalties: new Map(people.map((p) => [p.subject, p.points])) },
+    {
+      victory: match.rules.victory,
+      penalties: new Map(people.map((p) => [p.subject, p.points])),
+      submissionDeadline: BigInt(match.submissionDeadline ?? match.deadline),
+    },
   );
   let changed = false;
   for (const p of people) {
@@ -165,7 +170,7 @@ export async function reconcileMatch(
     );
     changed = true;
   }
-  if (changed || ruleEventAdded)
+  if (changed || publishUpdate)
     await matchEvent(tx, id, decision.outcome ? "match.completed" : "match.updated");
 }
 /** Caller holds the match lock and emits the versioned notice. */
@@ -222,7 +227,8 @@ export async function reconcileScheduledMatch(
   if (!uuid.test(id)) return;
   const locked = await tx.execute(sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE`);
   if (!locked.rows.length) return;
-  await reconcileMatch(tx, id);
+  // A submission transition can settle or refund a charge without changing standings.
+  await reconcileMatch(tx, id, { publishUpdate: generation !== null });
   await tx.execute(sql`UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=${id}::uuid`);
   if (generation !== null) {
     if (!/^\d+$/.test(generation)) throw new Error("Invalid reconciliation generation");

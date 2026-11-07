@@ -1,6 +1,7 @@
 import { matchCompetitors, isMatchWinner } from "./competitors";
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { ParticipantName } from "../collaboration/ParticipantName";
+import { ScorePenalty } from "./ScorePenalty";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { MatchCompletionActions } from "./MatchCompletionActions";
@@ -161,11 +162,11 @@ export function MatchEndView({
       Number(a.forfeited) - Number(b.forfeited) ||
       (b.adjustedScore ?? b.bestScore?.passed ?? 0) - (a.adjustedScore ?? a.bestScore?.passed ?? 0),
   );
+  const checkingParty = partyQuery.isPending || (partyQuery.isFetching && !candidateParty);
+  const highScore = snapshot.rules?.victory === "high_score";
   const partyStatus = (
-    <div className="match-party-status">
-      {(partyQuery.isPending || (partyQuery.isFetching && !candidateParty)) && (
-        <span role="status">Checking lobby…</span>
-      )}
+    <div className="match-party-status" hidden={!checkingParty && !partyQuery.isError}>
+      {checkingParty && <span role="status">Checking lobby…</span>}
       <PersistentNotice
         message={partyQuery.isError ? "Could not check your lobby. Try again." : undefined}
         label="Lobby unavailable"
@@ -202,20 +203,22 @@ export function MatchEndView({
                 member={party.members.find((member) => member.userId === player.userId)}
               />
             )}
-            {!player.forfeited && snapshot.rules?.victory === "high_score" && (
-              <span>
-                {player.adjustedScore ?? player.bestScore?.passed ?? 0} points · −
-                {player.penaltyPoints ?? 0} penalty
-              </span>
+            {!player.forfeited && highScore && (
+              <span>{player.adjustedScore ?? player.bestScore?.passed ?? 0} points</span>
             )}
-            {!player.forfeited &&
-              snapshot.rules?.victory !== "high_score" &&
-              !!player.penaltySeconds && <span>+{player.penaltySeconds}s penalty</span>}
-            <ScoreProgress
-              score={player.forfeited ? undefined : player.bestScore}
-              color={participantColor(player.userId, player.color)}
-              unavailableLabel={player.forfeited ? "Forfeited" : undefined}
-            />
+            <span className="match-result-score-stack">
+              <ScoreProgress
+                score={player.forfeited ? undefined : player.bestScore}
+                color={participantColor(player.userId, player.color)}
+                unavailableLabel={player.forfeited ? "Forfeited" : undefined}
+              />
+              {!player.forfeited && highScore && !!player.penaltyPoints && (
+                <ScorePenalty unit="points" value={player.penaltyPoints} />
+              )}
+              {!player.forfeited && !highScore && !!player.penaltySeconds && (
+                <ScorePenalty unit="seconds" value={player.penaltySeconds} />
+              )}
+            </span>
           </span>
         </li>
       ))}

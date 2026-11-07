@@ -1049,6 +1049,78 @@ async function activateRulesRoom(room: Awaited<ReturnType<typeof rulesRoom>>) {
     true,
   )) as import("@quorem/contracts").MatchSnapshot;
 }
+void test("closes personal admission and schedules the race at the last settled cutoff", async () => {
+  const { postgresWorkspaceAdmission } = await import("../../judging/admission/repository.ts");
+  const { parseWorkspaceCommand } =
+    await import("../../../../modules/judging/admission/command.ts");
+  const { ruleApproval } = await import("@quorem/contracts/match-rules");
+  const room = await rulesRoom();
+  await activateRulesRoom(room);
+  for (const [player, kind] of [
+    [room.actor, "complexity"],
+    [room.peer, "topics"],
+  ] as const) {
+    const { quote } = await repo.ruleAction(player, room.id, "quote", { kind });
+    await repo.ruleAction(player, room.id, "reveal", { kind, approval: ruleApproval(quote) });
+  }
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+interval '45 seconds' WHERE id=$1",
+    [room.id],
+  );
+  const snapshot = (await repo.read(
+    room.actor,
+    room.id,
+  )) as import("@quorem/contracts").MatchSnapshot;
+  assert.equal(snapshot.state, "active");
+  assert.equal(Date.parse(snapshot.deadline!) - Date.parse(snapshot.submissionDeadline!), 30_000);
+  const workspaceId = snapshot.participants.find((p) => p.workspaceId)!.workspaceId;
+  const admit = postgresWorkspaceAdmission(run, { losslessCases: true, guestExecution: true });
+  const command = await parseWorkspaceCommand(
+    JSON.stringify({
+      workspaceId,
+      kind: "submit",
+      source: "class Solution:\n def f(self,x): return x",
+    }),
+    "late",
+  );
+  await assert.rejects(
+    admit(room.actor, "late", command, { receiptId: null, shard: 0, jobId: crypto.randomUUID() }),
+    /Your submission time has ended/,
+  );
+  const runCommand = await parseWorkspaceCommand(
+    JSON.stringify({
+      workspaceId,
+      kind: "run",
+      source: "class Solution:\n def f(self,x): return x",
+    }),
+    "can-run",
+  );
+  const admittedRun = await admit(room.actor, "can-run", runCommand, {
+    receiptId: null,
+    shard: 0,
+    jobId: crypto.randomUUID(),
+  });
+  assert.equal(admittedRun.state, "queued");
+  await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [
+    admittedRun.id,
+  ]);
+  await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [admittedRun.id]);
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+interval '20 seconds' WHERE id=$1",
+    [room.id],
+  );
+  const candidate = (await deadlines.candidates(0, 1, 64)).find((row) => row.id === room.id);
+  assert.ok(candidate);
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
+      reconcileScheduledMatch(tx, candidate.id, candidate.generation),
+    ),
+  );
+  const final = (await repo.read(room.actor, room.id)) as import("@quorem/contracts").MatchSnapshot;
+  assert.equal(final.state, "completed");
+  assert.equal(final.outcome?.reason, "deadline_score");
+  assert.ok(Date.parse(final.outcome!.completedAt) < Date.parse(final.deadline!));
+});
 void test("paid assistance confirms exact cost, grants once, shares penalties, and rejects forbidden reveals", async () => {
   const room = await rulesRoom();
   await pool.query("UPDATE match_participants SET competitor_id='team:1' WHERE match_id=$1", [
@@ -1167,6 +1239,7 @@ void test("paid submission admission binds approval, cooldown and failed-job ref
   const { ruleApproval } = await import("@quorem/contracts/match-rules");
   const rules = matchPreset("strict");
   rules.submissions.freeSubmissions = 0;
+  rules.submissions.seconds = 45;
   const room = await rulesRoom(rules);
   await activateRulesRoom(room);
   const workspace = (
@@ -1221,10 +1294,29 @@ void test("paid submission admission binds approval, cooldown and failed-job ref
     room.actor,
     room.id,
   )) as import("@quorem/contracts").MatchSnapshot;
-  assert.equal(snapshot.participants.find((p) => p.penaltySeconds === 10)?.penaltySeconds, 10);
+  assert.equal(snapshot.participants.find((p) => p.penaltySeconds === 45)?.penaltySeconds, 45);
   assert.deepEqual(
     snapshot.ruleEvents.map(({ kind, action, seconds }) => [kind, action, seconds]),
-    [["submission", "penalty", 10]],
+    [["submission", "penalty", 45]],
+  );
+  const peerQuote = await repo.ruleAction(room.peer, room.id, "topics-quote", { kind: "topics" });
+  await repo.ruleAction(room.peer, room.id, "topics-reveal", {
+    kind: "topics",
+    approval: ruleApproval(peerQuote.quote),
+  });
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+interval '20 seconds' WHERE id=$1",
+    [room.id],
+  );
+  const awaitingRefund = (await repo.read(
+    room.actor,
+    room.id,
+  )) as import("@quorem/contracts").MatchSnapshot;
+  assert.equal(awaitingRefund.state, "active");
+  assert.equal(awaitingRefund.submissionDeadline, undefined);
+  assert.equal(
+    (await deadlines.candidates(0, 1, 64)).some((row) => row.id === room.id),
+    false,
   );
   await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [admitted.id]);
   await pool.query("UPDATE submissions SET state='failed' WHERE id=$1", [admitted.id]);
@@ -1234,8 +1326,12 @@ void test("paid submission admission binds approval, cooldown and failed-job ref
     room.actor,
     room.id,
   )) as import("@quorem/contracts").MatchSnapshot;
-  assert.ok(refunded.participants.every((p) => p.penaltySeconds === 0));
-  assert.equal(refunded.ruleEvents.length, 0);
+  assert.equal(refunded.state, "active");
+  assert.equal(refunded.participants.find((p) => p.workspaceId)?.penaltySeconds, 0);
+  assert.equal(
+    refunded.ruleEvents.some((event) => event.kind === "submission"),
+    false,
+  );
 });
 for (const accepted of [false, true])
   void test(`${accepted ? "passed" : "failed"} hidden reveal exposes only its sealed input and result after approval`, async () => {
