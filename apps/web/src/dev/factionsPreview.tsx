@@ -1,3 +1,4 @@
+import { resizeFactionFixture, saveFixtureSettings } from "./factionLobbyFixture";
 import { useState } from "react";
 import { TeamVoteToast } from "../features/factions/TeamVoteToast";
 import type { TeamVote } from "@quorem/contracts/factions";
@@ -69,6 +70,10 @@ window.fetch = async (url, options) => {
   if (path.endsWith("/teams")) {
     if (request.method === "POST") {
       const b = await request.json();
+      if (b.action === "rename")
+        teams.names = Array.from({ length: teams.teamCount }, (_, i) =>
+          i + 1 === b.team ? b.name : (teams.names?.[i] ?? `Faction ${i + 1}`),
+        );
       if (b.action === "assign")
         teams = {
           ...teams,
@@ -76,7 +81,7 @@ window.fetch = async (url, options) => {
             m.userId === b.userId ? { ...m, team: b.team } : m,
           ),
         };
-      if (b.action === "count") teams = { ...teams, teamCount: b.count };
+      teams = resizeFactionFixture(teams, b.action, b.team);
       if (b.action === "balance")
         teams = {
           ...teams,
@@ -90,7 +95,7 @@ window.fetch = async (url, options) => {
     const b = await request.json();
     party.members[0]!.ready = b.ready;
   }
-  if (path.endsWith("/settings")) party.settings = await request.json();
+  if (path.endsWith("/settings")) return reply(saveFixtureSettings(party, await request.json()));
   return reply({ party });
 };
 const client = new QueryClient();
@@ -123,7 +128,7 @@ function Preview() {
             })
           }
         >
-          Preview team vote
+          Preview faction vote
         </button>
         {vote && (
           <TeamVoteToast

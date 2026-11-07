@@ -1,4 +1,5 @@
 /** @file ParticipantName.tsx @description Shared participant photo, identity color and name. @module collaboration */
+import type { ReactNode } from "react";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { SelfIndicator } from "../../ui/SelfIndicator";
 import { participantColor } from "./participantColor";
@@ -15,10 +16,14 @@ export function ParticipantName({
   participant,
   label,
   self = false,
+  nameAdornment,
+  nameSuffix,
 }: {
   participant: ParticipantIdentity;
   label?: string;
   self?: boolean;
+  nameAdornment?: ReactNode;
+  nameSuffix?: ReactNode;
 }) {
   return (
     <span className="participant-name">
@@ -29,8 +34,12 @@ export function ParticipantName({
         outline
       />
       <span className="participant-name-text">
-        <span>{label ?? participant.displayName}</span>
+        <span className="participant-name-label">
+          {label ?? participant.displayName}
+          {nameAdornment && <span className="participant-name-adornment">{nameAdornment}</span>}
+        </span>
         {self && <SelfIndicator />}
+        {nameSuffix}
       </span>
     </span>
   );

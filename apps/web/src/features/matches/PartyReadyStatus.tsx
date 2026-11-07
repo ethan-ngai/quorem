@@ -2,6 +2,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
+import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import type { PartyMember } from "@quorem/contracts";
@@ -9,7 +10,7 @@ import "./party-ready.css";
 
 type ReadyMember = Pick<
   PartyMember,
-  "userId" | "displayName" | "ready" | "online" | "image" | "color"
+  "userId" | "displayName" | "ready" | "online" | "image" | "color" | "previousWinner"
 >;
 
 export function PartyReadinessIndicator({
@@ -65,15 +66,21 @@ export function PartyMemberReadiness({
       aria-label="Lobby readiness"
     >
       {members.map((member) => (
-        <li key={member.userId}>
-          <ParticipantName participant={member} self={member.userId === ownUserId} />
-          {hostUserId && member.userId === hostUserId && (
-            <Tooltip content="Host">
-              <span role="img" aria-label="Host" tabIndex={0}>
-                <Crown size={14} aria-hidden="true" />
-              </span>
-            </Tooltip>
-          )}
+        <li key={member.userId} className="action-reveal-group">
+          <ParticipantName
+            participant={member}
+            self={member.userId === ownUserId}
+            nameSuffix={member.previousWinner && <MatchWinnerMetadata previous />}
+            nameAdornment={
+              hostUserId && member.userId === hostUserId ? (
+                <Tooltip content="Lobby host">
+                  <span role="img" aria-label="Lobby host" tabIndex={0}>
+                    <Crown size={12} aria-hidden="true" />
+                  </span>
+                </Tooltip>
+              ) : undefined
+            }
+          />
           <PartyReadinessIndicator member={member} />
           {actions?.(member)}
         </li>

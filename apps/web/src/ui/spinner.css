@@ -1,0 +1,19 @@
+.ui-spinner {
+  flex-shrink: 0;
+  margin-inline: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-spinner {
+    animation: ui-spinner-turn 800ms linear infinite paused;
+  }
+  .ui-spinner[data-active="true"] {
+    animation-play-state: running;
+  }
+
+  @keyframes ui-spinner-turn {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+}

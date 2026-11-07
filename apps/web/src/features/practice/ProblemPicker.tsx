@@ -1,11 +1,9 @@
 import { Disclosure } from "../../ui/Disclosure";
-import { useServerTable } from "../../ui/useServerTable";
-import { TablePagination } from "../../ui/TableControls";
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
 import * as Popover from "../../ui/Popover";
 import { useId, useRef, useState } from "react";
 import { AlertCircle, Dices } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 import { CatalogFilters } from "./CatalogFilters";
@@ -17,7 +15,7 @@ import { Icon } from "../../ui/Icon";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
 
-const pickerColumns = [{ accessorKey: "title" }];
+const pageSize = 30;
 
 export function ProblemPicker({
   items,
@@ -51,17 +49,16 @@ export function ProblemPicker({
   const [search, setSearch] = useState("");
   const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
   const filters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(100);
   const allowed = difficulties?.join(",");
   const selectedDifficulties = filters.difficulty
     ?.split(",")
     .filter((value) => !difficulties || difficulties.includes(value));
   const noAllowedDifficulty = !!filters.difficulty && selectedDifficulties?.length === 0;
-  const catalog = useQuery({
-    queryKey: ["picker-catalog", identity, library, search, filters, allowed, page, limit],
+  const catalog = useInfiniteQuery({
+    queryKey: ["picker-catalog-infinite", identity, library, search, filters, allowed],
+    initialPageParam: 1,
     enabled: open && !noAllowedDifficulty,
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
         params: {
           query: {
@@ -70,13 +67,17 @@ export function ProblemPicker({
             q: search.trim() || undefined,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
-            page,
-            limit,
+            page: pageParam,
+            limit: pageSize,
           },
         },
       });
       return requireData(data, error);
     },
+    getNextPageParam: (last, pages) =>
+      pages.reduce((count, page) => count + page.items.length, 0) < last.total && last.items.length
+        ? pages.length + 1
+        : undefined,
   });
   const randomPool = useQuery({
     queryKey: ["random-pool", identity, library, filters, allowed],
@@ -108,7 +109,6 @@ export function ProblemPicker({
   const update = (change: Partial<CatalogSearch>) => {
     if (onFiltersChange) onFiltersChange({ ...filters, ...change });
     else setLocalFilters((current) => ({ ...current, ...change }));
-    setPage(1);
   };
   const facets = useQuery({
     queryKey: ["picker-facets", identity, library],
@@ -126,25 +126,21 @@ export function ProblemPicker({
   const input = useRef<HTMLInputElement>(null);
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
-  const filtered = noAllowedDifficulty ? [] : (catalog.data?.items ?? []);
-  const table = useServerTable({
-    data: filtered,
-    columns: pickerColumns,
-    total: noAllowedDifficulty ? 0 : catalog.data?.total,
-    loading: catalog.isFetching,
-    state: { page, limit, sort: "title", order: "asc" },
-    onChange: (next) => {
-      setPage(next.page);
-      setLimit(next.limit);
-    },
-  });
+  const filtered = noAllowedDifficulty
+    ? []
+    : (catalog.data?.pages.flatMap((page) => page.items) ?? []);
+  const loadMore = () => {
+    if (catalog.hasNextPage && !catalog.isFetching && !catalog.isFetchNextPageError)
+      void catalog.fetchNextPage({ cancelRefetch: false });
+  };
   function choose(id: string | undefined) {
+    setOpen(false);
+    if (id === value) return;
     setChosen(filtered.find((item) => item.id === id) ?? items.find((item) => item.id === id));
     onChange(
       id,
       filtered.find((item) => item.id === id),
     );
-    setOpen(false);
   }
   const filterControls = (
     <fieldset
@@ -169,7 +165,6 @@ export function ProblemPicker({
           setOpen(value);
           if (value) {
             setSearch("");
-            setPage(1);
           }
         }}
       >
@@ -228,10 +223,18 @@ export function ProblemPicker({
               maxLength={120}
               onChange={(event) => {
                 setSearch(event.target.value);
-                setPage(1);
               }}
             />
-            <div className="problem-picker-results" role="group" aria-label="Matching problems">
+            <div
+              key={JSON.stringify([search, filters, allowed])}
+              className="problem-picker-results"
+              role="group"
+              aria-label="Matching problems"
+              onScroll={(event) => {
+                const list = event.currentTarget;
+                if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) loadMore();
+              }}
+            >
               {allowRandom && (
                 <button
                   type="button"
@@ -259,14 +262,36 @@ export function ProblemPicker({
                 </button>
               ))}
               {catalog.isError ? (
-                <p role="alert">Questions unavailable. Please try again.</p>
+                <div role="alert">
+                  <p>
+                    {filtered.length ? "Could not load more questions." : "Questions unavailable."}
+                  </p>
+                  <button
+                    type="button"
+                    className="quiet-button"
+                    onClick={() =>
+                      void (catalog.isFetchNextPageError
+                        ? catalog.fetchNextPage({ cancelRefetch: false })
+                        : catalog.refetch())
+                    }
+                  >
+                    Retry
+                  </button>
+                </div>
               ) : catalog.isFetching ? (
                 <p role="status">Loading questions…</p>
-              ) : (
-                !filtered.length && <p role="status">No matching problems</p>
-              )}
+              ) : !filtered.length ? (
+                <p role="status">No matching problems</p>
+              ) : catalog.hasNextPage ? (
+                <button
+                  type="button"
+                  className="quiet-button"
+                  onClick={() => void catalog.fetchNextPage({ cancelRefetch: false })}
+                >
+                  Load more questions
+                </button>
+              ) : null}
             </div>
-            <TablePagination table={table} disabled={catalog.isPending || noAllowedDifficulty} />
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

@@ -1,3 +1,4 @@
+import { resizeFactionFixture, saveFixtureSettings } from "./factionLobbyFixture";
 /** Local fixture: real lobby components, simulated membership and settings. */
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -44,17 +45,37 @@ const party: PartySnapshot = {
   },
 };
 const preview = new URLSearchParams(location.search);
+if (preview.has("factions") || preview.has("locked")) party.settings.mode = "factions";
+if (preview.has("locked")) {
+  party.settings.admissionLocked = true;
+  party.settings.factionChangesLocked = true;
+}
+if (preview.has("ready"))
+  party.members.forEach((member) => {
+    member.ready = true;
+  });
 const identity = preview.get("viewer") === "jamie" ? "jamie" : "alex";
 let teams: TeamLobby = {
   teamCount: 2,
   assignments: party.members.map((member, i) => ({ userId: member.userId, team: (i % 2) + 1 })),
 };
+if (preview.has("empty")) teams.teamCount = 3;
+const previousMode = preview.get("previous");
+if (previousMode) {
+  party.latestMatchId = "previous-match";
+  party.members.forEach((member, index) => {
+    member.previousWinner =
+      previousMode === "factions" ? index % 2 === 0 : member.userId === "jamie";
+  });
+}
 window.fetch = async (url, options) => {
   const request = new Request(
     new URL(url instanceof Request ? url.url : String(url), location.origin),
     url instanceof Request ? url : options,
   );
   const path = new URL(request.url).pathname;
+  if (preview.has("slow") && request.method !== "GET")
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   const reply = (value: unknown) =>
     new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
   if (path === "/api/auth/token") return new Response("", { status: 401 });
@@ -70,27 +91,35 @@ window.fetch = async (url, options) => {
       },
     });
   if (path === "/v1/matches/current") return reply(null);
-  if (path === "/v1/problems")
+  if (path === "/v1/problems") {
+    const params = new URL(request.url).searchParams;
+    const page = Number(params.get("page") ?? 1);
+    const limit = Number(params.get("limit") ?? 30);
+    const items = Array.from({ length: 75 }, (_, index) => ({
+      id: index === 0 ? "example" : `fixture-${index}`,
+      title: index === 0 ? "Two Sum" : `Example question ${String(index + 1).padStart(2, "0")}`,
+      difficulty: "easy",
+    })).filter((item) => item.title.toLowerCase().includes((params.get("q") ?? "").toLowerCase()));
     return reply({
-      items: [{ id: "example", title: "Two Sum", difficulty: "easy" }],
-      total: 1,
+      items: items.slice((page - 1) * limit, page * limit),
+      total: items.length,
       topics: ["arrays"],
       companies: [],
     });
+  }
   if (path.endsWith("/teams")) {
     if (request.method === "POST") {
       const body = await request.json();
+      if (body.action === "lock") party.settings.factionChangesLocked = body.locked;
+      if (body.action === "rename")
+        teams.names = Array.from({ length: teams.teamCount }, (_, i) =>
+          i + 1 === body.team ? body.name : (teams.names?.[i] ?? `Faction ${i + 1}`),
+        );
       if (body.action === "assign")
         teams.assignments = teams.assignments.map((member) =>
           member.userId === body.userId ? { ...member, team: body.team } : member,
         );
-      if (body.action === "count") {
-        teams.teamCount = body.count;
-        teams.assignments = teams.assignments.map((member) => ({
-          ...member,
-          team: member.team && member.team > body.count ? null : member.team,
-        }));
-      }
+      teams = resizeFactionFixture(teams, body.action, body.team);
       if (body.action === "balance")
         teams.assignments = teams.assignments.map((member, i) => ({
           ...member,
@@ -100,13 +129,19 @@ window.fetch = async (url, options) => {
     }
     return reply(teams);
   }
+  if (path.endsWith("/kick")) {
+    const { userId } = await request.json();
+    party.members = party.members.filter((member) => member.userId !== userId);
+    teams.assignments = teams.assignments.filter((member) => member.userId !== userId);
+    party.members.forEach((member) => (member.ready = false));
+  }
   if (path.endsWith("/ready"))
     party.members.find((member) => member.userId === identity)!.ready = (
       await request.json()
     ).ready;
   if (path.endsWith("/settings")) {
-    party.settings = await request.json();
-    party.members.forEach((member) => (member.ready = false));
+    if (preview.has("reject-settings")) return new Response("", { status: 409 });
+    return reply(saveFixtureSettings(party, await request.json()));
   }
   return reply({ party: preview.has("create") ? null : party });
 };

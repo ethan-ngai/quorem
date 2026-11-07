@@ -184,15 +184,8 @@ async function streamSnapshot(
       if (header && !["completed", "failed", "cancelled"].includes(row.state))
         throw new Error("Result is not terminal");
       const value = snapshot({ ...row, result: header?.data ?? null }, !interviewId);
-      const aggregate =
-        row.match &&
-        row.kind === "submit" &&
-        (
-          await tx.execute(
-            sql`SELECT 1 FROM matches WHERE id=${row.match}::uuid AND rules->>'feedback'='aggregate'`,
-          )
-        ).rows.length > 0;
-      if (aggregate) delete value.hiddenCases;
+      const matchSubmission = !!row.match && row.kind === "submit";
+      if (matchSubmission) delete value.hiddenCases;
       const hidden = Array.isArray(value.hiddenCases) ? value.hiddenCases : [];
       let hiddenCount = hidden.length;
       const headerFields: Record<string, string> = {};
@@ -331,7 +324,7 @@ async function streamSnapshot(
       }
       return {
         row,
-        aggregate,
+        matchSubmission,
         value,
         access,
         count,
@@ -415,7 +408,7 @@ async function streamSnapshot(
     for (const field of ["verdict", "infrastructureError", "hiddenCases", "diagnostics"]) {
       if (
         !prepared.headerFields[field] ||
-        (prepared.aggregate && field === "hiddenCases") ||
+        (prepared.matchSubmission && field === "hiddenCases") ||
         (prepared.row.interview &&
           (!interviewId || prepared.access?.role !== "interviewer") &&
           prepared.row.kind === "submit" &&

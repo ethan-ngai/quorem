@@ -1,3 +1,5 @@
+import { teamLobby } from "../factions/lobby.ts";
+import { requireReadyTeams } from "../../../modules/factions/policy.ts";
 /** @file repository.ts @description Transactional party commands and snapshots. @module parties */
 import { sql } from "drizzle-orm";
 import {
@@ -315,7 +317,8 @@ export function partyRepository(
               (p.settings.rules.settingsEditors !== "everyone" ||
                 s.rules.settingsEditors !== p.settings.rules.settingsEditors ||
                 s.accessMode !== p.settings.accessMode ||
-                s.admissionLocked !== p.settings.admissionLocked)
+                s.admissionLocked !== p.settings.admissionLocked ||
+                !!s.factionChangesLocked !== !!p.settings.factionChangesLocked)
             )
               throw new ApplicationError(
                 "forbidden",
@@ -361,6 +364,10 @@ export function partyRepository(
           } else if (action === "ready") {
             if (typeof body !== "boolean") throw conflict("Ready is required");
             if (p.current) throw conflict("A round is active");
+            if (body && p.settings.mode === "factions") {
+              const lobby = await teamLobby(tx, id);
+              requireReadyTeams(lobby.assignments, lobby.teamCount);
+            }
             const changed = await tx.execute(
               sql`UPDATE party_members SET ready=${body} WHERE party_id=${id}::uuid AND owner_id=${who.userId} AND ready IS DISTINCT FROM ${body} RETURNING owner_id`,
             );
@@ -382,6 +389,18 @@ export function partyRepository(
                 throw conflict("Party is updating. Try again.");
               throw error;
             }
+          } else if (action === "kick") {
+            if (p.host !== who.userId)
+              throw new ApplicationError("forbidden", "Only the host can remove players", 403);
+            if (p.current) throw conflict("Cannot remove players during a round");
+            if (typeof body !== "string") throw conflict("User is required");
+            const removed = await tx.execute(sql`
+              DELETE FROM party_members pm USING users u
+              WHERE pm.party_id=${id}::uuid AND pm.owner_id=u.id
+                AND u.participant_id::text=${body} AND pm.owner_id<>${who.userId}
+              RETURNING pm.owner_id`);
+            if (!removed.rows.length) throw missing();
+            await reset(tx, id);
           } else if (action === "disband") {
             if (p.host !== who.userId)
               throw new ApplicationError("forbidden", "Only the host can disband", 403);

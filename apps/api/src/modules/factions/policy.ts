@@ -1,6 +1,7 @@
 /** @file policy.ts @description Deterministic team organization and vote transitions. @module factions */
 import {
   factionLimits,
+  allFactionsOccupied,
   teamVoteThreshold,
   type TeamAssignment,
   type TeamVote,
@@ -11,7 +12,7 @@ const invalid = (message: string) => new ApplicationError("invalid_input", messa
 const conflict = (message: string) => new ApplicationError("invalid_transition", message, 409);
 export function validateTeamCount(count: number) {
   if (!Number.isInteger(count) || count < 2 || count > factionLimits.teams)
-    throw invalid("Choose 2–4 teams");
+    throw invalid("Choose 2–4 factions");
 }
 /** Stable balancing minimizes moves while filling the smallest teams. */
 export function balanceTeams(members: readonly TeamAssignment[], count: number): TeamAssignment[] {
@@ -20,7 +21,7 @@ export function balanceTeams(members: readonly TeamAssignment[], count: number):
     members.length > factionLimits.players ||
     new Set(members.map((m) => m.userId)).size !== members.length
   )
-    throw invalid("Invalid team roster");
+    throw invalid("Invalid faction roster");
   const sizes = Array.from({ length: count }, () => 0);
   const target = Array.from({ length: count }, () => Math.floor(members.length / count));
   const popularity = Array.from({ length: count }, (_, index) => ({
@@ -58,9 +59,9 @@ export function requireReadyTeams(members: readonly TeamAssignment[], count: num
     members.some(
       (m) => m.team === null || !Number.isInteger(m.team) || m.team < 1 || m.team > count,
     ) ||
-    new Set(members.map((m) => m.team)).size < 2
+    !allFactionsOccupied({ teamCount: count, assignments: [...members] })
   )
-    throw conflict("Assign everyone to at least two teams");
+    throw conflict("Every faction needs at least one player");
 }
 export function resolveVote(vote: TeamVote, now: number): TeamVote {
   if (vote.state !== "pending") return vote;
@@ -103,7 +104,7 @@ export function proposeVote(
 }
 export function castVote(vote: TeamVote, actor: string, approve: boolean, now: number): TeamVote {
   if (!vote.electorate.includes(actor))
-    throw new ApplicationError("forbidden", "Only teammates can vote", 403);
+    throw new ApplicationError("forbidden", "Only faction members can vote", 403);
   const current = resolveVote(vote, now);
   if (current.state !== "pending") return current;
   if (Object.hasOwn(current.ballots, actor)) {

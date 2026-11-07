@@ -34,7 +34,7 @@ export async function teamRequest<T>(
     };
     throw new TeamError(
       error.code ?? error.error?.code ?? "unavailable",
-      error.message ?? error.error?.message ?? "Team action failed",
+      error.message ?? error.error?.message ?? "Faction action failed",
     );
   }
   return response.json() as Promise<T>;

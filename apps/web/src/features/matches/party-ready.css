@@ -12,15 +12,17 @@
   font-size: var(--text-small);
 }
 .party-ready-members {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: var(--space-2) var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: var(--text-small);
 }
 .party-ready-members li {
+  width: fit-content;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -28,6 +30,7 @@
 }
 /* Action controls need a full roster row, including inside narrow team groups. */
 .party-ready-members[data-actions] {
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
 .party-ready-members[data-actions] li {
@@ -35,10 +38,7 @@
   row-gap: var(--space-2);
 }
 .party-ready-members[data-actions] .participant-name {
-  flex: 1 1 100px;
-}
-.party-ready-members[data-actions] .party-readiness-indicator {
-  margin-left: 0;
+  flex: 0 1 auto;
 }
 .party-ready-name {
   overflow-wrap: anywhere;
@@ -64,7 +64,7 @@
   outline-offset: var(--space-1);
 }
 .party-ready-members .party-readiness-indicator {
-  margin-left: auto;
+  margin-left: var(--space-1);
 }
 
 .match-lobby-joined {
@@ -75,16 +75,6 @@
   font-size: var(--text-small);
   font-weight: 500;
   color: var(--color-text-secondary);
-}
-.match-lobby-joined .party-ready-members {
-  display: flex;
-  flex-wrap: wrap;
-}
-.match-lobby-joined .party-ready-members li {
-  gap: var(--space-1);
-}
-.match-lobby-joined .party-readiness-indicator {
-  margin-left: 0;
 }
 .party-ready-heading {
   display: flex;
@@ -99,4 +89,15 @@
   margin-left: auto;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
+}
+
+.lobby-roster {
+  display: flow-root;
+}
+.lobby-roster > .party-ready-members[data-actions] {
+  display: flex;
+}
+.lobby-roster > .party-ready-members li:not(:last-child) {
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--color-border);
 }

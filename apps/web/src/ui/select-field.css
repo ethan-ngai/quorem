@@ -1,4 +1,5 @@
 .select-field {
+  --interaction-hover-filter: none;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -14,11 +15,16 @@
   cursor: pointer;
   transition:
     background-color var(--motion-fast) var(--motion-easing),
-    color var(--motion-fast) var(--motion-easing);
+    color var(--motion-fast) var(--motion-easing),
+    translate var(--motion-fast) var(--motion-easing);
 }
-.select-field:hover,
-.select-field[data-state="open"] {
-  background: var(--color-overlay);
+@media (hover: hover) {
+  .select-field:not([aria-expanded="true"]):not(:disabled):hover {
+    background-color: var(--color-control-hover);
+  }
+}
+.select-field[aria-expanded="true"] {
+  background-color: var(--color-control-selected);
 }
 .select-field:focus-visible {
   outline: 2px solid var(--color-primary);
@@ -34,7 +40,7 @@
   color: var(--color-text-secondary);
   transition: transform var(--motion-fast) var(--motion-easing);
 }
-.select-field[data-state="open"] .select-field-chevron {
+.select-field[aria-expanded="true"] .select-field-chevron {
   transform: rotate(180deg);
 }
 .select-field--settings {
@@ -52,6 +58,7 @@
   background: transparent;
 }
 .select-field-menu {
+  --select-item-highlight: var(--color-control-hover);
   z-index: var(--layer-select, 240);
   min-width: max(144px, var(--radix-select-trigger-width));
   max-height: min(320px, var(--radix-select-content-available-height));
@@ -63,6 +70,9 @@
   color: var(--color-text);
   box-shadow: var(--shadow-overlay);
   transform-origin: var(--radix-select-content-transform-origin);
+}
+:root[data-theme="dark"] .select-field-menu {
+  --select-item-highlight: var(--color-surface);
 }
 .select-field-menu[data-state="open"] {
   animation: select-field-open var(--motion-fast) var(--motion-easing);
@@ -104,7 +114,7 @@
   transition: background-color var(--motion-fast) var(--motion-easing);
 }
 .select-field-item[data-highlighted] {
-  background: var(--color-surface);
+  background: var(--select-item-highlight);
 }
 .select-field-check {
   display: flex;
@@ -156,9 +166,15 @@
   font-variant-ligatures: none;
 }
 
+.select-field-selection,
 .select-field-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
   min-width: 0;
+}
+.select-field-selection {
+  gap: var(--space-2);
+}
+.select-field-label {
+  gap: var(--space-1);
 }

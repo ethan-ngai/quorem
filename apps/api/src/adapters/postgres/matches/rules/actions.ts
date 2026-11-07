@@ -79,11 +79,11 @@ export async function prepareRuleAction(
       JOIN execution_verified_cases v ON v.job_id=j.id AND v.ordinal=c.ordinal AND v.attempt_id=j.attempt_id AND v.sandbox_scope=j.sandbox_scope
       JOIN match_private_result_cases r ON r.submission_id=s.id AND r.ordinal=c.ordinal
       WHERE s.id=${input.submissionId!}::uuid AND s.match_id=${match}::uuid AND COALESCE(p.competitor_id,p.owner_id)=${subject}
-        AND s.kind='submit' AND s.state='completed' AND v.status NOT IN ('accepted','executed')
+        AND s.kind='submit' AND s.state='completed'
       ORDER BY EXISTS(SELECT 1 FROM match_rule_events granted WHERE granted.match_id=s.match_id AND granted.competitor_id=${subject} AND granted.kind='hiddenCase' AND granted.resource_key=encode(c.blob_hash,'hex')),c.ordinal LIMIT 1
     `)
     ).rows[0];
-    if (!row) throw new ApplicationError("not_found", "Failed hidden case unavailable", 404);
+    if (!row) throw new ApplicationError("not_found", "Hidden case unavailable", 404);
     if (row.input === null || row.result === null)
       throw new ApplicationError("payload_too_large", "This case is too large to reveal", 413);
     resource = row.resource;

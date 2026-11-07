@@ -13,7 +13,7 @@ import { NoticeRegion } from "../../ui/PersistentNotice";
 import { ownParticipant } from "./matchState";
 import "./match-rules.css";
 export const ruleCostLabel = (cost: { seconds: number; points: number }) =>
-  cost.seconds ? `+${cost.seconds}s` : cost.points ? `−${cost.points} points` : "Free";
+  cost.seconds ? `+${cost.seconds}s` : cost.points ? `−${cost.points} points` : "No penalty";
 export function MatchAssistance({
   match,
   identity,
@@ -35,6 +35,8 @@ export function MatchAssistance({
     input: RuleActionRequest;
     quote: RuleActionQuote;
   }>();
+  const [selectedCase, setSelectedCase] = useState(1);
+  const [revealedCase, setRevealedCase] = useState<number>();
   const [revealed, setRevealed] = useState<RuleActionResult["revealed"]>();
   const perform = async (input: RuleActionRequest) => {
     if (pending) return;
@@ -55,8 +57,10 @@ export function MatchAssistance({
           approval: result.quote,
         });
         setRevealed(opened.revealed);
+        setRevealedCase(opened.quote.caseIndex);
       } else {
         setRevealed(result.revealed);
+        setRevealedCase(result.quote.caseIndex);
         setConfirmation(undefined);
       }
       await client.invalidateQueries({ queryKey: ["match", identity, match.id] });
@@ -70,11 +74,11 @@ export function MatchAssistance({
     }
   };
   const disabled = pending || match.state !== "active" || own?.forfeited;
-  const hasFailure =
-    submission?.kind === "submit" &&
-    submission.state === "completed" &&
-    submission.score &&
-    submission.score.passed < submission.score.total;
+  const hiddenCount =
+    submission?.kind === "submit" && submission.state === "completed"
+      ? (submission.score?.total ?? 0)
+      : 0;
+  const caseNumber = Math.min(selectedCase, hiddenCount);
   return (
     <section className="match-assistance" aria-label="Match assistance">
       <div className="match-assistance-actions">
@@ -97,14 +101,40 @@ export function MatchAssistance({
               </button>
             ),
         )}
-        {match.rules.assistance.hiddenCase.access !== "blocked" && hasFailure && (
-          <button
-            className="quiet-button"
-            disabled={disabled}
-            onClick={() => void perform({ kind: "hiddenCase", submissionId: submission!.id })}
-          >
-            Reveal a failed case
-          </button>
+        {match.rules.assistance.hiddenCase.access !== "blocked" && hiddenCount > 0 && (
+          <div className="match-hidden-case-action">
+            <label>
+              Hidden case
+              <input
+                type="number"
+                min={1}
+                max={hiddenCount}
+                step={1}
+                aria-label="Hidden case number"
+                value={caseNumber}
+                disabled={disabled}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (Number.isInteger(next) && next >= 1 && next <= hiddenCount)
+                    setSelectedCase(next);
+                }}
+              />
+              <span>of {hiddenCount}</span>
+            </label>
+            <button
+              className="quiet-button"
+              disabled={disabled}
+              onClick={() =>
+                void perform({
+                  kind: "hiddenCase",
+                  submissionId: submission!.id,
+                  caseIndex: caseNumber - 1,
+                })
+              }
+            >
+              Reveal case
+            </button>
+          </div>
         )}
       </div>
       <NoticeRegion message={error} label="Assistance unavailable">
@@ -114,7 +144,7 @@ export function MatchAssistance({
       {revealed?.complexity && <ComplexityReveal raw={revealed.complexity} />}
       {revealed?.input && (
         <details open>
-          <summary>Revealed hidden case</summary>
+          <summary>Hidden case {revealedCase === undefined ? "" : revealedCase + 1}</summary>
           <strong>Input and expected output</strong>
           <pre>{revealed.input}</pre>
           <strong>Your result</strong>
@@ -127,7 +157,11 @@ export function MatchAssistance({
           if (!open) setConfirmation(undefined);
         }}
         pending={pending}
-        title="Reveal assistance?"
+        title={
+          confirmation?.input.kind === "hiddenCase"
+            ? `Reveal hidden case ${(confirmation.input.caseIndex ?? 0) + 1}?`
+            : "Reveal assistance?"
+        }
         description={`Cost: ${confirmation ? ruleCostLabel(confirmation.quote) : ""}. This reveal is announced to the match.`}
       >
         <div className="competitive-dialog-actions">

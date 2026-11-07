@@ -479,3 +479,62 @@ test("disbanded guest has no current party but retains the live credential", asy
   ]);
   await expect(repo.current(guest)).rejects.toMatchObject({ status: 404 });
 });
+
+test("only hosts remove lobby members, reset readiness, and replay safely", async () => {
+  const host = user(`kick-host-${crypto.randomUUID()}`);
+  const member = user(`kick-member-${crypto.randomUUID()}`);
+  const target = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO users(id,participant_id,display_name,kind) VALUES($1,gen_random_uuid(),'Host','account'),($2,$3,'Member','account')",
+    [host.userId, member.userId, target],
+  );
+  const created = (await repo.create(
+    host,
+    "create",
+    normalizePartySettings({ difficulty: "easy", durationMinutes: 30 }),
+  )) as { party: { id: string }; inviteUrl: string };
+  const id = created.party.id;
+  await repo.join(member, "join", created.inviteUrl.split("/").at(-1)!);
+  await expect(repo.mutate(member, id, "not-host", "kick", target)).rejects.toMatchObject({
+    status: 403,
+  });
+  const hostId = (await pool.query("SELECT participant_id FROM users WHERE id=$1", [host.userId]))
+    .rows[0].participant_id;
+  await expect(repo.mutate(host, id, "self", "kick", hostId)).rejects.toMatchObject({
+    status: 404,
+  });
+  await repo.heartbeat(host, crypto.randomUUID());
+  await repo.heartbeat(member, crypto.randomUUID());
+  await pool.query("UPDATE party_members SET ready=true WHERE party_id=$1", [id]);
+  const result = (await repo.mutate(host, id, "kick", "kick", target)) as {
+    members: { ready: boolean }[];
+  };
+  expect(result.members).toHaveLength(1);
+  expect(result.members[0].ready).toBe(false);
+  await expect(repo.read(member, id)).rejects.toMatchObject({ status: 404 });
+  expect(await repo.mutate(host, id, "kick", "kick", target)).toEqual(result);
+  await repo.mutate(
+    host,
+    id,
+    "lock-joining",
+    "settings",
+    normalizePartySettings({ difficulty: "easy", durationMinutes: 30, admissionLocked: true }),
+  );
+  await expect(
+    repo.join(member, "locked-rejoin", created.inviteUrl.split("/").at(-1)!),
+  ).rejects.toMatchObject({ status: 409 });
+  await repo.mutate(
+    host,
+    id,
+    "unlock-joining",
+    "settings",
+    normalizePartySettings({ difficulty: "easy", durationMinutes: 30 }),
+  );
+  await repo.join(member, "rejoin", created.inviteUrl.split("/").at(-1)!);
+  await repo.mutate(host, id, "host-ready", "ready", true);
+  await repo.mutate(member, id, "member-ready", "ready", true);
+  await repo.mutate(host, id, "start", "start", null);
+  await expect(repo.mutate(host, id, "active-kick", "kick", target)).rejects.toMatchObject({
+    status: 409,
+  });
+});
