@@ -18,6 +18,7 @@ import {
   type ProblemVersion,
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
+import * as Popover from "../../ui/Popover";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
 import { Icon } from "../../ui/Icon";
@@ -67,13 +68,16 @@ function MatchClock({
           : (snapshot.outcome?.completedAt ?? snapshot.serverNow),
       ));
   const showPersonal = active && snapshot.rules.victory === "race" && penaltySeconds > 0;
-  const personal = showPersonal
-    ? remainingTime(
-        personalSubmissionDeadline(snapshot, penaltySeconds),
-        snapshot.serverNow,
-        elapsed,
-      )
+  const personalDeadline = showPersonal
+    ? personalSubmissionDeadline(snapshot, penaltySeconds)
     : undefined;
+  const personal = personalDeadline
+    ? remainingTime(personalDeadline, snapshot.serverNow, elapsed)
+    : undefined;
+  const personalClosed = personal === "00:00";
+  const [dismissedCutoff, setDismissedCutoff] = useState<string>();
+  const cutoffOpen =
+    personalClosed && remaining !== "00:00" && dismissedCutoff !== personalDeadline;
   const shortenedBy =
     snapshot.deadline && snapshot.submissionDeadline
       ? Math.round((Date.parse(snapshot.deadline) - Date.parse(snapshot.submissionDeadline)) / 1000)
@@ -93,10 +97,40 @@ function MatchClock({
   return (
     <div className="match-timers">
       {personal && (
-        <span className="match-clock match-clock-personal">
-          <span className="match-clock-label">Submit</span>
-          {personal === "00:00" ? "Closed" : personal}
-        </span>
+        <Popover.Root
+          open={cutoffOpen}
+          onOpenChange={(open) => {
+            if (!open) setDismissedCutoff(personalDeadline);
+          }}
+        >
+          <Popover.Anchor asChild>
+            <span className="match-clock match-clock-personal" data-closed={personalClosed}>
+              <span className="match-clock-label">Submit</span>
+              {personalClosed ? "Closed" : personal}
+            </span>
+          </Popover.Anchor>
+          {cutoffOpen && (
+            <Popover.Portal>
+              <Popover.Content
+                className="match-cutoff-popover"
+                aria-label="Submission time ended"
+                align="end"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+              >
+                <div role="alert">
+                  <strong>Submission time ended</strong>
+                  <p>You can still run tests until the match ends.</p>
+                </div>
+                <Popover.Close asChild>
+                  <button type="button" className="icon-button" aria-label="Dismiss cutoff notice">
+                    <Icon name="close" />
+                  </button>
+                </Popover.Close>
+              </Popover.Content>
+            </Popover.Portal>
+          )}
+        </Popover.Root>
       )}
       {shortened ? (
         <Tooltip
