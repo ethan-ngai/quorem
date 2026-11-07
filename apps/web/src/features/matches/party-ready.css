@@ -41,7 +41,7 @@
   transition: stroke-dasharray 250ms linear;
 }
 .party-countdown-label {
-  font-size: var(--text-body);
+  font-size: var(--text-small);
   font-weight: 400;
 }
 @keyframes party-countdown-enter {
