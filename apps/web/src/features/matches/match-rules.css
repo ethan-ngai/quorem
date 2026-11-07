@@ -217,20 +217,27 @@
 .assistance-confirmation p {
   margin: 0;
 }
+.assistance-confirmation-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.assistance-confirmation-heading > span {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-secondary);
+}
 .assistance-confirmation h2 {
   font-size: var(--text-body);
   font-weight: 650;
 }
-.assistance-confirmation p {
-  font-size: var(--text-small);
-  color: var(--color-text-secondary);
-}
 .assistance-confirmation p[role="alert"] {
+  font-size: var(--text-small);
   color: var(--color-error);
 }
 .assistance-confirmation-cost {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
   border: 1px solid var(--color-border);
@@ -239,6 +246,7 @@
   font-size: var(--text-label);
 }
 .assistance-confirmation-cost[data-penalty="true"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
   border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
   background: color-mix(in srgb, var(--color-warning) 14%, var(--color-overlay));
 }

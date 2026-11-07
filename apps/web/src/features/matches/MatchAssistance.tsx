@@ -11,10 +11,12 @@ import type {
 import { matchRuleAction } from "./api";
 import * as Popover from "../../ui/Popover";
 import { NoticeRegion } from "../../ui/PersistentNotice";
+import { Tooltip } from "../../ui/Tooltip";
 import { ownParticipant } from "./matchState";
 import "./match-rules.css";
 export const ruleCostLabel = (cost: { seconds: number; points: number }) =>
   cost.seconds ? `+${cost.seconds}s` : cost.points ? `−${cost.points} points` : "No penalty";
+const revealNotice = "Other players will be notified.";
 type OnReveal = (value: NonNullable<RuleActionResult["revealed"]>) => void;
 
 export type MatchDisclosureControls = {
@@ -126,7 +128,7 @@ export function MatchAssistance({
         : "complexity";
   const cost = confirmation?.quote;
   const penalty = !!(cost?.seconds || cost?.points);
-  const CostIcon = cost?.seconds ? Clock3 : cost?.points ? Trophy : Bell;
+  const CostIcon = cost?.seconds ? Clock3 : Trophy;
   return (
     <>
       {(canRevealCase || (error && !confirmationOpen) || revealed?.input) && (
@@ -220,14 +222,26 @@ export function MatchAssistance({
                 if (!interactedOutside.current) anchor.current?.focus({ preventScroll: true });
               }}
             >
-              <h2 id={confirmationId}>Reveal {target}?</h2>
+              <div className="assistance-confirmation-heading">
+                <h2 id={confirmationId}>Reveal {target}?</h2>
+                <Tooltip content={revealNotice}>
+                  <span
+                    id={`${confirmationId}-notice`}
+                    role="img"
+                    aria-label={revealNotice}
+                    tabIndex={0}
+                  >
+                    <Bell size={14} aria-hidden="true" />
+                  </span>
+                </Tooltip>
+              </div>
               {cost && (
                 <div
                   id={`${confirmationId}-cost`}
                   className="assistance-confirmation-cost"
                   data-penalty={penalty}
                 >
-                  <CostIcon size={16} aria-hidden="true" />
+                  {penalty && <CostIcon size={16} aria-hidden="true" />}
                   <span>
                     {cost.seconds
                       ? "Added to finish time"
@@ -238,7 +252,6 @@ export function MatchAssistance({
                   <strong>{ruleCostLabel(cost)}</strong>
                 </div>
               )}
-              <p id={`${confirmationId}-notice`}>Other players will be notified.</p>
               {error && <p role="alert">{error}</p>}
               <div className="assistance-confirmation-actions">
                 <button
