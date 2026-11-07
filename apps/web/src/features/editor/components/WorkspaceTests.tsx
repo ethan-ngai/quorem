@@ -5,7 +5,7 @@ import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contra
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
 import { Icon } from "../../../ui/Icon";
 import { ResultContent } from "./ResultContent";
-import { TestCases } from "./TestCases";
+import { TestCases, type HiddenCaseDetails } from "./TestCases";
 
 const emptyDrafts: CustomCaseDraft[] = [];
 const keepDrafts = () => {};
@@ -14,6 +14,7 @@ export function WorkspaceTests({
   problem,
   submission,
   busy,
+  pendingKind,
   error,
   customMode = false,
   onCustomModeChange,
@@ -23,10 +24,12 @@ export function WorkspaceTests({
   progress,
   hideToolbar = false,
   detailsVisible = false,
+  hiddenCaseDetails,
 }: {
   problem: ProblemVersion;
   submission?: Submission;
   busy: boolean;
+  pendingKind?: Submission["kind"];
   error?: string;
   customMode?: boolean;
   onCustomModeChange?: (value: boolean) => void;
@@ -36,6 +39,7 @@ export function WorkspaceTests({
   progress?: OdysseyProgress;
   hideToolbar?: boolean;
   detailsVisible?: boolean;
+  hiddenCaseDetails?: (index: number) => HiddenCaseDetails | undefined;
 }) {
   const testProblem = progress
     ? {
@@ -45,6 +49,13 @@ export function WorkspaceTests({
       }
     : problem;
   const odyssey = !!testProblem.odyssey;
+  const hiddenCaseCount = problem.hiddenCaseCounts
+    ? Object.entries(problem.hiddenCaseCounts).reduce(
+        (total, [stage, count]) =>
+          total + (Number(stage) <= (progress?.level ?? (odyssey ? 1 : 0)) ? count : 0),
+        0,
+      )
+    : undefined;
   const tabs: ("samples" | "custom")[] = ["samples"];
   if (onDraftsChange) tabs.push("custom");
   const selected = tabs.includes("custom") && customMode;
@@ -121,6 +132,9 @@ export function WorkspaceTests({
               submission={submission}
               snapshot={snapshot}
               busy={busy}
+              pendingKind={pendingKind}
+              hiddenCaseCount={hiddenCaseCount}
+              hiddenCaseDetails={tab === "samples" ? hiddenCaseDetails : undefined}
             />
           </div>
         ))}

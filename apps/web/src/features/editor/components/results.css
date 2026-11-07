@@ -104,6 +104,7 @@
 .case-browser {
   --case-rail-width: clamp(100px, 16%, 140px);
   --narrow-case-rail-width: 104px;
+  --case-detail-end-padding: 18px;
   display: grid;
   grid-template-columns: var(--case-rail-width) minmax(0, 1fr);
   flex: 1;
@@ -116,13 +117,13 @@
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border);
 }
-.case-rail {
+.case-rail > .scroll-cue-content {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.case-rail {
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
   padding: 4px 8px 12px calc(var(--workspace-control-inset) - 8px);
   border-right: 1px solid var(--color-border);
 }
@@ -147,13 +148,6 @@
 }
 .case-selector[aria-pressed="true"] {
   font-weight: 550;
-}
-.case-loading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
 }
 .case-spinner {
   width: 12px;
@@ -182,7 +176,10 @@
   min-height: 0;
   overflow: hidden;
 }
-.case-detail-panel > .case-verdict-group {
+.case-detail-scroll {
+  --scroll-cue-end-inset: var(--case-detail-end-padding);
+}
+.case-detail-scroll > .scroll-cue-content > .case-verdict-group {
   margin: var(--space-2) var(--workspace-control-inset) 0;
 }
 .case-details {
@@ -191,8 +188,7 @@
   gap: 14px;
   min-height: 0;
   min-width: 0;
-  padding: 8px var(--workspace-control-inset) 18px;
-  overflow: auto;
+  padding: 8px var(--workspace-control-inset) var(--case-detail-end-padding);
   overflow-wrap: anywhere;
 }
 
@@ -220,6 +216,7 @@
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  margin-inline: 0;
 }
 @media (max-width: 560px) {
   .case-browser {
@@ -228,8 +225,8 @@
   .case-selector {
     min-height: var(--narrow-touch-target);
   }
-  .case-details {
-    padding-inline: 12px;
+  .case-detail-panel {
+    --workspace-control-inset: 12px;
   }
 }
 .result-tabs svg,
@@ -264,9 +261,6 @@
 .locked-case > svg {
   width: 24px;
   height: 24px;
-}
-.locked-case > span:last-child {
-  text-transform: capitalize;
 }
 .case-group-label {
   flex: 0 0 auto;

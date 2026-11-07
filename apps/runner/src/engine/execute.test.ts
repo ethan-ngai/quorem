@@ -473,7 +473,7 @@ void test(
   },
 );
 
-function fastFixture() {
+function fastFixture(overrides: Partial<ExecutionSpec> = {}) {
   const runtime = languageRuntime("python")!;
   const spec: ExecutionSpec = {
     problemJson: JSON.stringify({
@@ -485,6 +485,7 @@ function fastFixture() {
     submitSamples: [],
     submitCasesAreSamples: false,
     privateDetails: false,
+    ...overrides,
   };
   const fixture = repository(spec);
   const job: Job = {
@@ -502,6 +503,47 @@ function fastFixture() {
   };
   return { fixture, spec, job };
 }
+
+void test("Submit overlaps examples and hidden cases without colliding or changing checkpoint order", async () => {
+  const { confirmCaseOutput } = await import("../sandbox/proof.ts");
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const { fixture, spec, job } = fastFixture({
+    kind: "submit",
+    submitSamples: ['{"args":[],"expected":7}', '{"args":[],"expected":7}'],
+  });
+  const lanes = new Set<number>();
+  const executed = new Set<number>();
+  let overlap = false;
+  const sandbox = {
+    teardownAttempt: async () => {},
+    async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
+      const lane = request.ordinal % CASE_LANES;
+      assert.equal(lanes.has(lane), false);
+      assert.equal(executed.has(request.ordinal), false);
+      executed.add(request.ordinal);
+      overlap ||= request.ordinal >= spec.cases.length && lanes.size > 0;
+      lanes.add(lane);
+      try {
+        await delay(request.ordinal === 0 ? 1 : 10, undefined, { signal });
+        return confirmCaseOutput(request, {
+          stdout: Buffer.from('\0{"status":"executed","actual":7}'),
+          stderr: Buffer.alloc(0),
+          exitCode: 0,
+        });
+      } finally {
+        lanes.delete(lane);
+      }
+    },
+  };
+  await executeAndStage(job, fixture.port, sandbox, undefined, undefined, undefined, 4);
+  assert.equal(overlap, true);
+  assert.equal(executed.size, 22);
+  assert.equal(fixture.frames.length, 22);
+  assert.equal(new Set(fixture.seals).size, 22);
+  assert.ok(
+    fixture.seals.indexOf("sample:0:executed") < fixture.seals.indexOf("private:3:executed"),
+  );
+});
 
 void test("four native lanes overlap verification while checkpoints remain ordered", async () => {
   const { confirmCaseOutput } = await import("../sandbox/proof.ts");

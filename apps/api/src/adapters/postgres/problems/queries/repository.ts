@@ -39,8 +39,16 @@ const projection = sql.raw(`jsonb_build_object(
 'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
-'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))::text`);
+'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`);
 const from = sql.raw(` FROM problem_versions v JOIN problems p ON p.id=v.problem_id `);
+const detailProjection = sql`(${projection} || jsonb_build_object(
+  'hiddenCaseCounts', COALESCE((
+    SELECT jsonb_object_agg(stage,n) FROM (
+      SELECT stage,count(*) AS n FROM runner_version_input_cases
+      WHERE version_id=v.id AND channel='hidden' GROUP BY stage
+    ) counts
+  ), '{}'::jsonb)
+))::text`;
 function owner(actor: ProblemActor | undefined): string {
   return actor?.userId ?? "";
 }
@@ -162,7 +170,7 @@ async function readCatalog(
   const offset = cursor ? 0 : (f.page - 1) * f.limit;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
+      sql`SELECT ${projection}::text AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
     )
   ).rows;
   const more = rows.length > f.limit,
@@ -208,7 +216,7 @@ async function byValue(
     : sql`p.slug=${value} AND v.id=p.current_version_id`;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
     )
   ).rows;
   return rows.length
@@ -223,7 +231,7 @@ export async function projectAuthorizedVersion(
 ): Promise<string | null> {
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
     )
   ).rows;
   return rows.length

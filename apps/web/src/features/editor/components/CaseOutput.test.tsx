@@ -11,7 +11,7 @@ describe("case output", () => {
     expect(markup).toContain('<span class="code-punctuation">]</span>');
     expect(markup).toContain('<span class="code-number">9</span>');
   });
-  it("omits repeated expectations and combines colored streams in one console box", () => {
+  it("puts stderr directly under the verdict and keeps stdout with the values", () => {
     const markup = renderToStaticMarkup(
       <CaseOutput
         showExpected={false}
@@ -28,8 +28,10 @@ describe("case output", () => {
     expect(markup).not.toContain("Expected output");
     expect(markup).toContain("machine-value verdict-error");
     expect(markup).toContain('aria-label="Standard output"');
-    expect(markup).toContain('class="console-stream" aria-label="stdout"');
-    expect(markup).toContain('class="console-stream console-error" aria-label="stderr"');
+    expect(markup).toContain('<span aria-label="stdout">hello');
+    expect(markup).toContain('<code class="case-error-message"><span aria-label="stderr">notice');
+    expect(markup.indexOf('aria-label="stderr"')).toBeLessThan(markup.indexOf(">Output<"));
+    expect(markup.match(/aria-label="stderr"/g)).toHaveLength(1);
     expect(markup.match(/<pre>/g)).toHaveLength(1);
     expect(markup).toContain('class="field-purpose" aria-label="Standard output"');
     expect(markup).not.toContain("typed-case-error");
@@ -37,9 +39,10 @@ describe("case output", () => {
   it("hides absent, empty and whitespace-only console streams", () => {
     for (const stdout of [undefined, "", " \n\t"]) {
       const markup = renderToStaticMarkup(
-        <CaseOutput result={{ index: 0, status: "executed", stdout }} />,
+        <CaseOutput result={{ index: 0, status: "executed", stdout, stderr: stdout }} />,
       );
       expect(markup).not.toContain("Standard output");
+      expect(markup).not.toContain("case-error-message");
     }
   });
   it("leaves uncompared output neutral", () => {

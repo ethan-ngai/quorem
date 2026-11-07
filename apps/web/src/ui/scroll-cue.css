@@ -1,0 +1,93 @@
+.scroll-cue {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+[data-slot="scroll-cue-viewport"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden auto;
+}
+.scroll-cue-content {
+  position: relative;
+}
+.scroll-cue-end {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: var(--scroll-cue-end-inset, 0px);
+  inline-size: 1px;
+  block-size: 1px;
+  pointer-events: none;
+}
+.scroll-cue-indicator {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  display: grid;
+  place-items: end center;
+  block-size: var(--space-6);
+  padding-block-end: var(--space-1);
+  box-sizing: border-box;
+  background: linear-gradient(transparent, var(--scroll-cue-surface, var(--color-field)));
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+.scroll-cue-indicator[data-visible="true"] {
+  opacity: 1;
+}
+.scroll-cue-indicator > svg {
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 45%));
+  transition: opacity var(--motion-fast) var(--motion-easing);
+}
+.scroll-cue-indicator[data-scrolling="true"] > svg {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-cue-indicator,
+  .scroll-cue-indicator > svg {
+    transition: none;
+  }
+}
+.scroll-cue[data-axis="horizontal"] > [data-slot="scroll-cue-viewport"] {
+  overflow: auto hidden;
+}
+.scroll-cue[data-axis="horizontal"] > [data-slot="scroll-cue-viewport"] > .scroll-cue-content {
+  display: flex;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+.scroll-cue[data-axis="horizontal"]
+  > [data-slot="scroll-cue-viewport"]
+  > .scroll-cue-content
+  > .scroll-cue-end {
+  inset-inline-start: auto;
+  inset-inline-end: var(--scroll-cue-end-inset, 0px);
+  inset-block-start: 0;
+  inset-block-end: auto;
+}
+.scroll-cue[data-axis="horizontal"] > .scroll-cue-indicator {
+  inset-inline-start: auto;
+  inset-block: 0;
+  place-items: center end;
+  inline-size: var(--space-6);
+  block-size: auto;
+  padding-block-end: 0;
+  padding-inline-end: var(--space-1);
+  background: linear-gradient(to right, transparent, var(--scroll-cue-surface, var(--color-field)));
+}
+.scroll-cue[data-axis="horizontal"]:dir(rtl) > .scroll-cue-indicator {
+  background: linear-gradient(to left, transparent, var(--scroll-cue-surface, var(--color-field)));
+}
+.scroll-cue[data-axis="horizontal"] > .scroll-cue-indicator > svg {
+  rotate: -90deg;
+}
+.scroll-cue[data-axis="horizontal"]:dir(rtl) > .scroll-cue-indicator > svg {
+  rotate: 90deg;
+}

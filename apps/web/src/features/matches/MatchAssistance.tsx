@@ -10,7 +10,10 @@ import type {
 } from "@quorem/contracts/match-rules";
 import { matchRuleAction } from "./api";
 import * as Popover from "../../ui/Popover";
-import { NoticeRegion } from "../../ui/PersistentNotice";
+import { useErrorNotification } from "../../ui/Notifications";
+import { Icon } from "../../ui/Icon";
+import { Spinner } from "../../ui/Spinner";
+import type { HiddenCaseDetails } from "../editor/components/TestCases";
 import { Tooltip } from "../../ui/Tooltip";
 import { ownParticipant } from "./matchState";
 import "./match-rules.css";
@@ -21,6 +24,7 @@ type OnReveal = (value: NonNullable<RuleActionResult["revealed"]>) => void;
 
 export type MatchDisclosureControls = {
   disabled: boolean;
+  hiddenCaseDetails: (index: number) => HiddenCaseDetails | undefined;
   reveal: (kind: "topics" | "complexity", anchor: HTMLButtonElement, onReveal: OnReveal) => void;
 };
 
@@ -39,8 +43,10 @@ export function MatchAssistance({
 }) {
   const client = useQueryClient();
   const own = ownParticipant(match, identity);
-  const [pending, setPending] = useState(false),
+  const [request, setRequest] = useState<RuleActionRequest>(),
     [error, setError] = useState("");
+  const requestLock = useRef(false);
+  const pending = !!request;
   const [confirmation, setConfirmation] = useState<{
     input: RuleActionRequest;
     quote: RuleActionQuote;
@@ -49,11 +55,13 @@ export function MatchAssistance({
   const anchor = useRef<HTMLButtonElement>(null);
   const interactedOutside = useRef(false);
   const confirmationId = useId();
-  const [selectedCase, setSelectedCase] = useState(1);
-  const [revealedCase, setRevealedCase] = useState<number>();
-  const [revealed, setRevealed] = useState<RuleActionResult["revealed"]>();
+  const [revealedCases, setRevealedCases] = useState<{
+    submissionId: string;
+    cases: Record<number, HiddenCaseDetails>;
+  }>();
   const disabled = pending || match.state !== "active" || !!own?.forfeited;
   const confirmationOpen = !!confirmation && match.state === "active" && !own?.forfeited;
+  useErrorNotification(confirmationOpen ? undefined : error);
   function closeConfirmation() {
     setConfirmation(undefined);
     setError("");
@@ -63,12 +71,13 @@ export function MatchAssistance({
     trigger: HTMLButtonElement,
     onReveal?: OnReveal,
   ) => {
-    if (disabled) return;
+    if (disabled || requestLock.current) return;
     if (!input.approval && confirmationOpen && trigger === anchor.current) {
       closeConfirmation();
       return;
     }
-    setPending(true);
+    requestLock.current = true;
+    setRequest(input);
     setError("");
     try {
       const result = await matchRuleAction(identity, match.id, input);
@@ -88,6 +97,7 @@ export function MatchAssistance({
           interactedOutside.current = false;
           setConfirmation({ input: selectedInput, quote: result.quote, onReveal });
         }
+        return;
       } else {
         const opened = input.approval
           ? result
@@ -95,31 +105,70 @@ export function MatchAssistance({
               ...selectedInput,
               approval: result.quote,
             });
-        if (opened.revealed) {
-          if (onReveal) onReveal(opened.revealed);
-          else {
-            setRevealed(opened.revealed);
-            setRevealedCase(opened.quote.caseIndex);
-          }
-        }
+        if (opened.revealed) onReveal?.(opened.revealed);
         closeConfirmation();
       }
-      await client.invalidateQueries({ queryKey: ["match", identity, match.id] });
-      await client.invalidateQueries({
-        predicate: (q) => q.queryKey.includes(match.problemVersionId),
-      });
+      void client.invalidateQueries({ queryKey: ["match", identity, match.id] });
+      if (input.kind === "topics" || input.kind === "complexity")
+        void client.invalidateQueries({
+          predicate: (q) => q.queryKey.includes(match.problemVersionId),
+        });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not reveal assistance.");
     } finally {
-      setPending(false);
+      requestLock.current = false;
+      setRequest(undefined);
     }
   };
-  const hiddenCount =
-    submission?.kind === "submit" && submission.state === "completed"
-      ? (submission.score?.total ?? 0)
-      : 0;
-  const caseNumber = Math.min(selectedCase, hiddenCount);
-  const canRevealCase = match.rules.assistance.hiddenCase.access !== "blocked" && hiddenCount > 0;
+  function hiddenCaseDetails(index: number): HiddenCaseDetails | undefined {
+    if (submission?.kind !== "submit" || submission.state !== "completed") return undefined;
+    const submissionId = submission.id;
+    const existing = revealedCases?.submissionId === submissionId && revealedCases.cases[index];
+    if (existing) return existing;
+    const access = match.rules.assistance.hiddenCase.access;
+    if (access === "blocked" || match.state !== "active" || own?.forfeited) return undefined;
+    const sameCase = (input?: RuleActionRequest) =>
+      input?.kind === "hiddenCase" &&
+      input.submissionId === submissionId &&
+      input.caseIndex === index;
+    const confirmingCase = confirmationOpen && sameCase(confirmation?.input);
+    const loadingCase = !confirmingCase && sameCase(request);
+    return {
+      action: (
+        <button
+          type="button"
+          className="button button-secondary"
+          aria-disabled={disabled}
+          aria-busy={loadingCase}
+          aria-haspopup={access === "free" ? undefined : "dialog"}
+          aria-expanded={access === "free" ? undefined : confirmingCase}
+          onClick={(event) =>
+            void perform(
+              { kind: "hiddenCase", submissionId, caseIndex: index },
+              event.currentTarget,
+              ({ input, result }) => {
+                if (!input || !result) throw new Error("Case details unavailable.");
+                const example = JSON.parse(input) as NonNullable<HiddenCaseDetails["example"]>;
+                const feedback = JSON.parse(result) as NonNullable<HiddenCaseDetails["result"]>;
+                if (!Array.isArray(example?.args) || feedback?.index !== index || !feedback.status)
+                  throw new Error("Case details unavailable.");
+                setRevealedCases((previous) => ({
+                  submissionId,
+                  cases: {
+                    ...(previous?.submissionId === submissionId ? previous.cases : {}),
+                    [index]: { example, result: feedback },
+                  },
+                }));
+              },
+            )
+          }
+        >
+          {loadingCase ? <Spinner size={18} /> : <Icon name="eye" />}
+          Reveal case
+        </button>
+      ),
+    };
+  }
   const target =
     confirmation?.input.kind === "hiddenCase"
       ? `hidden case ${(confirmation.input.caseIndex ?? 0) + 1}`
@@ -131,63 +180,9 @@ export function MatchAssistance({
   const CostIcon = cost?.seconds ? Clock3 : Trophy;
   return (
     <>
-      {(canRevealCase || (error && !confirmationOpen) || revealed?.input) && (
-        <section className="match-assistance" aria-label="Match assistance">
-          {canRevealCase && (
-            <div className="match-hidden-case-action">
-              <label>
-                Hidden case
-                <input
-                  type="number"
-                  min={1}
-                  max={hiddenCount}
-                  step={1}
-                  aria-label="Hidden case number"
-                  value={caseNumber}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (Number.isInteger(next) && next >= 1 && next <= hiddenCount)
-                      setSelectedCase(next);
-                  }}
-                />
-                <span>of {hiddenCount}</span>
-              </label>
-              <button
-                className="quiet-button"
-                aria-disabled={disabled}
-                aria-haspopup="dialog"
-                onClick={(event) =>
-                  void perform(
-                    {
-                      kind: "hiddenCase",
-                      submissionId: submission!.id,
-                      caseIndex: caseNumber - 1,
-                    },
-                    event.currentTarget,
-                  )
-                }
-              >
-                Reveal case
-              </button>
-            </div>
-          )}
-          <NoticeRegion message={confirmationOpen ? "" : error} label="Assistance unavailable">
-            {null}
-          </NoticeRegion>
-          {revealed?.input && (
-            <details open>
-              <summary>Hidden case {revealedCase === undefined ? "" : revealedCase + 1}</summary>
-              <strong>Input and expected output</strong>
-              <pre>{revealed.input}</pre>
-              <strong>Your result</strong>
-              <pre>{revealed.result}</pre>
-            </details>
-          )}
-        </section>
-      )}
       {children?.({
         disabled,
+        hiddenCaseDetails,
         reveal: (kind, trigger, onReveal) => void perform({ kind }, trigger, onReveal),
       })}
       <Popover.Root
@@ -265,7 +260,8 @@ export function MatchAssistance({
                 <button
                   type="button"
                   className="button button-primary"
-                  disabled={disabled}
+                  aria-disabled={disabled}
+                  aria-busy={!!request?.approval}
                   onClick={() =>
                     confirmation &&
                     anchor.current &&
@@ -276,6 +272,7 @@ export function MatchAssistance({
                     )
                   }
                 >
+                  {request?.approval ? <Spinner /> : <Icon name="eye" width={16} height={16} />}
                   Reveal {target}
                 </button>
               </div>

@@ -1339,9 +1339,13 @@ for (const accepted of [false, true])
     const { parseWorkspaceCommand } =
       await import("../../../../modules/judging/admission/command.ts");
     const { submissionSnapshots } = await import("../../judging/results/repository.ts");
+    const { problemQueries } = await import("../../problems/queries/repository.ts");
     const { ruleApproval } = await import("@quorem/contracts/match-rules");
     const room = await rulesRoom({ ...matchPreset(), victory: "high_score" });
     await activateRulesRoom(room);
+    const question = JSON.parse((await problemQueries(run).byVersion(room.actor, version))!);
+    assert.deepEqual(question.hiddenCaseCounts, { 0: 1 });
+    assert.equal(question.hiddenCases, undefined);
     const workspace = (
       await pool.query(
         "SELECT workspace_id FROM match_participants WHERE match_id=$1 AND owner_id=$2",
@@ -1383,6 +1387,16 @@ for (const accepted of [false, true])
       const job = await port.claimAfterTeardown(true, sandbox.scope, null);
       assert.equal(job?.jobId, jobId);
       await executeAndStage(job!, port, sandbox);
+      const live = (await new Response(
+        await submissionSnapshots(run).read(room.actor, admitted.id),
+      ).json()) as import("@quorem/contracts").Submission;
+      assert.equal(live.state, "running");
+      assert.deepEqual(live.hiddenCases, [
+        { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+      ]);
+      assert.ok(live.publicCases?.length);
+      assert.ok(live.publicCases.every((item) => Object.keys(item).length === 2));
+      await assert.rejects(submissionSnapshots(run).read(room.peer, admitted.id));
       await finishAfterTeardown(port, sandbox, job!);
     } finally {
       await verifier.close();
@@ -1391,7 +1405,9 @@ for (const accepted of [false, true])
     const publicResult = JSON.parse(
       await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
     );
-    assert.equal(publicResult.hiddenCases, undefined);
+    assert.deepEqual(publicResult.hiddenCases, [
+      { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+    ]);
     assert.equal(publicResult.verdict, accepted ? "accepted" : "wrong_answer");
     const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
     const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);

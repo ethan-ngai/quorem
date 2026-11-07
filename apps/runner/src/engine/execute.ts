@@ -302,6 +302,14 @@ export async function executeAndStage(
         void staged.catch(() => {});
         pending.push(staged);
       };
+      // Run examples in a spare lane without changing the manifest or its ordered checkpoints.
+      const earlySamples = new Map<number, Awaited<ReturnType<typeof executeCase>>>();
+      let earlyBytes = 0;
+      let nextSample =
+        privateCount +
+        Math.ceil(
+          (Math.min(checkpoint.nextOrdinal, privateCount) * sampleCount) / (privateCount || 1),
+        );
       try {
         for (let start = checkpoint.nextOrdinal; start < total;) {
           signal.throwIfAborted();
@@ -331,15 +339,33 @@ export async function executeAndStage(
               inputs.inputCaseRef(job, start + index, signal),
             ),
           );
+          const sampleRef =
+            !manifest.privateDetails &&
+            requested > 1 &&
+            start + requested <= privateCount &&
+            nextSample < total &&
+            earlyBytes < CASE_WINDOW_BYTES / 2
+              ? await inputs.inputCaseRef(job, nextSample, signal)
+              : undefined;
           const laneBytes =
             manifest.source.size +
             manifest.metadata.size +
-            Math.max(1, ...refs.map((ref) => ref.size)) +
+            Math.max(1, sampleRef?.size ?? 0, ...refs.map((ref) => ref.size)) +
             (artifact ? Buffer.byteLength(artifact) : 0);
           const width = Math.min(requested, Math.max(1, Math.floor(CASE_WINDOW_BYTES / laneBytes)));
-          const atomicFinal = !!repository.finalizeCompletion && start + width === total;
+          const overlapSample = !!sampleRef && width > 1;
+          const orderedWidth = overlapSample ? width - 1 : width;
+          const atomicFinal = !!repository.finalizeCompletion && start + orderedWidth === total;
           // An idle worker takes the next case; physical sandbox lanes remain ordinal-bound.
-          const results = new Array<Awaited<ReturnType<typeof executeCase>>>(width);
+          const sharedLane = (nextSample - start) % CASE_LANES;
+          let releaseSample: (() => void) | undefined;
+          const sampleReady =
+            overlapSample && sharedLane < orderedWidth
+              ? new Promise<void>((resolve) => {
+                  releaseSample = resolve;
+                })
+              : undefined;
+          const results: Awaited<ReturnType<typeof executeCase>>[] = [];
           let next = 0;
           const run = async () => {
             for (;;) {
@@ -347,18 +373,29 @@ export async function executeAndStage(
               const index = next++;
               if (index >= width) return;
               try {
-                const result = await executeCase(
-                  start + index,
-                  { artifact, compilation, fatal },
-                  refs[index],
-                );
+                const sample = index === orderedWidth;
+                if (sample && sampleReady) {
+                  await sampleReady;
+                  signal.throwIfAborted();
+                }
+                const ordinal = sample ? nextSample : start + index;
+                const earlier = earlySamples.get(ordinal);
+                const result =
+                  earlier ??
+                  (await executeCase(
+                    ordinal,
+                    { artifact, compilation, fatal },
+                    sample ? sampleRef! : refs[index],
+                  ));
                 results[index] = result;
                 // Final windows need no ordered checkpoint; verify each stopped case immediately.
-                if (atomicFinal)
-                  enqueueStage(start + index, storedFrame(start + index, result.frame));
+                if (!earlier && (atomicFinal || sample))
+                  enqueueStage(ordinal, storedFrame(ordinal, result.frame));
               } catch (error) {
                 controller.abort(error);
                 throw error;
+              } finally {
+                if (index === sharedLane) releaseSample?.();
               }
             }
           };
@@ -367,8 +404,8 @@ export async function executeAndStage(
           );
           const failed = outcomes.find((value) => value.status === "rejected");
           if (failed?.status === "rejected") throw failed.reason;
-          if (start + width === total) onFinalCase?.();
-          for (let index = 0; index < results.length; index++) {
+          if (start + orderedWidth === total) onFinalCase?.();
+          for (let index = 0; index < orderedWidth; index++) {
             const ordinal = start + index;
             const { frame, ref } = results[index];
             artifact = results[index].artifact ?? artifact;
@@ -400,10 +437,16 @@ export async function executeAndStage(
                 },
                 signal,
               );
-              enqueueStage(ordinal, stored);
+              if (!earlySamples.has(ordinal)) enqueueStage(ordinal, stored);
             }
+            earlySamples.delete(ordinal);
           }
-          start += width;
+          if (overlapSample) {
+            const sample = results[orderedWidth]!;
+            earlySamples.set(nextSample++, sample);
+            earlyBytes += Buffer.byteLength(encodeJudgeFrame(sample.frame));
+          }
+          start += orderedWidth;
           // At most two windows of result staging can overlap native execution.
           if (pending.length >= caseConcurrency * 2) {
             await Promise.all(pending.slice(0, width));

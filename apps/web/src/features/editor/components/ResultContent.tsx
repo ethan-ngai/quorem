@@ -5,7 +5,8 @@ import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@
 import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
 import { NoticeRegion } from "../../../ui/PersistentNotice";
-import { CaseOutput, verdictTone } from "./CaseOutput";
+import { CaseOutput, CaseVerdict, verdictTone } from "./CaseOutput";
+import { CaseBrowserLayout } from "./CaseBrowserLayout";
 
 /** Shows safe compiler or public-case diagnostics with useful source positions. */
 function Diagnostics({ items }: { items?: Diagnostic[] }) {
@@ -40,32 +41,32 @@ function RunCaseResults({
   const activeIndex = Math.min(selectedIndex, Math.max(0, cases.length - 1));
   const selected = cases[activeIndex];
   return (
-    <div className="case-browser">
-      <div className="case-rail" aria-label="Select run result">
-        {cases.map((result, index) => (
-          <button
-            key={result.index}
-            className="case-selector"
-            aria-pressed={activeIndex === index}
-            aria-label={`Case ${result.index + 1}: ${result.status.replaceAll("_", " ")}`}
-            onClick={() => setSelectedIndex(index)}
-          >
-            {result.status !== "executed" && (
-              <Icon
-                name={result.status === "accepted" ? "submit" : "close"}
-                className={verdictTone(result.status)}
-              />
-            )}
-            Case {result.index + 1}
-          </button>
-        ))}
-      </div>
+    <CaseBrowserLayout
+      railLabel="Select run result"
+      selection={String(activeIndex)}
+      status={<CaseVerdict result={selected} />}
+      rail={cases.map((result, index) => (
+        <button
+          key={result.index}
+          className="case-selector"
+          aria-pressed={activeIndex === index}
+          aria-label={`Case ${result.index + 1}: ${result.status.replaceAll("_", " ")}`}
+          onClick={() => setSelectedIndex(index)}
+        >
+          {result.status !== "executed" && (
+            <Icon
+              name={result.status === "accepted" ? "submit" : "close"}
+              className={verdictTone(result.status)}
+            />
+          )}
+          Case {result.index + 1}
+        </button>
+      ))}
+    >
       {selected && (
-        <div className="case-details">
-          <CaseOutput result={selected} sql={sql} returnType={returnType} />
-        </div>
+        <CaseOutput result={selected} sql={sql} returnType={returnType} showVerdict={false} />
       )}
-    </div>
+    </CaseBrowserLayout>
   );
 }
 

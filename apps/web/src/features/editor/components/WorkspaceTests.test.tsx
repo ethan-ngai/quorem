@@ -491,10 +491,33 @@ it.each(["coding", "sql"] as const)(
     expect(html).toContain('aria-label="Hidden case 1: passed"');
     expect(html).toContain('aria-label="Hidden case 2: failed"');
     expect(html).toContain("public-result");
+    expect(html).toContain(kind === "sql" ? "Tables" : 'class="parameter-name">values');
     expect(html).toContain('aria-label="Select test case"');
     expect(html).toContain('id="tests-custom-tab"');
   },
 );
+
+it("renders verified live verdicts at their actual case indexes", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={problem}
+      busy={false}
+      submission={{
+        id: "submit",
+        kind: "submit",
+        state: "running",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        hiddenCases: [{ index: 2, status: "wrong_answer" }],
+        publicCases: [{ index: 1, status: "accepted" }],
+      }}
+    />,
+  );
+  expect(html).toContain('aria-label="Hidden case 3: failed"');
+  expect(html).toContain('aria-label="Case 2: accepted"');
+  expect(html).toContain('aria-label="Case 1: pending"');
+});
 
 it("does not offer stale hidden cases while a new submission starts", () => {
   const html = renderToStaticMarkup(

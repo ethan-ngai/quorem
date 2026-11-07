@@ -704,7 +704,7 @@ export function WorkspacePage({
     );
   };
 
-  return (
+  const renderWorkspace = (controls?: MatchDisclosureControls) => (
     <>
       {loading && (
         <div className="workspace-loading workspace-transition" role="status">
@@ -825,21 +825,7 @@ export function WorkspacePage({
         }
         panel={activePanel}
         onPanelChange={setActivePanel}
-        problem={
-          match && !review ? (
-            <MatchAssistance
-              key={`${match.id}:${identity}:${workspace.id}`}
-              match={match}
-              identity={identity}
-              submission={submission}
-              onPaidAction={sharedDocument?.requestPaidAction}
-            >
-              {renderProblem}
-            </MatchAssistance>
-          ) : (
-            renderProblem()
-          )
-        }
+        problem={renderProblem(controls)}
         editor={
           <>
             {review && reviewQuery.data && (
@@ -959,12 +945,14 @@ export function WorkspacePage({
             progress={displayedOdyssey}
             submission={submission}
             busy={admissionPending || (execution.isPending && !!execution.submissionId)}
+            pendingKind={execution.pendingKind}
             error={execution.error}
-            customMode={customMode}
+            customMode={execution.pendingKind === "submit" ? false : customMode}
             onCustomModeChange={setCustomMode}
             drafts={customDrafts}
             onDraftsChange={frozenMatch ? undefined : changeCustomDrafts}
             snapshot={execution.runSnapshot}
+            hiddenCaseDetails={controls?.hiddenCaseDetails}
           />
         }
         actions={
@@ -1085,5 +1073,19 @@ export function WorkspacePage({
         )}
       </WorkspaceLayout>
     </>
+  );
+
+  return match && !review ? (
+    <MatchAssistance
+      key={`${match.id}:${identity}:${workspace.id}`}
+      match={match}
+      identity={identity}
+      submission={submission}
+      onPaidAction={sharedDocument?.requestPaidAction}
+    >
+      {renderWorkspace}
+    </MatchAssistance>
+  ) : (
+    renderWorkspace()
   );
 }

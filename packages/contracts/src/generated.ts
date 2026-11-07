@@ -1286,6 +1286,10 @@ export interface components {
             odyssey?: components["schemas"]["Odyssey"];
             hasSolutions?: boolean;
             hasComplexity?: boolean;
+            /** @description Number of hidden cases by stage. Stage 0 is the base suite. */
+            hiddenCaseCounts?: {
+                [key: string]: number;
+            };
         };
         Workspace: {
             /** Format: uuid */

@@ -4879,6 +4879,14 @@
           },
           "hasComplexity": {
             "type": "boolean"
+          },
+          "hiddenCaseCounts": {
+            "description": "Number of hidden cases by stage. Stage 0 is the base suite.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "required": [

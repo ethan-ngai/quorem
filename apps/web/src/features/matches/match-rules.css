@@ -47,8 +47,7 @@
   font-size: var(--text-label);
   color: var(--color-text-secondary);
 }
-.match-rule-amount > input,
-.match-hidden-case-action input {
+.match-rule-amount > input {
   width: 10ch;
   font: inherit;
   color: var(--color-text);
@@ -65,18 +64,6 @@
 .match-rule-allowance > .text-control {
   inline-size: 7ch;
 }
-.match-assistance {
-  display: grid;
-  gap: var(--space-2);
-  padding-block: var(--space-3);
-}
-.match-assistance pre {
-  overflow: auto;
-  max-height: 240px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
 .lobby-command-lock > .competitive-lobby-heading {
   margin-bottom: var(--space-4);
 }
@@ -191,18 +178,6 @@
   color: var(--color-text-secondary);
   font-size: var(--text-label);
   text-align: center;
-}
-
-.match-hidden-case-action,
-.match-hidden-case-action label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  font-size: var(--text-small);
-}
-.match-hidden-case-action input {
-  font-family: var(--font-code);
 }
 
 .assistance-confirmation {
