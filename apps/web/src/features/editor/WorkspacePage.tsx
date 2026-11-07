@@ -1,3 +1,6 @@
+import { MatchAssistance, ruleCostLabel } from "../matches/MatchAssistance";
+import { matchRuleAction } from "../matches/api";
+import type { RuleActionQuote } from "@quorem/contracts/match-rules";
 import { matchCompletionOutcome } from "../matches/matchState";
 /** @file WorkspacePage.tsx @description Coordinates problem loading and editor workspace panes. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
@@ -110,6 +113,11 @@ export function WorkspacePage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [signInPrompt, setSignInPrompt] = useState(false);
   const signInPromptOrigin = useRef<HTMLElement | null>(null);
+  const [submissionConfirmation, setSubmissionConfirmation] = useState<{
+    quote: RuleActionQuote;
+    source: string;
+  }>();
+  const [quotingSubmission, setQuotingSubmission] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -443,12 +451,37 @@ export function WorkspacePage({
       setSignInPrompt(true);
       return;
     }
+    if (quotingSubmission || submissionConfirmation) return;
     setActivePanel("results");
-    if (await execution.submit()) setCustomMode(false);
-  }, [execution.submit, account.data, match]);
+    if (match && !review) {
+      setQuotingSubmission(true);
+      try {
+        const source = editorRef.current?.getSource() ?? sourceRef.current;
+        const { quote } = await matchRuleAction(identity, match.id, { kind: "submission" });
+        if (quote.cooldownSeconds) {
+          setActionError(`Submit available in ${quote.cooldownSeconds}s.`);
+          return;
+        }
+        if (quote.seconds || quote.points) setSubmissionConfirmation({ quote, source });
+        else if (await execution.submit(quote, source)) setCustomMode(false);
+      } catch (error) {
+        setActionError(errorMessage(error));
+      } finally {
+        setQuotingSubmission(false);
+      }
+    } else if (await execution.submit()) setCustomMode(false);
+  }, [
+    execution.submit,
+    account.data,
+    match,
+    review,
+    identity,
+    quotingSubmission,
+    submissionConfirmation,
+  ]);
 
   const hotkeyOptions = {
-    enabled: !settingsOpen && !signInPrompt,
+    enabled: !settingsOpen && !signInPrompt && !submissionConfirmation,
     ignoreInputs: false,
     requireReset: true,
   };
@@ -671,10 +704,19 @@ export function WorkspacePage({
         onPanelChange={setActivePanel}
         problem={
           <>
+            {match && !review && (
+              <MatchAssistance
+                key={match.id}
+                match={match}
+                identity={identity}
+                submission={submission}
+                complexityAvailable={problem.hasComplexity ?? false}
+              />
+            )}
             {problem.odyssey ? (
               displayedOdyssey ? (
                 <OdysseyPanel
-                  allowTopics={review || match?.rules.hints?.topics !== false}
+                  allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
                   progress={displayedOdyssey}
                   problem={problem}
                   selectedLevel={selectedLevel}
@@ -686,7 +728,9 @@ export function WorkspacePage({
                     identity={identity}
                     versionId={problem.id}
                     language={documentLanguage}
-                    inMatch={!!match && !review && match.rules.hints?.complexity !== true}
+                    inMatch={
+                      !!match && !review && match.rules.assistance.complexity.access !== "free"
+                    }
                   />
                 </OdysseyPanel>
               ) : (
@@ -701,7 +745,7 @@ export function WorkspacePage({
             ) : (
               <ProblemStatement
                 problem={problem}
-                allowTopics={review || match?.rules.hints?.topics !== false}
+                allowTopics={!match || review || match.rules.assistance.topics.access === "free"}
               >
                 <EditorialPanel
                   theme={theme}
@@ -712,7 +756,9 @@ export function WorkspacePage({
                   identity={identity}
                   versionId={problem.id}
                   language={documentLanguage}
-                  inMatch={!!match && !review && match.rules.hints?.complexity !== true}
+                  inMatch={
+                    !!match && !review && match.rules.assistance.complexity.access !== "free"
+                  }
                 />
               </ProblemStatement>
             )}
@@ -884,6 +930,43 @@ export function WorkspacePage({
             outcome={match ? matchCompletionOutcome(match, identity) : "success"}
           />
         )}
+        <SessionDialog
+          open={!!submissionConfirmation}
+          onOpenChange={(open) => {
+            if (!open) setSubmissionConfirmation(undefined);
+          }}
+          pending={execution.admissionPending}
+          title="Submit with penalty?"
+          description={`Cost: ${submissionConfirmation ? ruleCostLabel(submissionConfirmation.quote) : ""}. Submit the code captured when you clicked Submit.`}
+        >
+          <div className="competitive-dialog-actions">
+            <button
+              className="button button-secondary"
+              disabled={execution.admissionPending}
+              onClick={() => setSubmissionConfirmation(undefined)}
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-primary"
+              disabled={execution.admissionPending}
+              onClick={async () => {
+                if (!submissionConfirmation) return;
+                if (
+                  await execution.submit(
+                    submissionConfirmation.quote,
+                    submissionConfirmation.source,
+                  )
+                ) {
+                  setCustomMode(false);
+                  setSubmissionConfirmation(undefined);
+                }
+              }}
+            >
+              Submit
+            </button>
+          </div>
+        </SessionDialog>
         <SessionDialog
           open={signInPrompt}
           onOpenChange={setSignInPrompt}

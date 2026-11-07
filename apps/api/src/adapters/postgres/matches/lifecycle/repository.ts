@@ -1,3 +1,10 @@
+import { executeRuleAction } from "../rules/actions.ts";
+import {
+  effectiveEvent,
+  competitiveSubject,
+  recordRuleEvent,
+  victoryCost,
+} from "../rules/ledger.ts";
 import { reviewPending } from "../review/pending.ts";
 /** @file repository.ts @description Transactional match lifecycle and idempotency. @module matches */
 import { sql } from "drizzle-orm";
@@ -89,11 +96,43 @@ export async function requireMatchMember(tx: Transaction, who: Principal, id: st
 export async function matchSnapshot(tx: Transaction, id: string, owner: string): Promise<unknown> {
   const row = (
     await tx.execute<{ data: unknown }>(
-      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'partyId',m.party_id,'reviewPending',${reviewPending(sql`m.id`)},'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',COALESCE(v.difficulty,m.difficulties[1]),'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action','announce','occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM match_rule_events e JOIN users u ON u.id=e.owner_id WHERE e.match_id=m.id),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
+      sql`SELECT jsonb_strip_nulls(jsonb_build_object('id',m.id,'partyId',m.party_id,'reviewPending',${reviewPending(sql`m.id`)},'version',m.version::text,'state',m.state,'serverNow',clock_timestamp(),'hostUserId',h.participant_id,'expiresAt',m.expires_at,'questionFilters',m.question_filters,'admissionLocked',m.admission_locked,'accessMode',m.access_mode,'mode',m.mode,'difficulties',m.difficulties,'selectedProblemVersionId',m.selected_problem_version_id,'rules',m.rules,'difficulty',COALESCE(v.difficulty,m.difficulties[1]),'durationMinutes',m.duration_minutes,'startedAt',m.started_at,'deadline',m.deadline,'finalizingAt',m.finalizing_at,'problemVersionId',m.problem_version_id,'outcome',m.outcome,'participants',COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('userId',u.participant_id,'competitorId',COALESCE(p.competitor_id,p.owner_id),'eligibleFinishAt',p.eligible_finish_at,'displayName',u.display_name,'color',NULLIF(u.profile_color,0),'image',NULLIF(u.profile_image,''),'ready',p.ready,'presence',CASE WHEN EXISTS (SELECT 1 FROM realtime_presence_leases lease WHERE lease.topic='/matches/'||m.id::text AND lease.subject=p.owner_id AND lease.expires_at>clock_timestamp()) THEN 'online' ELSE 'offline' END,'workspaceId',CASE WHEN p.owner_id=${owner} THEN p.workspace_id END,'submissionState',NULLIF(p.submission_state,''),'forfeited',p.forfeited,'guest',u.kind='guest','bestScore',CASE WHEN m.started_at IS NOT NULL AND v.id IS NOT NULL THEN jsonb_build_object('passed',p.best_passed,'total',CASE WHEN v.odyssey IS NOT NULL THEN (SELECT count(*) FROM problem_odyssey_cases WHERE version_id=v.id) ELSE (SELECT count(*) FROM problem_test_cases WHERE version_id=v.id) END) END)) ORDER BY p.seat) FROM match_participants p JOIN users u ON u.id=p.owner_id WHERE p.match_id=m.id),'[]'::jsonb),'ruleEvents',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',e.id,'userId',u.participant_id,'kind',e.kind,'action',e.action,'competitorId',e.competitor_id,'seconds',e.seconds,'points',e.points,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id) FROM (SELECT * FROM match_rule_events history WHERE history.match_id=m.id AND (history.kind<>'submission' OR history.seconds>0 OR history.points>0) ORDER BY history.occurred_at DESC LIMIT 100) e JOIN users u ON u.id=e.owner_id WHERE ${effectiveEvent(sql`e`)}),'[]'::jsonb))) AS data FROM matches m JOIN users h ON h.id=m.host_owner_id LEFT JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${id}::uuid`,
     )
   ).rows[0];
   if (!row) throw missing();
-  return row.data;
+  const data = row.data as {
+    participants: Array<Record<string, unknown> & { competitorId: string }>;
+  };
+  const totals = (
+    await tx.execute<{
+      subject: string;
+      seconds: number;
+      points: number;
+      adjusted: number;
+      cooldown: string | null;
+      revealed: string[];
+    }>(sql`
+    SELECT COALESCE(p.competitor_id,p.owner_id) AS subject,
+      COALESCE(sum(e.seconds),0)::int AS seconds,COALESCE(sum(e.points),0)::int AS points,
+      p.best_percentage-COALESCE(sum(e.points),0) AS adjusted,
+      max(e.occurred_at) FILTER(WHERE e.kind='submission') + make_interval(secs=>COALESCE((m.rules->'submissions'->>'cooldownSeconds')::int,0)) AS cooldown,
+      COALESCE(array_agg(DISTINCT e.kind) FILTER(WHERE e.kind IN ('topics','complexity')),'{}') AS revealed
+    FROM match_participants p JOIN matches m ON m.id=p.match_id
+    LEFT JOIN match_rule_events e ON e.match_id=p.match_id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND ${effectiveEvent(sql`e`)}
+    WHERE p.match_id=${id}::uuid GROUP BY p.match_id,p.owner_id,m.id
+  `)
+  ).rows;
+  for (const participant of data.participants) {
+    const total = totals.find((t) => t.subject === participant.competitorId)!;
+    Object.assign(participant, {
+      penaltySeconds: total.seconds,
+      penaltyPoints: total.points,
+      adjustedScore: total.adjusted,
+      ...(total.cooldown ? { cooldownUntil: total.cooldown } : {}),
+      revealedAssistance: total.revealed,
+    });
+  }
+  return data;
 }
 export async function hosting(tx: Transaction, owner: string, mode: string) {
   const user = (
@@ -224,6 +263,19 @@ export function matchLifecycle(
       fn({ id: fence, shard: shard(id) }),
     );
   return {
+    async ruleAction(who, id, key, input) {
+      return (await command(who, `rule-action:${id}`, key, input, async (tx) => {
+        await lockMatch(tx, id);
+        await requireMatchMember(tx, who, id);
+        await reconcileMatch(tx, id);
+        const m = await lockMatch(tx, id);
+        if (m.state !== "active") throw transition("Match is not active");
+        const result = await executeRuleAction(tx, id, who.userId, m.settings.rules, input);
+        if (result.revealed && !result.quote.alreadyRevealed)
+          await matchEvent(tx, id, "match.updated");
+        return result;
+      })) as import("@quorem/contracts/match-rules").RuleActionResult;
+    },
     async create(who, key, input) {
       const s = normalizeSettings(input);
       if (s.accessMode === "guests_allowed" && !deps.guestCreation)
@@ -294,7 +346,7 @@ export function matchLifecycle(
       const body = action === "settings" ? normalizeSettings(input) : input;
       if (action === "ready" && typeof body !== "boolean")
         throw new ApplicationError("invalid_input", "Ready is required", 400);
-      if (action === "rule-events" && body !== "clipboard" && body !== "focus")
+      if (action === "rule-events" && body !== "clipboard" && body !== "copy" && body !== "focus")
         throw new ApplicationError("invalid_input", "Invalid rule event", 400);
       if (!uuid.test(id)) throw missing();
       const payload =
@@ -326,8 +378,18 @@ export function matchLifecycle(
                   "Guest hosting is temporarily paused",
                   409,
                 );
-              if (m.host !== who.userId)
-                throw new ApplicationError("forbidden", "Only the host can change settings", 403);
+              if (
+                m.host !== who.userId &&
+                (m.settings.rules.settingsEditors !== "everyone" ||
+                  s.rules.settingsEditors !== m.settings.rules.settingsEditors ||
+                  s.accessMode !== m.settings.accessMode ||
+                  s.admissionLocked !== m.settings.admissionLocked)
+              )
+                throw new ApplicationError(
+                  "forbidden",
+                  "Only the host can change lobby permissions",
+                  403,
+                );
               if (m.started || closed) throw transition("Match settings are fixed");
               const count = Number(
                 (
@@ -338,8 +400,8 @@ export function matchLifecycle(
               );
               if (count > (s.mode === "free-for-all" ? 8 : 2))
                 throw transition("Too many players for this mode");
-              await hosting(tx, who.userId, s.accessMode);
-              await validateSelectedMatchProblem(tx, who.userId, s);
+              await hosting(tx, m.host, s.accessMode);
+              await validateSelectedMatchProblem(tx, m.host, s);
               if (
                 s.accessMode === "accounts_only" &&
                 (
@@ -393,21 +455,46 @@ export function matchLifecycle(
               await start(tx, id, m);
             } else if (action === "rule-events") {
               if (m.state !== "active") throw transition("Match is not active");
-              const kind = body as "clipboard" | "focus";
+              const kind = body as "clipboard" | "copy" | "focus";
               const [participant] = (
                 await tx.execute<{ forfeited: boolean; allowed: boolean }>(
                   sql`SELECT forfeited,(last_rule_event_at IS NULL OR last_rule_event_at<=clock_timestamp()-interval '2 seconds') AS allowed FROM match_participants WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
                 )
               ).rows;
               if (participant.forfeited) throw transition("Participant forfeited");
-              if (m.settings.rules[kind] !== "announce" || !participant.allowed)
+              const action = m.settings.rules[kind];
+              if (!["announce", "penalty"].includes(action) || !participant.allowed)
                 suppressEvent = true;
               else {
+                const subject = await competitiveSubject(tx, id, who.userId);
+                const warnings =
+                  kind === "focus"
+                    ? Number(
+                        (
+                          await tx.execute<{ n: number }>(
+                            sql`SELECT count(*)::int AS n FROM match_rule_events WHERE match_id=${id}::uuid AND competitor_id=${subject} AND kind='focus'`,
+                          )
+                        ).rows[0].n,
+                      )
+                    : Infinity;
+                const charged =
+                  action === "penalty" && warnings >= m.settings.rules.focusFreeWarnings;
+                await recordRuleEvent(tx, {
+                  match: id,
+                  actor: who.userId,
+                  subject,
+                  kind,
+                  action: charged ? "penalty" : "announce",
+                  cost: charged
+                    ? victoryCost(
+                        m.settings.rules,
+                        m.settings.rules.behavioralSeconds,
+                        m.settings.rules.behavioralPoints,
+                      )
+                    : { seconds: 0, points: 0 },
+                });
                 await tx.execute(
-                  sql`WITH stamp AS (UPDATE match_participants SET last_rule_event_at=clock_timestamp() WHERE match_id=${id}::uuid AND owner_id=${who.userId} RETURNING last_rule_event_at) INSERT INTO match_rule_events(id,match_id,owner_id,kind,occurred_at) SELECT ${crypto.randomUUID()}::uuid,${id}::uuid,${who.userId},${kind},last_rule_event_at FROM stamp`,
-                );
-                await tx.execute(
-                  sql`DELETE FROM match_rule_events WHERE match_id=${id}::uuid AND id NOT IN (SELECT id FROM match_rule_events WHERE match_id=${id}::uuid ORDER BY occurred_at DESC,id DESC LIMIT 20)`,
+                  sql`UPDATE match_participants SET last_rule_event_at=clock_timestamp() WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
                 );
               }
             } else if (action === "leave") {
@@ -429,6 +516,8 @@ export function matchLifecycle(
                 }
               }
             } else if (action === "forfeit" && !closed) {
+              if (m.mode === "factions")
+                throw new ApplicationError("forbidden", "Team concession requires a vote", 403);
               if (!m.started)
                 await finishMatch(tx, id, "cancelled", null, "forfeit_without_opponent");
               else {

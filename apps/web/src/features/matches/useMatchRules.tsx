@@ -11,24 +11,33 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
   const active = match?.state === "active" && !!own && !own.forfeited;
   const scope = `${identity}:${match?.id}`;
   const clipboard = match?.rules.clipboard ?? "off";
+  const copy = match?.rules.copy ?? "off";
+  const focusGraceSeconds = match?.rules.focusGraceSeconds ?? 3;
   const focus = match?.rules.focus ?? "off";
   useEffect(() => {
     if (!active || !match) return;
     let disposed = false;
-    const monitor = createRuleMonitor({ clipboard, focus }, (kind, action) => {
-      const reason =
-        kind === "clipboard" ? "Copy/paste is disabled." : "Keep this match window focused.";
-      toast.warning(reason, { id: `match-rule:${scope}` });
-      if (action === "warning") return;
-      void reportRuleEvent(identity, match.id, kind)
-        .then(() => queryClient.invalidateQueries({ queryKey: ["match", identity, match.id] }))
-        .catch(() => {
-          if (!disposed)
-            toast.error(`${reason} Rule report failed; reconnect to confirm match state.`, {
-              id: `match-rule:${scope}`,
-            });
-        });
-    });
+    const monitor = createRuleMonitor(
+      { clipboard, copy, focus, focusGraceSeconds },
+      (kind, action) => {
+        const reason =
+          kind === "focus"
+            ? "Match window focus change recorded."
+            : action === "warning"
+              ? "Clipboard action is disabled."
+              : "Clipboard action recorded.";
+        toast.warning(reason, { id: `match-rule:${scope}` });
+        if (action === "warning") return;
+        void reportRuleEvent(identity, match.id, kind)
+          .then(() => queryClient.invalidateQueries({ queryKey: ["match", identity, match.id] }))
+          .catch(() => {
+            if (!disposed)
+              toast.error(`${reason} Rule report failed; reconnect to confirm match state.`, {
+                id: `match-rule:${scope}`,
+              });
+          });
+      },
+    );
     const clipboardAttempt = (event: Event) => {
       const anchor = window.getSelection()?.anchorNode;
       const selectionTarget = anchor instanceof Element ? anchor : anchor?.parentElement;
@@ -38,7 +47,7 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
         !selectionTarget?.closest(".coding-pane, .problem-pane")
       )
         return;
-      if (monitor.clipboard()) {
+      if (monitor.clipboard(event.type === "paste" ? "clipboard" : "copy")) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -51,8 +60,9 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
       for (const type of ["copy", "cut", "paste"])
         document.removeEventListener(type, clipboardAttempt, true);
       stopFocus();
+      monitor.dispose();
       toast.dismiss(`match-rule:${scope}`);
     };
-  }, [active, match?.id, clipboard, focus, identity, scope, queryClient]);
+  }, [active, match?.id, clipboard, copy, focus, focusGraceSeconds, identity, scope, queryClient]);
   return { blocked: !!own?.forfeited };
 }

@@ -26,11 +26,7 @@ export function settingsBody(s: Settings): object {
     mode: s.mode,
     difficulties: s.difficulties,
     ...(s.selectedProblemVersionId ? { selectedProblemVersionId: s.selectedProblemVersionId } : {}),
-    rules: {
-      ...(s.rules.hints === undefined ? {} : { hints: s.rules.hints }),
-      clipboard: s.rules.clipboard,
-      focus: s.rules.focus,
-    },
+    rules: s.rules,
     difficulty: s.difficulty,
     durationMinutes: s.durationMinutes,
   };

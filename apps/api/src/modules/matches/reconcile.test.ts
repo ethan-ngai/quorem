@@ -83,3 +83,74 @@ describe("Go match reconciliation vectors", () => {
     expect(result.progress.get("alice")?.bestPassed).toBe(4);
   });
 });
+
+describe("penalty victory rules", () => {
+  const players = ["alice", "bob"];
+  it("keeps Race open until the adjusted finish and lets an opponent beat it", () => {
+    const delayed = { ...accepted("alice"), eligibleAt: now + minute };
+    expect(reconcile(now, now + 5n * minute, null, players, [delayed]).outcome).toBeNull();
+    const rival = { ...accepted("bob"), eligibleAt: now + minute / 2n };
+    expect(
+      reconcile(now + minute / 2n, now + 5n * minute, null, players, [delayed, rival]).outcome
+        ?.winnerUserId,
+    ).toBe("bob");
+    expect(
+      reconcile(now + minute, now + 5n * minute, null, players, [delayed]).outcome?.winnerUserId,
+    ).toBe("alice");
+  });
+  it("does not let an over-deadline perfect submission win through score fallback", () => {
+    const rows = [
+      { ...partial("alice", 1), eligibleAt: now - minute },
+      { ...accepted("alice"), eligibleAt: now + 1n },
+      { ...partial("bob", 2), eligibleAt: now - minute },
+    ];
+    expect(reconcile(now, now, null, players, rows).outcome).toEqual({
+      kind: "win",
+      winnerUserId: "bob",
+      reason: "deadline_score",
+    });
+  });
+  it("draws genuinely simultaneous correct finishes", () => {
+    expect(
+      reconcile(
+        now,
+        now + minute,
+        null,
+        players,
+        players.map((p) => ({ ...accepted(p), eligibleAt: now })),
+      ).outcome?.kind,
+    ).toBe("draw");
+  });
+  it("waits for an earlier eligible unresolved rival", () => {
+    const rows = [
+      { ...entry("bob", "running"), eligibleAt: now - 1n },
+      { ...accepted("alice"), eligibleAt: now },
+    ];
+    expect(reconcile(now, now + minute, null, players, rows).outcome).toBeNull();
+  });
+  it("does not turn unresolved persisted finalization into a draw", () => {
+    const rows = [{ ...entry("bob", "running"), eligibleAt: now - minute }];
+    expect(reconcile(now, now + minute, now - 2n * minute, players, rows).outcome).toEqual({
+      kind: "no_contest",
+      reason: "unresolved_eligible_work",
+    });
+  });
+  it("High Score runs until deadline and subtracts points from the best score", () => {
+    const rules = { victory: "high_score" as const, penalties: new Map([["alice", 30]]) };
+    const rows = [accepted("alice"), partial("bob", 3), partial("bob", 1)];
+    expect(reconcile(now, now + minute, null, players, rows, rules).outcome).toBeNull();
+    expect(reconcile(now, now, null, players, rows, rules).outcome?.winnerUserId).toBe("bob");
+  });
+  it("retains negative scores and excludes infrastructure failures from unresolved work", () => {
+    const rules = {
+      victory: "high_score" as const,
+      penalties: new Map([
+        ["alice", 10],
+        ["bob", 20],
+      ]),
+    };
+    expect(
+      reconcile(now, now, null, players, [entry("bob", "failed")], rules).outcome?.winnerUserId,
+    ).toBe("alice");
+  });
+});

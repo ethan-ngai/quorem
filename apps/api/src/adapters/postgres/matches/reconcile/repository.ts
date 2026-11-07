@@ -1,4 +1,6 @@
 /** @file repository.ts @description Atomic PostgreSQL match reconciliation. @module matches */
+import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
+import { effectiveEvent } from "../rules/ledger.ts";
 import { reviewPending } from "../review/pending.ts";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -15,9 +17,19 @@ type MatchRow = {
   finalizing: string | null;
   now: string;
   outcome: unknown;
+  rules: MatchRuleSettings;
 };
-type Person = { owner: string; state: string; best: number };
+type Person = {
+  owner: string;
+  subject: string;
+  state: string;
+  best: number;
+  points: number;
+  percentage: number;
+  finish: string | null;
+};
 type Submission = {
+  eligible: string;
   owner: string;
   state: string;
   job: string | null;
@@ -34,7 +46,7 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   if (!locked.rows.length) throw new ApplicationError("not_found", "Match not found", 404);
   const match = (
     await tx.execute<MatchRow>(
-      sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now) SELECT id::text,state,started_at IS NOT NULL AS started,expires_at<=sampled.now AS expired,${timestamp(sql`deadline`)} AS deadline,${timestamp(sql`finalizing_at`)} AS finalizing,${timestamp(sql`sampled.now`)} AS now,outcome FROM matches,sampled WHERE id=${id}::uuid`,
+      sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now) SELECT id::text,state,started_at IS NOT NULL AS started,expires_at<=sampled.now AS expired,${timestamp(sql`deadline`)} AS deadline,${timestamp(sql`finalizing_at`)} AS finalizing,${timestamp(sql`sampled.now`)} AS now,outcome,rules FROM matches,sampled WHERE id=${id}::uuid`,
     )
   ).rows[0];
   if (!match || match.outcome !== null) return;
@@ -48,12 +60,12 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
   if (match.deadline === null) throw new Error("Started match has no deadline");
   const people = (
     await tx.execute<Person>(
-      sql`SELECT owner_id AS owner,COALESCE(submission_state,'') AS state,best_passed AS best FROM match_participants WHERE match_id=${id}::uuid AND NOT forfeited`,
+      sql`SELECT p.owner_id AS owner,COALESCE(p.competitor_id,p.owner_id) AS subject,COALESCE(p.submission_state,'') AS state,p.best_passed AS best,p.best_percentage AS percentage,${timestamp(sql`p.eligible_finish_at`)} AS finish,COALESCE((SELECT sum(e.points) FROM match_rule_events e WHERE e.match_id=p.match_id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND ${effectiveEvent(sql`e`)}),0)::int AS points FROM match_participants p WHERE p.match_id=${id}::uuid AND NOT p.forfeited`,
     )
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT s.owner_id AS owner,s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql` s.admitted_at + make_interval(secs=>CASE WHEN ${match.rules.victory}='race' THEN COALESCE((SELECT sum(e.seconds) FROM match_rule_events e WHERE e.match_id=s.match_id AND e.competitor_id=COALESCE(mp.competitor_id,s.owner_id) AND (e.occurred_at<=s.admitted_at OR e.submission_id=s.id) AND ${effectiveEvent(sql`e`)}),0)::double precision ELSE 0 END)`)} AS eligible,s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
   const submissions: SubmissionProgress[] = [];
@@ -86,6 +98,7 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
         : null;
     submissions.push({
       owner: row.owner,
+      eligibleAt: BigInt(row.eligible),
       state: row.state,
       verdict: terminal?.verdict ?? "",
       score: terminal && verified ? { passed: terminal.passed, total: verified.caseCount } : null,
@@ -94,19 +107,38 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
       cannotPass: max !== null,
     });
   }
+  const nextEligibility = submissions.reduce<bigint | null>((next, s) => {
+    const time = s.eligibleAt!;
+    return time > BigInt(match.now) &&
+      time <= BigInt(match.deadline!) &&
+      s.state !== "failed" &&
+      s.state !== "cancelled" &&
+      (next === null || time < next)
+      ? time
+      : next;
+  }, null);
+  await tx.execute(
+    sql`UPDATE matches SET rule_deadline=to_timestamp(${nextEligibility?.toString() ?? null}::numeric/1000000) WHERE id=${id}::uuid AND rule_deadline IS DISTINCT FROM to_timestamp(${nextEligibility?.toString() ?? null}::numeric/1000000)`,
+  );
   const decision = reconcile(
     BigInt(match.now),
     BigInt(match.deadline),
     match.finalizing === null ? null : BigInt(match.finalizing),
-    people.map((p) => p.owner),
+    [...new Set(people.map((p) => p.subject))],
     submissions,
+    { victory: match.rules.victory, penalties: new Map(people.map((p) => [p.subject, p.points])) },
   );
   let changed = false;
   for (const p of people) {
-    const next = decision.progress.get(p.owner)!;
-    if (p.state !== next.state || p.best !== next.bestPassed) {
+    const next = decision.progress.get(p.subject)!;
+    if (
+      p.state !== next.state ||
+      p.best !== next.bestPassed ||
+      p.percentage !== next.bestPercentage ||
+      p.finish !== (next.eligibleFinishAt?.toString() ?? null)
+    ) {
       await tx.execute(
-        sql`UPDATE match_participants SET best_passed=${next.bestPassed},submission_state=NULLIF(${next.state},'') WHERE match_id=${id}::uuid AND owner_id=${p.owner}`,
+        sql`UPDATE match_participants SET best_percentage=${next.bestPercentage},eligible_finish_at=to_timestamp(${next.eligibleFinishAt?.toString() ?? null}::numeric/1000000),best_passed=${next.bestPassed},submission_state=NULLIF(${next.state},'') WHERE match_id=${id}::uuid AND owner_id=${p.owner}`,
       );
       changed = true;
     }
@@ -122,7 +154,7 @@ export async function reconcileMatch(tx: Transaction, id: string): Promise<void>
       tx,
       id,
       decision.outcome.kind,
-      decision.outcome.winnerUserId ?? null,
+      people.find((p) => p.subject === decision.outcome?.winnerUserId)?.owner ?? null,
       decision.outcome.reason,
     );
     changed = true;

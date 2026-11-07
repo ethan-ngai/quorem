@@ -1,3 +1,6 @@
+import { prepareRuleAction, assertRuleApproval } from "../../matches/rules/actions.ts";
+import { recordRuleEvent } from "../../matches/rules/ledger.ts";
+import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
 import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
@@ -81,11 +84,12 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
             isSql: boolean;
             stages: number;
           }>(
-            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND w.owner_id=${principal.userId} AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
+            sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
           )
         ).rows[0];
         if (!row) throw failure("not_found", "Workspace not found", 404);
         const runtime = questionRuntime(row.language, row.isSql);
+        let rulePlan: Awaited<ReturnType<typeof prepareRuleAction>> | undefined;
         let matchSequence: string | null = null,
           admissionTime: string | null = null,
           sponsor: string | null = null;
@@ -119,8 +123,9 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
               enabled: boolean;
               active: boolean;
               admittedAt: string;
+              rules: MatchRuleSettings;
             }>(
-              sql`SELECT m.host_owner_id AS host,NOT h.disabled AS enabled,m.state='active' AND m.deadline>clock_timestamp() AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${row.matchId}::uuid`,
+              sql`SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,m.state='active' AND m.deadline>clock_timestamp() AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt" FROM matches m JOIN users h ON h.id=m.host_owner_id WHERE m.id=${row.matchId}::uuid`,
             )
           ).rows[0];
           if (!match?.enabled) throw failure("not_found", "Workspace not found", 404);
@@ -144,6 +149,18 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
           if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
           admissionTime = match.admittedAt;
           if (command.kind === "submit") {
+            rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
+              kind: "submission",
+            });
+            if (rulePlan.quote.cooldownSeconds > 0)
+              throw failure(
+                "submission_cooldown",
+                `Submit available in ${rulePlan.quote.cooldownSeconds}s`,
+                429,
+              );
+            if (rulePlan.quote.seconds || rulePlan.quote.points || command.matchApproval)
+              assertRuleApproval(rulePlan.quote, command.matchApproval);
+
             matchSequence = String(
               (
                 await tx.execute(
@@ -218,7 +235,18 @@ export function postgresWorkspaceAdmission(run: Run, config: AdmissionOptions) {
         await tx.execute(
           sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,
         );
-        if (row.matchId && command.kind === "submit") await reconcileMatch(tx, row.matchId);
+        if (row.matchId && command.kind === "submit" && rulePlan) {
+          await recordRuleEvent(tx, {
+            match: row.matchId,
+            actor: principal.userId,
+            subject: rulePlan.subject,
+            kind: "submission",
+            action: rulePlan.quote.seconds || rulePlan.quote.points ? "penalty" : "announce",
+            cost: rulePlan.quote,
+            submission: id,
+          });
+          await reconcileMatch(tx, row.matchId);
+        }
         await checkAdmissionCapacity(tx);
         return {
           id,

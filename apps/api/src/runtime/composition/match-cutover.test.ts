@@ -18,6 +18,9 @@ const actor = {
 };
 const identify = async () => actor;
 const lifecycle: Lifecycle = {
+  ruleAction: async () => {
+    throw new Error("unexpected rule action");
+  },
   create: async () => {
     throw new Error("retired");
   },

@@ -5,7 +5,7 @@ import type { ConnectionScope } from "@quorem/database/core";
 import type { DeadlineStore } from "../../../../modules/events/scheduling/scheduling.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true };
-const due = sql`CASE WHEN m.started_at IS NULL THEN m.expires_at WHEN m.finalizing_at IS NOT NULL THEN m.finalizing_at + interval '2 minutes' ELSE m.deadline END`;
+const due = sql`CASE WHEN m.started_at IS NULL THEN m.expires_at WHEN m.finalizing_at IS NOT NULL THEN m.finalizing_at + interval '2 minutes' ELSE LEAST(m.deadline,m.rule_deadline) END`;
 const candidates = (shard: number, shards: number) => {
   if (
     !Number.isSafeInteger(shards) ||

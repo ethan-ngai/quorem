@@ -370,13 +370,19 @@ void test("verified early failure permits guest winner and late completion canno
     };
     const pending = executeAndStage(jobA!, port, suspended);
     await secondCase;
-    const verified = (
-      await pool.query(
-        "SELECT status FROM execution_verified_cases WHERE job_id=$1 ORDER BY ordinal",
-        [jobA!.jobId],
-      )
-    ).rows;
-    assert.equal(verified[0].status, "wrong_answer");
+    // Result staging overlaps the next case; wait for signed evidence, not sandbox entry.
+    let verified: { status: string }[] = [];
+    const verificationDeadline = Date.now() + 5000;
+    while (!verified.length && Date.now() < verificationDeadline) {
+      verified = (
+        await pool.query(
+          "SELECT status FROM execution_verified_cases WHERE job_id=$1 ORDER BY ordinal",
+          [jobA!.jobId],
+        )
+      ).rows;
+      if (!verified.length) await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(verified[0]?.status, "wrong_answer");
     const jobB = await port.claimAfterTeardown(true, sandboxB.scope, null);
     assert.equal(jobB?.jobId, second.fence.jobId);
     await executeAndStage(jobB!, port, sandboxB);

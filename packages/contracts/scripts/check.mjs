@@ -1,3 +1,5 @@
+import { matchPreset, matchRulesSchema } from "../src/match-rules.ts";
+import { z } from "zod";
 import {
   generateQuestionImplementations,
   publicQuestionProblem,
@@ -17,6 +19,9 @@ assert.deepEqual(
 );
 
 const api = JSON.parse(readFileSync("openapi/api.json", "utf8"));
+const ruleSchema = z.toJSONSchema(matchRulesSchema);
+delete ruleSchema.$schema;
+assert.deepEqual(api.components.schemas.MatchRules, ruleSchema, "Match rule schema drift");
 const schemas = JSON.parse(
   JSON.stringify(api.components.schemas).replaceAll("#/components/schemas/", "#/$defs/"),
 );
@@ -202,7 +207,7 @@ for (const request of [
   {
     selectedProblemVersionId: problemId,
     durationMinutes: 60,
-    rules: { clipboard: "warning", focus: "announce" },
+    rules: { ...matchPreset("casual"), clipboard: "warning", focus: "announce" },
   },
 ])
   assert(validatePartySettings(request), JSON.stringify(validatePartySettings.errors));
@@ -231,7 +236,7 @@ const match = {
   difficulty: "easy",
   difficulties: ["easy", "medium"],
   durationMinutes: 30,
-  rules: { clipboard: "warning", focus: "announce" },
+  rules: { ...matchPreset("casual"), clipboard: "warning", focus: "announce" },
   ruleEvents: [],
   participants: [{ userId: problemId, displayName: "Alice", ready: false, presence: "online" }],
 };
@@ -247,7 +252,7 @@ const ruleEvent = {
   occurredAt: fixtures.submission.updatedAt,
 };
 assert(validateMatch({ ...match, ruleEvents: [ruleEvent] }));
-assert(!validateMatch({ ...match, ruleEvents: Array(21).fill(ruleEvent) }));
+assert(!validateMatch({ ...match, ruleEvents: Array(101).fill(ruleEvent) }));
 assert(!validateMatch({ ...match, ruleEvents: [{ ...ruleEvent, clipboard: "private" }] }));
 assert(!validateMatch({ ...match, participants: Array(9).fill(match.participants[0]) }));
 const validateRuleRequest = ajv.compile({ $ref: `${document.$id}#/$defs/ReportMatchRuleRequest` });
