@@ -43,7 +43,10 @@ export function EditorialPanel({
   inMatch?: boolean;
   available?: boolean;
   solutionAvailable?: boolean;
-  requestComplexity?: (open: (value: EditorialComplexity) => void) => void;
+  requestComplexity?: (
+    anchor: HTMLButtonElement,
+    open: (value: EditorialComplexity) => void,
+  ) => void;
   complexityDisabled?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string>();
@@ -54,11 +57,11 @@ export function EditorialPanel({
     setDisplayed(item);
     setActive(item);
   }
-  function toggle(item: "complexity" | "solution") {
+  function toggle(item: "complexity" | "solution", anchor: HTMLButtonElement) {
     if (active === item) setActive(null);
     else if (item === "complexity" && requestComplexity && !grantedComplexity) {
       if (complexityDisabled) return;
-      requestComplexity((value) => {
+      requestComplexity(anchor, (value) => {
         setGrantedComplexity(value);
         open(item);
       });
@@ -100,7 +103,8 @@ export function EditorialPanel({
             aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
             aria-expanded={active === "complexity"}
             aria-disabled={!!requestComplexity && !grantedComplexity && complexityDisabled}
-            onClick={() => toggle("complexity")}
+            aria-haspopup={requestComplexity && !grantedComplexity ? "dialog" : undefined}
+            onClick={(event) => toggle("complexity", event.currentTarget)}
           >
             <Clock3 aria-hidden="true" /> Complexity
           </button>
@@ -110,7 +114,7 @@ export function EditorialPanel({
             className="topics-toggle"
             aria-label={active === "solution" ? "Hide solution" : "Show solution"}
             aria-expanded={active === "solution"}
-            onClick={() => toggle("solution")}
+            onClick={(event) => toggle("solution", event.currentTarget)}
           >
             <Braces aria-hidden="true" /> Solution
           </button>

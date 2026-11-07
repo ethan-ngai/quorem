@@ -9,14 +9,15 @@ import { MatchAssistance } from "./MatchAssistance";
 const action = vi.hoisted(() => vi.fn());
 vi.mock("./api", () => ({ matchRuleAction: action }));
 
-it("selects a passed hidden case and binds approval to that case", async () => {
+it.each([0, 30])("binds a %is reveal to the chosen case", async (seconds) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  action.mockReset();
   action.mockImplementation(async (_identity, _match, input) => ({
     quote: {
       kind: "hiddenCase",
       caseIndex: input.caseIndex,
       ruleVersion: "v1",
-      seconds: 0,
+      seconds,
       points: 0,
       cooldownSeconds: 0,
       alreadyRevealed: false,
@@ -28,7 +29,7 @@ it("selects a passed hidden case and binds approval to that case", async () => {
     state: "active",
     problemVersionId: "problem",
     participants: [{ userId: "alice" }],
-    rules: matchPreset("casual"),
+    rules: matchPreset(seconds ? "balanced" : "casual"),
   } as MatchSnapshot;
   const submission = {
     id: "submission",
@@ -53,21 +54,31 @@ it("selects a passed hidden case and binds approval to that case", async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "2");
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
-  await act(async () =>
-    [...container.querySelectorAll("button")]
-      .find((button) => button.textContent === "Reveal case")!
-      .click(),
-  );
+  const trigger = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "Reveal case",
+  )!;
+  vi.spyOn(trigger, "getClientRects").mockReturnValue([new DOMRect()] as unknown as DOMRectList);
+  await act(async () => trigger.click());
   expect(action).toHaveBeenNthCalledWith(1, "alice", "match", {
     kind: "hiddenCase",
     submissionId: "submission",
     caseIndex: 1,
   });
+  if (seconds) {
+    expect(action).toHaveBeenCalledTimes(1);
+    const popover = document.querySelector(".assistance-confirmation")!;
+    expect(popover.textContent).toContain("+30s");
+    expect(popover.textContent).toContain("Added to finish time");
+    const confirm = [...popover.querySelectorAll("button")].find(
+      (button) => button.textContent === "Reveal hidden case 2",
+    )!;
+    await act(async () => confirm.click());
+  }
   expect(action).toHaveBeenNthCalledWith(
     2,
     "alice",
     "match",
-    expect.objectContaining({ caseIndex: 1, approval: expect.objectContaining({ seconds: 0 }) }),
+    expect.objectContaining({ caseIndex: 1, approval: expect.objectContaining({ seconds }) }),
   );
   expect(container.textContent).toContain("Hidden case 2");
   await act(async () => root.unmount());

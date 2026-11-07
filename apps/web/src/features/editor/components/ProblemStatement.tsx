@@ -43,7 +43,7 @@ export function ProblemStatement({
   navigation?: ReactNode;
   beforeExamples?: ReactNode;
   allowTopics?: boolean;
-  requestTopics?: (open: (tags: string[]) => void) => void;
+  requestTopics?: (anchor: HTMLButtonElement, open: (tags: string[]) => void) => void;
   topicsDisabled?: boolean;
 }) {
   const [selection, setSelection] = useState({ problemId: problem.id, index: 0 });
@@ -59,11 +59,11 @@ export function ProblemStatement({
   const topics = requestTopics ? (matchTopics ?? []) : problem.tags;
   const showTopicsControl = allowTopics && (!!requestTopics || topics.length > 0);
   const topicsId = useId();
-  function toggleTopics() {
+  function toggleTopics(anchor: HTMLButtonElement) {
     if (topicsVisible) setRevealedTopicsFor(undefined);
     else if (requestTopics && !matchTopics) {
       if (topicsDisabled) return;
-      requestTopics((tags) => {
+      requestTopics(anchor, (tags) => {
         setGrantedTopics({ id: problem.id, tags });
         setRevealedTopicsFor(problem.id);
       });
@@ -84,7 +84,8 @@ export function ProblemStatement({
               aria-expanded={topicsVisible}
               aria-controls={topicsId}
               aria-disabled={!!requestTopics && !matchTopics && topicsDisabled}
-              onClick={toggleTopics}
+              aria-haspopup={requestTopics && !matchTopics ? "dialog" : undefined}
+              onClick={(event) => toggleTopics(event.currentTarget)}
             >
               <VisibilityIcon visible={topicsVisible} />
               Topics

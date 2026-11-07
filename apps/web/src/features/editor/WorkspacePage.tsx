@@ -612,8 +612,8 @@ export function WorkspacePage({
         assistance &&
         assistance.topics.access !== "free" &&
         assistance.topics.access !== "blocked"
-          ? (open: (tags: string[]) => void) =>
-              controls.reveal("topics", ({ topics }) => {
+          ? (anchor: HTMLButtonElement, open: (tags: string[]) => void) =>
+              controls.reveal("topics", anchor, ({ topics }) => {
                 if (topics) open(topics);
               })
           : undefined,
@@ -635,8 +635,8 @@ export function WorkspacePage({
           assistance &&
           assistance.complexity.access !== "free" &&
           assistance.complexity.access !== "blocked"
-            ? (open) =>
-                controls.reveal("complexity", ({ complexity }) => {
+            ? (anchor, open) =>
+                controls.reveal("complexity", anchor, ({ complexity }) => {
                   if (complexity) open(JSON.parse(complexity) as EditorialComplexity);
                 })
             : undefined

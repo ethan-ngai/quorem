@@ -204,3 +204,51 @@
 .match-hidden-case-action input {
   font-family: var(--font-code);
 }
+
+.assistance-confirmation {
+  display: grid;
+  gap: var(--space-3);
+  inline-size: min(18rem, var(--radix-popover-content-available-width));
+  max-block-size: var(--radix-popover-content-available-height);
+  overflow: auto;
+  padding: var(--space-3);
+}
+.assistance-confirmation h2,
+.assistance-confirmation p {
+  margin: 0;
+}
+.assistance-confirmation h2 {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.assistance-confirmation p {
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+}
+.assistance-confirmation p[role="alert"] {
+  color: var(--color-error);
+}
+.assistance-confirmation-cost {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  font-size: var(--text-label);
+}
+.assistance-confirmation-cost[data-penalty="true"] {
+  border-color: color-mix(in srgb, var(--color-warning) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-overlay));
+}
+.assistance-confirmation-cost[data-penalty="true"] strong {
+  font: 650 var(--text-h3) / 1.2 var(--font-code);
+  font-variant-numeric: tabular-nums;
+}
+.assistance-confirmation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
