@@ -5,6 +5,7 @@ import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
+import { Clock3, Trophy } from "lucide-react";
 /** @file MatchPage.tsx @description Match ledger and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
 import { MatchEndView } from "./MatchEndView";
@@ -25,6 +26,7 @@ import { useMatchSync } from "../realtime/useMatchSync";
 import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
+import { formatPenaltyDuration } from "./matchTime";
 import { outcomeLabel, ownParticipant, remainingTime } from "./matchState";
 import { GlobalNav } from "../navigation/GlobalNav";
 import "../../styles/workspace.css";
@@ -55,6 +57,23 @@ function MatchClock({ snapshot, active }: { snapshot: MatchSnapshot; active: boo
       <Icon name="clock" />
       {remaining}
     </span>
+  );
+}
+
+/** @returns A compact penalty total with its effect available on focus or hover. */
+function ScorePenalty({ value, unit }: { value: number; unit: "seconds" | "points" }) {
+  const time = unit === "seconds";
+  const duration = time ? formatPenaltyDuration(value) : "";
+  const label = time
+    ? `${duration} added to finish time`
+    : `${value} ${value === 1 ? "point" : "points"} deducted from score`;
+  return (
+    <Tooltip content={label}>
+      <span className="score-penalty" role="img" aria-label={label} tabIndex={0}>
+        {time ? <Clock3 size={12} aria-hidden="true" /> : <Trophy size={12} aria-hidden="true" />}
+        {time ? `+${duration}` : `−${value} pt${value === 1 ? "" : "s"}`}
+      </span>
+    </Tooltip>
   );
 }
 
@@ -161,11 +180,9 @@ function MatchLedger({
             </span>
           )}
           {!!player?.penaltySeconds && (
-            <span className="score-judging">+{player.penaltySeconds}s</span>
+            <ScorePenalty unit="seconds" value={player.penaltySeconds} />
           )}
-          {!!player?.penaltyPoints && (
-            <span className="score-judging">−{player.penaltyPoints} points</span>
-          )}
+          {!!player?.penaltyPoints && <ScorePenalty unit="points" value={player.penaltyPoints} />}
           {player?.eligibleFinishAt && snapshot.state === "active" && (
             <span className="score-judging">
               Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
