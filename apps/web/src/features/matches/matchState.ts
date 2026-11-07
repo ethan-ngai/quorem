@@ -7,8 +7,7 @@ import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from 
 export function activeMatchReturnLabel(snapshot: MatchSnapshot, identity: DevelopmentIdentity) {
   const participant = ownParticipant(snapshot, identity);
   if (!participant || participant.forfeited) return null;
-  if (snapshot.state === "active" || snapshot.state === "finalizing")
-    return "Return to active match";
+  if (snapshot.state === "active" || snapshot.state === "finalizing") return "Return to match";
   return null;
 }
 

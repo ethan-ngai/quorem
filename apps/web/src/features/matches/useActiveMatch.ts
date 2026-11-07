@@ -4,9 +4,12 @@ import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 import { activeMatchReturnLabel } from "./matchState";
 
+export const currentMatchQueryKey = (identity: DevelopmentIdentity) =>
+  ["current-match", identity] as const;
+
 export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
   const query = useQuery({
-    queryKey: ["current-match", identity],
+    queryKey: currentMatchQueryKey(identity),
     enabled,
     refetchOnWindowFocus: true,
     queryFn: async ({ signal }) => {

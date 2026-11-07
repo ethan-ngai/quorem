@@ -9,6 +9,7 @@ import {
   createRouter,
 } from "@tanstack/react-router";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
+import { currentMatchQueryKey } from "../matches/useActiveMatch";
 import { GlobalNav } from "./GlobalNav";
 import { AccountMenu } from "./AccountMenu";
 import { developmentUserIds, type MatchSnapshot } from "@quorem/contracts";
@@ -18,12 +19,15 @@ async function renderNavigation(
   workspaceSettings?: SettingsProps,
   activeState?: MatchSnapshot["state"] | "pending",
   inParty = false,
+  mode?: MatchSnapshot["mode"],
 ) {
   const root = createRootRoute();
   const route = createRoute({
     getParentRoute: () => root,
     path,
-    component: () => <GlobalNav identity="alice" workspaceSettings={workspaceSettings} />,
+    component: () => (
+      <GlobalNav identity="alice" workspaceSettings={workspaceSettings} mode={mode} />
+    ),
   });
   const router = createRouter({
     routeTree: root.addChildren([route]),
@@ -39,7 +43,7 @@ async function renderNavigation(
     });
     client.setQueryData(["current-party", "alice"], { party: inParty ? { id: "party" } : null });
     if (activeState !== "pending") {
-      client.setQueryData(["current-match", "alice"], {
+      client.setQueryData(currentMatchQueryKey("alice"), {
         id: "current",
         state: activeState,
         participants: [{ userId: developmentUserIds.alice }],
@@ -72,10 +76,39 @@ describe("global navigation", () => {
       expect(html).toContain('href="/match/current"');
     },
   );
-  it("offers a persistent party return link", async () => {
-    const html = await renderNavigation("/practice", undefined, "active", true);
+  it("keeps the lobby return action after the logo", async () => {
+    const html = await renderNavigation("/practice", undefined, "completed", true);
     expect(html).toContain('href="/party"');
-    expect(html).toContain("Return to lobby");
+    expect(html.indexOf('aria-label="Quorem home"')).toBeLessThan(
+      html.indexOf('aria-label="Return to lobby"'),
+    );
+    expect(html).not.toContain('aria-label="Create match"');
+  });
+  it.each(["/practice", "/party", "/invite/token", "/match/previous/review"])(
+    "gives the active match priority over the lobby on %s",
+    async (path) => {
+      const html = await renderNavigation(path, undefined, "active", true);
+      expect(html).toContain('aria-label="Return to match"');
+      expect(html).toContain('href="/match/current"');
+      expect(html).not.toContain('aria-label="Return to lobby"');
+    },
+  );
+  it("omits both return actions in the active match workspace", async () => {
+    const html = await renderNavigation("/match/current", undefined, "active", true, "showdown");
+    expect(html).not.toContain('aria-label="Return to match"');
+    expect(html).not.toContain('aria-label="Return to lobby"');
+  });
+  it("offers a lobby return from a completed match workspace", async () => {
+    const html = await renderNavigation("/match/current", undefined, "completed", true, "showdown");
+    expect(html).toContain('aria-label="Return to lobby"');
+  });
+  it("omits the lobby return action in the lobby", async () => {
+    const html = await renderNavigation("/party/", undefined, "completed", true);
+    expect(html).not.toContain('aria-label="Return to lobby"');
+  });
+  it("waits for match status before offering the lobby return", async () => {
+    const html = await renderNavigation("/practice", undefined, "pending", true);
+    expect(html).not.toContain('aria-label="Return to lobby"');
   });
   it("waits for the first HTTP snapshot before offering match creation", async () => {
     const html = await renderNavigation("/practice", undefined, "pending");

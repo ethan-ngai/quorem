@@ -15,8 +15,7 @@ describe("active match return link", () => {
     "uses current membership and %s state",
     (state) => {
       const match = { ...snapshot, state };
-      const expected =
-        state === "active" || state === "finalizing" ? "Return to active match" : null;
+      const expected = state === "active" || state === "finalizing" ? "Return to match" : null;
       expect(activeMatchReturnLabel(match, "alice")).toBe(expected);
       expect(activeMatchReturnLabel({ ...match, participants: [] }, "alice")).toBeNull();
       expect(
