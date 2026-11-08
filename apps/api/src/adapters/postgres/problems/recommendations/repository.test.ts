@@ -356,6 +356,36 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
               expect.objectContaining({ transfer_attempts: 1, transfer_solves: 1 }),
             ]),
           );
+          const stagedTopic = `${prefix}-staged`;
+          await tx.execute(
+            sql`INSERT INTO problem_tags(version_id,tag,ordinal) VALUES(${stagedVersion}::uuid,${stagedTopic},0)`,
+          );
+          await tx.execute(
+            sql`UPDATE problem_versions SET sealed=true WHERE id=${stagedVersion}::uuid`,
+          );
+          await tx.execute(
+            sql`UPDATE problems SET current_version_id=${stagedVersion}::uuid WHERE id=${stagedProblem}::uuid`,
+          );
+          const stagedSettings = normalizeSettings({
+            difficulties: ["easy"],
+            questionFilters: { topic: stagedTopic },
+          });
+          await expect(
+            selectMatchCandidate(tx, alice, stagedSettings, [alice, bob]),
+          ).rejects.toMatchObject({ code: "no_matching_questions" });
+          expect(
+            (
+              await selectMatchCandidate(
+                tx,
+                alice,
+                {
+                  ...stagedSettings,
+                  questionFilters: { ...stagedSettings.questionFilters, type: "odyssey" },
+                },
+                [alice, bob],
+              )
+            ).id,
+          ).toBe(stagedVersion);
           throw rollback;
         }),
       ).catch((error) => {

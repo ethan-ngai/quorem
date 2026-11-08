@@ -140,7 +140,7 @@
 .lobby-settings .match-option > :last-child {
   min-width: 0;
 }
-.lobby-settings .segmented-control,
+.lobby-settings .segmented-control:not(.picker-filters *),
 .lobby-settings .difficulty-segments,
 .lobby-settings .problem-picker-trigger {
   width: 100%;

@@ -4,6 +4,7 @@ import { Disclosure } from "../../ui/Disclosure";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { DifficultySegments } from "../../ui/DifficultySegments";
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { matchPreset } from "@quorem/contracts/match-rules";
 import { MatchRuleSettingsControls } from "./MatchRuleSettings";
 import { useSession } from "../auth/session";
@@ -46,10 +47,12 @@ function matchesValues(
   selection: string | undefined,
   match: FilterMatch | undefined,
   values: string[] = [],
+  normalize = (value: string) => value,
 ) {
   if (!selection) return true;
   const requested = selection.split(",");
-  const includes = (value: string) => values.includes(value);
+  const normalized = new Set(values.map(normalize));
+  const includes = (value: string) => normalized.has(normalize(value));
   return match === "all" ? requested.every(includes) : requested.some(includes);
 }
 
@@ -57,14 +60,19 @@ function matchesValues(
 function matchesPool(
   problem: MatchProblem,
   difficulties: readonly string[],
-  filters: PartySettings["questionFilters"] = {},
+  filters: PartySettings["questionFilters"],
+  topicValues?: ReadonlyMap<string, string>,
 ) {
   return (
     difficulties.includes(problem.difficulty) &&
-    !!problem.sql === (filters.sql === "true") &&
-    (!filters.type || !!problem.odyssey === (filters.type === "odyssey")) &&
-    matchesValues(filters.topic, filters.topicMatch, problem.tags) &&
-    matchesValues(filters.company, filters.companyMatch, problem.companies)
+    !!problem.sql === (filters?.sql === "true") &&
+    !!problem.odyssey === ((filters?.type ?? defaultCatalogFormat) === "odyssey") &&
+    (!topicValues ||
+      matchesValues(filters?.topic, filters?.topicMatch, problem.tags, (tag) => {
+        const folded = tag.trim().replace(/\s+/g, " ").toLowerCase();
+        return topicValues.get(folded) ?? folded;
+      })) &&
+    matchesValues(filters?.company, filters?.companyMatch, problem.companies)
   );
 }
 
@@ -142,12 +150,27 @@ export function MatchSettings({
     problemQueryOptions(client, identity, knownProblem ? "" : (selectedId ?? ""), true),
   );
   const selectedProblem = knownProblem ?? selectedDetail;
+  const questionFilters = value.questionFilters;
+  const pickerFilters =
+    !questionFilters?.type && selectedProblem?.odyssey
+      ? { ...questionFilters, type: "odyssey" as const }
+      : questionFilters;
   const changePool = (
     difficulties: typeof pools,
     questionFilters: PartySettings["questionFilters"],
+    topicValues?: ReadonlyMap<string, string>,
   ) => {
+    const topicsChanged =
+      questionFilters?.topic !== pickerFilters?.topic ||
+      questionFilters?.topicMatch !== pickerFilters?.topicMatch;
     const selectedProblemVersionId =
-      selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
+      selectedProblem &&
+      matchesPool(
+        selectedProblem,
+        difficulties,
+        questionFilters,
+        topicsChanged ? topicValues : undefined,
+      )
         ? selectedId
         : undefined;
     onChange?.({
@@ -226,7 +249,7 @@ export function MatchSettings({
         </span>
         <DifficultySegments
           selected={pools}
-          onChange={(difficulties) => changePool(difficulties, value.questionFilters)}
+          onChange={(difficulties) => changePool(difficulties, pickerFilters)}
           required
           disabled={disabled || loadingSelection}
         />
@@ -244,8 +267,11 @@ export function MatchSettings({
             items={selectedProblem ? [selectedProblem] : []}
             identity={identity}
             difficulties={pools}
-            filters={value.questionFilters}
-            onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
+            filters={pickerFilters}
+            onFiltersChange={(questionFilters, topicValues) =>
+              changePool(pools, questionFilters, topicValues)
+            }
+            exclusiveKind
             value={value.selectedProblemVersionId}
             disabled={disabled || loadingSelection}
             automaticSelection={{

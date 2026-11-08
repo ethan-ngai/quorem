@@ -4,6 +4,7 @@ import {
   recommendationContext,
   learningQuestions,
 } from "../../problems/recommendations/repository.ts";
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -43,7 +44,7 @@ export async function selectMatchCandidate(
   const criteria: CandidateCriteria = {
     selectedVersionId: settings.selectedProblemVersionId,
     difficulty: settings.difficulties.join(","),
-    type: (f.type ?? "") as "" | "classic" | "odyssey",
+    type: f.type === "odyssey" ? f.type : defaultCatalogFormat,
     sql: f.sql === "true" ? "true" : "false",
     topic: f.topic ?? "",
     topicMatch: f.topicMatch,

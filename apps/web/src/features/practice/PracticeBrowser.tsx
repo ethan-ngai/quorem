@@ -2,14 +2,18 @@ import { useServerTable } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
-import { QuestionTypeFilter } from "./QuestionTypeFilter";
-import { CatalogFilters, CompanyFilter, featuredTopicValues } from "./CatalogFilters";
+import {
+  CatalogFilters,
+  CatalogKindFilters,
+  CompanyFilter,
+  featuredTopicValues,
+} from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout } from "./CatalogLayout";
 import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { X, Layers, Globe, LockKeyhole, Code2, Database } from "lucide-react";
+import { X, Layers, Globe, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
@@ -19,16 +23,12 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { addFilter, catalogKindChange, catalogSearch, filterValues } from "./catalogSearch";
+import { addFilter, catalogSearch, filterValues } from "./catalogSearch";
 import { PracticeRecommendations } from "./PracticeRecommendations";
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
-
-const categories = [
-  { value: "algorithms", label: "Algorithms", icon: <Code2 size={16} aria-hidden="true" /> },
-  { value: "sql", label: "SQL", icon: <Database size={16} aria-hidden="true" /> },
-] as const;
 
 const practiceColumns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
 
@@ -39,7 +39,7 @@ export function PracticeBrowser() {
   const { preference, setPreference } = useTheme();
   const rawSearch = useSearch({ from: "/practice" });
   const search = useMemo(() => catalogSearch(rawSearch), [rawSearch]);
-  const { sql, type = "classic" } = search;
+  const { sql, type = defaultCatalogFormat } = search;
   const scope = { sql, type };
   const canChooseLibrary =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
@@ -66,8 +66,6 @@ export function PracticeBrowser() {
   const filtered = Boolean(
     search.q || search.difficulty || search.topic || search.company || library,
   );
-  const changeKind = (change: Pick<CatalogSearch, "sql" | "type">) =>
-    update(catalogKindChange(change));
   const topicValues = featuredTopicValues(foundationalTopics);
   const selectTopic = (tag: string) => topicValues.get(tag.toLowerCase()) ?? tag;
   const filterTopic = (tag: string) =>
@@ -121,18 +119,7 @@ export function PracticeBrowser() {
         }
       >
         <div className="practice-filters">
-          <SegmentedControl
-            compact
-            label="Question category"
-            value={sql ? "sql" : "algorithms"}
-            options={categories}
-            onChange={(value) => changeKind({ sql: value === "sql" ? "true" : undefined })}
-          />
-          <QuestionTypeFilter
-            exclusive
-            value={type}
-            onChange={(value) => changeKind({ type: value === "classic" ? undefined : value })}
-          />
+          <CatalogKindFilters search={scope} update={update} />
         </div>
         <PracticeRecommendations
           key={JSON.stringify([actor, library, sql, type])}

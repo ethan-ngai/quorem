@@ -1,12 +1,49 @@
 import { DifficultySegments, type Difficulty } from "../../ui/DifficultySegments";
 import "../../ui/selection-feedback.css";
 import { formatLabel } from "../../ui/formatLabel";
-import { Database } from "lucide-react";
+import { Code2, Database } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter } from "./CatalogFilter";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
-import { filterValues, type CatalogSearch } from "./catalogSearch";
+import { catalogKindChange, filterValues, type CatalogSearch } from "./catalogSearch";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { FoundationalTopic } from "./problemQueries";
+
+const categories = [
+  { value: "algorithms", label: "Algorithms", icon: <Code2 size={16} aria-hidden="true" /> },
+  { value: "sql", label: "SQL", icon: <Database size={16} aria-hidden="true" /> },
+] as const;
+
+export function CatalogKindFilters({
+  search,
+  update,
+  iconOnly = false,
+}: {
+  search: Pick<CatalogSearch, "sql" | "type">;
+  iconOnly?: boolean;
+  update: (change: ReturnType<typeof catalogKindChange>) => void;
+}) {
+  return (
+    <>
+      <SegmentedControl
+        compact={!iconOnly}
+        iconOnly={iconOnly}
+        label="Question category"
+        value={search.sql ? "sql" : "algorithms"}
+        options={categories}
+        onChange={(value) =>
+          update(catalogKindChange({ sql: value === "sql" ? "true" : undefined }))
+        }
+      />
+      <QuestionTypeFilter
+        exclusive
+        iconOnly={iconOnly}
+        value={search.type}
+        onChange={(type) => update(catalogKindChange({ type }))}
+      />
+    </>
+  );
+}
 
 export function CompanyFilter({
   search,
