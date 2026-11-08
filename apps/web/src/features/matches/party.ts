@@ -92,9 +92,28 @@ export function usePlatformPresence(identity: DevelopmentIdentity, enabled: bool
   useEffect(() => {
     if (!enabled) return;
     const windowId = randomUUID();
+    let active = true;
     const heartbeat = () => {
+      const key = ["current-party", identity] as const;
+      const previous = client.getQueryData<{ party: Party | null }>(key);
+      const revision = client.getQueryState(key)?.dataUpdateCount;
       void request<{ party: Party | null }>("/v1/presence/heartbeat", "POST", { windowId })
-        .then((data) => client.setQueryData(["current-party", identity], data))
+        .then((data) => {
+          // A command or newer heartbeat may have already refreshed membership.
+          if (!active || client.getQueryState(key)?.dataUpdateCount !== revision) return;
+          const current = previous?.party;
+          const next = data.party;
+          if (
+            current &&
+            next &&
+            current.id === next.id &&
+            /^\d+$/.test(current.version) &&
+            /^\d+$/.test(next.version) &&
+            BigInt(current.version) > BigInt(next.version)
+          )
+            return;
+          client.setQueryData(key, data);
+        })
         .catch(() => {});
     };
     heartbeat();
@@ -104,6 +123,7 @@ export function usePlatformPresence(identity: DevelopmentIdentity, enabled: bool
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      active = false;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };

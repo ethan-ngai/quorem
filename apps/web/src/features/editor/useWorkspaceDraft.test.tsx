@@ -221,3 +221,26 @@ it("never restores local drafts over a shared authoritative document", async () 
   );
   expect(state.sourceRef.current).toBe("team authority");
 });
+
+it("keeps an anonymous draft ahead of delayed account history", async () => {
+  localStorage.clear();
+  vi.mocked(recovery.readLatestRecovery).mockReset();
+  let finish!: (value: recovery.RecoverySnapshot) => void;
+  vi.mocked(recovery.readLatestRecovery).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  recovery.writeBrowserDraft(
+    "anonymous" as import("@quorem/contracts").DevelopmentIdentity,
+    "solo",
+    "v1",
+    "anonymous work",
+  );
+  await act(async () => root.render(<Subject active={{ ...workspace, id: "w2" }} />));
+  await act(async () =>
+    finish({ scope: "old", source: "old account history", savedAt: "2026-01-01" }),
+  );
+  expect(state.sourceRef.current).toBe("anonymous work");
+});
