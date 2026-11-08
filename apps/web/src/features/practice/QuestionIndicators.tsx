@@ -6,7 +6,7 @@ export function QuestionIndicators({
   odyssey,
 }: {
   privateQuestion: boolean;
-  odyssey: boolean;
+  odyssey?: boolean;
 }) {
   return (
     <span className="practice-indicators">

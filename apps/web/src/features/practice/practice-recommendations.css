@@ -102,10 +102,6 @@
   margin: 0;
 }
 
-.practice-recommendation-title .practice-indicators:empty {
-  display: none;
-}
-
 .practice-recommendations-status {
   display: flex;
   align-items: center;

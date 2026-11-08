@@ -2,7 +2,7 @@ import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { DevelopmentIdentity, paths, ProblemVersion } from "@quorem/contracts";
 import { api, publicApi, requireData } from "../../api/client";
 import { fetchProblem, fetchProblemVersion } from "../editor/api";
-import type { CatalogSearch } from "./catalogSearch";
+import { catalogKind, type CatalogSearch } from "./catalogSearch";
 import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
@@ -39,10 +39,11 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
   return state?.data && Date.now() - state.dataUpdatedAt < staleTime ? state : undefined;
 }
 
-const facetsKey = (scope: string, library: CatalogSearch["library"]) =>
-  ["public-problem-facets", scope, library] as const;
-const catalogScope = (scope: string, library: CatalogSearch["library"]) =>
-  ["public-problems", scope, library] as const;
+type CatalogKind = Parameters<typeof catalogKind>[0];
+const facetsKey = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
+  ["public-problem-facets", scope, library, ...catalogKind(search)] as const;
+const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
+  ["public-problems", scope, library, ...catalogKind(search)] as const;
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();
@@ -72,7 +73,7 @@ export function catalogQueryOptions(
       : catalogContext(actor, search.library);
   const filters = {
     ...search,
-    sql: search.sql ?? ("false" as const),
+    sql: catalogKind(search)[0],
     library: context.library,
     page: search.page ?? 1,
     limit: search.limit ?? catalogPageSize,
@@ -80,7 +81,7 @@ export function catalogQueryOptions(
   const scope =
     search.sort === "recommended"
       ? (["recommended-problems", context.scope, context.library] as const)
-      : catalogScope(context.scope, context.library);
+      : catalogScope(context.scope, context.library, search);
   const retain = scopedPlaceholder(scope);
   return queryOptions<CatalogPage>({
     queryKey: [...scope, filters] as const,
@@ -93,7 +94,7 @@ export function catalogQueryOptions(
             retain(previous, query) ??
             (context.scope !== publicScope && search.library !== "private"
               ? freshState<CatalogPage>(client, [
-                  ...catalogScope(publicScope, "global"),
+                  ...catalogScope(publicScope, "global", search),
                   { ...filters, library: "global" },
                 ])?.data
               : undefined),
@@ -119,18 +120,20 @@ export function catalogQueryOptions(
         signal,
       });
       const page = requireData(data, error);
-      if (search.sort !== "recommended") seedQuestions(client, context.scope, page, started);
-      client.setQueryData(facetsKey(context.scope, context.library), {
-        topics: page.topics,
-        foundationalTopics: page.foundationalTopics,
-        companies: page.companies,
-      });
+      if (search.sort !== "recommended") {
+        seedQuestions(client, context.scope, page, started);
+        client.setQueryData(facetsKey(context.scope, context.library, search), {
+          topics: page.topics,
+          foundationalTopics: page.foundationalTopics,
+          companies: page.companies,
+        });
+      }
       return page;
     },
   });
 }
 
-// Server topics are unfiltered; retain them across same-scope filter changes.
+// Facets are stable across search and pagination within the same catalog kind.
 export function catalogFacets(
   client: QueryClient,
   actor: ProblemActor,
@@ -140,7 +143,7 @@ export function catalogFacets(
   const context = catalogContext(actor, search.library);
   return (
     page ??
-    client.getQueryData<CatalogFacets>(facetsKey(context.scope, context.library)) ?? {
+    client.getQueryData<CatalogFacets>(facetsKey(context.scope, context.library, search)) ?? {
       topics: [],
       companies: [],
     }

@@ -48,11 +48,12 @@ it("hides the library selector for anonymous and ordinary accounts", async () =>
   for (const session of [null, account]) {
     const html = await renderPractice(session);
     expect(html).toContain("Practice");
-    expect(html).toContain('aria-label="Question type"');
-    expect(html).toContain('aria-label="SQL questions"');
-    expect(html).toContain('aria-pressed="false"');
-    expect(html).toContain('aria-label="Odyssey"');
-    expect(html).toContain('aria-label="Classic"');
+    expect(html).toContain('aria-label="Question category"');
+    expect(html).toContain('aria-label="Algorithms" aria-checked="true"');
+    expect(html).toContain('aria-label="SQL" aria-checked="false"');
+    expect(html).toContain('aria-label="Classic" aria-checked="true"');
+    expect(html).toContain('aria-label="Odyssey" aria-checked="false"');
+    expect(html).not.toContain('aria-label="All question types"');
     expect(html).not.toContain('aria-label="Question library"');
     expect(html).not.toContain('class="quiet-button" href="/questions"');
   }
@@ -92,4 +93,15 @@ it("keeps the catalog unranked when opening an old recommendation bookmark", asy
   expect(
     client.getQueriesData({ queryKey: ["recommended-problems"] }).map(([key]) => key.at(-1)),
   ).toEqual([expect.objectContaining({ sort: "recommended", limit: 5 })]);
+});
+
+it("scopes both recommendations and rows to a bookmarked SQL Odyssey catalog", async () => {
+  const client = new QueryClient();
+  const html = await renderPractice(account, "/practice?sql=%22true%22&type=odyssey", client);
+  expect(html).toContain('aria-label="SQL" aria-checked="true"');
+  expect(html).toContain('aria-label="Odyssey" aria-checked="true"');
+  for (const scope of ["public-problems", "recommended-problems"]) {
+    const [query] = client.getQueriesData({ queryKey: [scope] });
+    expect(query?.[0].at(-1)).toMatchObject({ sql: "true", type: "odyssey" });
+  }
 });

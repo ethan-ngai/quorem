@@ -8,7 +8,7 @@ import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 import { CatalogFilters } from "./CatalogFilters";
 import { QuestionIndicators } from "./QuestionIndicators";
-import type { CatalogSearch } from "./catalogSearch";
+import { catalogKind, catalogKindChange, type CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
@@ -67,7 +67,8 @@ export function ProblemPicker({
     ?.split(",")
     .filter((value) => !difficulties || difficulties.includes(value));
   const noAllowedDifficulty = !!filters.difficulty && selectedDifficulties?.length === 0;
-  const scope = ["picker-catalog-infinite", identity, library, allowed] as const;
+  const [sql, type] = catalogKind(filters);
+  const scope = ["picker-catalog-infinite", identity, library, allowed, sql, type] as const;
   const queryKey = [...scope, search, filters] as const;
   const resultsKey = JSON.stringify(queryKey);
   const catalog = useInfiniteQuery({
@@ -81,7 +82,7 @@ export function ProblemPicker({
         params: {
           query: {
             ...filters,
-            sql: filters.sql ?? "false",
+            sql,
             q: search || undefined,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
@@ -106,7 +107,7 @@ export function ProblemPicker({
         params: {
           query: {
             ...filters,
-            sql: filters.sql ?? "false",
+            sql,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
             limit: 1,
@@ -126,17 +127,18 @@ export function ProblemPicker({
           : undefined
       : undefined;
   const update = (change: Partial<CatalogSearch>) => {
+    if ("type" in change || "sql" in change) change = catalogKindChange(change);
     if (onFiltersChange) onFiltersChange({ ...filters, ...change });
     else setLocalFilters((current) => ({ ...current, ...change }));
   };
   const facets = useQuery({
-    queryKey: ["picker-facets", identity, library],
+    queryKey: ["picker-facets", identity, library, sql, type],
     enabled: !disabled,
     staleTime: 30_000,
     queryFn: async ({ signal }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
         signal,
-        params: { query: { library, limit: 1 } },
+        params: { query: { library, sql, type, limit: 1 } },
       });
       return requireData(data, error);
     },

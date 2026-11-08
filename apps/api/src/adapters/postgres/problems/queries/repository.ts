@@ -16,6 +16,14 @@ import {
   restorePublicExamples,
   visibleProblem as visible,
 } from "./public-projection.ts";
+import {
+  isTopic,
+  topicColumns,
+  topicJoin,
+  topicMatches,
+  topicProjection,
+  topicSearch,
+} from "../topics.ts";
 import { projectQuestionRuntime } from "../runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type {
@@ -34,15 +42,15 @@ const options = {
   statementTimeoutMs: 3000,
   lockTimeoutMs: 1000,
 };
-const projection = sql.raw(`jsonb_build_object(
+const projection = sql`jsonb_build_object(
 'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
 'sql',v.sql_config,'odyssey',CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE NULL END,
 'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,
 'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id),
 'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
-'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
-'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`);
+'tags',${topicProjection(sql`v.id`)},
+'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`;
 const from = sql.raw(` FROM problem_versions v JOIN problems p ON p.id=v.problem_id `);
 const detailProjection = sql`(${projection} || jsonb_build_object(
   'hiddenCaseCounts', COALESCE((
@@ -62,10 +70,10 @@ function catalogVisibility(
   const who = owner(actor);
   return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${library}='' OR (${library}='global' AND p.owner_id IS NULL) OR (${library}='private' AND (${who}<>'' AND p.owner_id=${who})))`;
 }
-// Match imported spelling variants without rewriting published tags.
-const tagKey = sql`trim(both '-' from regexp_replace(lower(t.tag), '[^a-z0-9]+', '-', 'g'))`;
-const foundationalMatch = sql`(${tagKey}=ft.slug OR ${tagKey}=ANY(ft.aliases))`;
-const foundationalFilter = sql`'foundational:' || ft.slug`;
+function catalogKind(f: CatalogFilter): SQL {
+  return sql`(${f.type}='' OR (v.odyssey IS NOT NULL)=(${f.type}='odyssey'))
+    AND (${f.sql}='' OR (v.sql_config IS NOT NULL)=(${f.sql}='true'))`;
+}
 
 /** Test each selected value independently so a topic's aliases count as one choice. */
 function matchValues(values: string, all: boolean, matches: SQL): SQL {
@@ -81,12 +89,8 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
         f.topic,
         f.topicMatch === "all",
         sql`EXISTS (
-          SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND (
-            t.tag=selected.value OR EXISTS (
-              SELECT 1 FROM foundational_topics ft
-              WHERE ${foundationalFilter}=selected.value AND ${foundationalMatch}
-            )
-          )
+          SELECT 1 FROM problem_tags t ${topicJoin}
+          WHERE t.version_id=v.id AND ${isTopic} AND ${topicMatches(sql`selected.value`)}
         )`,
       )}`
     : sql``;
@@ -100,7 +104,10 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
         )`,
       )}`
     : sql``;
-  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
+  return sql`${catalogVisibility(actor, f.library)} AND ${catalogKind(f)} AND v.id=p.current_version_id
+    AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0
+      OR EXISTS(SELECT 1 FROM problem_tags t ${topicJoin} WHERE t.version_id=v.id AND ${topicSearch(f.query)}))
+    AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
 }
 type Projected = {
   id: string;
@@ -210,26 +217,26 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   }
   const items = rows;
   const topicRows = (
-    await tx.execute<{ tag: string; value: string | null; label: string | null }>(
+    await tx.execute<{ tag: string; foundation: string | null; aliases: string[] }>(
       sql`WITH visible_tags AS (
         SELECT DISTINCT t.tag FROM problem_tags t
-        JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility}
+        JOIN problem_versions v ON v.id=t.version_id
+        JOIN problems p ON p.current_version_id=v.id
+        WHERE ${visibility} AND ${catalogKind(f)} AND ${isTopic}
       )
-      SELECT t.tag,${foundationalFilter} AS value,ft.label FROM visible_tags t
-      LEFT JOIN foundational_topics ft ON ${foundationalMatch} ORDER BY t.tag`,
+      SELECT ${topicColumns}, array_agg(t.tag ORDER BY t.tag) AS aliases
+      FROM visible_tags t ${topicJoin} GROUP BY 1,2 ORDER BY 1`,
     )
   ).rows;
-  const topics = [...new Set(topicRows.map((row) => row.tag))];
-  const foundationalTopics = new Map<string, { value: string; label: string; tags: string[] }>();
-  for (const { tag, value, label } of topicRows) {
-    if (value === null || label === null) continue;
-    const topic = foundationalTopics.get(value);
-    if (topic) topic.tags.push(tag);
-    else foundationalTopics.set(value, { value, label, tags: [tag] });
-  }
+  const topics = topicRows.map(({ tag }) => tag);
+  const foundationalTopics = topicRows.flatMap(({ tag, foundation, aliases }) =>
+    foundation ? [{ value: `foundational:${foundation}`, label: tag, tags: aliases }] : [],
+  );
   const companies = (
     await tx.execute<{ name: string }>(
-      sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND ${visibility} ORDER BY c.name`,
+      sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id
+          JOIN problems p ON p.id=pc.problem_id JOIN problem_versions v ON v.id=p.current_version_id
+          WHERE ${visibility} AND ${catalogKind(f)} ORDER BY c.name`,
     )
   ).rows.map((r) => r.name);
   const n = Number(total);
@@ -250,9 +257,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
     topics,
-    foundationalTopics: [...foundationalTopics.values()].sort((a, b) =>
-      a.label.localeCompare(b.label),
-    ),
+    foundationalTopics,
     companies,
   };
   return {
