@@ -406,3 +406,9 @@
     transition: none;
   }
 }
+
+.problem-picker-modes {
+  padding-bottom: var(--space-1);
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+}

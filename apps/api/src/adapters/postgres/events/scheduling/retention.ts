@@ -22,6 +22,12 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     return sql`DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE published_at IS NOT NULL AND occurred_at < statement_timestamp()-interval '7 days' ORDER BY occurred_at,sequence FOR UPDATE SKIP LOCKED LIMIT ${limit})`;
   });
   statements.push(
+    sql`DELETE FROM question_learning_events WHERE submission_id IN (SELECT submission_id FROM question_learning_events WHERE observed_at<statement_timestamp()-interval '180 days' ORDER BY observed_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_match_selections WHERE match_id IN (SELECT match_id FROM recommendation_match_selections WHERE selected_at<statement_timestamp()-interval '30 days' ORDER BY selected_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_impressions WHERE id IN (SELECT id FROM recommendation_impressions WHERE served_at<statement_timestamp()-interval '30 days' ORDER BY served_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_models WHERE id IN (SELECT id FROM recommendation_models WHERE expires_at<statement_timestamp()-interval '15 days' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+  );
+  statements.push(
     sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );
   statements.push(

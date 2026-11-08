@@ -355,8 +355,14 @@ async function editPublication(
   await tx.execute(sql`SET CONSTRAINTS workspace_problem_version_fkey,
     matches_problem_version_id_fkey,matches_selected_problem_version_id_fkey,
     question_drafts_published_version_id_fkey,question_drafts_edit_version_fkey,
-    runner_job_inputs_version_id_fkey DEFERRED`);
+    runner_job_inputs_version_id_fkey,question_exposure_version_id_fkey,question_learning_events_version_id_fkey,
+    recommendation_impressions_version_id_fkey DEFERRED`);
+  // Recommendation metadata belongs to the stable publication ID.
+  await tx.execute(
+    sql`SELECT set_config('quorem.question_replacement',${versionId}::uuid::text,true)`,
+  );
   await removePublicationRow(tx, versionId);
+  await tx.execute(sql`SELECT set_config('quorem.question_replacement','',true)`);
   const replacement = stringifyLosslessJson(c);
   await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
   await persistQuestionVersion(

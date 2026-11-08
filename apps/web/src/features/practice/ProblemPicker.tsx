@@ -2,7 +2,7 @@
 import { Disclosure } from "../../ui/Disclosure";
 import * as Popover from "../../ui/Popover";
 import { useId, useLayoutEffect, useRef, useState, type UIEvent } from "react";
-import { AlertCircle, Dices } from "lucide-react";
+import { AlertCircle, Dices, Lightbulb } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
@@ -18,6 +18,12 @@ import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
 
+const automaticOptions = {
+  recommended: { label: "Recommended", icon: Lightbulb },
+  random: { label: "Random", icon: Dices },
+} as const;
+type AutomaticMode = keyof typeof automaticOptions;
+
 const pageSize = 30;
 const prefetchLeadMs = 600;
 const maxPrefetchDistance = 1200;
@@ -27,7 +33,7 @@ export function ProblemPicker({
   value,
   onChange,
   disabled,
-  allowRandom = false,
+  automaticSelection,
   identity,
   library,
   difficulties,
@@ -40,7 +46,7 @@ export function ProblemPicker({
   value?: string;
   onChange: (id: string | undefined, problem?: ProblemVersion) => void;
   disabled?: boolean;
-  allowRandom?: boolean;
+  automaticSelection?: { mode: AutomaticMode; onChange: (mode: AutomaticMode) => void };
   identity?: DevelopmentIdentity;
   library?: "private" | "global";
   difficulties?: readonly string[];
@@ -50,6 +56,7 @@ export function ProblemPicker({
   discloseFilters?: boolean;
 }) {
   const warningId = useId();
+  const automatic = automaticSelection ? automaticOptions[automaticSelection.mode] : undefined;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const inputSearch = useServerSearch(search, setSearch);
@@ -90,11 +97,12 @@ export function ProblemPicker({
         ? pages.length + 1
         : undefined,
   });
-  const randomPool = useQuery({
-    queryKey: ["random-pool", identity, library, filters, allowed],
-    enabled: allowRandom && !value && !disabled && !noAllowedDifficulty,
-    queryFn: async () => {
+  const candidatePool = useQuery({
+    queryKey: ["picker-candidate-pool", identity, library, filters, allowed],
+    enabled: automaticSelection && !value && !disabled && !noAllowedDifficulty,
+    queryFn: async ({ signal }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
+        signal,
         params: {
           query: {
             ...filters,
@@ -108,12 +116,12 @@ export function ProblemPicker({
       return requireData(data, error);
     },
   });
-  const emptyRandomPool = noAllowedDifficulty || randomPool.data?.total === 0;
-  const randomWarning =
-    allowRandom && !value
-      ? emptyRandomPool
+  const emptyPool = noAllowedDifficulty || candidatePool.data?.total === 0;
+  const poolWarning =
+    automaticSelection && !value
+      ? emptyPool
         ? "No questions match these filters. Choose other filters."
-        : randomPool.isError
+        : candidatePool.isError
           ? "Could not check matching questions. Try again."
           : undefined
       : undefined;
@@ -125,8 +133,9 @@ export function ProblemPicker({
     queryKey: ["picker-facets", identity, library],
     enabled: !disabled,
     staleTime: 30_000,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
+        signal,
         params: { query: { library, limit: 1 } },
       });
       return requireData(data, error);
@@ -202,25 +211,25 @@ export function ProblemPicker({
         }
       }}
     >
-      <Tooltip content={randomWarning} disabled={!randomWarning}>
+      <Tooltip content={poolWarning} disabled={!poolWarning}>
         <Popover.Trigger asChild>
           <button
             type="button"
             className="select-field match-choice problem-picker-trigger"
-            data-warning={!!randomWarning || undefined}
+            data-warning={!!poolWarning || undefined}
             disabled={disabled}
             aria-label={label}
-            aria-describedby={randomWarning ? warningId : undefined}
+            aria-describedby={poolWarning || (automatic && !value) ? warningId : undefined}
           >
-            {allowRandom && !value ? (
+            {automatic && !value ? (
               <span className="problem-picker-labels" aria-hidden="true">
                 <span className="problem-picker-label problem-picker-label-default">
-                  <Dices size={16} />
-                  Random
+                  <automatic.icon size={16} />
+                  {automatic.label}
                 </span>
                 <span className="problem-picker-label problem-picker-label-warning">
                   <AlertCircle size={16} />
-                  {!emptyRandomPool && randomPool.isError
+                  {!emptyPool && candidatePool.isError
                     ? "Could not check questions"
                     : "No matching questions"}
                 </span>
@@ -238,6 +247,7 @@ export function ProblemPicker({
         <Popover.Content
           ref={popover}
           className="problem-picker-popover"
+          data-automatic-selection={!!automaticSelection || undefined}
           sideOffset={8}
           collisionPadding={12}
           align="end"
@@ -266,17 +276,30 @@ export function ProblemPicker({
             aria-busy={!noAllowedDifficulty && catalog.isFetching}
             onScroll={prefetchOnScroll}
           >
-            {allowRandom && (
-              <button
-                type="button"
-                className="problem-picker-item"
-                aria-pressed={!value}
-                onClick={() => choose(undefined)}
-              >
-                <Dices size={18} />
-                <span className="problem-picker-title">Random</span>
-                {!value && <Icon name="submit" />}
-              </button>
+            {automaticSelection && (
+              <div className="problem-picker-modes" role="group" aria-label="Automatic selection">
+                {(Object.keys(automaticOptions) as AutomaticMode[]).map((mode) => {
+                  const option = automaticOptions[mode];
+                  const active = !value && automaticSelection.mode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      className="problem-picker-item"
+                      aria-pressed={active}
+                      onClick={() => {
+                        inputSearch.reset();
+                        setOpen(false);
+                        if (!active) automaticSelection.onChange(mode);
+                      }}
+                    >
+                      <option.icon size={18} aria-hidden />
+                      <span className="problem-picker-title">{option.label}</span>
+                      {active && <Icon name="submit" />}
+                    </button>
+                  );
+                })}
+              </div>
             )}
             {filtered.map((item) => (
               <button
@@ -350,9 +373,9 @@ export function ProblemPicker({
           {filterControls}
         </>
       )}
-      {allowRandom && (
+      {automaticSelection && (
         <div className="sr-only" id={warningId} role="status">
-          {randomWarning}
+          {poolWarning ?? (!value ? automatic?.label : undefined)}
         </div>
       )}
     </div>

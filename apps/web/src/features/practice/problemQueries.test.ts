@@ -300,3 +300,16 @@ it("keys and requests catalog pages by the selected page size", async () => {
     "2",
   ]);
 });
+
+it("isolates suggested global catalogs by identity and never seeds public question caches", async () => {
+  const cache = client();
+  const search = { sort: "recommended", library: "global" } as const;
+  const first = catalogQueryOptions(cache, actor("account-a"), search);
+  const second = catalogQueryOptions(cache, actor("account-b"), search);
+  expect(first.queryKey).not.toEqual(second.queryKey);
+  expect(first.placeholderData).toBeUndefined();
+  await cache.fetchQuery(first);
+  expect(requests[0]!.headers.get("Authorization")).toBe("Bearer account-a");
+  expect(cache.getQueryData(["problem", "public", "slug", publicProblem.slug])).toBeUndefined();
+  expect(catalogQueryOptions(cache, undefined, search).enabled).toBe(false);
+});

@@ -207,14 +207,20 @@ test("completion resets readiness and requeue freezes settings exactly once", as
   };
   expect(complete.latestMatchId).toBe(first);
   expect(complete.members.every((x) => !x.ready)).toBe(true);
-  await repo.mutate(c, id, "settings", "settings", { ...settings, shareCodeAfterMatch: false });
+  const nextSettings = normalizePartySettings({
+    ...settings,
+    shareCodeAfterMatch: false,
+    questionSelection: "recommended",
+  });
+  expect(await repo.mutate(c, id, "settings", "settings", nextSettings)).toMatchObject({
+    settings: { questionSelection: "recommended" },
+  });
   await repo.mutate(c, id, "ready-2", "ready", true);
   const queued = (await repo.mutate(d, id, "ready-2", "ready", true)) as {
     countdownEndsAt: string | null;
     version: string;
   };
   expect(queued.countdownEndsAt).not.toBeNull();
-  const nextSettings = { ...settings, shareCodeAfterMatch: false };
   for (const admissionLocked of [true, false]) {
     const updated = (await repo.mutate(c, id, `joining-${admissionLocked}`, "settings", {
       ...nextSettings,
@@ -267,11 +273,16 @@ test("completion resets readiness and requeue freezes settings exactly once", as
     ),
   );
   const result = await pool.query(
-    "SELECT id,share_code_after_match FROM matches WHERE party_id=$1 ORDER BY started_at",
+    `SELECT m.id,m.share_code_after_match,m.question_selection,r.match_id IS NOT NULL AS recommended
+     FROM matches m LEFT JOIN recommendation_match_selections r ON r.match_id=m.id
+     WHERE party_id=$1 ORDER BY started_at`,
     [id],
   );
   expect(result.rows).toHaveLength(2);
-  expect(result.rows.map((x) => x.share_code_after_match)).toEqual([true, false]);
+  expect(result.rows).toMatchObject([
+    { share_code_after_match: true, question_selection: "random", recommended: false },
+    { share_code_after_match: false, question_selection: "recommended", recommended: true },
+  ]);
 });
 
 test("host transfer, guest re-entry and requeue errors preserve authorization", async () => {

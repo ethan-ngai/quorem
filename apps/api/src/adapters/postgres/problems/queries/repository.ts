@@ -1,5 +1,8 @@
-import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 /** @file repository.ts @description Explicit authorized PostgreSQL catalog projections. @module problems */
+import { impressionIds, recordFeedback } from "../recommendations/feedback.ts";
+import { rankPractice } from "../../../../modules/problems/recommendations/ranking.ts";
+import { recommendationContext, learningQuestions } from "../recommendations/repository.ts";
+import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -100,6 +103,7 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
 }
 type Projected = {
+  id: string;
   data: string;
   lossless: Uint8Array | null;
   sortTitle: string;
@@ -133,7 +137,10 @@ async function redactMatchTopics(
   const ids = new Set(restricted.map((r) => r.id));
   for (const value of values) {
     const problem = object(value);
-    if (typeof problem.id === "string" && ids.has(problem.id)) problem.tags = [];
+    if (typeof problem.id === "string" && ids.has(problem.id)) {
+      problem.tags = [];
+      delete problem.recommendationReason;
+    }
   }
   return values;
 }
@@ -183,12 +190,16 @@ function decodeCursor(raw: string, f: CatalogFilter): Cursor {
   }
 }
 const rank = sql.raw("CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END");
-async function readCatalog(
-  tx: Transaction,
-  actor: ProblemActor | undefined,
-  f: CatalogFilter,
-): Promise<string> {
-  const where = catalogWhere(actor, f),
+const rowProjection = sql`v.id::text AS id,${projection}::text AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank`;
+async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: CatalogFilter) {
+  const account = f.sort === "recommended" && actor && !actor.guestScope ? actor.userId : undefined;
+  const where = sql`${catalogWhere(actor, f)}${
+      account
+        ? sql` AND NOT EXISTS(
+    SELECT 1 FROM recommendation_impressions r WHERE r.owner_id=${account} AND r.version_id=v.id
+      AND r.dismissed_at>statement_timestamp()-interval '7 days')`
+        : sql``
+    }`,
     visibility = catalogVisibility(actor, f.library),
     cursor = f.cursor ? decodeCursor(f.cursor, f) : undefined;
   const [{ total }] = (
@@ -208,11 +219,51 @@ async function readCatalog(
       : sql`AND (lower(v.title),p.slug) ${comparator} (${cursor.title},${cursor.slug})`
     : sql``;
   const offset = cursor ? 0 : (f.page - 1) * f.limit;
+  const context =
+    f.sort === "recommended"
+      ? await recommendationContext(tx, account ? [account] : [])
+      : undefined;
+  // Stable account assignment keeps repeated queries in the same experiment arm.
+  const explore = account
+    ? (new Uint8Array(
+        await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode("recommendation-v2:" + account),
+        ),
+      )[0] &
+        1) ===
+      1
+    : false;
+  const recommendations = context
+    ? await (async () => {
+        const ids = (
+          await tx.execute<{ id: string }>(
+            sql`SELECT v.id::text AS id ${from} WHERE ${where} ORDER BY v.id`,
+          )
+        ).rows.map((row) => row.id);
+        return rankPractice(
+          await learningQuestions(tx, ids),
+          context,
+          Date.now(),
+          offset + f.limit,
+          explore,
+        );
+      })()
+    : undefined;
+  const recommendedIds = recommendations
+    ?.slice(offset, offset + f.limit)
+    .map((item) => item.question.id);
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection}::text AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
+      recommendedIds
+        ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
+        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
     )
   ).rows;
+  if (recommendedIds) {
+    const positions = new Map(recommendedIds.map((id, index) => [id, index]));
+    rows.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!);
+  }
   const more = rows.length > f.limit,
     items = rows.slice(0, f.limit);
   const last = items.at(-1);
@@ -241,8 +292,18 @@ async function readCatalog(
   ).rows.map((r) => r.name);
   const n = Number(total);
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
+  const reasons = new Map(recommendations?.map((item) => [item.question.id, item.reason]));
   const result: { [key: string]: JsonValue } = {
-    items: await redactMatchTopics(tx, actor, items.map(projected)),
+    items: await redactMatchTopics(
+      tx,
+      actor,
+      items.map((row) => {
+        const value = object(projected(row));
+        const reason = reasons.get(row.id);
+        if (reason) value.recommendationReason = reason;
+        return value;
+      }),
+    ),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
@@ -259,7 +320,14 @@ async function readCatalog(
       rank: last.rank,
       filter: filterKey(f),
     });
-  return stringifyLosslessJson(result);
+  return {
+    result,
+    account,
+    ids: items.map((row) => row.id),
+    model: context?.modelId ?? null,
+    explore,
+    offset,
+  };
 }
 async function byValue(
   tx: Transaction,
@@ -321,6 +389,19 @@ async function readEditorials(
       sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`${id}::uuid`)},'items',${approachesProjection(sql`${id}::uuid`, !complexityOnly)})::text AS value`,
     )
   ).rows[0];
+  if (
+    actor &&
+    !actor.guestScope &&
+    !complexityOnly &&
+    !state.active &&
+    JSON.parse(row.value).items.length
+  ) {
+    await tx.execute(sql`
+      INSERT INTO question_exposure(owner_id,version_id,last_seen_at,assisted_at)
+      VALUES(${actor.userId},${id}::uuid,statement_timestamp(),statement_timestamp())
+      ON CONFLICT(owner_id,version_id) DO UPDATE SET assisted_at=EXCLUDED.assisted_at
+    `);
+  }
   return row.value;
 }
 /** Select only candidate identifiers under the caller's transaction. */
@@ -361,11 +442,28 @@ export async function readCandidates(
 export function problemQueries(run: ReadScope): ProblemQueries {
   const read = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
+  const write = <T>(f: (tx: Transaction) => Promise<T>) =>
+    run((scope) =>
+      scope.transaction({ ...options, readOnly: false, isolation: "read committed" }, f),
+    );
   return {
-    catalog: (actor, filter) => read((tx) => readCatalog(tx, actor, filter)),
+    catalog: async (actor, filter) => {
+      const page = await read((tx) => readCatalog(tx, actor, filter));
+      const account = page.account;
+      if (account && page.ids.length)
+        page.result.recommendationImpressions = await write((tx) =>
+          impressionIds(tx, account, page.ids, page.offset, page.model, page.explore),
+        );
+      return stringifyLosslessJson(page.result);
+    },
+    recommendationFeedback: (owner, ids, action) =>
+      write((tx) => recordFeedback(tx, owner, ids, action)),
     bySlug: (actor, slug) => read((tx) => byValue(tx, actor, slug, false)),
     byVersion: (actor, id) => read((tx) => byValue(tx, actor, id, true)),
-    editorials: (actor, id, complexity) => read((tx) => readEditorials(tx, actor, id, complexity)),
+    editorials: (actor, id, complexity) =>
+      (actor && !actor.guestScope && !complexity ? write : read)((tx) =>
+        readEditorials(tx, actor, id, complexity),
+      ),
     candidates: (actor, criteria) => read((tx) => readCandidates(tx, actor, criteria)),
   };
 }

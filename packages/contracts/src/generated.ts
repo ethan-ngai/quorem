@@ -248,6 +248,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/recommendation-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recordRecommendationFeedback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/problem-versions/{id}/solutions": {
         parameters: {
             query?: never;
@@ -1274,6 +1290,11 @@ export interface components {
             hiddenCaseCounts?: {
                 [key: string]: number;
             };
+            /**
+             * @description Practice ranking explanation; contains no other player history.
+             * @enum {string}
+             */
+            recommendationReason?: "review" | "weak_topic" | "new_topic" | "challenge" | "practice";
         };
         Workspace: {
             /** Format: uuid */
@@ -1428,6 +1449,8 @@ export interface components {
             expiresAt: string;
             mode: components["schemas"]["MatchMode"];
             difficulties: components["schemas"]["Difficulty"][];
+            /** @enum {string} */
+            questionSelection?: "random" | "recommended";
             questionFilters?: components["schemas"]["MatchQuestionFilters"];
             /** Format: uuid */
             selectedProblemVersionId?: string;
@@ -1982,6 +2005,8 @@ export interface components {
             durationMinutes: 15 | 30 | 45 | 60;
             mode?: components["schemas"]["MatchMode"];
             difficulties?: components["schemas"]["Difficulty"][];
+            /** @enum {string} */
+            questionSelection?: "random" | "recommended";
             questionFilters?: components["schemas"]["MatchQuestionFilters"];
             /** Format: uuid */
             selectedProblemVersionId?: string;
@@ -2612,7 +2637,7 @@ export interface operations {
                 topic?: string;
                 companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
-                sort?: "title" | "difficulty";
+                sort?: "title" | "difficulty" | "recommended";
                 order?: "asc" | "desc";
                 page?: number;
                 /** @description Opaque continuation returned by the preceding page; use with page 1 or omit page. */
@@ -2640,6 +2665,9 @@ export interface operations {
                         page: number;
                         limit: number;
                         companies: string[];
+                        recommendationImpressions?: {
+                            [key: string]: string;
+                        };
                         /** @description Opaque continuation for the same filters and ordering. */
                         nextCursor?: string;
                         topics: string[];
@@ -2650,6 +2678,41 @@ export interface operations {
                         }[];
                     };
                 };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    recordRecommendationFeedback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    action: "view" | "dismiss";
+                    ids: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Feedback recorded. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Safe application error */
             default: {

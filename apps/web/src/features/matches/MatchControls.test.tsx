@@ -53,7 +53,7 @@ describe("server-rendered match settings", () => {
   });
 });
 
-it("keeps an eligible lobby question and resets an excluded question to Random", async () => {
+it("keeps an eligible lobby question and resets an excluded question to the default recommendation mode", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const client = new QueryClient({
     defaultOptions: { queries: { enabled: false } },
@@ -67,6 +67,7 @@ it("keeps an eligible lobby question and resets an excluded question to Random",
     const [settings, setSettings] = useState<PartySettings>({
       ...defaultMatchSettings,
       selectedProblemVersionId: "example",
+      questionSelection: undefined,
     });
     return (
       <MatchSettings
@@ -100,7 +101,7 @@ it("keeps an eligible lobby question and resets an excluded question to Random",
       expect.objectContaining({ selectedProblemVersionId: "example" }),
     );
     await click("Odyssey");
-    expect(picker()).toContain("Random");
+    expect(picker()).toContain("Recommended");
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         questionFilters: { type: "odyssey" },
@@ -108,7 +109,7 @@ it("keeps an eligible lobby question and resets an excluded question to Random",
       }),
     );
     await click("All question types");
-    expect(picker()).toContain("Random");
+    expect(picker()).toContain("Recommended");
   } finally {
     await act(async () => root.unmount());
     client.clear();

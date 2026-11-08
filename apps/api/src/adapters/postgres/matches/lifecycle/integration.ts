@@ -243,9 +243,13 @@ void test("settings lock preserves readiness while rule changes reset it and lea
   );
   const changed = normalizeSettings({
     ...locked,
+    questionSelection: "recommended",
     rules: { ...matchPreset("casual"), clipboard: "announce", focus: "off" },
   });
-  await repo.mutate(host, created.id, "rules", "settings", changed);
+  const updated = (await repo.mutate(host, created.id, "rules", "settings", changed)) as {
+    questionSelection?: string;
+  };
+  assert.equal(updated.questionSelection, "recommended");
   assert.equal(
     (
       await pool.query(

@@ -16,6 +16,7 @@ import {
   bigserial,
   bigint,
   doublePrecision,
+  real,
   type PgTableExtraConfigValue,
   uniqueIndex,
   jsonb,
@@ -733,8 +734,13 @@ export const matches = pgTable(
     guest_joins: integer().default(0).notNull(),
     admission_locked: boolean().default(false).notNull(),
     question_filters: jsonb().default({}).notNull(),
+    question_selection: text().default("random").notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    check(
+      "matches_question_selection_check",
+      sql`${table.question_selection} IN ('random', 'recommended')`,
+    ),
     index("match_reconciliation_order")
       .using(
         "btree",
@@ -2398,4 +2404,128 @@ export const match_private_result_cases = pgTable(
     }).onDelete("cascade"),
     check("match_private_result_cases_ordinal_check", sql`ordinal>=0`),
   ],
+);
+
+export const question_exposure = pgTable(
+  "question_exposure",
+  {
+    owner_id: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id),
+    assisted_at: timestamp({ withTimezone: true, mode: "string" }),
+    last_seen_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.owner_id, t.version_id] }),
+    index("question_exposure_version").on(t.version_id),
+  ],
+);
+export const question_learning_events = pgTable(
+  "question_learning_events",
+  {
+    submission_id: uuid().primaryKey(),
+    owner_id: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id),
+    difficulty: text().notNull(),
+    tags: text().array().notNull(),
+    assisted: boolean().notNull().default(false),
+    accepted: boolean().notNull(),
+    context: text().notNull(),
+    attempted_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+    observed_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [
+    index("learning_events_owner_time").on(t.owner_id, t.observed_at, t.submission_id),
+    index("learning_events_retention").on(t.observed_at, t.submission_id),
+    index("question_learning_events_version").on(t.version_id),
+    check(
+      "question_learning_events_difficulty_check",
+      sql`${t.difficulty} IN ('easy','medium','hard')`,
+    ),
+    check("question_learning_events_context_check", sql`${t.context} IN ('practice','match')`),
+  ],
+);
+export const recommendation_models = pgTable(
+  "recommendation_models",
+  {
+    id: uuid().primaryKey(),
+    model: jsonb().notNull(),
+    report: jsonb().notNull(),
+    active: boolean().notNull().default(false),
+    created_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    expires_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()+interval '30 days'`),
+  },
+  (t) => [
+    uniqueIndex("recommendation_active_model")
+      .on(t.active)
+      .where(sql`${t.active}`),
+    check("recommendation_models_model_check", sql`jsonb_typeof(${t.model})='object'`),
+    check("recommendation_models_report_check", sql`jsonb_typeof(${t.report})='object'`),
+  ],
+);
+
+export const recommendation_impressions = pgTable(
+  "recommendation_impressions",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    owner_id: text()
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    version_id: uuid()
+      .notNull()
+      .references(() => problem_versions.id),
+    model_id: uuid(),
+    variant: text().notNull(),
+    position: integer().notNull(),
+    served_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    viewed_at: timestamp({ withTimezone: true, mode: "string" }),
+    started_at: timestamp({ withTimezone: true, mode: "string" }),
+    dismissed_at: timestamp({ withTimezone: true, mode: "string" }),
+    first_outcome_at: timestamp({ withTimezone: true, mode: "string" }),
+    solved_at: timestamp({ withTimezone: true, mode: "string" }),
+    followup_solved: boolean(),
+  },
+  (t) => [
+    unique().on(t.owner_id, t.version_id, t.variant, t.model_id, t.served_at).nullsNotDistinct(),
+    index("recommendation_impressions_owner_question").on(
+      t.owner_id,
+      t.version_id,
+      t.served_at.desc(),
+    ),
+    index("recommendation_impressions_version").on(t.version_id),
+    index("recommendation_impressions_retention").on(t.served_at),
+    check("recommendation_impressions_variant_check", sql`${t.variant} IN ('control','explore')`),
+    check("recommendation_impressions_position_check", sql`${t.position}>0`),
+  ],
+);
+export const recommendation_match_selections = pgTable(
+  "recommendation_match_selections",
+  {
+    match_id: uuid()
+      .primaryKey()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    model_id: uuid(),
+    mean_success: real().notNull(),
+    success_spread: real().notNull(),
+    familiarity_gap: integer().notNull(),
+    selected_at: timestamp({ withTimezone: true, mode: "string" })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (t) => [index("recommendation_match_retention").on(t.selected_at)],
 );

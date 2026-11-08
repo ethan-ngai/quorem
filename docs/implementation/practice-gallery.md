@@ -28,3 +28,5 @@ Filters/sort/page live in URL params. Search debounces 250ms and replaces its cu
 - Issue #59: live root Vite at `http://localhost:5180/practice`, API 8090: multiple difficulties/topics, additive tag clicks, and non-link row navigation verified.
 
 - Difficulty controls have a semantic hover/focus tint; difficulty/topic interaction suppresses row highlighting. Trailing row arrows are removed.
+
+Adaptive Suggested ordering, evidence retention and cache rules: [adaptive questions](adaptive-questions.md).
