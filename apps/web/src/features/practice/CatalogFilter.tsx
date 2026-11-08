@@ -130,20 +130,28 @@ export function CatalogFilter({
           <div className="practice-filter-header">
             <div className="practice-filter-heading">
               <span>{label}</span>
-              {onMatchChange && (
-                <SegmentedControl
-                  iconOnly
-                  mono
-                  label={`${label} match mode`}
-                  options={matchModes}
-                  value={match}
-                  onChange={onMatchChange}
-                />
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    (searchInput.current ?? popover.current)?.focus({ preventScroll: true });
+                    onChange([]);
+                  }}
+                >
+                  Clear
+                </button>
               )}
             </div>
-            <button type="button" disabled={!selected.length} onClick={() => onChange([])}>
-              Clear
-            </button>
+            {onMatchChange && (
+              <SegmentedControl
+                iconOnly
+                mono
+                label={`${label} match mode`}
+                options={matchModes}
+                value={match}
+                onChange={onMatchChange}
+              />
+            )}
           </div>
           {searchPlaceholder ? (
             <>
