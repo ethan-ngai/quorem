@@ -148,7 +148,7 @@ try:
         ["vp", "-C", "apps/api", "run", "dev"],
         ["vp", "-C", "apps/runner", "run", "runner"],
         *language_services,
-        ["vp", "-C", "apps/web", "dev", "--host", "127.0.0.1", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
+        ["vp", "-C", "apps/web", "dev", "--host", "0.0.0.0", "--port", str(urlparse(ENV["WEB_ORIGIN"]).port or 5173), "--strictPort"],
     ]:
         processes.append(subprocess.Popen(command, env=ENV, start_new_session=True))
     print(f"Web {ENV['WEB_ORIGIN']} | API {ENV['API_ADDR']} | language {ENV['LANGUAGE_ADDR'] if hosted_intelligence else 'disabled'}", flush=True)
