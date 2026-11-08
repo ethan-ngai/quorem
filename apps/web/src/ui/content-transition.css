@@ -1,0 +1,6 @@
+.content-transition-inline,
+.content-transition-inline > span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}

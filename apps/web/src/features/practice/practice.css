@@ -173,7 +173,12 @@
 .practice-filter-trigger {
   background: transparent;
 }
+.practice-filter-label {
+  display: inline-flex;
+  align-items: center;
+}
 .practice-filter-summary {
+  margin-inline-start: var(--space-2);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -372,29 +377,10 @@
   border-radius: var(--radius-sm);
   background: var(--color-field);
   color: var(--color-text-secondary);
-  transition:
-    color var(--motion-standard) var(--motion-easing),
-    border-color var(--motion-standard) var(--motion-easing);
-}
-.catalog-sql-toggle::before {
-  background: color-mix(in oklch, var(--color-primary) 22%, var(--color-field));
-  transform: scale(0.55);
-  transition:
-    opacity var(--motion-standard) var(--motion-easing),
-    transform calc(var(--motion-standard) * 1.5) var(--motion-easing);
+  transition: color var(--motion-fast) var(--motion-easing);
 }
 .catalog-sql-toggle:not(:disabled):hover {
   color: var(--color-text);
-}
-.catalog-sql-toggle[aria-pressed="true"] {
-  color: var(--color-primary);
-  border-color: color-mix(in oklch, var(--color-primary) 55%, var(--color-border));
-}
-.catalog-sql-toggle svg {
-  transition: transform calc(var(--motion-standard) * 1.5) var(--motion-easing);
-}
-.catalog-sql-toggle[aria-pressed="true"] svg {
-  transform: scale(1.15);
 }
 .practice-indicators {
   display: inline-flex;
@@ -411,9 +397,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .catalog-sql-toggle,
-  .catalog-sql-toggle::before,
-  .catalog-sql-toggle svg {
+  .catalog-sql-toggle {
     transition: none;
   }
 }

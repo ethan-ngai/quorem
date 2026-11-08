@@ -4,7 +4,7 @@ import { ScrollCue } from "../../ui/ScrollCue";
 import { SearchField } from "../../ui/SearchField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { FilterMatch } from "@quorem/contracts";
-import { useChangeMotion } from "../../ui/useChangeMotion";
+import { ContentTransition } from "../../ui/ContentTransition";
 import * as Popover from "../../ui/Popover";
 import { ChevronDown } from "lucide-react";
 import "../../ui/select-field.css";
@@ -46,13 +46,18 @@ export function CatalogFilter({
   const [query, setQuery] = useState("");
   const popover = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  const summary = useChangeMotion<HTMLSpanElement>(selected.join(","));
   const groups = featuredOptions?.length
     ? [
         { label: "Foundational", options: featuredOptions },
         { label: "Other topics", options },
       ]
     : [{ label: "", options }];
+  const firstLabel = groups
+    .flatMap((group) => group.options)
+    .find((option) => option.value === selected[0])?.label;
+  const summary = [firstLabel, selected.length > 1 ? `+${selected.length - 1}` : ""]
+    .filter(Boolean)
+    .join(" ");
   const term = query.trim().toLowerCase();
   const visibleGroups = groups
     .map((group) => ({
@@ -99,17 +104,12 @@ export function CatalogFilter({
       }}
     >
       <Popover.Trigger className="select-field practice-filter-trigger" aria-label={label}>
-        {label}
-        {selected.length > 0 && (
-          <span className="practice-filter-summary motion-reveal" ref={summary}>
-            {
-              groups
-                .flatMap((group) => group.options)
-                .find((option) => option.value === selected[0])?.label
-            }
-            {selected.length > 1 && ` +${selected.length - 1}`}
-          </span>
-        )}
+        <span className="practice-filter-label">
+          {label}
+          <ContentTransition inline contentKey={summary}>
+            {summary && <span className="practice-filter-summary">{summary}</span>}
+          </ContentTransition>
+        </span>
         <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
