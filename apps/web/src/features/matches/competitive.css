@@ -408,13 +408,19 @@
 }
 
 /* Multi-mode controls stay compact while wrapping players and bounded modal content. */
-.match-creation-dialog {
+.competitive-dialog.match-creation-dialog {
   width: min(600px, calc(100vw - 32px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   --interaction-fast: var(--motion-fast);
   --interaction-reveal: var(--motion-standard);
   --interaction-ease: var(--motion-easing);
+}
+.match-creation-dialog .competitive-dialog-heading {
+  align-items: center;
+}
+.match-creation-options-slot {
+  display: contents;
 }
 
 .match-rules-heading {
