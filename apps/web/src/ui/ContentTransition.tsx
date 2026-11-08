@@ -1,23 +1,18 @@
-/** @file ContentTransition.tsx @description Crossfades content in a stable surface. @module ui */
-import { Component, type ReactNode } from "react";
+import { Component, createRef, type ReactNode } from "react";
 import { prepareContentChangeMotion } from "./contentChangeMotion";
-import "./content-transition.css";
 
-type Props = { contentKey: string; className?: string; inline?: boolean; children: ReactNode };
+type Props = { contentKey: string; className?: string; children: ReactNode };
 type StartMotion = NonNullable<ReturnType<typeof prepareContentChangeMotion>> | null;
 
 /** Crossfade React content and resize its surface when its layout changes. */
 export class ContentTransition extends Component<Props, object, StartMotion> {
-  private surface: HTMLElement | null = null;
-  private readonly setSurface = (surface: HTMLElement | null) => {
-    this.surface = surface;
-  };
+  private readonly surface = createRef<HTMLDivElement>();
   private stopMotion?: () => void;
 
   getSnapshotBeforeUpdate(previous: Props): StartMotion {
-    if (previous.contentKey === this.props.contentKey || !this.surface) return null;
+    if (previous.contentKey === this.props.contentKey || !this.surface.current) return null;
     this.stopMotion?.();
-    return prepareContentChangeMotion(this.surface, this.props.inline) ?? null;
+    return prepareContentChangeMotion(this.surface.current) ?? null;
   }
 
   componentDidUpdate(_previous: Props, _state: object, start: StartMotion) {
@@ -29,15 +24,8 @@ export class ContentTransition extends Component<Props, object, StartMotion> {
   }
 
   render() {
-    if (this.props.inline) {
-      return (
-        <span ref={this.setSurface} className="content-transition-inline">
-          <span className={this.props.className}>{this.props.children}</span>
-        </span>
-      );
-    }
     return (
-      <div ref={this.setSurface} className={this.props.className}>
+      <div ref={this.surface} className={this.props.className}>
         {this.props.children}
       </div>
     );

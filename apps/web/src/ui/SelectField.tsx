@@ -1,10 +1,9 @@
-/** @file SelectField.tsx @description Shared dropdown for single selections. @module ui */
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useRef, useState, type ReactNode, type ComponentProps } from "react";
 import "./select-field.css";
-import { ContentTransition } from "./ContentTransition";
 import { Tooltip } from "./Tooltip";
+import { useChangeMotion } from "./useChangeMotion";
 
 export type SelectOption = {
   value: string;
@@ -55,6 +54,7 @@ export function SelectField({
   const [open, setOpen] = useState(false);
   const closingPointer = useRef(false);
   const selected = options.find((option) => option.value === value);
+  const selectionMotion = useChangeMotion<HTMLSpanElement>(value, "slide");
   const trigger = (
     <Select.Trigger
       {...triggerProps}
@@ -82,7 +82,7 @@ export function SelectField({
         closingPointer.current = false;
       }}
     >
-      <ContentTransition inline className="select-field-selection" contentKey={value}>
+      <span className="select-field-selection" ref={selectionMotion}>
         {selected?.leading}
         {!iconOnly && (
           <span className="select-field-label">
@@ -90,7 +90,7 @@ export function SelectField({
             {selected?.trailing}
           </span>
         )}
-      </ContentTransition>
+      </span>
       {!iconOnly && (
         <Select.Icon className="select-field-chevron">
           <ChevronDown size={14} aria-hidden="true" />
