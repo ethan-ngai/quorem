@@ -47,7 +47,12 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
   const {
     rows: [reference],
   } = await database.query(
-    `SELECT v.id, v.signature, v.difficulty, i.case_count, i.sample_count
+    `SELECT v.id, v.signature, v.difficulty, i.case_count, i.sample_count,
+            (SELECT solution.source FROM problem_solutions solution
+             JOIN problem_solution_approaches approach ON approach.version_id=solution.version_id
+               AND approach.id=solution.approach_id
+             WHERE solution.version_id=v.id AND solution.language='python'
+             ORDER BY approach.is_canonical DESC, approach.ordinal LIMIT 1) AS reference_source
      FROM matches m JOIN problem_versions v ON v.id=m.problem_version_id
      JOIN submissions s ON s.match_id=m.id JOIN execution_jobs j ON j.submission_id=s.id
      JOIN runner_job_inputs i ON i.job_id=j.id
@@ -59,6 +64,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
   if (
     reference?.case_count !== 20 ||
     reference.sample_count !== 3 ||
+    !reference.reference_source ||
     !/^[a-zA-Z_][a-zA-Z_0-9]*$/.test(className ?? "") ||
     !/^[a-zA-Z_][a-zA-Z_0-9]*$/.test(methodName ?? "")
   )
@@ -168,7 +174,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
           call("/v1/submissions", headers, {
             workspaceId: workspaces[index],
             kind: "submit",
-            source,
+            source: index === 0 ? reference.reference_source : source,
           }),
         ),
       );
@@ -215,6 +221,24 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
         120000,
       );
       console.log(JSON.stringify({ replayRound: round + 1, attempts }));
+      if (attempts.some(({ verdict }) => verdict === "accepted")) {
+        const outcome = await wait(
+          async () =>
+            (
+              await database.query(
+                `SELECT m.state, m.outcome->>'reason' AS reason,
+                    round(1000 * extract(epoch FROM m.completed_at - min(s.updated_at)))::int AS settlement_ms
+             FROM matches m JOIN submissions s ON s.match_id=m.id
+             WHERE m.id=$1::uuid AND s.result->>'verdict'='accepted' GROUP BY m.id`,
+                [matchId],
+              )
+            ).rows[0],
+          (row) => row?.state === "completed",
+          20000,
+        );
+        console.log(JSON.stringify({ replayOutcome: outcome }));
+      }
+
       if (
         attempts.some(
           (row) =>
