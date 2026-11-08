@@ -1,7 +1,7 @@
 import { useFactionLobby } from "../factions/useFactionLobby";
 import { allFactionsOccupied } from "@quorem/contracts/factions";
 import { StateIcon } from "../../ui/StateIcon";
-import { LoadingIndicator, Spinner } from "../../ui/Spinner";
+import { LoadingIndicator, SpinnerSwap } from "../../ui/Spinner";
 import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
@@ -210,11 +210,7 @@ export function PartyPage() {
                 disabled={!!recovery || !own?.online || (!own.ready && !factionsReady)}
                 onClick={() => void run("ready", { ready: !own?.ready })}
               >
-                <StateIcon
-                  active={readyPending}
-                  off={readyLabel}
-                  on={<Spinner active={readyPending} />}
-                />
+                <SpinnerSwap pending={readyPending}>{readyLabel}</SpinnerSwap>
               </button>
             </Tooltip>
           )}

@@ -1,7 +1,8 @@
 /** @file Spinner.tsx @description Shared compact loading indicators. @module ui */
 import { LoaderCircle } from "lucide-react";
-import { useDebouncer } from "@tanstack/react-pacer/debouncer";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { LoadingState, useLoadingVisibility } from "./LoadingState";
+import { StateIcon } from "./StateIcon";
 import "./spinner.css";
 
 export function Spinner({ size = 16, active = true }: { size?: number; active?: boolean }) {
@@ -10,28 +11,13 @@ export function Spinner({ size = 16, active = true }: { size?: number; active?: 
   );
 }
 
-export function LoadingIndicator({ label }: { label: string }) {
+export function LoadingIndicator({ label, immediate }: { label: string; immediate?: boolean }) {
   return (
-    <span className="loading-indicator" role="status">
-      <Spinner />
-      <span className="sr-only">{label}</span>
+    <span className="loading-indicator">
+      <LoadingState label={label} immediate={immediate}>
+        <Spinner />
+      </LoadingState>
     </span>
-  );
-}
-
-function PendingSpinner({ label, fallback }: { label: string; fallback?: ReactNode }) {
-  const [visible, setVisible] = useState(false);
-  const delay = useDebouncer(() => setVisible(true), { wait: 200 });
-  useEffect(() => {
-    delay.maybeExecute();
-    return () => delay.cancel();
-  }, [delay]);
-  return visible ? (
-    <span role="status" aria-label={label}>
-      <Spinner />
-    </span>
-  ) : (
-    fallback
   );
 }
 
@@ -47,7 +33,15 @@ export function DelayedSpinner({
 }) {
   return (
     <span className="delayed-spinner">
-      {active ? <PendingSpinner label={label} fallback={fallback} /> : fallback}
+      <LoadingState active={active} label={label} fallback={fallback}>
+        <Spinner />
+      </LoadingState>
     </span>
   );
+}
+
+/** Keep the button's resting content and spinner in the same slot. */
+export function SpinnerSwap({ pending, children }: { pending: boolean; children: ReactNode }) {
+  const visible = useLoadingVisibility(pending);
+  return <StateIcon active={visible} off={children} on={<Spinner active={visible} />} />;
 }

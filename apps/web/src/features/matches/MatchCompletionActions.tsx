@@ -1,7 +1,6 @@
 /** @file MatchCompletionActions.tsx @description Shared post-match navigation and quick readiness. @module matches */
 import { FileCode2, Plus, RotateCcw, Users, X, Zap } from "lucide-react";
-import { Spinner } from "../../ui/Spinner";
-import { StateIcon } from "../../ui/StateIcon";
+import { SpinnerSwap } from "../../ui/Spinner";
 
 export function MatchCompletionActions({
   review,
@@ -53,19 +52,15 @@ export function MatchCompletionActions({
           aria-busy={readiness.pending}
           onClick={readiness.onClick}
         >
-          <StateIcon
-            active={readiness.pending}
-            on={<Spinner active={readiness.pending} />}
-            off={
-              readiness.retry ? (
-                <RotateCcw size={16} />
-              ) : readiness.ready ? (
-                <X size={16} />
-              ) : (
-                <Zap size={16} />
-              )
-            }
-          />
+          <SpinnerSwap pending={readiness.pending}>
+            {readiness.retry ? (
+              <RotateCcw size={16} />
+            ) : readiness.ready ? (
+              <X size={16} />
+            ) : (
+              <Zap size={16} />
+            )}
+          </SpinnerSwap>
           {readiness.retry ? "Retry readiness" : readiness.ready ? "Unready" : "Quick ready"}
         </button>
       )}

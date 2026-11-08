@@ -207,7 +207,7 @@ function MatchLedger({
           />
           {status === "reconnecting" && !isMatchTerminal(snapshot) && !own?.forfeited && (
             <Tooltip content="Refreshing match state while reconnecting">
-              <LoadingIndicator label="Reconnecting…" />
+              <LoadingIndicator label="Reconnecting…" immediate />
             </Tooltip>
           )}
           {snapshot.startedAt && (

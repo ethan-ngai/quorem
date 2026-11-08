@@ -704,7 +704,7 @@ export function WorkspacePage({
   const renderWorkspace = (controls?: MatchDisclosureControls) => (
     <>
       {loading && (
-        <div className="workspace-loading workspace-transition" role="status">
+        <div className="workspace-loading workspace-transition">
           {loadError ? (
             <p role="alert">{errorMessage(loadError)}</p>
           ) : (

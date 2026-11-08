@@ -131,7 +131,7 @@ function ResultSummary({
   sql,
   returnType,
 }: ResultContentProps) {
-  if (busy) return <LoadingIndicator label="Starting execution…" />;
+  if (busy) return <LoadingIndicator label="Starting execution…" immediate />;
   if (!submission)
     return showVerdict ? <p className="result-message">Run your code to see results.</p> : null;
   if (submission.state === "queued" || submission.state === "running")

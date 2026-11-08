@@ -165,7 +165,7 @@ export function MatchEndView({
   const highScore = snapshot.rules?.victory === "high_score";
   const partyStatus = (
     <div className="match-party-status" hidden={!checkingParty && !partyQuery.isError}>
-      {checkingParty && <LoadingIndicator label="Checking lobby…" />}
+      {checkingParty && <LoadingIndicator label="Checking lobby…" immediate />}
       <PersistentNotice
         message={partyQuery.isError ? "Could not check your lobby. Try again." : undefined}
         label="Lobby unavailable"
