@@ -4,11 +4,13 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import type { MatchSnapshot, ProblemVersion } from "@quorem/contracts";
+import type { MatchSyncStatus } from "../realtime/useMatchSync";
 
 const state = vi.hoisted(() => ({
   snapshot: undefined as MatchSnapshot | undefined,
   error: undefined as Error | undefined,
   mounts: 0,
+  status: "live" as MatchSyncStatus,
   notify: vi.fn(),
 }));
 vi.mock("./MatchControls", () => ({
@@ -21,7 +23,7 @@ vi.mock("../realtime/useMatchSync", () => ({
   useMatchSync: () => ({
     snapshot: state.snapshot,
     error: state.error,
-    status: "live",
+    status: state.status,
     refetch: vi.fn(),
   }),
 }));
@@ -91,11 +93,17 @@ it("keeps the workspace mounted when the match finishes and results reopen", asy
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.mounts = 0;
   state.snapshot = activeMatch;
+  state.status = "connecting";
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   await act(async () => root.render(<MatchPage matchId="match" />));
   const workspace = container.querySelector("[data-workspace]");
+  expect(container.textContent).not.toContain("Reconnecting…");
+  state.status = "reconnecting";
+  await act(async () => root.render(<MatchPage matchId="match" />));
+  expect(container.textContent).toContain("Reconnecting…");
+  state.status = "live";
   state.snapshot = {
     ...state.snapshot,
     state: "completed",
@@ -137,9 +145,7 @@ it("opens a finished match directly into results and loads the workspace only fo
   try {
     await act(async () => root.render(<MatchPage matchId="match" />));
     expect(state.mounts).toBe(0);
-    expect(state.notify).not.toHaveBeenCalledWith(
-      expect.stringContaining("Connection interrupted"),
-    );
+    expect(state.notify).not.toHaveBeenCalledWith(expect.any(String));
     await act(async () =>
       Array.from(container.querySelectorAll("button"))
         .find((button) => button.textContent === "Review code")!

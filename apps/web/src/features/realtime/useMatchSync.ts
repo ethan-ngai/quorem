@@ -1,25 +1,21 @@
-import { createReconnectingSocket } from "./reconnectingSocket";
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
 import { api, ApiError, requireData } from "../../api/client";
 import { isRouteDenied } from "../auth/protectedRoute";
 import { isMatchTerminal } from "../matches/matchState";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  bufferMatchEvent,
-  isMatchSnapshot,
-  keepNewestSnapshot,
-  mergeMatchEvents,
-  parseMatchEvent,
-  type MatchEventBuffer,
-} from "./matchSync";
+import { useEffect, useMemo, useState } from "react";
+import { isMatchSnapshot, keepNewestSnapshot, parseMatchEvent } from "./matchSync";
+import { createReconnectingSocket } from "./reconnectingSocket";
 
 export type MatchSyncStatus = "connecting" | "live" | "reconnecting";
-type MatchSyncState = MatchEventBuffer & {
-  fetching: boolean;
-  gapTimer: number | undefined;
-};
+
+const recoveryInterval = 2_000;
+const snapshotTimeout = 5_000;
+
+function isAccessError(error: unknown) {
+  return error instanceof ApiError && (error.status === 401 || isRouteDenied(error.status));
+}
 
 function eventSocketUrl(matchId: string, identity: DevelopmentIdentity) {
   const base = import.meta.env.VITE_API_BASE_URL ?? window.location.origin;
@@ -57,154 +53,90 @@ export function useMatchSync(
 } {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["match", identity, matchId] as const, [identity, matchId]);
-  const ownerKey = matchId ? `${identity}:${matchId}` : "";
-  const syncState = useMemo<MatchSyncState>(
-    () => ({ events: [], overflow: false, fetching: false, gapTimer: undefined }),
-    [ownerKey],
-  );
-  const [status, setStatus] = useState<MatchSyncStatus>("connecting");
-  const [completedSocketOwner, setCompletedSocketOwner] = useState("");
-  const [transportError, setTransportError] = useState<Error | null>(null);
+  const [connection, setConnection] = useState<{
+    key: typeof queryKey;
+    status: MatchSyncStatus;
+  }>();
+  const status = connection?.key === queryKey ? connection.status : "connecting";
 
   const query = useQuery({
     queryKey,
-    queryFn: async ({ signal }) => {
+    queryFn: ({ signal }) => {
       if (!matchId) throw new Error("Match id is required");
-      syncState.fetching = true;
-      try {
-        const snapshot = await fetchMatchSnapshot(identity, matchId, signal);
-        if (signal.aborted) throw new DOMException("Match query was cancelled", "AbortError");
-        const overflowed = syncState.overflow;
-        const buffered = syncState.events.splice(0);
-        syncState.overflow = false;
-        if (overflowed) {
-          scheduleRecovery();
-          return snapshot;
-        }
-        const merged = mergeMatchEvents(snapshot, buffered);
-        if (merged.gap) scheduleRecovery();
-        return merged.snapshot;
-      } finally {
-        syncState.fetching = false;
-      }
+      return fetchMatchSnapshot(identity, matchId, signal);
     },
     enabled: enabled && Boolean(matchId),
-    refetchInterval: ({ state: { data } }) =>
-      data?.reviewPending || (completedSocketOwner === ownerKey && !isMatchTerminal(data))
-        ? 2_000
-        : false,
+    retry: (failureCount, error) => failureCount < 1 && !isAccessError(error),
+    refetchInterval: ({ state: { data, error } }) => {
+      const needsRefresh = isMatchTerminal(data) ? data?.reviewPending : status === "reconnecting";
+      return needsRefresh && !isAccessError(error) ? recoveryInterval : false;
+    },
     structuralSharing: (previous, incoming) =>
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
 
-  function scheduleRecovery() {
-    window.clearTimeout(syncState.gapTimer);
-    syncState.gapTimer = window.setTimeout(() => {
-      void queryClient.invalidateQueries({ queryKey });
-    }, 0);
-  }
-
-  const refetch = useCallback(() => query.refetch(), [query.refetch]);
-  const httpStatus = query.error instanceof ApiError ? query.error.status : undefined;
-  const accessFailed = httpStatus === 401 || isRouteDenied(httpStatus);
+  const accessFailed = isAccessError(query.error);
   // A new visit can regain access after being invited or switching sessions.
   const deniedThisVisit = accessFailed && query.isFetchedAfterMount;
-
   const terminal = isMatchTerminal(query.data);
   // The authorized HTTP snapshot decides whether this visit needs a live socket.
-  const connect = enabled && !!matchId && !!query.data && !terminal && !deniedThisVisit;
+  const connect = enabled && !!matchId && !!query.data && !terminal && !accessFailed;
 
   useEffect(() => {
     if (!connect || !matchId) return;
-    setCompletedSocketOwner("");
-    setTransportError(null);
-    let disposed = false;
+    let currentStatus: MatchSyncStatus = "connecting";
+    let firstSnapshotTimer: number | undefined;
+    setConnection({ key: queryKey, status: currentStatus });
 
-    const requestRefresh = () => {
-      if (!disposed)
-        void refetch().catch((cause: unknown) => {
-          if (!disposed)
-            setTransportError(
-              cause instanceof Error ? cause : new Error("Could not refresh match"),
-            );
-        });
-    };
+    function setStatus(next: MatchSyncStatus) {
+      if (next === currentStatus) return;
+      currentStatus = next;
+      setConnection({ key: queryKey, status: next });
+    }
 
-    const connection = createReconnectingSocket({
+    const socket = createReconnectingSocket({
       url: () => eventSocketUrl(matchId, identity),
       timeout: 2_000,
       idleTimeout: 45_000,
-      onConnecting: () => setStatus("connecting"),
       onOpen() {
-        setTransportError(null);
-        setStatus("live");
-        requestRefresh();
+        // A transport handshake does not guarantee the server has delivered match state.
+        window.clearTimeout(firstSnapshotTimer);
+        firstSnapshotTimer = window.setTimeout(() => setStatus("reconnecting"), snapshotTimeout);
       },
       onMessage(message) {
-        if (disposed) return;
-        let raw: unknown;
-        try {
-          raw = JSON.parse(String(message.data)) as unknown;
-        } catch {
-          setTransportError(new Error("Match event was not valid JSON"));
-          return;
-        }
-        const event = parseMatchEvent(raw, matchId);
+        const event = parseMatchEvent(JSON.parse(String(message.data)), matchId);
         if (!event) {
-          setTransportError(new Error("Match event did not match the contract"));
+          setStatus("reconnecting");
           return;
         }
-        if (syncState.fetching) {
-          bufferMatchEvent(syncState, event);
-          return;
-        }
-        const previous = queryClient.getQueryData<MatchSnapshot>(queryKey);
-        if (!previous) {
-          bufferMatchEvent(syncState, event);
-          requestRefresh();
-          return;
-        }
-        const merged = mergeMatchEvents(previous, [event]);
-        if (merged.gap) {
-          void queryClient.invalidateQueries({ queryKey });
-        } else if (merged.snapshot !== previous) {
-          queryClient.setQueryData<MatchSnapshot>(queryKey, (current) =>
-            current ? keepNewestSnapshot(current, merged.snapshot) : merged.snapshot,
-          );
-        }
-      },
-      onError(cause) {
-        setTransportError(
-          cause instanceof Error ? cause : new Error("Match event connection failed"),
-        );
+        if (isAccessError(queryClient.getQueryState(queryKey)?.error)) return;
+        window.clearTimeout(firstSnapshotTimer);
+        // Frames carry full snapshots. Version ordering also fences late HTTP responses.
+        queryClient.setQueryData(queryKey, event.payload);
+        setStatus("live");
       },
       onComplete() {
-        setTransportError(null);
-        setCompletedSocketOwner(ownerKey);
-        requestRefresh();
+        window.clearTimeout(firstSnapshotTimer);
+        if (!isMatchTerminal(queryClient.getQueryData<MatchSnapshot>(queryKey))) {
+          setStatus("reconnecting");
+        }
       },
       onDisconnect() {
+        window.clearTimeout(firstSnapshotTimer);
         setStatus("reconnecting");
       },
     });
-    connection.start();
+    socket.start();
     return () => {
-      disposed = true;
-      connection.stop();
-      window.clearTimeout(syncState.gapTimer);
-      syncState.events = [];
-      syncState.overflow = false;
+      socket.stop();
+      window.clearTimeout(firstSnapshotTimer);
     };
-  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState, connect]);
+  }, [identity, matchId, queryClient, queryKey, connect]);
 
   return {
     snapshot: deniedThisVisit ? undefined : query.data,
-    error: deniedThisVisit
-      ? query.error
-      : accessFailed
-        ? null
-        : ((terminal ? null : transportError) ?? query.error),
+    error: accessFailed && !deniedThisVisit ? null : query.error,
     status,
-    refetch,
+    refetch: query.refetch,
   };
 }

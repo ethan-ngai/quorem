@@ -23,7 +23,7 @@ import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
 import { Icon } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
-import { useMatchSync } from "../realtime/useMatchSync";
+import { useMatchSync, type MatchSyncStatus } from "../realtime/useMatchSync";
 import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
@@ -167,7 +167,7 @@ function MatchLedger({
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
-  status: string;
+  status: MatchSyncStatus;
   onForfeit: () => void;
   onResults?: () => void;
 }) {
@@ -204,8 +204,8 @@ function MatchLedger({
               }[event.kind],
             }))}
           />
-          {status !== "live" && snapshot.state === "active" && !own?.forfeited && (
-            <Tooltip content="Connection interrupted; refreshing match state">
+          {status === "reconnecting" && !isMatchTerminal(snapshot) && !own?.forfeited && (
+            <Tooltip content="Refreshing match state while reconnecting">
               <span className="sync-label">Reconnecting…</span>
             </Tooltip>
           )}
@@ -298,7 +298,7 @@ export function MatchPage({
   useErrorNotification(actionError);
   useErrorNotification(
     snapshot && !terminal && error && !denied && httpStatus !== 401
-      ? "Connection interrupted. Refreshing match state."
+      ? "Could not refresh match state."
       : undefined,
   );
   const [conceding, setConceding] = useState(false);
