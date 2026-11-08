@@ -41,7 +41,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           problem_examples: "version_id,ordinal,args,expected,explanation,calls",
           runner_version_input_cases: "version_id,channel,stage",
           problem_tags: "version_id,tag,ordinal",
-          foundational_topics: "slug,label,aliases",
+          foundational_topics: "slug,label,aliases,is_foundational",
           question_exposure: "owner_id,version_id,last_seen_at",
           question_learning_events:
             "submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at,observed_at",
@@ -54,6 +54,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
             "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
           problem_solutions: "version_id,approach_id,language,source",
           companies: "id,name",
+          company_tiers: "company_key,tier",
           problem_companies: "problem_id,company_id",
           matches: "id,problem_version_id,state,rules",
           match_participants: "match_id,owner_id,forfeited,competitor_id",

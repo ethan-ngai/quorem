@@ -554,6 +554,17 @@ export const problems = pgTable(
   ],
 );
 
+export const company_tiers = pgTable(
+  "company_tiers",
+  {
+    company_key: text().primaryKey(),
+    tier: text().notNull(),
+  },
+  (): PgTableExtraConfigValue[] => [
+    check("company_tiers_tier_check", sql`tier IN ('faang', 'top', 'quant', 'mid-tier')`),
+  ],
+);
+
 export const companies = pgTable(
   "companies",
   {
@@ -1264,6 +1275,7 @@ export const foundational_topics = pgTable(
   {
     slug: text().primaryKey(),
     label: text().notNull(),
+    is_foundational: boolean().notNull().default(true),
     aliases: text()
       .array()
       .notNull()

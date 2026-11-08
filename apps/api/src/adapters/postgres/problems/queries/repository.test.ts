@@ -119,6 +119,10 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
       await pool.query(
+        "INSERT INTO company_tiers(company_key,tier) SELECT $1,tier FROM company_tiers WHERE company_key='amazon'",
+        [`${uid}-company`],
+      );
+      await pool.query(
         "INSERT INTO problem_companies(problem_id,company_id) SELECT p,id FROM companies CROSS JOIN unnest($1::uuid[]) p WHERE name=$2",
         [[ids[1], ids[2]], `${uid}-company`],
       );
@@ -166,11 +170,12 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         runner_version_input_cases: "version_id,channel,stage",
         problem_tags: "version_id,tag,ordinal",
-        foundational_topics: "slug,label,aliases",
+        foundational_topics: "slug,label,aliases,is_foundational",
         problem_solution_approaches:
           "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
         problem_solutions: "version_id,approach_id,language,source",
         companies: "id,name",
+        company_tiers: "company_key,tier",
         problem_companies: "problem_id,company_id",
         matches: "id,problem_version_id,state,rules",
         match_participants: "match_id,owner_id,forfeited,competitor_id",
@@ -303,6 +308,18 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             ),
           ).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
+          if (library !== "private" || visible) {
+            expect(result.companyFacets).toContainEqual({
+              name: `${uid}-company`,
+              tier: "faang",
+              count: visible && library !== "private" ? 2 : 1,
+            });
+          }
+          expect(
+            result.companyFacets.some(
+              ({ name }: { name: string }) => name === `${uid}-private-company`,
+            ),
+          ).toBe(visible);
         }
         const catalogIn = async (scope: string) =>
           JSON.parse(
@@ -330,10 +347,23 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         expect(odyssey.items[0].tags).toEqual([
           "Heap",
           "Breadth-First Search",
-          "Arrays",
           "Hash Tables",
           "simulation",
+          "Arrays",
         ]);
+        expect(
+          odyssey.foundationalTopics.map(({ label }: { label: string }) => label),
+        ).not.toContain("Arrays");
+        expect(odyssey.topicAliases["foundational:arrays"]).toBe("Arrays");
+        expect(odyssey.companyFacets).toContainEqual({
+          name: `${uid}-company`,
+          tier: "faang",
+          count: 1,
+        });
+        for (const value of ["Array", "Arrays", "foundational:arrays"]) {
+          const page = await catalogIn(`sql=false&type=odyssey&topic=${value}`);
+          expect(page.items.map(({ id }: { id: string }) => id)).toEqual([versions[2]]);
+        }
         expect(JSON.parse((await queries.bySlug(undefined, `${uid}-2`))!).tags).toEqual(
           odyssey.items[0].tags,
         );
@@ -378,7 +408,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         ).toContainEqual({ id: versions[2], sql: false });
         expect(foundational.foundationalTopics).toEqual(
           expect.arrayContaining([
-            { value: "foundational:heap", label: "Heap", tags: ["Heap (Priority Queue)", "heap"] },
+            {
+              value: "foundational:heap",
+              label: "Heap",
+              tags: expect.arrayContaining(["Heap (Priority Queue)", "heap"]),
+            },
             {
               value: "foundational:breadth-first-search",
               label: "Breadth-First Search",

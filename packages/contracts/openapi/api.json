@@ -669,6 +669,26 @@
                         "type": "string"
                       }
                     },
+                    "companyFacets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "tier": {
+                            "type": "string",
+                            "enum": ["faang", "top", "quant", "mid-tier", "other"]
+                          },
+                          "count": { "type": "integer", "minimum": 1 }
+                        },
+                        "required": ["name", "tier", "count"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "topicAliases": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
+                    },
                     "recommendationImpressions": {
                       "type": "object",
                       "additionalProperties": { "type": "string", "format": "uuid" }

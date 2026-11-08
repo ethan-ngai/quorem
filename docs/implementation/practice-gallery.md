@@ -10,7 +10,9 @@ Defaults: page 1, limit 20; maximum page 10,000 and limit 100. Text bounds: 120 
 
 The response includes `items`, `total`, `page`, `limit`, and topic/company options for the requested library, category (`sql`) and format (`type`). Search and pagination leave those options stable. All results share a read-only repeatable-read snapshot. Page payload is bounded; search/count currently scan published metadata, appropriate for the initial catalog. Add indexed search only after measured catalog growth. Existing catalog consumers receive the default first page; competitive/admin full-catalog navigation remains separately scoped.
 
-PostgreSQL `foundational_topics` owns canonical names and aliases. Add or change them through migrations and keep slugs stable for saved filters. Published question views merge aliases and put foundational topics first. The catalog derives topic options from visible current questions; filters accept canonical names, aliases and foundational slugs.
+PostgreSQL `foundational_topics` owns canonical names and aliases. Add or change them through migrations and keep slugs stable for saved filters. Published question views merge aliases and put topics marked `is_foundational` first. The catalog derives topic options from visible current questions; filters accept canonical names, aliases and foundational slugs.
+
+PostgreSQL `company_tiers` assigns tiers by case-insensitive company name. Unlisted companies appear under Other Companies. The filter shows question counts for the selected library, category and format, alphabetically within each tier.
 
 ## Browser state
 

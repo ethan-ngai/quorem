@@ -276,6 +276,11 @@
     border-color var(--motion-fast) var(--motion-easing),
     color var(--motion-fast) var(--motion-easing);
 }
+.practice-filter-count {
+  margin-inline-start: var(--space-1);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
 .practice-filter-choice:hover {
   background: var(--color-surface);
   color: var(--color-text);

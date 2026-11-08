@@ -10,7 +10,7 @@ const rawTag = sql`t.tag`;
 const normalizedTag = fold(rawTag);
 const topicLabel = sql`COALESCE(ft.label,${normalizedTag})`;
 export const topicJoin = sql`LEFT JOIN foundational_topics ft ON ${matches(rawTag)}`;
-export const topicColumns = sql`${topicLabel} AS tag, ft.slug AS foundation`;
+export const topicColumns = sql`${topicLabel} AS tag, ft.slug, ft.is_foundational`;
 export const isTopic = sql`${normalizedTag} NOT IN ('','sql')`;
 
 /** Canonicalize on read so sealed publication inputs and learning history stay intact. */
@@ -19,7 +19,7 @@ function questionTopics(version: SQL) {
     FROM problem_tags t ${topicJoin}
     WHERE t.version_id=${version} AND ${isTopic}
     GROUP BY 1
-    ORDER BY bool_or(ft.slug IS NOT NULL) DESC, min(t.ordinal), 1`;
+    ORDER BY bool_or(COALESCE(ft.is_foundational, false)) DESC, min(t.ordinal), 1`;
 }
 
 export function topicProjection(version: SQL) {

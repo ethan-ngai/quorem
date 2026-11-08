@@ -217,7 +217,12 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   }
   const items = rows;
   const topicRows = (
-    await tx.execute<{ tag: string; foundation: string | null; aliases: string[] }>(
+    await tx.execute<{
+      tag: string;
+      slug: string | null;
+      is_foundational: boolean | null;
+      aliases: string[];
+    }>(
       sql`WITH visible_tags AS (
         SELECT DISTINCT t.tag FROM problem_tags t
         JOIN problem_versions v ON v.id=t.version_id
@@ -225,20 +230,31 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
         WHERE ${visibility} AND ${catalogKind(f)} AND ${isTopic}
       )
       SELECT ${topicColumns}, array_agg(t.tag ORDER BY t.tag) AS aliases
-      FROM visible_tags t ${topicJoin} GROUP BY 1,2 ORDER BY 1`,
+      FROM visible_tags t ${topicJoin} GROUP BY 1,2,3 ORDER BY 1`,
     )
   ).rows;
   const topics = topicRows.map(({ tag }) => tag);
-  const foundationalTopics = topicRows.flatMap(({ tag, foundation, aliases }) =>
-    foundation ? [{ value: `foundational:${foundation}`, label: tag, tags: aliases }] : [],
+  const foundationalTopics = topicRows.flatMap(({ tag, slug, is_foundational, aliases }) =>
+    is_foundational ? [{ value: `foundational:${slug}`, label: tag, tags: aliases }] : [],
   );
-  const companies = (
-    await tx.execute<{ name: string }>(
-      sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id
+  // Old topic URLs keep resolving to the canonical label after a topic moves out of Foundational.
+  const topicAliases = Object.fromEntries(
+    topicRows.flatMap(({ tag, slug, is_foundational, aliases }) =>
+      slug && !is_foundational
+        ? [`foundational:${slug}`, tag, ...aliases].map((alias) => [alias.toLowerCase(), tag])
+        : [],
+    ),
+  );
+  const companyFacets = (
+    await tx.execute<{ name: string; tier: string; count: string }>(
+      sql`SELECT c.name, COALESCE(ct.tier,'other') AS tier, count(*)::text AS count
+          FROM companies c JOIN problem_companies pc ON pc.company_id=c.id
           JOIN problems p ON p.id=pc.problem_id JOIN problem_versions v ON v.id=p.current_version_id
-          WHERE ${visibility} AND ${catalogKind(f)} ORDER BY c.name`,
+          LEFT JOIN company_tiers ct ON ct.company_key=lower(c.name)
+          WHERE ${visibility} AND ${catalogKind(f)}
+          GROUP BY c.name, ct.tier ORDER BY lower(c.name), c.name`,
     )
-  ).rows.map((r) => r.name);
+  ).rows.map(({ name, tier, count }) => ({ name, tier, count: new JsonNumber(count) }));
   const n = Number(total);
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
   const reasons = new Map(recommendations?.map((item) => [item.question.id, item.reason]));
@@ -258,7 +274,9 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     limit: new JsonNumber(String(f.limit)),
     topics,
     foundationalTopics,
-    companies,
+    topicAliases,
+    companies: companyFacets.map(({ name }) => name),
+    companyFacets,
   };
   return {
     result,

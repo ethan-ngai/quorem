@@ -6,7 +6,7 @@ import {
   CatalogFilters,
   CatalogKindFilters,
   CompanyFilter,
-  featuredTopicValues,
+  topicFilterValues,
 } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout } from "./CatalogLayout";
@@ -57,7 +57,7 @@ export function PracticeBrowser() {
   }, [!!catalog.data]);
   const privateIdentityError =
     search.library === "private" && actor === undefined && session.isError;
-  const { topics, foundationalTopics, companies } = catalogFacets(
+  const { topics, foundationalTopics, topicAliases, companies, companyFacets } = catalogFacets(
     queryClient,
     actor,
     { ...search, ...scope },
@@ -66,7 +66,7 @@ export function PracticeBrowser() {
   const filtered = Boolean(
     search.q || search.difficulty || search.topic || search.company || library,
   );
-  const topicValues = featuredTopicValues(foundationalTopics);
+  const topicValues = topicFilterValues(foundationalTopics, topicAliases);
   const selectTopic = (tag: string) => topicValues.get(tag.toLowerCase()) ?? tag;
   const filterTopic = (tag: string) =>
     update({
@@ -143,7 +143,9 @@ export function PracticeBrowser() {
             showKind={false}
             topics={topics}
             foundationalTopics={foundationalTopics}
+            topicAliases={topicAliases}
             companies={companies}
+            companyFacets={companyFacets}
           />
           {canChooseLibrary && (
             <SegmentedControl
@@ -253,7 +255,12 @@ export function PracticeBrowser() {
                       ? "Try another topic or a broader search."
                       : "Check back when new questions are published."}
                   </p>
-                  <CompanyFilter search={search} update={update} companies={companies} />
+                  <CompanyFilter
+                    search={search}
+                    update={update}
+                    companies={companies}
+                    companyFacets={companyFacets}
+                  />
                   {filtered && (
                     <button className="practice-retry" onClick={clear}>
                       Clear filters

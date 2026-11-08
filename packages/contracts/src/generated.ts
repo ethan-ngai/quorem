@@ -2963,6 +2963,15 @@ export interface operations {
                         page: number;
                         limit: number;
                         companies: string[];
+                        companyFacets?: {
+                            name: string;
+                            /** @enum {string} */
+                            tier: "faang" | "top" | "quant" | "mid-tier" | "other";
+                            count: number;
+                        }[];
+                        topicAliases?: {
+                            [key: string]: string;
+                        };
                         recommendationImpressions?: {
                             [key: string]: string;
                         };

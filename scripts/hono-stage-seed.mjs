@@ -1,28 +1,39 @@
 /** Verify migration-owned seed rows without allowing additional stage data. */
 import { readFile } from "node:fs/promises";
 
-export async function verifyFoundationalTopics(client) {
-  const migrations = ["085_foundational_topics.sql", "093_canonical_topics.sql"];
+const catalogSeeds = {
+  foundational_topics: [
+    ["085_foundational_topics.sql", "INSERT"],
+    ["093_canonical_topics.sql", "INSERT"],
+    ["094_demote_arrays.sql", "UPDATE"],
+  ],
+  company_tiers: [["095_company_tiers.sql", "INSERT"]],
+};
+
+export async function verifyCatalogSeed(client, name) {
+  if (!Object.hasOwn(catalogSeeds, name)) return undefined;
+  const table = `public.${name}`;
+  const fixture = `pg_temp.stage_${name}`;
   const seed = await Promise.all(
-    migrations.map((name) =>
-      readFile(new URL(`../apps/api/migrations/${name}`, import.meta.url), "utf8"),
-    ),
+    catalogSeeds[name].map(async ([migration, statement]) => {
+      const source = await readFile(
+        new URL(`../apps/api/migrations/${migration}`, import.meta.url),
+        "utf8",
+      );
+      const start = source.indexOf(`${statement} ${statement === "INSERT" ? "INTO " : ""}${table}`);
+      if (start < 0) throw new Error(`Missing seed in ${migration}`);
+      return source.slice(start).replaceAll(table, fixture);
+    }),
   );
-  const table = "public.foundational_topics";
-  const start = seed[0].indexOf(`INSERT INTO ${table}`);
-  if (start < 0) throw new Error("Missing foundational topic seed");
-  const insert = [seed[0].slice(start), ...seed.slice(1)]
-    .join("\n")
-    .replaceAll(table, "pg_temp.stage_foundational_topics");
   await client.query(
-    "CREATE TEMP TABLE stage_foundational_topics (LIKE public.foundational_topics) ON COMMIT DROP",
+    `CREATE TEMP TABLE ${fixture} (LIKE ${table} INCLUDING DEFAULTS) ON COMMIT DROP`,
   );
-  await client.query(insert);
+  await client.query(seed.join("\n"));
   return (
     await client.query(`SELECT NOT EXISTS (
-    (SELECT slug,label,aliases FROM public.foundational_topics EXCEPT SELECT slug,label,aliases FROM pg_temp.stage_foundational_topics)
-    UNION ALL
-    (SELECT slug,label,aliases FROM pg_temp.stage_foundational_topics EXCEPT SELECT slug,label,aliases FROM public.foundational_topics)
-  ) AS valid`)
+      (TABLE ${table} EXCEPT TABLE ${fixture})
+      UNION ALL
+      (TABLE ${fixture} EXCEPT TABLE ${table})
+    ) AS valid`)
   ).rows[0].valid;
 }

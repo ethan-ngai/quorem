@@ -11,7 +11,7 @@ import { assembleStageConfig, createStageSecrets } from "./hono-stage-bootstrap-
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import { stageDatabaseURL } from "./hono-stage-deploy-database.mjs";
-import { verifyFoundationalTopics } from "./hono-stage-seed.mjs";
+import { verifyCatalogSeed } from "./hono-stage-seed.mjs";
 import {
   assertStageRuntimeFenced,
   stageFenceOptions,
@@ -224,9 +224,10 @@ export async function lockEmptyStage(
     );
     const fixtureChecks = allowFixtures ? await fixtureTables(client) : new Map();
     for (const table of expected.filter((r) => r.kind === "r" && r.name !== "schema_migrations")) {
-      if (table.namespace === "public" && table.name === "foundational_topics") {
-        if (!(await verifyFoundationalTopics(client))) throw new Error("Stage seed differs");
-        continue;
+      if (table.namespace === "public") {
+        const seedValid = await verifyCatalogSeed(client, table.name);
+        if (seedValid === false) throw new Error("Stage seed differs");
+        if (seedValid) continue;
       }
       const target = `${quote(table.namespace)}.${quote(table.name)}`;
       let query = `SELECT NOT EXISTS(SELECT 1 FROM ${target} LIMIT 1) AS valid`,

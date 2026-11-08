@@ -7,7 +7,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
-import { CatalogFilters, CatalogKindFilters, featuredTopicValues } from "./CatalogFilters";
+import { CatalogFilters, CatalogKindFilters, topicFilterValues } from "./CatalogFilters";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { catalogKind, catalogKindChange, type CatalogSearch } from "./catalogSearch";
 import "./practice.css";
@@ -153,7 +153,7 @@ export function ProblemPicker({
     if (onFiltersChange)
       onFiltersChange(
         { ...filters, ...change },
-        featuredTopicValues(facets.data?.foundationalTopics),
+        topicFilterValues(facets.data?.foundationalTopics, facets.data?.topicAliases),
       );
     else setLocalFilters((current) => ({ ...current, ...change }));
   };
@@ -213,7 +213,9 @@ export function ProblemPicker({
         update={update}
         topics={facets.data?.topics ?? []}
         foundationalTopics={exclusiveKind ? facets.data?.foundationalTopics : undefined}
+        topicAliases={facets.data?.topicAliases}
         companies={facets.data?.companies ?? []}
+        companyFacets={facets.data?.companyFacets}
         showKind={!exclusiveKind}
         showDifficulty={!difficulties}
       />

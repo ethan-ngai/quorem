@@ -8,7 +8,11 @@ import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
 type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
 export type FoundationalTopic = NonNullable<CatalogPage["foundationalTopics"]>[number];
-type CatalogFacets = Pick<CatalogPage, "topics" | "foundationalTopics" | "companies">;
+export type CompanyFacet = NonNullable<CatalogPage["companyFacets"]>[number];
+type CatalogFacets = Pick<
+  CatalogPage,
+  "topics" | "foundationalTopics" | "topicAliases" | "companies" | "companyFacets"
+>;
 const publicScope = "public";
 const pendingScope = "pending";
 const signedOutPrivateScope = "signed-out-private";
@@ -125,7 +129,9 @@ export function catalogQueryOptions(
         client.setQueryData(facetsKey(context.scope, context.library, search), {
           topics: page.topics,
           foundationalTopics: page.foundationalTopics,
+          topicAliases: page.topicAliases,
           companies: page.companies,
+          companyFacets: page.companyFacets,
         });
       }
       return page;
