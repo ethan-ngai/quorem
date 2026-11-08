@@ -672,12 +672,12 @@
   height: 19px;
 }
 .guest-access-slash {
-  stroke-dasharray: 1;
+  stroke-dasharray: 1 1.2;
   stroke-dashoffset: 0;
   transition: stroke-dashoffset var(--motion-fast) var(--motion-easing);
 }
 .guest-access-button[aria-pressed="true"] .guest-access-slash {
-  stroke-dashoffset: 1;
+  stroke-dashoffset: 1.1;
 }
 @media (prefers-reduced-motion: reduce) {
   .guest-access-slash {
