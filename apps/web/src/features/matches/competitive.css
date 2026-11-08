@@ -620,27 +620,10 @@
   transform-origin: var(--radix-popover-content-transform-origin);
 }
 
-.invite-lobby-summary {
-  margin-block: var(--space-4);
-}
-.invite-lobby-summary dd {
-  text-transform: none;
-}
-.invite-lobby-seats {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-}
-.invite-lobby-seats > span {
-  width: var(--space-4);
-  height: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-.invite-lobby-seats > span[data-filled="true"] {
-  background: var(--color-primary);
-  border-color: transparent;
+.invite-roster-count {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  margin-block: var(--space-2) var(--space-4);
 }
 
 .guest-name-field {

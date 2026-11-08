@@ -2044,6 +2044,14 @@ export interface components {
             participantCount: number;
             capacity: number;
             guestAllowed: boolean;
+            matchSetup: {
+                mode?: components["schemas"]["MatchMode"];
+                difficulties: components["schemas"]["Difficulty"][];
+                /** @enum {integer} */
+                durationMinutes: 15 | 30 | 45 | 60;
+                rules?: components["schemas"]["MatchRules"];
+                shareCodeAfterMatch: boolean;
+            };
         };
         MatchReviewWorkspace: {
             /** Format: uuid */

@@ -8,7 +8,7 @@ import { participantUserId } from "@quorem/contracts";
 import { useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccountIdentity, MatchSettings } from "./MatchControls";
+import { useAccountIdentity, MatchSettings, LobbySetupHeading } from "./MatchControls";
 import {
   partyCommand,
   readPartyInvitation,
@@ -25,7 +25,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { matchModeLabels } from "./ModeIcon";
 import { readPendingCommand } from "./commandRecovery";
-import { Trash2, Info, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
+import { Trash2, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -374,21 +374,14 @@ export function PartyPage() {
             onChange={(settings) => void run("settings", settings satisfies PartySettings, "PUT")}
             canEditPermissions={host}
             heading={(options) => (
-              <div className="lobby-setup-heading">
-                <h2>Match setup</h2>
-                <Tooltip
-                  content={
-                    host || party.settings.rules?.settingsEditors === "everyone"
-                      ? settingsReadyHint
-                      : `Only the host can change settings. ${settingsReadyHint}`
-                  }
-                >
-                  <button type="button" className="icon-button" aria-label="About lobby settings">
-                    <Info size={16} aria-hidden="true" />
-                  </button>
-                </Tooltip>
-                {options}
-              </div>
+              <LobbySetupHeading
+                options={options}
+                hint={
+                  host || party.settings.rules?.settingsEditors === "everyone"
+                    ? settingsReadyHint
+                    : `Only the host can change settings. ${settingsReadyHint}`
+                }
+              />
             )}
           />
         </fieldset>

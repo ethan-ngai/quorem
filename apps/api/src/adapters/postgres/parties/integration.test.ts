@@ -314,9 +314,20 @@ test("host transfer, guest re-entry and requeue errors preserve authorization", 
   await repo.heartbeat(e, crypto.randomUUID());
   await repo.join(f, "join", token);
   await repo.heartbeat(f, crypto.randomUUID());
-  const preview = (await repo.preview(token)) as { guestAllowed: boolean; settings?: unknown };
-  expect(preview.guestAllowed).toBe(true);
-  expect(preview.settings).toBeUndefined();
+  const preview = await repo.preview(token);
+  expect(preview).toEqual({
+    id,
+    guestAllowed: true,
+    participantCount: 2,
+    capacity: 8,
+    matchSetup: {
+      mode: settings.mode,
+      difficulties: settings.difficulties,
+      durationMinutes: settings.durationMinutes,
+      rules: settings.rules,
+      shareCodeAfterMatch: settings.shareCodeAfterMatch,
+    },
+  });
   await repo.joinGuest(token, credential, "Guest");
   const hash = await guestTokenHash(credential);
   const guest = await run((scope) => guestRepository(scope).lookup("match", hash));

@@ -14,8 +14,9 @@ import "./party-ready.css";
 
 type ReadyMember = Pick<
   PartyMember,
-  "userId" | "displayName" | "ready" | "online" | "image" | "color" | "previousWinner"
->;
+  "userId" | "displayName" | "image" | "color" | "previousWinner"
+> &
+  Partial<Pick<PartyMember, "ready" | "online">>;
 
 export function PartyReadinessIndicator({
   member,
@@ -78,7 +79,9 @@ export function PartyMemberReadiness({
               host={member.userId === hostUserId}
               nameSuffix={member.previousWinner && <MatchWinnerMetadata previous />}
             />
-            <PartyReadinessIndicator member={member} />
+            {member.ready !== undefined && member.online !== undefined && (
+              <PartyReadinessIndicator member={{ ready: member.ready, online: member.online }} />
+            )}
           </span>
           {actions?.(member)}
         </>

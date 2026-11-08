@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { PartyInvitation } from "@quorem/contracts";
-import { useAccountIdentity } from "./MatchControls";
+import { LobbySetupHeading, MatchSettings, useAccountIdentity } from "./MatchControls";
 import { partyCommand, partyRequest, useParty } from "./party";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useTheme } from "../editor/useTheme";
@@ -14,6 +14,7 @@ import { RejectedMatchCommand } from "./errors";
 import { InvitationLayout } from "../../ui/InvitationLayout";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { TextInput } from "../../ui/TextControl";
+import { PartyMemberReadiness } from "./PartyReadyStatus";
 
 export function InvitePage({
   token,
@@ -79,6 +80,7 @@ export function InvitePage({
   const guestEntry = invitation.data?.guestAllowed && !signedIn && !alreadyJoined;
   return (
     <InvitationLayout
+      contentClassName="party-lobby"
       navigation={
         <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
       }
@@ -92,36 +94,42 @@ export function InvitePage({
         </>
       ) : (
         <>
-          <div className="competitive-lobby-heading">
-            <h1>Lobby</h1>
-            {alreadyJoined ? (
-              <a className="button button-primary" href="/party">
-                Return to lobby
-              </a>
-            ) : (
-              <button
-                ref={joinButton}
-                className="button button-primary"
-                disabled={pending}
-                onClick={() => (guestEntry ? setDismissed(false) : void join())}
-              >
-                {pending ? "Joining…" : "Join lobby"}
-              </button>
-            )}
-          </div>
-          <dl className="competitive-lobby-summary invite-lobby-summary">
-            <div>
-              <dt>Players</dt>
-              <dd>
-                {invitation.data.participantCount} of {invitation.data.capacity} seats filled
-                <div className="invite-lobby-seats" aria-hidden="true">
-                  {Array.from({ length: invitation.data.capacity }, (_, seat) => (
-                    <span key={seat} data-filled={seat < invitation.data.participantCount} />
-                  ))}
-                </div>
-              </dd>
+          <div className="lobby-command-lock">
+            <div className="competitive-lobby-heading">
+              <h1>Lobby</h1>
+              {alreadyJoined ? (
+                <a className="button button-primary" href="/party">
+                  Return to lobby
+                </a>
+              ) : (
+                <button
+                  ref={joinButton}
+                  className="button button-primary"
+                  disabled={pending}
+                  onClick={() => (guestEntry ? setDismissed(false) : void join())}
+                >
+                  {pending ? "Joining…" : "Join lobby"}
+                </button>
+              )}
             </div>
-          </dl>
+            <div className="lobby-roster">
+              <PartyMemberReadiness
+                members={Array.from({ length: invitation.data.participantCount }, (_, index) => ({
+                  userId: `seat-${index}`,
+                  displayName: `Player ${index + 1}`,
+                }))}
+              />
+              <p className="invite-roster-count">
+                {invitation.data.participantCount} of {invitation.data.capacity} seats filled
+              </p>
+            </div>
+          </div>
+          <MatchSettings
+            value={invitation.data.matchSetup}
+            identity={identity}
+            participantCount={invitation.data.participantCount}
+            heading={(options) => <LobbySetupHeading options={options} />}
+          />
           {!guestEntry && error && <p role="alert">{error}</p>}
           {guestEntry && (
             <SessionDialog

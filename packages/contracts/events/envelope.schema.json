@@ -3197,9 +3197,35 @@
         },
         "guestAllowed": {
           "type": "boolean"
+        },
+        "matchSetup": {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "$ref": "#/$defs/MatchMode"
+            },
+            "difficulties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Difficulty"
+              }
+            },
+            "durationMinutes": {
+              "type": "integer",
+              "enum": [15, 30, 45, 60]
+            },
+            "rules": {
+              "$ref": "#/$defs/MatchRules"
+            },
+            "shareCodeAfterMatch": {
+              "type": "boolean"
+            }
+          },
+          "required": ["difficulties", "durationMinutes", "shareCodeAfterMatch"],
+          "additionalProperties": false
         }
       },
-      "required": ["id", "participantCount", "capacity", "guestAllowed"],
+      "required": ["id", "participantCount", "capacity", "guestAllowed", "matchSetup"],
       "additionalProperties": false
     },
     "MatchReviewWorkspace": {

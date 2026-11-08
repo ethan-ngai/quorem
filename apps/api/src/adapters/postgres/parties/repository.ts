@@ -2,6 +2,7 @@ import { teamLobby } from "../factions/lobby.ts";
 import { requireReadyTeams } from "../../../modules/factions/policy.ts";
 /** @file repository.ts @description Transactional party commands and snapshots. @module parties */
 import { sql } from "drizzle-orm";
+import type { PartyInvitation } from "@quorem/contracts";
 import { readinessSettings } from "@quorem/contracts/match-rules";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -185,12 +186,27 @@ export function partyRepository(
       const hash = await digest(raw);
       return transact(async (tx) => {
         const row = (
-          await tx.execute<{ data: unknown }>(
-            sql`SELECT jsonb_build_object('id',p.id,'guestAllowed',(p.settings->>'accessMode'='guests_allowed' AND NOT (p.settings->>'admissionLocked')::boolean AND p.guest_joins<32),'participantCount',(SELECT count(*) FROM party_members WHERE party_id=p.id),'capacity',CASE WHEN p.settings->>'mode'='showdown' THEN 2 ELSE 8 END) AS data FROM parties p JOIN users h ON h.id=p.host_owner_id AND NOT h.disabled WHERE p.invite_hash=${hash} AND p.disbanded_at IS NULL`,
-          )
+          await tx.execute<PartyInvitation>(sql`
+            SELECT p.id::text,
+              (p.settings->>'accessMode'='guests_allowed'
+                AND NOT (p.settings->>'admissionLocked')::boolean
+                AND p.guest_joins<32) AS "guestAllowed",
+              (SELECT count(*)::int FROM party_members WHERE party_id=p.id) AS "participantCount",
+              CASE WHEN p.settings->>'mode'='showdown' THEN 2 ELSE 8 END AS capacity,
+              jsonb_strip_nulls(jsonb_build_object(
+                'mode', p.settings->'mode',
+                'difficulties', COALESCE(p.settings->'difficulties',
+                  jsonb_build_array(COALESCE(p.settings->>'difficulty', 'easy'))),
+                'durationMinutes', p.settings->'durationMinutes',
+                'rules', p.settings->'rules',
+                'shareCodeAfterMatch', COALESCE((p.settings->>'shareCodeAfterMatch')::boolean, true)
+              )) AS "matchSetup"
+            FROM parties p JOIN users h ON h.id=p.host_owner_id AND NOT h.disabled
+            WHERE p.invite_hash=${hash} AND p.disbanded_at IS NULL
+          `)
         ).rows[0];
         if (!row) throw missing();
-        return row.data;
+        return row;
       });
     },
     async join(who, key, raw) {

@@ -1,4 +1,5 @@
 /** @file MatchControls.tsx @description Shared match creation and lobby settings. @module matches */
+import { Tooltip } from "../../ui/Tooltip";
 import { Disclosure } from "../../ui/Disclosure";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -14,7 +15,7 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
-import { Swords, Gauge, BookOpen, Clock, Users, Code2 } from "lucide-react";
+import { Swords, Gauge, BookOpen, Clock, Users, Code2, Info } from "lucide-react";
 import { matchModeLabels, ModeIcon } from "./ModeIcon";
 
 export function useAccountIdentity() {
@@ -51,11 +52,27 @@ function matchesPool(
   );
 }
 
+export function LobbySetupHeading({ options, hint }: { options: ReactNode; hint?: string }) {
+  return (
+    <div className="lobby-setup-heading">
+      <h2>Match setup</h2>
+      {hint && (
+        <Tooltip content={hint}>
+          <button type="button" className="icon-button" aria-label="About lobby settings">
+            <Info size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
+      )}
+      {options}
+    </div>
+  );
+}
+
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
 export function MatchSettings({
   value,
   onChange,
-  disabled = false,
+  disabled: locked = false,
   identity,
   participantCount = 0,
   canEditPermissions = true,
@@ -63,7 +80,7 @@ export function MatchSettings({
   heading,
 }: {
   value: PartySettings;
-  onChange: (value: PartySettings) => void;
+  onChange?: (value: PartySettings) => void;
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
@@ -71,9 +88,12 @@ export function MatchSettings({
   heading?: (lobbyOptions: ReactNode) => ReactNode;
   catalog?: MatchProblem[];
 }) {
+  const preview = !onChange;
+  const disabled = locked || preview;
   const [problems, setProblems] = useState<MatchProblem[]>(catalog ?? []);
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
+    if (preview) return;
     if (catalog) {
       setProblems(catalog);
       return;
@@ -94,10 +114,10 @@ export function MatchSettings({
     return () => {
       active = false;
     };
-  }, [identity, catalog]);
+  }, [identity, catalog, preview]);
   const [pickedProblem, setPickedProblem] = useState<ProblemVersion>();
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
-  const selectedId = value.selectedProblemVersionId;
+  const selectedId = preview ? undefined : value.selectedProblemVersionId;
   const knownProblem =
     (pickedProblem?.id === selectedId ? pickedProblem : undefined) ??
     problems.find((problem) => problem.id === selectedId);
@@ -110,7 +130,7 @@ export function MatchSettings({
     difficulties: typeof pools,
     questionFilters: PartySettings["questionFilters"],
   ) => {
-    onChange({
+    onChange?.({
       ...value,
       difficulty: undefined,
       difficulties,
@@ -134,7 +154,7 @@ export function MatchSettings({
           checked={rules.settingsEditors === "everyone"}
           disabled={disabled || !canEditPermissions}
           onChange={(enabled) =>
-            onChange({
+            onChange?.({
               ...value,
               rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
             })
@@ -150,7 +170,7 @@ export function MatchSettings({
           label="Share code after match"
           checked={value.shareCodeAfterMatch}
           disabled={disabled}
-          onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
+          onChange={(shareCodeAfterMatch) => onChange?.({ ...value, shareCodeAfterMatch })}
         />
       </div>
     </Disclosure>
@@ -175,7 +195,7 @@ export function MatchSettings({
             disabled: mode === "showdown" && participantCount > 2,
             hint: mode === "showdown" ? "Two players or fewer" : "Up to eight players",
           }))}
-          onChange={(mode) => onChange({ ...value, mode })}
+          onChange={(mode) => onChange?.({ ...value, mode })}
         />
       </div>
       <div className="match-option difficulty-option">
@@ -196,21 +216,25 @@ export function MatchSettings({
           Problem
           <PersistentNotice message={catalogError} label="Problem list unavailable" />
         </span>
-        <ProblemPicker
-          items={selectedProblem ? [selectedProblem] : []}
-          identity={identity}
-          difficulties={pools}
-          filters={value.questionFilters}
-          onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
-          value={value.selectedProblemVersionId}
-          disabled={disabled || loadingSelection}
-          allowRandom
-          discloseFilters
-          onChange={(selectedProblemVersionId, problem) => {
-            setPickedProblem(problem);
-            onChange({ ...value, difficulties: pools, selectedProblemVersionId });
-          }}
-        />
+        {preview ? (
+          <span>Visible after joining</span>
+        ) : (
+          <ProblemPicker
+            items={selectedProblem ? [selectedProblem] : []}
+            identity={identity}
+            difficulties={pools}
+            filters={value.questionFilters}
+            onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
+            value={value.selectedProblemVersionId}
+            disabled={disabled || loadingSelection}
+            allowRandom
+            discloseFilters
+            onChange={(selectedProblemVersionId, problem) => {
+              setPickedProblem(problem);
+              onChange?.({ ...value, difficulties: pools, selectedProblemVersionId });
+            }}
+          />
+        )}
       </div>
       <div className="match-option">
         <span>
@@ -222,7 +246,7 @@ export function MatchSettings({
           value={String(value.durationMinutes)}
           disabled={disabled}
           onChange={(duration) =>
-            onChange({
+            onChange?.({
               ...value,
               durationMinutes: Number(duration) as PartySettings["durationMinutes"],
             })
@@ -236,7 +260,7 @@ export function MatchSettings({
       <MatchRuleSettingsControls
         value={rules}
         disabled={disabled}
-        onChange={(rules) => onChange({ ...value, rules })}
+        onChange={(rules) => onChange?.({ ...value, rules })}
       />
       {!heading && lobbyOptions}
     </div>

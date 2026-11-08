@@ -97,6 +97,13 @@ window.fetch = async (url, options) => {
         participantCount: party.members.length,
         capacity: 2,
         guestAllowed: true,
+        matchSetup: {
+          mode: party.settings.mode,
+          difficulties: party.settings.difficulties,
+          durationMinutes: party.settings.durationMinutes,
+          rules: party.settings.rules,
+          shareCodeAfterMatch: party.settings.shareCodeAfterMatch,
+        },
       });
     if (path === "/v1/guest-sessions") return new Response(null, { status: 204 });
     if (path === `/v1/parties/invitations/${party.id}/guest`) {
