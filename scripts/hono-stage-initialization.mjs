@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { stageDatabaseURL } from "./hono-stage-deploy-database.mjs";
 import { stageRecoveryLockKey } from "./hono-stage-recovery-fence.mjs";
+import { verifyFoundationalTopics } from "./hono-stage-seed.mjs";
 import { verifyCompleteHistory } from "../packages/database/src/migrations.ts";
 import * as schema from "../packages/database/src/schema/index.ts";
 const require = createRequire(new URL("../packages/database/package.json", import.meta.url));
@@ -108,6 +109,10 @@ export async function requireInitializableStageDatabase(
     for (const table of expected.filter(
       (row) => row.kind === "r" && row.name !== "schema_migrations",
     )) {
+      if (table.namespace === "public" && table.name === "foundational_topics") {
+        if (!(await verifyFoundationalTopics(client))) throw new Error("Stage seed differs");
+        continue;
+      }
       const target = `${quote(table.namespace)}.${quote(table.name)}`;
       const query =
         table.namespace === "public" && table.name === "runner_input_gc_state"

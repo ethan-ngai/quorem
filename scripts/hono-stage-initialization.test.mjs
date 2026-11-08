@@ -39,6 +39,15 @@ void test(
           );
           await pool.end();
           assert.deepEqual(await verify(), { kind: "migrated-empty" });
+          const seed = new Pool({ connectionString: url, max: 1 });
+          await seed.query("UPDATE foundational_topics SET label='tampered' WHERE slug='greedy'");
+          await seed.end();
+          await assert.rejects(verify, /data/);
+          const restoreSeed = new Pool({ connectionString: url, max: 1 });
+          await restoreSeed.query(
+            "UPDATE foundational_topics SET label='Greedy' WHERE slug='greedy'",
+          );
+          await restoreSeed.end();
           const peer = new Pool({ connectionString: url, max: 1 });
           await peer.query("SELECT 1");
           await assert.rejects(verify, /authority/g);
