@@ -61,7 +61,8 @@ export function MatchEndView({
   problemTitle?: string;
 }) {
   const [celebrate, setCelebrate] = useState(open);
-  const [pending, setPending] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<"leave" | "ready">();
+  const pending = pendingOperation !== undefined;
   const [error, setError] = useState("");
   const client = useQueryClient();
   const partyQuery = useParty(identity);
@@ -79,7 +80,7 @@ export function MatchEndView({
     party && readPendingCommand(identity, `party:/v1/parties/${party.id}/leave`);
   const leaveLobby = async () => {
     if (!party || pending) return;
-    setPending(true);
+    setPendingOperation("leave");
     setError("");
     try {
       await partyCommand(identity, `/v1/parties/${party.id}/leave`, "POST");
@@ -87,12 +88,12 @@ export function MatchEndView({
     } catch {
       setError("Could not leave the lobby. Try again.");
     } finally {
-      setPending(false);
+      setPendingOperation(undefined);
     }
   };
   const toggleReady = async () => {
     if (!party || !member || pending) return;
-    setPending(true);
+    setPendingOperation("ready");
     setError("");
     try {
       await partyCommand(identity, `/v1/parties/${party.id}/ready`, "POST", {
@@ -102,7 +103,7 @@ export function MatchEndView({
     } catch {
       setError("Could not update readiness. Try again.");
     } finally {
-      setPending(false);
+      setPendingOperation(undefined);
     }
   };
   const settled =
@@ -136,7 +137,12 @@ export function MatchEndView({
         party && !partyQuery.isError && member
           ? {
               ready: member.ready,
-              disabled: pending || !!leaveRecovery || !member.online || !!party.currentMatchId,
+              pending: pendingOperation === "ready",
+              disabled:
+                pendingOperation === "leave" ||
+                !!leaveRecovery ||
+                !member.online ||
+                !!party.currentMatchId,
               retry: !!recovery,
               onClick: () => void toggleReady(),
             }

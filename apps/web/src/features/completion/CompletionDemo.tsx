@@ -1,5 +1,5 @@
 /** @file CompletionDemo.tsx @description Development-only completion fixtures. @module completion */
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import type { MatchReview } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { ParticipantName } from "../collaboration/ParticipantName";
@@ -73,6 +73,7 @@ export function CompletionDemo() {
   const [mode, setMode] = useState("Competition");
   const [open, setOpen] = useState(true);
   const [ready, setReady] = useState(false);
+  const [readyPending, startReady] = useTransition();
   const [inLobby, setInLobby] = useState(true);
   const [replay, setReplay] = useState(0);
   const [panel, setPanel] = useState<WorkspacePanel>("code");
@@ -254,6 +255,7 @@ export function CompletionDemo() {
           key={replay}
           open={open}
           onOpenChange={setOpen}
+          pending={readyPending}
           competitive={competitive}
           headerActions={
             competitive ? (
@@ -261,7 +263,7 @@ export function CompletionDemo() {
                 <MatchDurationRing durationMinutes={30} elapsedSeconds={522} />
                 {inLobby && (
                   <LeaveLobbyButton
-                    disabled={false}
+                    disabled={readyPending}
                     onClick={() => {
                       setInLobby(false);
                       setReady(false);
@@ -304,9 +306,14 @@ export function CompletionDemo() {
                   inLobby
                     ? {
                         ready,
+                        pending: readyPending,
                         disabled: false,
                         retry: false,
-                        onClick: () => setReady(!ready),
+                        onClick: () =>
+                          startReady(async () => {
+                            await new Promise((resolve) => setTimeout(resolve, 750));
+                            setReady(!ready);
+                          }),
                       }
                     : undefined
                 }

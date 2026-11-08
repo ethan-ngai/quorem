@@ -174,3 +174,49 @@ it("leaves only this match's party, exposes failure for retry, then preserves re
     vi.unstubAllGlobals();
   }
 });
+
+it.each([false, true])("shows loading while changing readiness from %s", async (ready) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const member = {
+    userId: participantUserId("alice"),
+    displayName: "Alice",
+    ready,
+    online: true,
+  };
+  partyState.data = { party: { id: "party", members: [member] } };
+  partyState.isPending = false;
+  snapshot.partyId = "party";
+  const panel = document.createElement("div");
+  const root = createRoot(panel);
+  let resolveCommand!: () => void;
+  partyState.command.mockReturnValue(
+    new Promise<void>((resolve) => {
+      resolveCommand = resolve;
+    }),
+  );
+  try {
+    await act(async () => root.render(view()));
+    const button = panel.querySelector<HTMLButtonElement>(".match-completion-primary")!;
+    expect(button.textContent).toBe(ready ? "Unready" : "Quick ready");
+    await act(async () => button.click());
+    expect(button.getAttribute("aria-busy")).toBe("true");
+    expect(button.querySelector(".ui-spinner")?.getAttribute("data-active")).toBe("true");
+    expect(button.disabled).toBe(true);
+    button.click();
+    expect(partyState.command).toHaveBeenCalledTimes(1);
+    expect(partyState.command).toHaveBeenCalledWith("alice", "/v1/parties/party/ready", "POST", {
+      ready: !ready,
+    });
+    await act(async () => {
+      member.ready = !ready;
+      resolveCommand();
+    });
+    expect(button.getAttribute("aria-busy")).toBe("false");
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toBe(ready ? "Quick ready" : "Unready");
+  } finally {
+    await act(async () => root.unmount());
+    delete snapshot.partyId;
+    vi.unstubAllGlobals();
+  }
+});
