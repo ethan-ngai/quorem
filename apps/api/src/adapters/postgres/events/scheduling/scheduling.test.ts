@@ -383,6 +383,13 @@ describe("deadline scheduling with PostgreSQL", () => {
       ],
     );
     await pool.query(
+      `INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,expires_at) VALUES
+      ($1,'expired','a',$2,clock_timestamp()-interval '1 second'),
+      ($1,'live','b',$2,clock_timestamp()+interval '1 hour'),
+      ($1,'legacy','c',$2,NULL)`,
+      [expired.user, session],
+    );
+    await pool.query(
       "INSERT INTO interview_question_snapshots(session_id,id,fixture) VALUES($1,$2,'{}')",
       [session, fixture],
     );
@@ -400,6 +407,13 @@ describe("deadline scheduling with PostgreSQL", () => {
     );
     await pool.query("UPDATE runner_input_gc_state SET cursor=NULL WHERE id=1");
     await retainBatch(run);
+    expect(
+      (
+        await pool.query("SELECT key FROM interview_operations WHERE session_id=$1 ORDER BY key", [
+          session,
+        ])
+      ).rows.map((r) => r.key),
+    ).toEqual(["legacy", "live"]);
     const jobs = await pool.query("SELECT id FROM execution_jobs WHERE id=ANY($1::uuid[])", [
       [expired.job, live.job, uncertain.job, queued.job, accountRecent.job, accountOld.job],
     ]);
