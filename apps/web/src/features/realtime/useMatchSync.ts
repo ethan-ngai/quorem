@@ -2,6 +2,7 @@ import { createReconnectingSocket } from "./reconnectingSocket";
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
 import { api, ApiError, requireData } from "../../api/client";
 import { isRouteDenied } from "../auth/protectedRoute";
+import { isMatchTerminal } from "../matches/matchState";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,7 +17,6 @@ import {
 
 export type MatchSyncStatus = "connecting" | "live" | "reconnecting";
 type MatchSyncState = MatchEventBuffer & {
-  disposed: boolean;
   fetching: boolean;
   gapTimer: number | undefined;
 };
@@ -59,11 +59,10 @@ export function useMatchSync(
   const queryKey = useMemo(() => ["match", identity, matchId] as const, [identity, matchId]);
   const ownerKey = matchId ? `${identity}:${matchId}` : "";
   const syncState = useMemo<MatchSyncState>(
-    () => ({ events: [], overflow: false, disposed: false, fetching: false, gapTimer: undefined }),
+    () => ({ events: [], overflow: false, fetching: false, gapTimer: undefined }),
     [ownerKey],
   );
   const [status, setStatus] = useState<MatchSyncStatus>("connecting");
-  const [readyOwner, setReadyOwner] = useState("");
   const [completedSocketOwner, setCompletedSocketOwner] = useState("");
   const [transportError, setTransportError] = useState<Error | null>(null);
 
@@ -74,8 +73,7 @@ export function useMatchSync(
       syncState.fetching = true;
       try {
         const snapshot = await fetchMatchSnapshot(identity, matchId, signal);
-        if (signal.aborted || syncState.disposed)
-          throw new DOMException("Match query was cancelled", "AbortError");
+        if (signal.aborted) throw new DOMException("Match query was cancelled", "AbortError");
         const overflowed = syncState.overflow;
         const buffered = syncState.events.splice(0);
         syncState.overflow = false;
@@ -90,10 +88,9 @@ export function useMatchSync(
         syncState.fetching = false;
       }
     },
-    enabled: enabled && Boolean(matchId) && readyOwner === ownerKey,
+    enabled: enabled && Boolean(matchId),
     refetchInterval: ({ state: { data } }) =>
-      completedSocketOwner === ownerKey &&
-      (data?.reviewPending || (data?.state !== "completed" && data?.state !== "cancelled"))
+      data?.reviewPending || (completedSocketOwner === ownerKey && !isMatchTerminal(data))
         ? 2_000
         : false,
     structuralSharing: (previous, incoming) =>
@@ -113,19 +110,14 @@ export function useMatchSync(
   // A new visit can regain access after being invited or switching sessions.
   const deniedThisVisit = accessFailed && query.isFetchedAfterMount;
 
-  useEffect(() => {
-    if (!matchId || !enabled || deniedThisVisit) {
-      setReadyOwner("");
-      setStatus("connecting");
-      syncState.disposed = true;
-      syncState.events = [];
-      syncState.overflow = false;
-      return;
-    }
+  const terminal = isMatchTerminal(query.data);
+  // The authorized HTTP snapshot decides whether this visit needs a live socket.
+  const connect = enabled && !!matchId && !!query.data && !terminal && !deniedThisVisit;
 
-    setReadyOwner("");
+  useEffect(() => {
+    if (!connect || !matchId) return;
     setCompletedSocketOwner("");
-    syncState.disposed = false;
+    setTransportError(null);
     let disposed = false;
 
     const requestRefresh = () => {
@@ -146,7 +138,6 @@ export function useMatchSync(
       onOpen() {
         setTransportError(null);
         setStatus("live");
-        setReadyOwner(ownerKey);
         requestRefresh();
       },
       onMessage(message) {
@@ -188,38 +179,31 @@ export function useMatchSync(
         );
       },
       onComplete() {
+        setTransportError(null);
         setCompletedSocketOwner(ownerKey);
         requestRefresh();
       },
       onDisconnect() {
         setStatus("reconnecting");
-        setReadyOwner(ownerKey);
       },
     });
     connection.start();
     return () => {
       disposed = true;
-      syncState.disposed = true;
       connection.stop();
       window.clearTimeout(syncState.gapTimer);
       syncState.events = [];
       syncState.overflow = false;
     };
-  }, [
-    identity,
-    matchId,
-    ownerKey,
-    queryClient,
-    queryKey,
-    refetch,
-    syncState,
-    enabled,
-    deniedThisVisit,
-  ]);
+  }, [identity, matchId, ownerKey, queryClient, queryKey, refetch, syncState, connect]);
 
   return {
-    snapshot: accessFailed ? undefined : query.data,
-    error: deniedThisVisit ? query.error : (transportError ?? (accessFailed ? null : query.error)),
+    snapshot: deniedThisVisit ? undefined : query.data,
+    error: deniedThisVisit
+      ? query.error
+      : accessFailed
+        ? null
+        : ((terminal ? null : transportError) ?? query.error),
     status,
     refetch,
   };
