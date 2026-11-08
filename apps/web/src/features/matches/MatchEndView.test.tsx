@@ -18,7 +18,7 @@ const partyState = vi.hoisted(() => ({
   command: vi.fn(),
 }));
 vi.mock("./party", () => ({ useParty: () => partyState, partyCommand: partyState.command }));
-vi.mock("./useActiveMatch", () => ({ useActiveMatch: () => ({ match: null }) }));
+vi.mock("./useActiveMatch", () => ({ usePartyRoundNavigation: vi.fn() }));
 vi.mock("../completion/CompletionDialog", () => ({
   CompletionDialog: ({
     children,

@@ -15,9 +15,9 @@ import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
 import { PartyReadyStatus, MatchLobbyReadiness, PartyReadinessIndicator } from "./PartyReadyStatus";
-import { useActiveMatch } from "./useActiveMatch";
+import { usePartyRoundNavigation } from "./useActiveMatch";
 import { partyCommand, useParty } from "./party";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { outcomeLabel, ownParticipant, matchCompletionOutcome } from "./matchState";
 
@@ -67,18 +67,10 @@ export function MatchEndView({
   const partyQuery = useParty(identity);
   const candidateParty = partyQuery.data?.party;
   const party = candidateParty?.id === snapshot.partyId ? candidateParty : null;
-  const activeMatch = useActiveMatch(
+  usePartyRoundNavigation(
     identity,
-    !!party?.currentMatchId && party.currentMatchId !== snapshot.id,
+    party?.currentMatchId === snapshot.id ? null : party?.currentMatchId,
   );
-  useEffect(() => {
-    if (
-      party?.currentMatchId &&
-      party.currentMatchId !== snapshot.id &&
-      activeMatch.match?.id === party.currentMatchId
-    )
-      window.location.assign(`/match/${party.currentMatchId}`);
-  }, [party?.currentMatchId, snapshot.id, activeMatch.match?.id]);
   const member = party?.members.find((person) => person.userId === participantUserId(identity));
   const recovery =
     party &&

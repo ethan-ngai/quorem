@@ -96,49 +96,10 @@ export function PartyReadyStatus({
   queueError?: string | null;
   firstMatch?: boolean;
 }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!countdownEndsAt) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => {
-      const sample = Date.now();
-      setNow(sample);
-      if (sample >= Date.parse(countdownEndsAt)) window.clearInterval(timer);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [countdownEndsAt]);
-  const remaining = countdownEndsAt ? Date.parse(countdownEndsAt) - now : NaN;
-  const counting = Number.isFinite(remaining);
-  const seconds = Math.max(0, Math.ceil(remaining / 1000));
-  const starting = seconds === 0;
-  const matchLabel = firstMatch ? "Match" : "Next match";
-  const title = firstMatch ? "Starting match" : "Starting next match";
-  if (!counting && !queueError) return null;
   return (
     <>
-      {counting && (
-        <>
-          <span className="sr-only" role="alert">
-            {starting ? `${title}.` : `${matchLabel} starts shortly.`}
-          </span>
-          <span className="sr-only" role="timer">
-            {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
-          </span>
-          {typeof document !== "undefined" &&
-            createPortal(
-              <div className="party-countdown-popup" aria-hidden="true">
-                <span className="party-countdown-ring">
-                  <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
-                  <span>{seconds}</span>
-                </span>
-                <span className="party-countdown-label">
-                  {title}
-                  {starting ? "…" : ""}
-                </span>
-              </div>,
-              document.body,
-            )}
-        </>
+      {countdownEndsAt && (
+        <PartyCountdown key={countdownEndsAt} deadline={countdownEndsAt} firstMatch={firstMatch} />
       )}
       {queueError && (
         <div className="party-ready-feedback">
@@ -148,6 +109,50 @@ export function PartyReadyStatus({
           />
         </div>
       )}
+    </>
+  );
+}
+
+function PartyCountdown({ deadline, firstMatch }: { deadline: string; firstMatch: boolean }) {
+  const endsAt = Date.parse(deadline);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!Number.isFinite(endsAt)) return;
+    const timer = window.setInterval(() => {
+      const sample = Date.now();
+      setNow(sample);
+      if (sample >= endsAt) window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [endsAt]);
+  const remaining = endsAt - now;
+  if (!Number.isFinite(remaining)) return null;
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
+  const starting = seconds === 0;
+  const matchLabel = firstMatch ? "Match" : "Next match";
+  const title = firstMatch ? "Starting match" : "Starting next match";
+  return (
+    <>
+      <span className="sr-only" role="alert">
+        {starting ? `${title}.` : `${matchLabel} starts shortly.`}
+      </span>
+      <span className="sr-only" role="timer">
+        {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
+      </span>
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div className="party-countdown-popup" aria-hidden="true">
+            <span className="party-countdown-ring">
+              <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
+              <span>{seconds}</span>
+            </span>
+            <span className="party-countdown-label">
+              {title}
+              {starting ? "…" : ""}
+            </span>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

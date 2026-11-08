@@ -5,7 +5,8 @@ import { Spinner } from "../../ui/Spinner";
 import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAccountIdentity, MatchSettings } from "./MatchControls";
 import {
@@ -18,7 +19,7 @@ import {
 import { PartyInvitation } from "./PartyInvitation";
 import { GuestAccessToggle } from "./GuestAccessToggle";
 import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
-import { useActiveMatch } from "./useActiveMatch";
+import { usePartyRoundNavigation } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { usePageTitle } from "../navigation/PageMetadata";
@@ -75,7 +76,7 @@ export function PartyPage() {
           party.members.some((member) => member.userId === assignment.userId),
         ),
       }));
-  const activeMatch = useActiveMatch(identity, !!party?.currentMatchId);
+  const round = usePartyRoundNavigation(identity, party?.currentMatchId);
   const recovery =
     !pending &&
     party &&
@@ -89,10 +90,6 @@ export function PartyPage() {
       }))
       .find((entry) => entry.command);
   const inviteUrl = party ? readPartyInvitation(party.id) : undefined;
-  useEffect(() => {
-    if (party?.currentMatchId && activeMatch.match?.id === party.currentMatchId)
-      window.location.assign(`/match/${party.currentMatchId}`);
-  }, [party?.currentMatchId, activeMatch.match?.id]);
   const run = async (operation: string, body?: unknown, method = "POST", scope = "all") => {
     if (!party) return;
     const settings = operation === "settings" ? (body as PartySettings) : undefined;
@@ -176,7 +173,9 @@ export function PartyPage() {
           <button className="button button-secondary" onClick={() => void query.refetch()}>
             Try again
           </button>
-          <a href="/practice">Back to practice</a>
+          <Link className="button button-secondary" to="/practice">
+            Back to practice
+          </Link>
         </section>
       </main>
     );
@@ -357,14 +356,8 @@ export function PartyPage() {
               queueError={party.queueError}
             />
           )}
-          {party.currentMatchId && (
-            <p>
-              {activeMatch.match?.id === party.currentMatchId ? (
-                <a href={`/match/${party.currentMatchId}`}>Return to match</a>
-              ) : (
-                "A round is in progress. You can join the next round."
-              )}
-            </p>
+          {party.currentMatchId && !round.entering && !round.checking && (
+            <p>A round is in progress. You can join the next round.</p>
           )}
         </fieldset>
         {readinessActions}

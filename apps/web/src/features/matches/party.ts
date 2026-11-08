@@ -75,7 +75,14 @@ export function useParty(identity: DevelopmentIdentity, enabled = true, poll = f
     queryKey: ["current-party", identity],
     enabled,
     retry: false,
-    refetchInterval: (query) => (poll && query.state.data?.party ? 3000 : false),
+    refetchInterval: (query) => {
+      const party = query.state.data?.party;
+      if (!poll || !party) return false;
+      if (!party.countdownEndsAt) return 3000;
+      // Reading the party at the deadline lets the server reconcile the round immediately.
+      const remaining = Date.parse(party.countdownEndsAt) - Date.now();
+      return remaining > 0 ? Math.min(3000, remaining) : 500;
+    },
     queryFn: () => request<{ party: Party | null }>("/v1/parties/current"),
   });
 }

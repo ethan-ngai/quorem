@@ -419,7 +419,7 @@ export function MatchPage({
             <p>
               {snapshot.partyId ? "Returning to your lobby…" : "This lobby is no longer available."}
             </p>
-            <a href={snapshot.partyId ? "/party" : "/practice"}>
+            <a className="button button-secondary" href={snapshot.partyId ? "/party" : "/practice"}>
               {snapshot.partyId ? "Return to lobby" : "Back to practice"}
             </a>
           </>

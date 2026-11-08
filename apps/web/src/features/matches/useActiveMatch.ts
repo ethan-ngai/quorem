@@ -1,5 +1,7 @@
 /** @file useActiveMatch.ts @description Finds current server membership before exposing creation or return actions. @module matches */
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 import { activeMatchReturnLabel } from "./matchState";
@@ -27,4 +29,18 @@ export function useActiveMatch(identity: DevelopmentIdentity, enabled = true) {
     failed: enabled && query.isError,
     refresh: query.refetch,
   };
+}
+
+/** Opens the lobby's round only after the server confirms the viewer is playing. */
+export function usePartyRoundNavigation(
+  identity: DevelopmentIdentity,
+  roundId: string | null | undefined,
+) {
+  const navigate = useNavigate();
+  const activeMatch = useActiveMatch(identity, !!roundId);
+  const destination = activeMatch.match?.id === roundId ? roundId : null;
+  useEffect(() => {
+    if (destination) void navigate({ to: "/match/$id", params: { id: destination } });
+  }, [destination, navigate]);
+  return { entering: !!destination, checking: activeMatch.checking };
 }

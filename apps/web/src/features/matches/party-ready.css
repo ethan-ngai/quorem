@@ -22,7 +22,7 @@
   box-shadow: var(--shadow-overlay);
   color: var(--color-text);
   pointer-events: none;
-  animation: party-countdown-enter var(--motion-standard) var(--motion-easing);
+  animation: party-countdown-enter var(--motion-standard) var(--motion-easing) both;
 }
 .party-countdown-ring {
   --match-time-ring-fill: var(--color-primary);
@@ -47,7 +47,7 @@
 @keyframes party-countdown-enter {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(calc(-1 * var(--space-4))) scale(0.96);
   }
 }
 @media (prefers-reduced-motion: reduce) {

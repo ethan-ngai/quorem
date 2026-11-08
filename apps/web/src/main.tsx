@@ -148,7 +148,7 @@ const matchRoute = createRoute({
     return (
       <Suspense fallback={<LoadingScreen label="Opening match…" />}>
         <RouteAccess allowGuest>
-          <MatchPage matchId={id} />
+          <MatchPage key={id} matchId={id} />
         </RouteAccess>
       </Suspense>
     );
