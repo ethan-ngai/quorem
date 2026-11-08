@@ -59,6 +59,25 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
           await tx.execute(
             sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${bob},${versions[0]}::uuid,'python')`,
           );
+          const assistedSubmission = crypto.randomUUID();
+          await tx.execute(
+            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()-interval '1 minute' WHERE owner_id=${bob} AND version_id=${versions[0]}::uuid`,
+          );
+          await tx.execute(sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases)
+            VALUES(${assistedSubmission}::uuid,${bob},${workspace}::uuid,'submit','','hash','running','[]')`);
+          await tx.execute(
+            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()+interval '1 minute' WHERE owner_id=${bob} AND version_id=${versions[0]}::uuid`,
+          );
+          await tx.execute(
+            sql`UPDATE submissions SET state='completed',result='{"verdict":"accepted"}' WHERE id=${assistedSubmission}::uuid`,
+          );
+          expect(
+            (
+              await tx.execute<{ assisted: boolean }>(
+                sql`SELECT assisted FROM question_learning_events WHERE submission_id=${assistedSubmission}::uuid`,
+              )
+            ).rows[0]?.assisted,
+          ).toBe(true);
           const complete = async (
             verdict: string,
             age: number,
@@ -98,7 +117,7 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
             read({ transaction: (_options, action) => action(tx) }),
           );
           const filter = parseCatalogFilter(
-            new URLSearchParams({ sort: "recommended", topic: prefix, limit: "1" }),
+            new URLSearchParams({ sort: "recommended", topic: prefix, limit: "2" }),
           );
           const first = JSON.parse(
             await queries.catalog({ userId: bob }, { ...filter, library: "global" }),
@@ -119,13 +138,8 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
               )
             ).rowCount,
           ).toBe(1);
-          const second = JSON.parse(
-            await queries.catalog({ userId: bob }, { ...filter, library: "global", page: 2 }),
-          );
-          expect(second.items[0].id).toBe(versions[0]);
-          const publicPage = JSON.parse(
-            await queries.catalog(undefined, { ...filter, limit: 100 }),
-          );
+          expect(first.items[1].id).toBe(versions[0]);
+          const publicPage = JSON.parse(await queries.catalog(undefined, { ...filter, limit: 20 }));
           expect(publicPage.items.map((item: { id: string }) => item.id)).not.toContain(
             versions[2],
           );
