@@ -7,7 +7,6 @@ export async function impressionIds(
   tx: Transaction,
   owner: string,
   ids: readonly string[],
-  offset: number,
   model: string | null,
   explore: boolean,
 ) {
@@ -15,7 +14,7 @@ export async function impressionIds(
   // Collapse polling and repeated loads into one impression opportunity per time bucket.
   const { rows } = await tx.execute<{ id: string; version: string }>(sql`
     INSERT INTO recommendation_impressions(owner_id,version_id,model_id,variant,position,served_at)
-    SELECT ${owner}, v.id,${model}::uuid,${explore ? "explore" : "control"},(${offset}+x.position)::int,
+    SELECT ${owner}, v.id,${model}::uuid,${explore ? "explore" : "control"},x.position::int,
       date_bin(interval '15 minutes',statement_timestamp(),timestamptz '2000-01-01 UTC')
     FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) WITH ORDINALITY x(id,position)
     JOIN problem_versions v ON v.id=x.id::uuid JOIN problems p ON p.current_version_id=v.id

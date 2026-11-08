@@ -17,9 +17,9 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     "library",
     "type",
     "sql",
-    "cursor",
   ])
     if (q.getAll(key).length > 1) throw invalid();
+  if (q.has("cursor")) throw invalid();
   const query = (q.get("q") ?? "").trim(),
     difficulty = q.get("difficulty") ?? "",
     topic = q.get("topic") ?? "",
@@ -63,10 +63,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     sort: "title",
     order: "asc",
   });
-  const cursor = q.get("cursor") ?? undefined;
-  if (sort === "recommended" && (cursor || order !== "asc" || page !== 1 || limit > 20))
-    throw invalid();
-  if (cursor && (cursor.length > 32768 || page !== 1)) throw invalid();
+  if (sort === "recommended" && (order !== "asc" || page !== 1 || limit > 20)) throw invalid();
   return {
     query,
     difficulty,
@@ -81,7 +78,6 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     sql: sql as CatalogFilter["sql"],
     page,
     limit,
-    cursor,
   };
 }
 /** Preserve the public not-found contract without exposing ownership. */

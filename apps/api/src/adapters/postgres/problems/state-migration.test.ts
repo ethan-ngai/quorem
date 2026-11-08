@@ -2,6 +2,7 @@
 import { mkdtemp, readdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
@@ -198,6 +199,7 @@ it.skipIf(!url)(
         );
         expect(Buffer.from(hash).toString("hex")).toBe(hashes[index]);
       }
+      await migrate(pool, "product", fileURLToPath(new URL("../", migrations)));
       const catalog = problemQueries(run);
       const coding = JSON.parse((await catalog.byVersion(undefined, versions[0]))!);
       expect(coding.languages.map((item: any) => item.language)).toEqual([
@@ -233,7 +235,7 @@ it.skipIf(!url)(
       expect(workspace.language).toBe("java");
       const author = questionAuthoring(run, languageRuntime),
         actor = { userId: "state-owner", admin: true, globalAllowed: true };
-      const editing = JSON.parse(await author.create(actor, undefined, versions[0], true));
+      const editing = JSON.parse(await author.create(actor, undefined, versions[0]));
       editing.content.problem.title = "Updated with an existing Java workspace";
       await author.update(actor, editing.id, editing.revision, JSON.stringify(editing.content));
       expect(JSON.parse((await catalog.byVersion(undefined, versions[0]))!).title).toBe(
