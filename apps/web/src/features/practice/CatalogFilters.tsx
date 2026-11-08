@@ -34,6 +34,14 @@ export function CompanyFilter({
   );
 }
 
+export function featuredTopicValues(topics: FoundationalTopic[] = []) {
+  return new Map(
+    topics.flatMap(({ label, tags, value }) =>
+      [label, ...tags].map((tag) => [tag.toLowerCase(), value] as const),
+    ),
+  );
+}
+
 type FilterSearch = Pick<
   CatalogSearch,
   "type" | "sql" | "difficulty" | "topic" | "topicMatch" | "company" | "companyMatch"
@@ -46,6 +54,7 @@ export function CatalogFilters({
   foundationalTopics,
   companies,
   showDifficulty = true,
+  showKind = true,
 }: {
   search: FilterSearch;
   update: (change: Partial<FilterSearch>) => void;
@@ -53,30 +62,37 @@ export function CatalogFilters({
   foundationalTopics?: FoundationalTopic[];
   companies: string[];
   showDifficulty?: boolean;
+  showKind?: boolean;
 }) {
-  const selectedTopics = filterValues(search.topic);
   const featured = foundationalTopics ?? [];
   const featuredValues = new Set(featured.map(({ value }) => value));
-  const featuredTags = new Set(featured.flatMap(({ tags }) => tags));
+  const aliases = featuredTopicValues(featured);
+  const selectedTopics = [
+    ...new Set(filterValues(search.topic).map((tag) => aliases.get(tag.toLowerCase()) ?? tag)),
+  ];
   const otherTopics = [
-    ...new Set([...topics.filter((tag) => !featuredTags.has(tag)), ...selectedTopics]),
+    ...new Set([...topics.filter((tag) => !aliases.has(tag.toLowerCase())), ...selectedTopics]),
   ]
     .filter((value) => !featuredValues.has(value) && value.toLowerCase() !== "sql")
     .map((value) => ({ value, label: formatLabel(value.replace(/^foundational:/, "")) }));
   return (
     <>
-      <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
-      <Tooltip content="SQL questions">
-        <button
-          type="button"
-          className="catalog-sql-toggle selection-feedback"
-          aria-label="SQL questions"
-          aria-pressed={search.sql === "true"}
-          onClick={() => update({ sql: search.sql === "true" ? undefined : "true" })}
-        >
-          <Database size={16} aria-hidden="true" />
-        </button>
-      </Tooltip>
+      {showKind && (
+        <>
+          <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
+          <Tooltip content="SQL questions">
+            <button
+              type="button"
+              className="catalog-sql-toggle selection-feedback"
+              aria-label="SQL questions"
+              aria-pressed={search.sql === "true"}
+              onClick={() => update({ sql: search.sql === "true" ? undefined : "true" })}
+            >
+              <Database size={16} aria-hidden="true" />
+            </button>
+          </Tooltip>
+        </>
+      )}
       {showDifficulty && (
         <DifficultySegments
           selected={filterValues(search.difficulty) as Difficulty[]}

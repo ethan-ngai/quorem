@@ -25,14 +25,14 @@ const reasonLabels = {
 
 export function PracticeRecommendations({
   actor,
-  library,
+  scope,
 }: {
   actor: ProblemActor;
-  library: CatalogSearch["library"];
+  scope: Pick<CatalogSearch, "library" | "sql" | "type">;
 }) {
   const heading = useId();
   const client = useQueryClient();
-  const options = catalogQueryOptions(client, actor, { library, sort: "recommended", limit: 5 });
+  const options = catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
   const recommendations = useQuery(options);
   const items = recommendations.data?.items;
   const viewport = useRef<HTMLDivElement>(null);
@@ -164,10 +164,7 @@ export function PracticeRecommendations({
                       <span className={`difficulty-${question.difficulty}`}>
                         {formatLabel(question.difficulty)}
                       </span>
-                      <QuestionIndicators
-                        privateQuestion={!!question.isPrivate}
-                        odyssey={!!question.odyssey}
-                      />
+                      {question.isPrivate && <QuestionIndicators privateQuestion />}
                     </div>
                     <div className="practice-recommendation-meta">
                       <QuestionTopics tags={question.tags} />

@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "@quorem/questions";
+import { topicProjection } from "../../problems/topics.ts";
 import { questionRuntime, projectQuestionRuntime } from "../../problems/runtime.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
@@ -133,7 +134,7 @@ export async function writePublishedInterviewQuestion(
       SELECT jsonb_strip_nulls(jsonb_build_object(
         'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
         'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'leetcodeId',p.leetcode_id,
-        'tags',COALESCE((SELECT jsonb_agg(t.tag ORDER BY t.ordinal) FROM problem_tags t WHERE t.version_id=v.id),'[]'::jsonb),
+        'tags',${topicProjection(sql`v.id`)},
         'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
         'odyssey',CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_set(v.odyssey,'{levels}',COALESCE((SELECT jsonb_agg(stage-'examples' ORDER BY n) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY z(stage,n)),'[]'::jsonb)) ELSE NULL END
       )) AS metadata,v.attribution

@@ -313,3 +313,20 @@ it("isolates suggested global catalogs by identity and never seeds public questi
   expect(cache.getQueryData(["problem", "public", "slug", publicProblem.slug])).toBeUndefined();
   expect(catalogQueryOptions(cache, undefined, search).enabled).toBe(false);
 });
+
+it("does not reuse rows or facets across categories or formats", async () => {
+  const cache = client();
+  const initial = catalogQueryOptions(cache, "anonymous", { type: "classic" });
+  await cache.fetchQuery(initial);
+  const observer = new QueryObserver(cache, initial);
+  const stop = observer.subscribe(() => {});
+  try {
+    for (const search of [{ sql: "true", type: "classic" }, { type: "odyssey" }] as const) {
+      expect(catalogFacets(cache, "anonymous", search).topics).toEqual([]);
+      observer.setOptions(catalogQueryOptions(cache, "anonymous", search));
+      expect(observer.getCurrentResult().data).toBeUndefined();
+    }
+  } finally {
+    stop();
+  }
+});
