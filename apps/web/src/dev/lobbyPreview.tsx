@@ -85,6 +85,7 @@ window.fetch = async (url, options) => {
     return reply({
       mode: "development",
       kind: "account",
+      capabilities: { hostGuests: preview.has("guest-host") },
       user: {
         id: identity,
         displayName: identity === "alex" ? "Alex" : "Jamie",

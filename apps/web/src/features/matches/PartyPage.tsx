@@ -16,6 +16,7 @@ import {
   type PartySettings,
 } from "./party";
 import { PartyInvitation } from "./PartyInvitation";
+import { GuestAccessToggle } from "./GuestAccessToggle";
 import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
 import { useActiveMatch } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
@@ -34,6 +35,8 @@ import { isRouteDenied } from "../auth/protectedRoute";
 import { NotFoundPage } from "../public/NotFoundPage";
 
 const factionReadyHint = "Every faction needs at least one player";
+const settingsReadyHint =
+  "Changing the round or guest access, or enabling code sharing, resets readiness.";
 
 export function PartyPage() {
   const { identity, account } = useAccountIdentity();
@@ -140,7 +143,7 @@ export function PartyPage() {
       setRecoveryRevision((value) => value + 1);
       setError(
         failure instanceof RejectedMatchCommand
-          ? "Could not update the lobby."
+          ? failure.message
           : "Could not update the lobby. Retry the previous action.",
       );
     } finally {
@@ -179,6 +182,7 @@ export function PartyPage() {
     );
   const displayedSettings =
     pendingSettings?.partyId === party.id ? pendingSettings.value : party.settings;
+  const guestsAllowed = displayedSettings.accessMode === "guests_allowed";
   const memberActions = (member: { userId: string; displayName: string }) =>
     host && !party.currentMatchId && member.userId !== identity ? (
       <Tooltip content={`Remove ${member.displayName}`}>
@@ -239,6 +243,23 @@ export function PartyPage() {
                     party.members.find((member) => member.userId === party.hostUserId)?.displayName
                   }
                   settings={party.settings}
+                />
+              )}
+              {host && !party.currentMatchId && account.data?.capabilities?.hostGuests && (
+                <GuestAccessToggle
+                  allowed={guestsAllowed}
+                  disabled={joiningPending || !!recovery}
+                  onToggle={() =>
+                    void run(
+                      "settings",
+                      {
+                        ...party.settings,
+                        accessMode: guestsAllowed ? "accounts_only" : "guests_allowed",
+                      },
+                      "PUT",
+                      "joining",
+                    )
+                  }
                 />
               )}
               {host && !party.currentMatchId && (
@@ -365,8 +386,8 @@ export function PartyPage() {
                 <Tooltip
                   content={
                     host || party.settings.rules?.settingsEditors === "everyone"
-                      ? "Changes to the round or enabling code sharing reset readiness."
-                      : "Only the host can change settings. Changes to the round or enabling code sharing reset readiness."
+                      ? settingsReadyHint
+                      : `Only the host can change settings. ${settingsReadyHint}`
                   }
                 >
                   <button type="button" className="icon-button" aria-label="About lobby settings">
