@@ -22,13 +22,17 @@ export async function listDrafts(
   return requireData(data, error);
 }
 
-/** @returns A fresh mutable draft or a clone of an immutable publication. */
-export async function createDraft(
-  body:
-    | { content: QuestionContent; problemVersionId?: never }
-    | { problemVersionId: string; edit?: boolean; content?: never },
-) {
-  const { data, error } = await api().POST("/v1/admin/question-drafts", { body });
+/** @returns A new unpublished question draft. */
+export async function createDraft(content: QuestionContent) {
+  const { data, error } = await api().POST("/v1/admin/question-drafts", { body: { content } });
+  return requireData(data, error);
+}
+
+/** @returns The editable record for an existing publication. */
+export async function editPublicationDraft(id: string) {
+  const { data, error } = await api().POST("/v1/admin/question-publications/{id}/edit", {
+    params: { path: { id } },
+  });
   return requireData(data, error);
 }
 
@@ -133,14 +137,11 @@ export async function fetchDeletionImpact(id: string) {
   return requireData(data, error);
 }
 
-export async function deleteQuestionPublication(
-  draft: QuestionDraft,
-  replacementVersionId?: string | null,
-) {
+export async function deleteQuestionPublication(draft: QuestionDraft) {
   const send = async () => {
     const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}/publication", {
       params: { path: { id: draft.id } },
-      body: { revision: draft.revision, replacementVersionId },
+      body: { revision: draft.revision },
     });
     return requireData(data, error);
   };
@@ -172,7 +173,7 @@ export async function mutateQuestionBatch(
         items: { id: string; revision: string; visibility: "private" | "global" }[];
       }
     | { action: "delete-drafts"; items: { id: string; revision: string }[] }
-    | { action: "delete-publications"; items: { id: string; current: boolean }[] },
+    | { action: "delete-publications"; items: { id: string }[] },
 ) {
   const result =
     batch.action === "publish"
@@ -186,11 +187,6 @@ export async function mutateQuestionBatch(
         : await api().POST("/v1/admin/question-publications/delete-batch", {
             body: { items: batch.items },
           });
-  if (result.response.status === 404)
-    throw new ApiError(
-      "Bulk actions are unavailable on this server. Try again after it updates.",
-      "batch_unavailable",
-    );
   return requireData(result.data, result.error);
 }
 

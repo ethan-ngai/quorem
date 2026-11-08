@@ -142,21 +142,6 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
         await repository.writeCompletionChunks(decodeJob(str(data.job), peer.scope), chunks);
         return Response.json({ ok: true });
       }
-      if (operation === "chunk") {
-        const metadata = record(JSON.parse(str(request.headers.get("x-runner-command"))));
-        const job = decodeJob(str(metadata.job), peer.scope),
-          bytes = await readBounded(request, 65536);
-        const channel = str(metadata.channel),
-          field = str(metadata.field);
-        await repository.writeCompletionChunk(job, {
-          channel,
-          field,
-          ordinal: metadata.ordinal,
-          chunkOrdinal: metadata.chunkOrdinal,
-          bytes,
-        } as CompletionFieldChunk);
-        return Response.json({ ok: true });
-      }
       if (operation === "save") {
         const job = decodeJob(str(request.headers.get("x-runner-job")), peer.scope);
         const raw = new TextDecoder("utf-8", { fatal: true }).decode(

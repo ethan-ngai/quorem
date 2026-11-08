@@ -99,18 +99,17 @@ function repository(spec: ExecutionSpec) {
     beginCompletion: async (_job: Job, value: CompletionHeader) => {
       header = value;
     },
-    async writeCompletionChunks(job: Job, items: readonly CompletionFieldChunk[]) {
-      for (const item of items) await port.writeCompletionChunk(job, item);
-    },
-    writeCompletionChunk: async (_job: Job, item: CompletionFieldChunk) => {
-      const k = `${item.channel}:${item.ordinal}:${item.field}`,
-        v = chunks.get(k) ?? [];
-      if (item.chunkOrdinal < v.length) assert.deepEqual(v[item.chunkOrdinal], item.bytes);
-      else {
-        assert.equal(item.chunkOrdinal, v.length);
-        v.push(item.bytes);
+    async writeCompletionChunks(_job: Job, items: readonly CompletionFieldChunk[]) {
+      for (const item of items) {
+        const k = `${item.channel}:${item.ordinal}:${item.field}`,
+          v = chunks.get(k) ?? [];
+        if (item.chunkOrdinal < v.length) assert.deepEqual(v[item.chunkOrdinal], item.bytes);
+        else {
+          assert.equal(item.chunkOrdinal, v.length);
+          v.push(item.bytes);
+        }
+        chunks.set(k, v);
       }
-      chunks.set(k, v);
     },
     sealCompletionFrame: async (_job: Job, channel: string, index: number, status: string) => {
       seals.push(`${channel}:${index}:${status}`);

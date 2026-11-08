@@ -3,38 +3,13 @@ import { allowPublicGuestRequest, type GuestRequestBudget } from "../access/gues
 import { guestCookie, guestOriginAllowed } from "../identity/guest/credentials.ts";
 import { bearer } from "../identity/credentials.ts";
 import { IdentityError } from "../identity/model.ts";
+import { jsonObjectBody } from "../../application/json-body.ts";
 import { Hono } from "hono";
 import { ApplicationError } from "../../application/error.ts";
 import { identifyRequest } from "../identity/routes.ts";
 import type { Principal } from "../identity/model.ts";
 import { normalizePartySettings, type Parties } from "./model.ts";
-async function body(request: Request): Promise<Record<string, unknown>> {
-  if (Number(request.headers.get("content-length") ?? 0) > 4096)
-    throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-  const reader = request.body?.getReader(),
-    decoder = new TextDecoder();
-  let text = "",
-    size = 0;
-  if (reader)
-    while (true) {
-      const part = await reader.read();
-      if (part.done) break;
-      size += part.value.byteLength;
-      if (size > 4096) {
-        await reader.cancel();
-        throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-      }
-      text += decoder.decode(part.value, { stream: true });
-    }
-  text += decoder.decode();
-  try {
-    const value: unknown = JSON.parse(text || "{}");
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    return value as Record<string, unknown>;
-  } catch {
-    throw new ApplicationError("invalid_input", "Invalid request body", 400);
-  }
-}
+
 export function partyRoutes(deps: {
   parties: Parties;
   identify(request: Request): Promise<Principal | undefined>;
@@ -63,7 +38,7 @@ export function partyRoutes(deps: {
       await deps.parties.create(
         await actor(c.req.raw),
         key(c.req.raw),
-        normalizePartySettings(await body(c.req.raw)),
+        normalizePartySettings(await jsonObjectBody(c.req.raw, 4096, { emptyObject: true })),
       ),
       201,
     ),
@@ -114,7 +89,7 @@ export function partyRoutes(deps: {
     }
     if (!credential)
       throw new ApplicationError("unauthenticated", "Start a guest session first", 401);
-    const input = await body(c.req.raw);
+    const input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
     if (Object.keys(input).some((x) => x !== "name") || typeof input.name !== "string")
       throw new ApplicationError("invalid_input", "Invalid request body", 400);
     c.header("Referrer-Policy", "no-referrer");
@@ -123,7 +98,7 @@ export function partyRoutes(deps: {
   app.post("/v1/parties/join", async (c) => {
     const who = await actor(c.req.raw),
       k = key(c.req.raw),
-      input = await body(c.req.raw);
+      input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
     if (Object.keys(input).some((x) => x !== "token") || typeof input.token !== "string")
       throw new ApplicationError("invalid_input", "Invalid request body", 400);
     return c.json(await deps.parties.join(who, k, input.token));
@@ -138,14 +113,14 @@ export function partyRoutes(deps: {
         c.req.param("id"),
         key(c.req.raw),
         "settings",
-        normalizePartySettings(await body(c.req.raw)),
+        normalizePartySettings(await jsonObjectBody(c.req.raw, 4096, { emptyObject: true })),
       ),
     ),
   );
   app.post("/v1/parties/:id/ready", async (c) => {
     const who = await actor(c.req.raw),
       k = key(c.req.raw),
-      input = await body(c.req.raw);
+      input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
     if (Object.keys(input).some((x) => x !== "ready") || typeof input.ready !== "boolean")
       throw new ApplicationError("invalid_input", "Ready is required", 400);
     return c.json(await deps.parties.mutate(who, c.req.param("id"), k, "ready", input.ready));
@@ -153,7 +128,7 @@ export function partyRoutes(deps: {
   app.post("/v1/parties/:id/kick", async (c) => {
     const who = await actor(c.req.raw),
       k = key(c.req.raw),
-      input = await body(c.req.raw);
+      input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
     if (
       Object.keys(input).some((key) => key !== "userId") ||
       typeof input.userId !== "string" ||
@@ -167,14 +142,14 @@ export function partyRoutes(deps: {
     app.post(`/v1/parties/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         k = key(c.req.raw),
-        input = await body(c.req.raw);
+        input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
       if (Object.keys(input).length)
         throw new ApplicationError("invalid_input", "Invalid request body", 400);
       return c.json(await deps.parties.mutate(who, c.req.param("id"), k, action, null));
     });
   app.post("/v1/presence/heartbeat", async (c) => {
     const who = await actor(c.req.raw),
-      input = await body(c.req.raw);
+      input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });
     if (Object.keys(input).some((x) => x !== "windowId") || typeof input.windowId !== "string")
       throw new ApplicationError("invalid_input", "Invalid window", 400);
     return c.json(await deps.parties.heartbeat(who, input.windowId));

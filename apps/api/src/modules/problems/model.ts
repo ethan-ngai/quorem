@@ -15,7 +15,6 @@ export interface CatalogFilter {
   sql: "" | "true" | "false";
   page: number;
   limit: number;
-  cursor?: string;
 }
 export interface ProblemActor {
   readonly userId: string;

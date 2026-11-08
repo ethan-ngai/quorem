@@ -72,7 +72,11 @@ export function verificationHandler(options: VerificationOptions) {
       if (!request.complete) request.destroy();
     };
     abort.signal.addEventListener("abort", stopReading, { once: true });
-    request.once("aborted", () => abort.abort());
+    const clientClosed = () => {
+      if (!response.writableFinished) abort.abort();
+    };
+    request.once("aborted", clientClosed);
+    response.once("close", clientClosed);
     try {
       let body = "",
         size = 0;
@@ -99,6 +103,8 @@ export function verificationHandler(options: VerificationOptions) {
       if (!response.headersSent && !response.destroyed) response.writeHead(503).end();
     } finally {
       clearTimeout(timer);
+      request.off("aborted", clientClosed);
+      response.off("close", clientClosed);
       abort.signal.removeEventListener("abort", stopReading);
     }
   };
