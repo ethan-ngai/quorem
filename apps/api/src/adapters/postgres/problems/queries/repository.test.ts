@@ -106,7 +106,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         );
         await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,0)", [
           versions[i],
-          i === 2 ? "graphs" : "arrays",
+          i === 0 ? "Joins" : i === 2 ? "Simulation" : "arrays",
         ]);
         await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [
           versions[i],
@@ -127,7 +127,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         `${uid}-private-tag`,
       ]);
       await pool.query(
-        "INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2)",
+        "INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2),($2,'Array',3),($2,'arrays',4),($2,'Hash Maps',5),($2,'Hash Table',6),($2,'simulation',7),($2,'SQL',8)",
         [versions[1], versions[2]],
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-private-company`]);
@@ -304,6 +304,39 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           ).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
         }
+        const catalogIn = async (scope: string) =>
+          JSON.parse(
+            await queries.catalog(
+              { userId: owner },
+              parseCatalogFilter(new URLSearchParams(`q=${uid}&${scope}`)),
+            ),
+          );
+        const sqlPage = await catalogIn("sql=true&type=classic");
+        expect(sqlPage.total).toBe(1);
+        expect(sqlPage.topics).toEqual(["joins"]);
+        expect(sqlPage.foundationalTopics).toEqual([]);
+        const classic = await catalogIn("sql=false&type=classic");
+        expect(classic.items.map((item: { id: string }) => item.id)).toEqual([versions[1]]);
+        expect(classic.topics).not.toContain("simulation");
+        const odyssey = await catalogIn("sql=false&type=odyssey&topic=Hash+Maps");
+        expect(odyssey.items.map((item: { id: string }) => item.id)).toEqual([versions[2]]);
+        expect(odyssey.topics).toEqual([
+          "Arrays",
+          "Breadth-First Search",
+          "Hash Tables",
+          "Heap",
+          "simulation",
+        ]);
+        expect(odyssey.items[0].tags).toEqual([
+          "Heap",
+          "Breadth-First Search",
+          "Arrays",
+          "Hash Tables",
+          "simulation",
+        ]);
+        expect(JSON.parse((await queries.bySlug(undefined, `${uid}-2`))!).tags).toEqual(
+          odyssey.items[0].tags,
+        );
         const foundational = JSON.parse(
           await queries.catalog(
             { userId: owner },
@@ -407,7 +440,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           ["sql=true", 1],
           ["sql=false", 1],
           ["difficulty=hard", 1],
-          ["topic=graphs", 1],
+          ["topic=simulation", 1],
           [`company=${uid}-company`, 1],
         ] as const) {
           const result = JSON.parse(
@@ -434,7 +467,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         expect(pageTwo.items[0].id).toBe(next.items[0].id);
         const sqlCandidates = await queries.candidates(
           { userId: owner },
-          { difficulty: "easy", topic: "arrays", company: "", type: "classic", sql: "true" },
+          { difficulty: "easy", topic: "joins", company: "", type: "classic", sql: "true" },
         );
         expect(sqlCandidates.some((c) => c.id === versions[0] && c.sql)).toBe(true);
         const chosen = await queries.candidates(

@@ -10,6 +10,7 @@ import {
   type RuleApproval,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../../application/error.ts";
+import { topicProjection } from "../../problems/topics.ts";
 import { fingerprint } from "../lifecycle/crypto.ts";
 import {
   approachesProjection,
@@ -95,13 +96,13 @@ export async function prepareRuleAction(
     caseIndex = row.ordinal;
     revealed = { input: row.input, result: row.result };
   } else if (input.kind === "topics") {
-    const rows = (
-      await tx.execute<{ tag: string }>(
-        sql`SELECT t.tag FROM problem_tags t JOIN matches m ON m.problem_version_id=t.version_id WHERE m.id=${match}::uuid ORDER BY t.ordinal`,
+    const row = (
+      await tx.execute<{ topics: string[] }>(
+        sql`SELECT ${topicProjection(sql`m.problem_version_id`)} AS topics FROM matches m WHERE m.id=${match}::uuid`,
       )
-    ).rows;
-    if (!rows.length) throw new ApplicationError("not_found", "No topics available", 404);
-    revealed = { topics: rows.map((r) => r.tag) };
+    ).rows[0];
+    if (!row?.topics.length) throw new ApplicationError("not_found", "No topics available", 404);
+    revealed = { topics: row.topics };
   } else {
     const row = (
       await tx.execute<{ data: string }>(

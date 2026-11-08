@@ -2,13 +2,14 @@ import { useServerTable } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
-import { CatalogFilters, CompanyFilter } from "./CatalogFilters";
+import { QuestionTypeFilter } from "./QuestionTypeFilter";
+import { CatalogFilters, CompanyFilter, featuredTopicValues } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout } from "./CatalogLayout";
 import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { X, Layers, Globe, LockKeyhole } from "lucide-react";
+import { X, Layers, Globe, LockKeyhole, Code2, Database } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
@@ -18,11 +19,16 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { addFilter, catalogSearch } from "./catalogSearch";
+import { addFilter, catalogKindChange, catalogSearch, filterValues } from "./catalogSearch";
 import { PracticeRecommendations } from "./PracticeRecommendations";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
+
+const categories = [
+  { value: "algorithms", label: "Algorithms", icon: <Code2 size={16} aria-hidden="true" /> },
+  { value: "sql", label: "SQL", icon: <Database size={16} aria-hidden="true" /> },
+] as const;
 
 const practiceColumns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
 
@@ -33,6 +39,8 @@ export function PracticeBrowser() {
   const { preference, setPreference } = useTheme();
   const rawSearch = useSearch({ from: "/practice" });
   const search = useMemo(() => catalogSearch(rawSearch), [rawSearch]);
+  const { sql, type = "classic" } = search;
+  const scope = { sql, type };
   const canChooseLibrary =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
   const library = search.library;
@@ -41,7 +49,7 @@ export function PracticeBrowser() {
     void navigate({ search: (previous) => ({ ...previous, page: undefined, ...change }), replace });
   };
   const query = useServerSearch(search.q ?? "", (q) => update({ q: q || undefined }, true), search);
-  const catalog = useQuery(catalogQueryOptions(queryClient, actor, search));
+  const catalog = useQuery(catalogQueryOptions(queryClient, actor, { ...search, ...scope }));
   useEffect(() => {
     if (!catalog.data) return;
     const timer = window.setTimeout(warmWorkspacePage, 200);
@@ -52,18 +60,20 @@ export function PracticeBrowser() {
   const { topics, foundationalTopics, companies } = catalogFacets(
     queryClient,
     actor,
-    search,
+    { ...search, ...scope },
     catalog.data,
   );
   const filtered = Boolean(
-    search.q ||
-    search.difficulty ||
-    search.topic ||
-    search.company ||
-    library ||
-    search.type ||
-    search.sql,
+    search.q || search.difficulty || search.topic || search.company || library,
   );
+  const changeKind = (change: Pick<CatalogSearch, "sql" | "type">) =>
+    update(catalogKindChange(change));
+  const topicValues = featuredTopicValues(foundationalTopics);
+  const selectTopic = (tag: string) => topicValues.get(tag.toLowerCase()) ?? tag;
+  const filterTopic = (tag: string) =>
+    update({
+      topic: addFilter(filterValues(search.topic).map(selectTopic).join(","), selectTopic(tag)),
+    });
   const clear = () => {
     query.reset();
     update({
@@ -74,8 +84,6 @@ export function PracticeBrowser() {
       company: undefined,
       companyMatch: undefined,
       library: undefined,
-      type: undefined,
-      sql: undefined,
     });
   };
   const pageSize = search.limit ?? catalogPageSize;
@@ -112,10 +120,24 @@ export function PracticeBrowser() {
           )
         }
       >
+        <div className="practice-filters">
+          <SegmentedControl
+            compact
+            label="Question category"
+            value={sql ? "sql" : "algorithms"}
+            options={categories}
+            onChange={(value) => changeKind({ sql: value === "sql" ? "true" : undefined })}
+          />
+          <QuestionTypeFilter
+            exclusive
+            value={type}
+            onChange={(value) => changeKind({ type: value === "classic" ? undefined : value })}
+          />
+        </div>
         <PracticeRecommendations
-          key={JSON.stringify([actor, library])}
+          key={JSON.stringify([actor, library, sql, type])}
           actor={actor}
-          library={library}
+          scope={{ ...scope, library }}
         />
         <div className="practice-toolbar">
           <SearchField
@@ -131,6 +153,7 @@ export function PracticeBrowser() {
           <CatalogFilters
             search={search}
             update={update}
+            showKind={false}
             topics={topics}
             foundationalTopics={foundationalTopics}
             companies={companies}
@@ -219,10 +242,7 @@ export function PracticeBrowser() {
                       <Link to="/practice/$slug" params={{ slug: problem.slug }}>
                         {problem.title}
                       </Link>
-                      <QuestionTopics
-                        tags={problem.tags}
-                        onFilter={(topic) => update({ topic: addFilter(search.topic, topic) })}
-                      />
+                      <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
                     </td>
                     <td>
                       <QuestionDifficulty
@@ -233,10 +253,7 @@ export function PracticeBrowser() {
                       />
                     </td>
                     <td className="practice-format">
-                      <QuestionIndicators
-                        privateQuestion={problem.isPrivate === true}
-                        odyssey={!!problem.odyssey}
-                      />
+                      {problem.isPrivate && <QuestionIndicators privateQuestion />}
                     </td>
                   </TableRow>
                 ))}

@@ -20,7 +20,7 @@ export type CatalogSearch = {
 /** Normalize bookmark state to the API's bounded query contract. */
 export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   const result: CatalogSearch = {};
-  if (search.sql === "true") result.sql = "true";
+  if (search.sql === "true" || search.sql === true) result.sql = "true";
   if (search.type === "classic" || search.type === "odyssey") result.type = search.type;
   if (search.library === "private" || search.library === "global") result.library = search.library;
   if (typeof search.q === "string" && search.q.trim())
@@ -62,4 +62,19 @@ export function filterValues(value?: string): string[] {
 }
 export function addFilter(value: string | undefined, addition: string): string {
   return filterValues([...(value ? filterValues(value) : []), addition].join(",")).join(",");
+}
+
+/** Scope catalog requests and cached facets by the same category and format. */
+export const catalogKind = (search: Pick<CatalogSearch, "sql" | "type">) =>
+  [search.sql ?? "false", search.type] as const;
+
+/** Category and format changes reset facets from the previous catalog scope. */
+export function catalogKindChange(change: Pick<CatalogSearch, "sql" | "type">) {
+  return {
+    ...change,
+    topic: undefined,
+    topicMatch: undefined,
+    company: undefined,
+    companyMatch: undefined,
+  };
 }

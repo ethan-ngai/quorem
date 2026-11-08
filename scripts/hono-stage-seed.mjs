@@ -2,16 +2,18 @@
 import { readFile } from "node:fs/promises";
 
 export async function verifyFoundationalTopics(client) {
-  const migration = await readFile(
-    new URL("../apps/api/migrations/085_foundational_topics.sql", import.meta.url),
-    "utf8",
+  const migrations = ["085_foundational_topics.sql", "093_canonical_topics.sql"];
+  const seed = await Promise.all(
+    migrations.map((name) =>
+      readFile(new URL(`../apps/api/migrations/${name}`, import.meta.url), "utf8"),
+    ),
   );
-  const marker = "INSERT INTO public.foundational_topics(slug, label, aliases) VALUES";
-  const start = migration.indexOf(marker);
+  const table = "public.foundational_topics";
+  const start = seed[0].indexOf(`INSERT INTO ${table}`);
   if (start < 0) throw new Error("Missing foundational topic seed");
-  const insert = migration
-    .slice(start)
-    .replace(marker, "INSERT INTO pg_temp.stage_foundational_topics(slug, label, aliases) VALUES");
+  const insert = [seed[0].slice(start), ...seed.slice(1)]
+    .join("\n")
+    .replaceAll(table, "pg_temp.stage_foundational_topics");
   await client.query(
     "CREATE TEMP TABLE stage_foundational_topics (LIKE public.foundational_topics) ON COMMIT DROP",
   );
