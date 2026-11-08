@@ -11,6 +11,13 @@ export const emailInputSchema = z
   .max(254)
   .regex(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~@-]*$/);
 export const emailSchema = z.email("Enter a valid email address.").max(254).toLowerCase();
+export const registrationStartSchema = z.strictObject({
+  email: emailSchema,
+  callbackURL: z.string().optional(),
+});
+export const registrationProofSchema = z.strictObject({
+  token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+});
 export const passwordSchema = z
   .string()
   .min(8, "Use at least 8 characters.")
@@ -23,7 +30,7 @@ export const optionalNameSchema = z
   .regex(/^[^\p{Cc}\p{Cf}]*$/u, "Your name cannot contain control characters.")
   .optional()
   .default("");
-export const accountSetupSchema = z.object({
+export const accountSetupSchema = z.strictObject({
   email: emailSchema,
   username: usernameSchema,
   password: passwordSchema,

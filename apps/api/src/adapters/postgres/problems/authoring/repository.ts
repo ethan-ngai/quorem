@@ -372,7 +372,6 @@ async function editPublication(
     parent.version,
     parent.owner,
     runtime,
-    { updateCatalog: true },
   );
   await tx.execute(sql`SELECT set_config('quorem.question_replacement','',true)`);
   return replacement;

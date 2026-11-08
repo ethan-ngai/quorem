@@ -1,6 +1,6 @@
 /** @file registration.ts @description Email ownership and credential setup. @module auth */
 import { hashPassword } from 'better-auth/crypto';
-import { accountSetupSchema, emailSchema } from '@quorem/contracts/auth';
+import { accountSetupSchema, registrationProofSchema, registrationStartSchema } from '@quorem/contracts/auth';
 import { digest, opaque } from './mail-crypto.ts';
 import { MailRateLimited, type MailRepository } from './mail-repository.ts';
 import type { MailIntentService } from './mail-intent.ts';
@@ -38,20 +38,20 @@ export function createRegistrationHandler(options: { repository: MailRepository;
       raw += decoder.decode(value, { stream: true });
     }
     raw += decoder.decode();
-    let body: Record<string, unknown>;
-    try { body = JSON.parse(raw); if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(); }
+    let body: unknown;
+    try { body = JSON.parse(raw); }
     catch { return json(400, { message: 'Invalid request' }); }
     if (action === 'start') {
-      const parsed = emailSchema.safeParse(body.email);
+      const parsed = registrationStartSchema.safeParse(body);
       if (!parsed.success) return json(400, { message: 'Enter a valid email address.' });
       const token = opaque();
       const link = new URL('/login', origin);
-      if (typeof body.callbackURL === 'string') {
-        try { const callback = new URL(body.callbackURL, origin); if (callback.origin === origin && callback.pathname === '/login') link.search = callback.search; } catch { /* Invalid callbacks are ignored. */ }
+      if (parsed.data.callbackURL) {
+        try { const callback = new URL(parsed.data.callbackURL, origin); if (callback.origin === origin && callback.pathname === '/login') link.search = callback.search; } catch { /* Invalid callbacks are ignored. */ }
       }
       link.searchParams.delete('verified'); link.searchParams.delete('setup'); link.searchParams.set('signupToken', token);
       try {
-        const result = await mail.create('registration', { email: parsed.data, url: link.toString() }, await digest(token));
+        const result = await mail.create('registration', { email: parsed.data.email, url: link.toString() }, await digest(token));
         if (result === 'rejected') return json(503, { message: 'Could not send your email. Please try again.' });
         if (result === 'uncertain') return json(503, { message: 'Could not confirm delivery. Check your email and wait before requesting another.' });
         return json(200, { retryAfter: 60 });
@@ -61,9 +61,10 @@ export function createRegistrationHandler(options: { repository: MailRepository;
       }
     }
     if (action === 'verify') {
-      if (typeof body.token !== 'string' || body.token.length !== 43) return json(400, { message: 'This link is invalid. Request a new email.' });
+      const proof = registrationProofSchema.safeParse(body);
+      if (!proof.success) return json(400, { message: 'This link is invalid. Request a new email.' });
       const next = opaque();
-      return await repository.verify(await digest(body.token), await digest(next)) ? json(200, {}, { 'Set-Cookie': cookie(next) }) : json(400, { message: 'This link expired or was already used. Request a new email.' });
+      return await repository.verify(await digest(proof.data.token), await digest(next)) ? json(200, {}, { 'Set-Cookie': cookie(next) }) : json(400, { message: 'This link expired or was already used. Request a new email.' });
     }
     if (action === 'complete') {
       const parsed = accountSetupSchema.safeParse(body);

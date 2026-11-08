@@ -77,9 +77,8 @@ export async function persistQuestionVersion(
   version: number,
   privateOwner: string | null,
   runtime: RuntimeResolver,
-  options: { updateCatalog?: boolean; customInterview?: boolean } = {},
+  options: { customInterview?: boolean } = {},
 ): Promise<void> {
-  const updateCatalog = options.updateCatalog !== false;
   if (options.customInterview && !privateOwner)
     throw new Error("Custom interview question must be private");
   validateQuestionPublication(raw, validateQuestionSchema, runtime, {
@@ -117,18 +116,17 @@ export async function persistQuestionVersion(
   await tx.execute(
     sql`INSERT INTO problem_tags(version_id,tag,ordinal) SELECT ${versionId}::uuid,value,ordinality-1 FROM jsonb_array_elements_text(${publicJSON}::jsonb->'tags') WITH ORDINALITY`,
   );
-  if (updateCatalog) await updateQuestionCatalogMetadata(tx, problemId, p, privateOwner);
+  await updateQuestionCatalogMetadata(tx, problemId, p, privateOwner);
   await registerArtifacts(tx, c, versionId);
   await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
-  if (updateCatalog)
-    await tx.execute(
-      sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid`,
-    );
+  await tx.execute(
+    sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid`,
+  );
   await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
 }
 
-/** Syncs metadata shared by every version with the selected publication. */
-export async function updateQuestionCatalogMetadata(
+/** Synchronize catalog metadata with the current publication. */
+async function updateQuestionCatalogMetadata(
   tx: Transaction,
   problemId: string,
   p: Obj,
