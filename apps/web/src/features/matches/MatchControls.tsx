@@ -1,3 +1,4 @@
+/** @file MatchControls.tsx @description Shared match creation and lobby settings. @module matches */
 import { Disclosure } from "../../ui/Disclosure";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -6,6 +7,8 @@ import { matchPreset } from "@quorem/contracts/match-rules";
 import { MatchRuleSettingsControls } from "./MatchRuleSettings";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
+import { problemQueryOptions } from "../practice/problemQueries";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
@@ -28,6 +31,26 @@ export const defaultMatchSettings: PartySettings = {
   rules: matchPreset(),
 };
 
+type MatchProblem = Pick<ProblemVersion, "id" | "title"> & {
+  difficulty: string;
+} & Partial<Pick<ProblemVersion, "sql" | "odyssey" | "tags" | "companies">>;
+
+/** @returns Whether this question belongs to the lobby's random pool. */
+function matchesPool(
+  problem: MatchProblem,
+  difficulties: readonly string[],
+  filters: PartySettings["questionFilters"] = {},
+) {
+  return (
+    difficulties.includes(problem.difficulty) &&
+    !!problem.sql === (filters.sql === "true") &&
+    (!filters.type || !!problem.odyssey === (filters.type === "odyssey")) &&
+    (!filters.topic || filters.topic.split(",").some((topic) => problem.tags?.includes(topic))) &&
+    (!filters.company ||
+      filters.company.split(",").some((company) => problem.companies?.includes(company)))
+  );
+}
+
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
 export function MatchSettings({
   value,
@@ -46,11 +69,9 @@ export function MatchSettings({
   participantCount?: number;
   canEditPermissions?: boolean;
   heading?: (lobbyOptions: ReactNode) => ReactNode;
-  catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
+  catalog?: MatchProblem[];
 }) {
-  const [problems, setProblems] = useState<
-    { id: string; title: string; difficulty: string; hasComplexity?: boolean }[]
-  >(catalog ?? []);
+  const [problems, setProblems] = useState<MatchProblem[]>(catalog ?? []);
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
     if (catalog) {
@@ -76,19 +97,28 @@ export function MatchSettings({
   }, [identity, catalog]);
   const [pickedProblem, setPickedProblem] = useState<ProblemVersion>();
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
-  const selectedProblem =
-    problems.find((problem) => problem.id === value.selectedProblemVersionId) ??
-    (pickedProblem?.id === value.selectedProblemVersionId ? pickedProblem : undefined);
-  const changeDifficulties = (difficulties: typeof pools) => {
+  const selectedId = value.selectedProblemVersionId;
+  const knownProblem =
+    (pickedProblem?.id === selectedId ? pickedProblem : undefined) ??
+    problems.find((problem) => problem.id === selectedId);
+  const client = useQueryClient();
+  const { data: selectedDetail, isLoading: loadingSelection } = useQuery(
+    problemQueryOptions(client, identity, knownProblem ? "" : (selectedId ?? ""), true),
+  );
+  const selectedProblem = knownProblem ?? selectedDetail;
+  const changePool = (
+    difficulties: typeof pools,
+    questionFilters: PartySettings["questionFilters"],
+  ) => {
     onChange({
       ...value,
       difficulty: undefined,
       difficulties,
+      questionFilters,
       selectedProblemVersionId:
-        selectedProblem &&
-        !difficulties.includes(selectedProblem.difficulty as (typeof pools)[number])
-          ? undefined
-          : value.selectedProblemVersionId,
+        selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
+          ? selectedId
+          : undefined,
     });
   };
   const rules = value.rules ?? matchPreset();
@@ -155,9 +185,9 @@ export function MatchSettings({
         </span>
         <DifficultySegments
           selected={pools}
-          onChange={changeDifficulties}
+          onChange={(difficulties) => changePool(difficulties, value.questionFilters)}
           required
-          disabled={disabled}
+          disabled={disabled || loadingSelection}
         />
       </div>
       <div className="match-option">
@@ -167,15 +197,13 @@ export function MatchSettings({
           <PersistentNotice message={catalogError} label="Problem list unavailable" />
         </span>
         <ProblemPicker
-          items={problems.filter((problem) =>
-            pools.includes(problem.difficulty as (typeof pools)[number]),
-          )}
+          items={selectedProblem ? [selectedProblem] : []}
           identity={identity}
           difficulties={pools}
           filters={value.questionFilters}
-          onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
+          onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
           value={value.selectedProblemVersionId}
-          disabled={disabled}
+          disabled={disabled || loadingSelection}
           allowRandom
           discloseFilters
           onChange={(selectedProblemVersionId, problem) => {

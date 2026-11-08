@@ -1,8 +1,19 @@
+// @vitest-environment happy-dom
 import { matchPreset } from "@quorem/contracts/match-rules";
+import type { PartySettings } from "@quorem/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, useState } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { MatchSettings } from "./MatchControls";
+import { describe, expect, it, vi } from "vitest";
+import { defaultMatchSettings, MatchSettings } from "./MatchControls";
+
+vi.mock("../../api/client", () => ({
+  api: () => ({
+    GET: async () => ({ data: { items: [], topics: [], companies: [], total: 1 } }),
+  }),
+  requireData: (data: unknown) => data,
+}));
 
 describe("server-rendered match settings", () => {
   it("shows selected catalog, duration and conduct choices before hydration", () => {
@@ -40,4 +51,68 @@ describe("server-rendered match settings", () => {
     expect(html).not.toContain("Allow guests");
     expect(html).not.toContain("Lobby admission");
   });
+});
+
+it("keeps an eligible lobby question and resets an excluded question to Random", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const client = new QueryClient({
+    defaultOptions: { queries: { enabled: false } },
+  });
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const onChange = vi.fn();
+  const catalog = [{ id: "example", title: "Two Sum", difficulty: "easy" }];
+  function Lobby() {
+    const [settings, setSettings] = useState<PartySettings>({
+      ...defaultMatchSettings,
+      selectedProblemVersionId: "example",
+    });
+    return (
+      <MatchSettings
+        identity="alice"
+        catalog={catalog}
+        value={settings}
+        onChange={(next) => {
+          onChange(next);
+          setSettings(next);
+        }}
+      />
+    );
+  }
+  const click = (label: string) =>
+    act(async () =>
+      container.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click(),
+    );
+  const picker = () => container.querySelector('button[aria-label="Problem"]')?.textContent;
+  try {
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <Lobby />
+        </QueryClientProvider>,
+      ),
+    );
+    await click("Question filters");
+    await click("Classic");
+    expect(picker()).toBe("Two Sum");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selectedProblemVersionId: "example" }),
+    );
+    await click("Odyssey");
+    expect(picker()).toContain("Random");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        questionFilters: { type: "odyssey" },
+        selectedProblemVersionId: undefined,
+      }),
+    );
+    await click("All question types");
+    expect(picker()).toContain("Random");
+  } finally {
+    await act(async () => root.unmount());
+    client.clear();
+    container.remove();
+    vi.unstubAllGlobals();
+  }
 });
