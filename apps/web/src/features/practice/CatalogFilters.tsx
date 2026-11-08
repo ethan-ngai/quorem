@@ -6,20 +6,32 @@ import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter } from "./CatalogFilter";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { filterValues, type CatalogSearch } from "./catalogSearch";
+import type { FoundationalTopic } from "./problemQueries";
 
 export function CatalogFilters({
   search,
   update,
   topics,
+  foundationalTopics,
   companies,
   showDifficulty = true,
 }: {
   search: Pick<CatalogSearch, "type" | "sql" | "difficulty" | "topic" | "company">;
   update: (change: Partial<CatalogSearch>) => void;
   topics: string[];
+  foundationalTopics?: FoundationalTopic[];
   companies: string[];
   showDifficulty?: boolean;
 }) {
+  const selectedTopics = filterValues(search.topic);
+  const featured = foundationalTopics ?? [];
+  const featuredValues = new Set(featured.map(({ value }) => value));
+  const featuredTags = new Set(featured.flatMap(({ tags }) => tags));
+  const otherTopics = [
+    ...new Set([...topics.filter((tag) => !featuredTags.has(tag)), ...selectedTopics]),
+  ]
+    .filter((value) => !featuredValues.has(value) && value.toLowerCase() !== "sql")
+    .map((value) => ({ value, label: formatLabel(value.replace(/^foundational:/, "")) }));
   return (
     <>
       <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
@@ -42,11 +54,10 @@ export function CatalogFilters({
       )}
       <CatalogFilter
         label="Topics"
-        selected={filterValues(search.topic)}
+        selected={selectedTopics}
         onChange={(values) => update({ topic: values.join(",") || undefined })}
-        options={[...new Set([...topics, ...filterValues(search.topic)])]
-          .filter((value) => value.toLowerCase() !== "sql")
-          .map((value) => ({ value, label: formatLabel(value) }))}
+        options={otherTopics}
+        featuredOptions={featured}
       />
       <CatalogFilter
         label="Companies"

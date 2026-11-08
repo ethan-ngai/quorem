@@ -1252,6 +1252,25 @@ export const guest_request_buckets = pgTable(
   ],
 );
 
+export const foundational_topics = pgTable(
+  "foundational_topics",
+  {
+    slug: text().primaryKey(),
+    label: text().notNull(),
+    aliases: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+  },
+  (): PgTableExtraConfigValue[] => [
+    check(
+      "foundational_topics_slug_check",
+      sql`slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND length(slug) <= 67`,
+    ),
+    check("foundational_topics_label_check", sql`length(btrim(label)) > 0`),
+  ],
+);
+
 export const problem_tags = pgTable(
   "problem_tags",
   {

@@ -209,6 +209,15 @@
   opacity: 0.4;
   cursor: default;
 }
+.practice-filter-group + .practice-filter-group {
+  margin-top: var(--space-3);
+}
+.practice-filter-group-label {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
 .practice-filter-choices {
   display: flex;
   flex-wrap: wrap;

@@ -2600,7 +2600,7 @@ export interface operations {
                 q?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 difficulty?: string;
-                /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
+                /** @description Comma-separated tags or values from foundationalTopics. Matches any selected value. Maximum 16 values, 80 characters each. */
                 topic?: string;
                 company?: string;
                 sort?: "title" | "difficulty";
@@ -2634,6 +2634,11 @@ export interface operations {
                         /** @description Opaque continuation for the same filters and ordering. */
                         nextCursor?: string;
                         topics: string[];
+                        foundationalTopics?: {
+                            value: string;
+                            label: string;
+                            tags: string[];
+                        }[];
                     };
                 };
             };

@@ -6,6 +6,8 @@ import type { CatalogSearch } from "./catalogSearch";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
 type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
+export type FoundationalTopic = NonNullable<CatalogPage["foundationalTopics"]>[number];
+type CatalogFacets = Pick<CatalogPage, "topics" | "foundationalTopics" | "companies">;
 const publicScope = "public";
 const pendingScope = "pending";
 const signedOutPrivateScope = "signed-out-private";
@@ -96,6 +98,7 @@ export function catalogQueryOptions(
       seedQuestions(client, context.scope, page, started);
       client.setQueryData(facetsKey(context.scope, context.library), {
         topics: page.topics,
+        foundationalTopics: page.foundationalTopics,
         companies: page.companies,
       });
       return page;
@@ -113,9 +116,10 @@ export function catalogFacets(
   const context = catalogContext(actor, search.library);
   return (
     page ??
-    client.getQueryData<Pick<CatalogPage, "topics" | "companies">>(
-      facetsKey(context.scope, context.library),
-    ) ?? { topics: [], companies: [] }
+    client.getQueryData<CatalogFacets>(facetsKey(context.scope, context.library)) ?? {
+      topics: [],
+      companies: [],
+    }
   );
 }
 

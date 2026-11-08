@@ -59,8 +59,23 @@ function catalogVisibility(
   const who = owner(actor);
   return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${library}='' OR (${library}='global' AND p.owner_id IS NULL) OR (${library}='private' AND (${who}<>'' AND p.owner_id=${who})))`;
 }
+// Match imported spelling variants without rewriting published tags.
+const tagKey = sql`trim(both '-' from regexp_replace(lower(t.tag), '[^a-z0-9]+', '-', 'g'))`;
+const foundationalMatch = sql`(${tagKey}=ft.slug OR ${tagKey}=ANY(ft.aliases))`;
+const foundationalFilter = sql`'foundational:' || ft.slug`;
+
 function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
-  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
+  const topics = f.topic
+    ? sql`AND EXISTS (
+        SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND (
+          t.tag=ANY(string_to_array(${f.topic},',')) OR EXISTS (
+            SELECT 1 FROM foundational_topics ft
+            WHERE ${foundationalFilter}=ANY(string_to_array(${f.topic},',')) AND ${foundationalMatch}
+          )
+        )
+      )`
+    : sql``;
+  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
 }
 type Projected = {
   data: string;
@@ -176,11 +191,24 @@ async function readCatalog(
   const more = rows.length > f.limit,
     items = rows.slice(0, f.limit);
   const last = items.at(-1);
-  const topics = (
-    await tx.execute<{ tag: string }>(
-      sql`SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility} ORDER BY t.tag`,
+  const topicRows = (
+    await tx.execute<{ tag: string; value: string | null; label: string | null }>(
+      sql`WITH visible_tags AS (
+        SELECT DISTINCT t.tag FROM problem_tags t
+        JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility}
+      )
+      SELECT t.tag,${foundationalFilter} AS value,ft.label FROM visible_tags t
+      LEFT JOIN foundational_topics ft ON ${foundationalMatch} ORDER BY t.tag`,
     )
-  ).rows.map((r) => r.tag);
+  ).rows;
+  const topics = [...new Set(topicRows.map((row) => row.tag))];
+  const foundationalTopics = new Map<string, { value: string; label: string; tags: string[] }>();
+  for (const { tag, value, label } of topicRows) {
+    if (value === null || label === null) continue;
+    const topic = foundationalTopics.get(value);
+    if (topic) topic.tags.push(tag);
+    else foundationalTopics.set(value, { value, label, tags: [tag] });
+  }
   const companies = (
     await tx.execute<{ name: string }>(
       sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND ${visibility} ORDER BY c.name`,
@@ -194,6 +222,9 @@ async function readCatalog(
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
     topics,
+    foundationalTopics: [...foundationalTopics.values()].sort((a, b) =>
+      a.label.localeCompare(b.label),
+    ),
     companies,
   };
   if (more && last)

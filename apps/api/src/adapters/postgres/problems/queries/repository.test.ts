@@ -126,6 +126,10 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         versions[1],
         `${uid}-private-tag`,
       ]);
+      await pool.query(
+        "INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2)",
+        [versions[1], versions[2]],
+      );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-private-company`]);
       await pool.query(
         "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
@@ -162,6 +166,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         runner_version_input_cases: "version_id,channel,stage",
         problem_tags: "version_id,tag,ordinal",
+        foundational_topics: "slug,label,aliases",
         problem_solution_approaches:
           "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
         problem_solutions: "version_id,approach_id,language,source",
@@ -285,8 +290,33 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             visible,
           );
           expect(result.topics.includes(`${uid}-private-tag`)).toBe(visible);
+          expect(
+            result.foundationalTopics.some((topic: { tags: string[] }) =>
+              topic.tags.includes("Heap (Priority Queue)"),
+            ),
+          ).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
         }
+        const foundational = JSON.parse(
+          await queries.catalog(
+            { userId: owner },
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&topic=foundational:heap`)),
+          ),
+        );
+        expect(foundational.items.map((item: { id: string }) => item.id)).toEqual(
+          expect.arrayContaining([versions[1], versions[2]]),
+        );
+        expect(foundational.total).toBe(2);
+        expect(foundational.foundationalTopics).toEqual(
+          expect.arrayContaining([
+            { value: "foundational:heap", label: "Heap", tags: ["Heap (Priority Queue)", "heap"] },
+            {
+              value: "foundational:breadth-first-search",
+              label: "Breadth-First Search",
+              tags: ["breadth first search"],
+            },
+          ]),
+        );
         expect(await queries.byVersion(undefined, historical)).toContain(
           "-- Write your query here.",
         );

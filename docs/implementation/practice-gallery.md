@@ -4,11 +4,13 @@ Issues #54 and #59. `/practice` uses a compact responsive question table: title 
 
 ## Query contract
 
-`GET /v1/problems` accepts `q`, `difficulty`, `topic`, `sort`, `order`, `page`, `limit`. Search is a literal case-insensitive substring of title, slug or tags; `%` and SQL syntax have no special meaning. Difficulty accepts comma-separated easy/medium/hard values. Topic accepts comma-separated authoritative tags. Each group matches any selected value; difficulty and topic groups apply together. Title sort is default; difficulty sorts easy → medium → hard, with title/slug ties. Ascending is default.
+`GET /v1/problems` accepts `q`, `difficulty`, `topic`, `sort`, `order`, `page`, `limit`. Search is a literal case-insensitive substring of title, slug or tags; `%` and SQL syntax have no special meaning. Difficulty accepts comma-separated easy/medium/hard values. Topic accepts comma-separated tags and foundational topic values. Each group matches any selected value; difficulty and topic groups apply together. Title sort is default; difficulty sorts easy → medium → hard, with title/slug ties. Ascending is default.
 
 Defaults: page 1, limit 20; maximum page 10,000 and limit 100. Text bounds: 120 Unicode code points for q, 80 per difficulty/topic value, up to 16 values per group. Invalid enum, numeric, duplicate or oversized recognized parameters return 400. SQL binds all user strings; ordering uses fixed server fragments. Public projections exclude hidden cases/reference solutions.
 
 Response retains `items` and adds filtered `total`, `page`, `limit`, and unfiltered `topics`. Page/count/topics share a read-only repeatable-read snapshot. Page payload is bounded; search/count currently scan published metadata, appropriate for the initial catalog. Add indexed search only after measured catalog growth. Existing catalog consumers receive the default first page; competitive/admin full-catalog navigation remains separately scoped.
+
+PostgreSQL `foundational_topics` owns the curated list. [Migration 085](../../apps/api/migrations/085_foundational_topics.sql) initializes it. Change labels and normalized tag aliases through an operator-managed data update. Keep slugs stable for saved filters. The catalog derives `foundationalTopics` from matching tags on visible current versions. Practice groups those topics first, and existing exact-tag filters still work. A question can match any number of foundational topics.
 
 ## Browser state
 

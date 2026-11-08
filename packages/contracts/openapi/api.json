@@ -678,6 +678,19 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "foundationalTopics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": { "type": "string" },
+                          "label": { "type": "string" },
+                          "tags": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": ["value", "label", "tags"],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": ["items", "total", "page", "limit", "topics", "companies"],
@@ -722,7 +735,7 @@
               "type": "string",
               "maxLength": 1295
             },
-            "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
+            "description": "Comma-separated tags or values from foundationalTopics. Matches any selected value. Maximum 16 values, 80 characters each."
           },
           {
             "name": "company",

@@ -61,7 +61,12 @@ export function PracticeBrowser() {
   }, [!!catalog.data]);
   const privateIdentityError =
     search.library === "private" && actor === undefined && session.isError;
-  const { topics, companies } = catalogFacets(queryClient, actor, search, catalog.data);
+  const { topics, foundationalTopics, companies } = catalogFacets(
+    queryClient,
+    actor,
+    search,
+    catalog.data,
+  );
   const filtered = Boolean(
     search.q ||
     search.difficulty ||
@@ -126,7 +131,13 @@ export function PracticeBrowser() {
           />
         </div>
         <div className="practice-filters">
-          <CatalogFilters search={search} update={update} topics={topics} companies={companies} />
+          <CatalogFilters
+            search={search}
+            update={update}
+            topics={topics}
+            foundationalTopics={foundationalTopics}
+            companies={companies}
+          />
           {canChooseLibrary && (
             <SegmentedControl
               iconOnly
