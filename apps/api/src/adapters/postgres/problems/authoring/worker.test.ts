@@ -79,6 +79,15 @@ describe.skipIf(!url)("native worker authoring", () => {
     expect(publish.status).toBe(200);
     const result = (await publish.json()) as { publishedVersionId: string };
     expect(result.publishedVersionId).toBeTruthy();
+    const edit = await SELF.fetch(
+      `http://localhost/v1/admin/question-publications/${result.publishedVersionId}/edit`,
+      { method: "POST" },
+    );
+    expect(edit.status).toBe(201);
+    expect(await edit.json()).toMatchObject({
+      id: d.id,
+      publishedVersionId: result.publishedVersionId,
+    });
     const stale = await SELF.fetch(`http://localhost/v1/admin/question-drafts/${d.id}/publish`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -87,7 +96,12 @@ describe.skipIf(!url)("native worker authoring", () => {
     expect(stale.status).toBe(409);
     const second = await SELF.fetch("http://localhost/v1/admin/question-drafts", {
       method: "POST",
-      body: JSON.stringify({ content: question }),
+      body: JSON.stringify({
+        content: {
+          ...question,
+          problem: { ...question.problem, slug: question.problem.slug + "-second" },
+        },
+      }),
     });
     const next = (await second.json()) as { id: string; revision: string };
     const batch = await SELF.fetch("http://localhost/v1/admin/question-drafts/publish-batch", {
@@ -114,9 +128,9 @@ describe.skipIf(!url)("native worker authoring", () => {
         method: "POST",
         body: JSON.stringify({
           items: [
-            { id: result.publishedVersionId, current: true },
-            { id: publication.publishedVersionId, current: true },
-            { id: crypto.randomUUID(), current: false },
+            { id: result.publishedVersionId },
+            { id: publication.publishedVersionId },
+            { id: crypto.randomUUID() },
           ],
         }),
       },
@@ -124,7 +138,7 @@ describe.skipIf(!url)("native worker authoring", () => {
     expect(deleted.status).toBe(200);
     expect(await deleted.json()).toMatchObject({
       items: [
-        { status: "failed", code: "revision_conflict" },
+        { status: "succeeded" },
         { status: "succeeded" },
         { status: "failed", code: "not_found" },
       ],

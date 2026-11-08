@@ -312,6 +312,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-publications/{id}/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["editQuestionPublication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/question-drafts": {
         parameters: {
             query?: never;
@@ -1145,10 +1161,297 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/parties/{id}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFactionLobby"];
+        put?: never;
+        post: operations["organizeFactions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFactionSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pullFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["pushFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/presence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["presenceFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["proposeFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/vote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["voteFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/team/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelFaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        FactionLobby: {
+            teamCount: number;
+            assignments: {
+                userId: string;
+                team: number | null;
+            }[];
+            names?: string[];
+        };
+        FactionOrganize: {
+            /** @constant */
+            action: "balance";
+        } | {
+            /** @constant */
+            action: "create";
+        } | {
+            /** @constant */
+            action: "delete";
+            team: number;
+        } | {
+            /** @constant */
+            action: "rename";
+            team: number;
+            name: string;
+        } | {
+            /** @constant */
+            action: "assign";
+            userId: string;
+            team: number;
+        } | {
+            /** @constant */
+            action: "lock";
+            locked: boolean;
+        };
+        FactionPosition: {
+            epoch: string;
+            version: number;
+        };
+        FactionPresenceInput: {
+            clientID: string;
+            epoch: string;
+            version: number;
+            anchor: number;
+            head: number;
+        };
+        FactionPeer: {
+            clientID: string;
+            userId: string;
+            name: string;
+            color?: number;
+            epoch: string;
+            version: number;
+            anchor: number;
+            head: number;
+        };
+        FactionDocument: {
+            source: string;
+            version: number;
+            epoch: string;
+        };
+        FactionAction: {
+            /** @constant */
+            kind: "submit";
+            workspaceId: string;
+            level: number;
+            source: string;
+            language: string;
+            documentEpoch: string;
+            documentVersion: number;
+        } | {
+            /** @constant */
+            kind: "reveal";
+            /** @enum {string} */
+            target: "topics" | "complexity" | "case";
+            caseIndex?: number;
+            submissionId?: string;
+        } | {
+            /** @constant */
+            kind: "language";
+            language: string;
+            documentEpoch: string;
+            documentVersion: number;
+        } | {
+            /** @constant */
+            kind: "reset";
+            documentEpoch: string;
+            documentVersion: number;
+        } | {
+            /** @constant */
+            kind: "concede";
+        };
+        FactionVote: {
+            id: string;
+            proposerId: string;
+            electorate: string[];
+            ballots: {
+                [key: string]: boolean;
+            };
+            quote: {
+                action: components["schemas"]["FactionAction"];
+                ruleVersion: string;
+                cost: {
+                    seconds: number;
+                    points: number;
+                };
+            };
+            /** @enum {string} */
+            state: "pending" | "approved" | "rejected" | "expired" | "cancelled" | "executed";
+            createdAt: number;
+            expiresAt: number;
+            resolvedAt?: number;
+        };
+        FactionSnapshot: {
+            team: number;
+            workspaceId: string;
+            language: string;
+            serverNow: number;
+            document: components["schemas"]["FactionDocument"];
+            members: {
+                userId: string;
+                name: string;
+            }[];
+            votes: components["schemas"]["FactionVote"][];
+            peers: components["schemas"]["FactionPeer"][];
+            latestSubmissionId?: string;
+        };
+        FactionPropose: {
+            action: {
+                /** @constant */
+                kind: "submit";
+            } | {
+                /** @constant */
+                kind: "reveal";
+                /** @enum {string} */
+                target: "topics" | "complexity" | "case";
+                caseIndex?: number;
+                submissionId?: string;
+            } | {
+                /** @constant */
+                kind: "language";
+                language: string;
+                documentEpoch: string;
+                documentVersion: number;
+            } | {
+                /** @constant */
+                kind: "reset";
+                documentEpoch: string;
+                documentVersion: number;
+            } | {
+                /** @constant */
+                kind: "concede";
+            };
+        };
+        FactionBallot: {
+            id: string;
+            approve: boolean;
+        };
+        FactionCancel: {
+            id: string;
+        };
         AdminOverview: {
             /** Format: date-time */
             generatedAt: string;
@@ -1768,10 +2071,6 @@ export interface components {
         };
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
-        } | {
-            edit?: boolean;
-            /** Format: uuid */
-            problemVersionId: string;
         };
         UpdateQuestionDraftRequest: {
             revision: string;
@@ -2637,11 +2936,10 @@ export interface operations {
                 topic?: string;
                 companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
+                /** @description Recommended requires page 1, ascending order, and a limit of at most 20. */
                 sort?: "title" | "difficulty" | "recommended";
                 order?: "asc" | "desc";
                 page?: number;
-                /** @description Opaque continuation returned by the preceding page; use with page 1 or omit page. */
-                cursor?: string;
                 limit?: number;
                 library?: "global" | "private";
                 type?: "classic" | "odyssey";
@@ -2668,8 +2966,6 @@ export interface operations {
                         recommendationImpressions?: {
                             [key: string]: string;
                         };
-                        /** @description Opaque continuation for the same filters and ordering. */
-                        nextCursor?: string;
                         topics: string[];
                         foundationalTopics?: {
                             value: string;
@@ -2833,7 +3129,6 @@ export interface operations {
                             id: string;
                             title: string;
                             slug: string;
-                            version: string;
                             isPrivate: boolean;
                             difficulty: string;
                             isOdyssey: boolean;
@@ -2841,12 +3136,42 @@ export interface operations {
                             companies: string[];
                             isSql: boolean;
                             fromLeetCode: boolean;
-                            current: boolean;
                         }[];
                         total: number;
                         page: number;
                         limit: number;
                     };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    editQuestionPublication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Editable record for the current publication */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
                 };
             };
             /** @description Safe application error */
@@ -3151,13 +3476,6 @@ export interface operations {
                         workspaces: number;
                         matches: number;
                         submissions: number;
-                        current: boolean;
-                        replacements: {
-                            /** Format: uuid */
-                            id: string;
-                            title: string;
-                            version: string;
-                        }[];
                     };
                 };
             };
@@ -3185,8 +3503,6 @@ export interface operations {
             content: {
                 "application/json": {
                     revision: string;
-                    /** Format: uuid */
-                    replacementVersionId?: string | null;
                 };
             };
         };
@@ -4412,7 +4728,6 @@ export interface operations {
                     items: {
                         /** Format: uuid */
                         id: string;
-                        current: boolean;
                     }[];
                 };
             };
@@ -4967,6 +5282,327 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PartySnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getFactionLobby: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionLobby"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    organizeFactions: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionOrganize"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionLobby"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getFactionSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    pullFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionPosition"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewUpdates"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    pushFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InterviewUpdates"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewUpdates"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    presenceFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionPresenceInput"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionPeer"][];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    proposeFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionPropose"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionVote"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    voteFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionBallot"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionVote"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancelFaction: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FactionCancel"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FactionVote"];
                 };
             };
             /** @description Safe application error */

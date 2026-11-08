@@ -2,6 +2,661 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://quorem.local/schemas/events.v1.json",
   "$defs": {
+    "FactionLobby": {
+      "type": "object",
+      "properties": {
+        "teamCount": {
+          "type": "integer"
+        },
+        "assignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "team": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "userId",
+              "team"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "teamCount",
+        "assignments"
+      ],
+      "additionalProperties": false
+    },
+    "FactionOrganize": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "balance"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "create"
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "delete"
+            },
+            "team": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action",
+            "team"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "rename"
+            },
+            "team": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "action",
+            "team",
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "assign"
+            },
+            "userId": {
+              "type": "string"
+            },
+            "team": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "action",
+            "userId",
+            "team"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "lock"
+            },
+            "locked": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "action",
+            "locked"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FactionPosition": {
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "epoch",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "FactionPresenceInput": {
+      "type": "object",
+      "properties": {
+        "clientID": {
+          "type": "string"
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "anchor": {
+          "type": "integer"
+        },
+        "head": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clientID",
+        "epoch",
+        "version",
+        "anchor",
+        "head"
+      ],
+      "additionalProperties": false
+    },
+    "FactionPeer": {
+      "type": "object",
+      "properties": {
+        "clientID": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "anchor": {
+          "type": "integer"
+        },
+        "head": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clientID",
+        "userId",
+        "name",
+        "epoch",
+        "version",
+        "anchor",
+        "head"
+      ],
+      "additionalProperties": false
+    },
+    "FactionDocument": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "epoch": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "version",
+        "epoch"
+      ],
+      "additionalProperties": false
+    },
+    "FactionAction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "submit"
+            },
+            "workspaceId": {
+              "type": "string"
+            },
+            "level": {
+              "type": "integer"
+            },
+            "source": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            },
+            "documentEpoch": {
+              "type": "string"
+            },
+            "documentVersion": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "workspaceId",
+            "level",
+            "source",
+            "language",
+            "documentEpoch",
+            "documentVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "reveal"
+            },
+            "target": {
+              "type": "string",
+              "enum": [
+                "topics",
+                "complexity",
+                "case"
+              ]
+            },
+            "caseIndex": {
+              "type": "integer"
+            },
+            "submissionId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "language"
+            },
+            "language": {
+              "type": "string"
+            },
+            "documentEpoch": {
+              "type": "string"
+            },
+            "documentVersion": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "language",
+            "documentEpoch",
+            "documentVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "reset"
+            },
+            "documentEpoch": {
+              "type": "string"
+            },
+            "documentVersion": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "documentEpoch",
+            "documentVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "concede"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FactionVote": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "proposerId": {
+          "type": "string"
+        },
+        "electorate": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ballots": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "quote": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "$ref": "#/$defs/FactionAction"
+            },
+            "ruleVersion": {
+              "type": "string"
+            },
+            "cost": {
+              "type": "object",
+              "properties": {
+                "seconds": {
+                  "type": "integer"
+                },
+                "points": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "seconds",
+                "points"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "action",
+            "ruleVersion",
+            "cost"
+          ],
+          "additionalProperties": false
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "expired",
+            "cancelled",
+            "executed"
+          ]
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "expiresAt": {
+          "type": "number"
+        },
+        "resolvedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "proposerId",
+        "electorate",
+        "ballots",
+        "quote",
+        "state",
+        "createdAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "FactionSnapshot": {
+      "type": "object",
+      "properties": {
+        "team": {
+          "type": "integer"
+        },
+        "workspaceId": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "serverNow": {
+          "type": "number"
+        },
+        "document": {
+          "$ref": "#/$defs/FactionDocument"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "votes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FactionVote"
+          }
+        },
+        "peers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FactionPeer"
+          }
+        },
+        "latestSubmissionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "team",
+        "workspaceId",
+        "language",
+        "serverNow",
+        "document",
+        "members",
+        "votes",
+        "peers"
+      ],
+      "additionalProperties": false
+    },
+    "FactionPropose": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "submit"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "reveal"
+                },
+                "target": {
+                  "type": "string",
+                  "enum": [
+                    "topics",
+                    "complexity",
+                    "case"
+                  ]
+                },
+                "caseIndex": {
+                  "type": "integer"
+                },
+                "submissionId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "target"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "language"
+                },
+                "language": {
+                  "type": "string"
+                },
+                "documentEpoch": {
+                  "type": "string"
+                },
+                "documentVersion": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "language",
+                "documentEpoch",
+                "documentVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "reset"
+                },
+                "documentEpoch": {
+                  "type": "string"
+                },
+                "documentVersion": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "kind",
+                "documentEpoch",
+                "documentVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "const": "concede"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "FactionBallot": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "approve"
+      ],
+      "additionalProperties": false
+    },
+    "FactionCancel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
     "AdminOverview": {
       "type": "object",
       "additionalProperties": false,
@@ -26,7 +681,12 @@
         "users": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["accounts", "administrators", "disabled", "active7d"],
+          "required": [
+            "accounts",
+            "administrators",
+            "disabled",
+            "active7d"
+          ],
           "properties": {
             "accounts": {
               "type": "integer",
@@ -49,7 +709,11 @@
         "content": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["publications", "drafts", "workspaces"],
+          "required": [
+            "publications",
+            "drafts",
+            "workspaces"
+          ],
           "properties": {
             "publications": {
               "type": "integer",
@@ -68,7 +732,10 @@
         "submissions": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["retained7d", "pending"],
+          "required": [
+            "retained7d",
+            "pending"
+          ],
           "properties": {
             "retained7d": {
               "type": "integer",
@@ -86,7 +753,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "displayName", "role", "disabled", "submissions", "lastSubmittedAt"],
+            "required": [
+              "id",
+              "displayName",
+              "role",
+              "disabled",
+              "submissions",
+              "lastSubmittedAt"
+            ],
             "properties": {
               "id": {
                 "type": "string"
@@ -96,7 +770,10 @@
               },
               "role": {
                 "type": "string",
-                "enum": ["admin", "user"]
+                "enum": [
+                  "admin",
+                  "user"
+                ]
               },
               "disabled": {
                 "type": "boolean"
@@ -118,7 +795,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "title", "updatedAt", "editingPublication"],
+            "required": [
+              "id",
+              "title",
+              "updatedAt",
+              "editingPublication"
+            ],
             "properties": {
               "id": {
                 "type": "string"
@@ -140,19 +822,38 @@
     },
     "Language": {
       "type": "string",
-      "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+      "enum": [
+        "python",
+        "java",
+        "typescript",
+        "ocaml",
+        "postgresql"
+      ]
     },
     "Difficulty": {
       "type": "string",
-      "enum": ["easy", "medium", "hard"]
+      "enum": [
+        "easy",
+        "medium",
+        "hard"
+      ]
     },
     "SubmissionKind": {
       "type": "string",
-      "enum": ["run", "submit"]
+      "enum": [
+        "run",
+        "submit"
+      ]
     },
     "SubmissionState": {
       "type": "string",
-      "enum": ["queued", "running", "completed", "cancelled", "failed"]
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "cancelled",
+        "failed"
+      ]
     },
     "Verdict": {
       "type": "string",
@@ -229,17 +930,25 @@
               "additionalProperties": true
             }
           },
-          "required": ["code", "message", "requestId"],
+          "required": [
+            "code",
+            "message",
+            "requestId"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["error"],
+      "required": [
+        "error"
+      ],
       "additionalProperties": false
     },
     "InputPresetConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["preset"],
+      "required": [
+        "preset"
+      ],
       "properties": {
         "preset": {
           "type": "string",
@@ -273,7 +982,10 @@
           "type": "string"
         }
       },
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "additionalProperties": false
     },
     "Signature": {
@@ -281,7 +993,9 @@
       "properties": {
         "className": {
           "type": "string",
-          "enum": ["Solution"]
+          "enum": [
+            "Solution"
+          ]
         },
         "methodName": {
           "type": "string"
@@ -297,12 +1011,18 @@
         },
         "nodeReferences": {
           "type": "string",
-          "enum": ["arguments", "return"],
+          "enum": [
+            "arguments",
+            "return"
+          ],
           "description": "Enable call-local node references. Return mode also compares the returned node by identity."
         },
         "outputOrder": {
           "type": "string",
-          "enum": ["ordered", "unordered"],
+          "enum": [
+            "ordered",
+            "unordered"
+          ],
           "description": "Outer list comparison order. Omitted is ordered; nested lists and duplicates remain significant."
         },
         "description": {
@@ -323,12 +1043,20 @@
                 "type": "string"
               }
             },
-            "required": ["type", "description"],
+            "required": [
+              "type",
+              "description"
+            ],
             "additionalProperties": false
           }
         }
       },
-      "required": ["className", "methodName", "parameters", "returnType"],
+      "required": [
+        "className",
+        "methodName",
+        "parameters",
+        "returnType"
+      ],
       "additionalProperties": false
     },
     "ExecutionLimits": {
@@ -388,7 +1116,9 @@
           }
         }
       },
-      "required": ["args"],
+      "required": [
+        "args"
+      ],
       "additionalProperties": false
     },
     "ProblemExample": {
@@ -413,7 +1143,9 @@
           }
         }
       },
-      "required": ["args"],
+      "required": [
+        "args"
+      ],
       "additionalProperties": false
     },
     "ProblemVersion": {
@@ -512,7 +1244,13 @@
         },
         "recommendationReason": {
           "type": "string",
-          "enum": ["review", "weak_topic", "new_topic", "challenge", "practice"],
+          "enum": [
+            "review",
+            "weak_topic",
+            "new_topic",
+            "challenge",
+            "practice"
+          ],
           "description": "Practice ranking explanation; contains no other player history."
         }
       },
@@ -541,7 +1279,11 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["solo", "match", "review"]
+          "enum": [
+            "solo",
+            "match",
+            "review"
+          ]
         },
         "problemVersionId": {
           "type": "string",
@@ -559,7 +1301,12 @@
           "format": "uuid"
         }
       },
-      "required": ["id", "kind", "problemVersionId", "language"],
+      "required": [
+        "id",
+        "kind",
+        "problemVersionId",
+        "language"
+      ],
       "additionalProperties": false
     },
     "CreateReviewWorkspaceRequest": {
@@ -573,7 +1320,10 @@
           "$ref": "#/$defs/Language"
         }
       },
-      "required": ["participantUserId", "language"],
+      "required": [
+        "participantUserId",
+        "language"
+      ],
       "additionalProperties": false
     },
     "CreateWorkspaceRequest": {
@@ -587,7 +1337,10 @@
           "$ref": "#/$defs/Language"
         }
       },
-      "required": ["problemVersionId", "language"],
+      "required": [
+        "problemVersionId",
+        "language"
+      ],
       "additionalProperties": false
     },
     "CreateSubmissionRequest": {
@@ -618,7 +1371,11 @@
           "$ref": "#/$defs/RuleApproval"
         }
       },
-      "required": ["workspaceId", "kind", "source"],
+      "required": [
+        "workspaceId",
+        "kind",
+        "source"
+      ],
       "additionalProperties": false
     },
     "SubmissionAdmission": {
@@ -639,7 +1396,12 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "state", "sourceHash", "admittedAt"],
+      "required": [
+        "id",
+        "state",
+        "sourceHash",
+        "admittedAt"
+      ],
       "additionalProperties": false
     },
     "Score": {
@@ -654,7 +1416,10 @@
           "minimum": 0
         }
       },
-      "required": ["passed", "total"],
+      "required": [
+        "passed",
+        "total"
+      ],
       "additionalProperties": false
     },
     "Diagnostic": {
@@ -672,7 +1437,9 @@
           "minimum": 1
         }
       },
-      "required": ["message"],
+      "required": [
+        "message"
+      ],
       "additionalProperties": false
     },
     "PublicCaseResult": {
@@ -734,7 +1501,10 @@
           "type": "string"
         }
       },
-      "required": ["index", "status"],
+      "required": [
+        "index",
+        "status"
+      ],
       "additionalProperties": false
     },
     "HiddenCaseResult": {
@@ -746,10 +1516,17 @@
         },
         "status": {
           "type": "string",
-          "enum": ["accepted", "wrong_answer", "time_limit"]
+          "enum": [
+            "accepted",
+            "wrong_answer",
+            "time_limit"
+          ]
         }
       },
-      "required": ["index", "status"],
+      "required": [
+        "index",
+        "status"
+      ],
       "additionalProperties": false
     },
     "Submission": {
@@ -818,19 +1595,38 @@
           }
         }
       },
-      "required": ["id", "kind", "state", "sourceHash", "admittedAt", "updatedAt"],
+      "required": [
+        "id",
+        "kind",
+        "state",
+        "sourceHash",
+        "admittedAt",
+        "updatedAt"
+      ],
       "additionalProperties": false
     },
     "MatchState": {
       "type": "string",
-      "enum": ["waiting", "ready", "active", "finalizing", "completed", "cancelled"]
+      "enum": [
+        "waiting",
+        "ready",
+        "active",
+        "finalizing",
+        "completed",
+        "cancelled"
+      ]
     },
     "MatchOutcome": {
       "type": "object",
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["win", "draw", "no_contest", "cancelled"]
+          "enum": [
+            "win",
+            "draw",
+            "no_contest",
+            "cancelled"
+          ]
         },
         "winnerUserId": {
           "type": "string",
@@ -849,7 +1645,11 @@
           "maximum": 4
         }
       },
-      "required": ["kind", "reason", "completedAt"],
+      "required": [
+        "kind",
+        "reason",
+        "completedAt"
+      ],
       "additionalProperties": false
     },
     "MatchParticipant": {
@@ -875,7 +1675,10 @@
         },
         "presence": {
           "type": "string",
-          "enum": ["online", "offline"]
+          "enum": [
+            "online",
+            "offline"
+          ]
         },
         "submissionState": {
           "$ref": "#/$defs/SubmissionState"
@@ -913,7 +1716,10 @@
           "type": "array",
           "items": {
             "type": "string",
-            "enum": ["topics", "complexity"]
+            "enum": [
+              "topics",
+              "complexity"
+            ]
           }
         },
         "team": {
@@ -922,7 +1728,12 @@
           "maximum": 4
         }
       },
-      "required": ["userId", "displayName", "ready", "presence"],
+      "required": [
+        "userId",
+        "displayName",
+        "ready",
+        "presence"
+      ],
       "additionalProperties": false
     },
     "MatchSnapshot": {
@@ -948,7 +1759,12 @@
         },
         "durationMinutes": {
           "type": "integer",
-          "enum": [15, 30, 45, 60]
+          "enum": [
+            15,
+            30,
+            45,
+            60
+          ]
         },
         "participants": {
           "type": "array",
@@ -1004,7 +1820,10 @@
         },
         "questionSelection": {
           "type": "string",
-          "enum": ["random", "recommended"]
+          "enum": [
+            "random",
+            "recommended"
+          ]
         },
         "questionFilters": {
           "$ref": "#/$defs/MatchQuestionFilters"
@@ -1025,7 +1844,10 @@
         },
         "accessMode": {
           "type": "string",
-          "enum": ["accounts_only", "guests_allowed"]
+          "enum": [
+            "accounts_only",
+            "guests_allowed"
+          ]
         },
         "admissionLocked": {
           "type": "boolean"
@@ -1063,7 +1885,10 @@
     },
     "FilterMatch": {
       "type": "string",
-      "enum": ["any", "all"],
+      "enum": [
+        "any",
+        "all"
+      ],
       "description": "Match any selected value by default, or require all selected values."
     },
     "MatchQuestionFilters": {
@@ -1071,11 +1896,16 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["classic", "odyssey"]
+          "enum": [
+            "classic",
+            "odyssey"
+          ]
         },
         "sql": {
           "type": "string",
-          "enum": ["true"]
+          "enum": [
+            "true"
+          ]
         },
         "topicMatch": {
           "$ref": "#/$defs/FilterMatch"
@@ -1101,7 +1931,9 @@
           "type": "boolean"
         }
       },
-      "required": ["ready"],
+      "required": [
+        "ready"
+      ],
       "additionalProperties": false
     },
     "EventEnvelope": {
@@ -1237,10 +2069,20 @@
         },
         "projection": {
           "type": "string",
-          "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
+          "enum": [
+            "value",
+            "length",
+            "elements",
+            "sum",
+            "nodeCount",
+            "nodeValues"
+          ]
         }
       },
-      "required": ["parameter", "projection"],
+      "required": [
+        "parameter",
+        "projection"
+      ],
       "additionalProperties": false
     },
     "Constraint": {
@@ -1273,15 +2115,26 @@
                 },
                 "quantifier": {
                   "type": "string",
-                  "enum": ["all", "any"],
+                  "enum": [
+                    "all",
+                    "any"
+                  ],
                   "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
                 }
               },
               "dependentRequired": {
-                "minInclusive": ["min"],
-                "maxInclusive": ["max"]
+                "minInclusive": [
+                  "min"
+                ],
+                "maxInclusive": [
+                  "max"
+                ]
               },
-              "required": ["kind", "target", "min"],
+              "required": [
+                "kind",
+                "target",
+                "min"
+              ],
               "additionalProperties": false
             },
             {
@@ -1310,15 +2163,26 @@
                 },
                 "quantifier": {
                   "type": "string",
-                  "enum": ["all", "any"],
+                  "enum": [
+                    "all",
+                    "any"
+                  ],
                   "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
                 }
               },
               "dependentRequired": {
-                "minInclusive": ["min"],
-                "maxInclusive": ["max"]
+                "minInclusive": [
+                  "min"
+                ],
+                "maxInclusive": [
+                  "max"
+                ]
               },
-              "required": ["kind", "target", "max"],
+              "required": [
+                "kind",
+                "target",
+                "max"
+              ],
               "additionalProperties": false
             }
           ]
@@ -1338,15 +2202,29 @@
             },
             "operator": {
               "type": "string",
-              "enum": ["eq", "le", "lt", "ge", "gt"]
+              "enum": [
+                "eq",
+                "le",
+                "lt",
+                "ge",
+                "gt"
+              ]
             },
             "quantifier": {
               "type": "string",
-              "enum": ["all", "any"],
+              "enum": [
+                "all",
+                "any"
+              ],
               "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
             }
           },
-          "required": ["kind", "left", "right", "operator"],
+          "required": [
+            "kind",
+            "left",
+            "right",
+            "operator"
+          ],
           "additionalProperties": false
         },
         {
@@ -1361,15 +2239,26 @@
             },
             "property": {
               "type": "string",
-              "enum": ["sorted", "nondecreasing", "unique"]
+              "enum": [
+                "sorted",
+                "nondecreasing",
+                "unique"
+              ]
             },
             "direction": {
               "type": "string",
-              "enum": ["asc", "desc"],
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "description": "Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties."
             }
           },
-          "required": ["kind", "target", "property"],
+          "required": [
+            "kind",
+            "target",
+            "property"
+          ],
           "additionalProperties": false
         },
         {
@@ -1384,45 +2273,82 @@
               "minLength": 1
             }
           },
-          "required": ["kind", "text"],
+          "required": [
+            "kind",
+            "text"
+          ],
           "additionalProperties": false
         }
       ]
     },
     "MatchMode": {
       "type": "string",
-      "enum": ["showdown", "free-for-all", "factions"]
+      "enum": [
+        "showdown",
+        "free-for-all",
+        "factions"
+      ]
     },
     "MatchRuleAction": {
       "type": "string",
-      "enum": ["off", "warning", "announce", "penalty"]
+      "enum": [
+        "off",
+        "warning",
+        "announce",
+        "penalty"
+      ]
     },
     "MatchRuleKind": {
       "type": "string",
-      "enum": ["clipboard", "copy", "focus"]
+      "enum": [
+        "clipboard",
+        "copy",
+        "focus"
+      ]
     },
     "MatchRules": {
       "type": "object",
       "properties": {
         "victory": {
           "type": "string",
-          "enum": ["race", "high_score"]
+          "enum": [
+            "race",
+            "high_score"
+          ]
         },
         "settingsEditors": {
           "type": "string",
-          "enum": ["host", "everyone"]
+          "enum": [
+            "host",
+            "everyone"
+          ]
         },
         "clipboard": {
           "type": "string",
-          "enum": ["off", "warning", "announce", "penalty"]
+          "enum": [
+            "off",
+            "warning",
+            "announce",
+            "penalty"
+          ]
         },
         "copy": {
           "type": "string",
-          "enum": ["off", "warning", "announce", "penalty"]
+          "enum": [
+            "off",
+            "warning",
+            "announce",
+            "penalty"
+          ]
         },
         "focus": {
           "type": "string",
-          "enum": ["off", "warning", "announce", "penalty"]
+          "enum": [
+            "off",
+            "warning",
+            "announce",
+            "penalty"
+          ]
         },
         "behavioralSeconds": {
           "type": "integer",
@@ -1452,7 +2378,12 @@
               "properties": {
                 "access": {
                   "type": "string",
-                  "enum": ["blocked", "free", "announce", "penalty"]
+                  "enum": [
+                    "blocked",
+                    "free",
+                    "announce",
+                    "penalty"
+                  ]
                 },
                 "seconds": {
                   "type": "integer",
@@ -1465,7 +2396,11 @@
                   "maximum": 100
                 }
               },
-              "required": ["access", "seconds", "points"],
+              "required": [
+                "access",
+                "seconds",
+                "points"
+              ],
               "additionalProperties": false
             },
             "complexity": {
@@ -1473,7 +2408,12 @@
               "properties": {
                 "access": {
                   "type": "string",
-                  "enum": ["blocked", "free", "announce", "penalty"]
+                  "enum": [
+                    "blocked",
+                    "free",
+                    "announce",
+                    "penalty"
+                  ]
                 },
                 "seconds": {
                   "type": "integer",
@@ -1486,7 +2426,11 @@
                   "maximum": 100
                 }
               },
-              "required": ["access", "seconds", "points"],
+              "required": [
+                "access",
+                "seconds",
+                "points"
+              ],
               "additionalProperties": false
             },
             "hiddenCase": {
@@ -1494,7 +2438,12 @@
               "properties": {
                 "access": {
                   "type": "string",
-                  "enum": ["blocked", "free", "announce", "penalty"]
+                  "enum": [
+                    "blocked",
+                    "free",
+                    "announce",
+                    "penalty"
+                  ]
                 },
                 "seconds": {
                   "type": "integer",
@@ -1507,11 +2456,19 @@
                   "maximum": 100
                 }
               },
-              "required": ["access", "seconds", "points"],
+              "required": [
+                "access",
+                "seconds",
+                "points"
+              ],
               "additionalProperties": false
             }
           },
-          "required": ["topics", "complexity", "hiddenCase"],
+          "required": [
+            "topics",
+            "complexity",
+            "hiddenCase"
+          ],
           "additionalProperties": false
         },
         "submissions": {
@@ -1545,7 +2502,12 @@
               "maximum": 100
             }
           },
-          "required": ["cooldownSeconds", "freeSubmissions", "seconds", "points"],
+          "required": [
+            "cooldownSeconds",
+            "freeSubmissions",
+            "seconds",
+            "points"
+          ],
           "additionalProperties": false
         }
       },
@@ -1577,11 +2539,22 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["clipboard", "copy", "focus", "topics", "complexity", "hiddenCase", "submission"]
+          "enum": [
+            "clipboard",
+            "copy",
+            "focus",
+            "topics",
+            "complexity",
+            "hiddenCase",
+            "submission"
+          ]
         },
         "action": {
           "type": "string",
-          "enum": ["announce", "penalty"]
+          "enum": [
+            "announce",
+            "penalty"
+          ]
         },
         "occurredAt": {
           "type": "string",
@@ -1597,7 +2570,13 @@
           "type": "integer"
         }
       },
-      "required": ["id", "userId", "kind", "action", "occurredAt"],
+      "required": [
+        "id",
+        "userId",
+        "kind",
+        "action",
+        "occurredAt"
+      ],
       "additionalProperties": false
     },
     "ReportMatchRuleRequest": {
@@ -1607,17 +2586,30 @@
           "$ref": "#/$defs/MatchRuleKind"
         }
       },
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "additionalProperties": false
     },
     "LanguageImplementation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["language", "starterSource", "runtimeRevision", "harnessRevision"],
+      "required": [
+        "language",
+        "starterSource",
+        "runtimeRevision",
+        "harnessRevision"
+      ],
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml",
+            "postgresql"
+          ]
         },
         "starterSource": {
           "type": "string"
@@ -1633,11 +2625,20 @@
     "SolutionCode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["language", "source"],
+      "required": [
+        "language",
+        "source"
+      ],
       "properties": {
         "language": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml",
+            "postgresql"
+          ]
         },
         "source": {
           "type": "string",
@@ -1669,7 +2670,13 @@
         },
         "defaultLanguage": {
           "type": "string",
-          "enum": ["python", "java", "typescript", "ocaml", "postgresql"]
+          "enum": [
+            "python",
+            "java",
+            "typescript",
+            "ocaml",
+            "postgresql"
+          ]
         },
         "explanationMarkdown": {
           "type": "string"
@@ -1695,7 +2702,13 @@
     "ApproachComplexity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "timeComplexity", "spaceComplexity", "complexityNotes"],
+      "required": [
+        "id",
+        "title",
+        "timeComplexity",
+        "spaceComplexity",
+        "complexityNotes"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -1801,11 +2814,16 @@
       "properties": {
         "dialect": {
           "type": "string",
-          "enum": ["postgresql"]
+          "enum": [
+            "postgresql"
+          ]
         },
         "outputOrder": {
           "type": "string",
-          "enum": ["ordered", "unordered"]
+          "enum": [
+            "ordered",
+            "unordered"
+          ]
         },
         "tables": {
           "type": "array",
@@ -1822,7 +2840,10 @@
           }
         }
       },
-      "required": ["dialect", "outputOrder"],
+      "required": [
+        "dialect",
+        "outputOrder"
+      ],
       "additionalProperties": false
     },
     "SqlColumn": {
@@ -1848,7 +2869,10 @@
           ]
         }
       },
-      "required": ["name", "type"]
+      "required": [
+        "name",
+        "type"
+      ]
     },
     "SqlTableSchema": {
       "type": "object",
@@ -1865,7 +2889,10 @@
           }
         }
       },
-      "required": ["name", "columns"]
+      "required": [
+        "name",
+        "columns"
+      ]
     },
     "QuestionContent": {
       "type": "object",
@@ -1896,7 +2923,13 @@
           }
         }
       },
-      "required": ["problem", "hiddenCases", "attribution", "canonicalApproachId", "approaches"]
+      "required": [
+        "problem",
+        "hiddenCases",
+        "attribution",
+        "canonicalApproachId",
+        "approaches"
+      ]
     },
     "QuestionDraft": {
       "type": "object",
@@ -1926,7 +2959,12 @@
           "format": "date-time"
         }
       },
-      "required": ["id", "revision", "content", "updatedAt"]
+      "required": [
+        "id",
+        "revision",
+        "content",
+        "updatedAt"
+      ]
     },
     "QuestionDraftSummary": {
       "type": "object",
@@ -2007,7 +3045,10 @@
       "properties": {
         "facets": {
           "type": "object",
-          "required": ["topics", "companies"],
+          "required": [
+            "topics",
+            "companies"
+          ],
           "properties": {
             "topics": {
               "type": "array",
@@ -2043,34 +3084,23 @@
           "minimum": 1
         }
       },
-      "required": ["items", "total", "page", "limit"]
+      "required": [
+        "items",
+        "total",
+        "page",
+        "limit"
+      ]
     },
     "CreateQuestionDraftRequest": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "content": {
-              "$ref": "#/$defs/QuestionContent"
-            }
-          },
-          "required": ["content"]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "edit": {
-              "type": "boolean"
-            },
-            "problemVersionId": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "required": ["problemVersionId"]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/QuestionContent"
         }
+      },
+      "required": [
+        "content"
       ]
     },
     "UpdateQuestionDraftRequest": {
@@ -2085,7 +3115,10 @@
           "$ref": "#/$defs/QuestionContent"
         }
       },
-      "required": ["revision", "content"]
+      "required": [
+        "revision",
+        "content"
+      ]
     },
     "PublishQuestionDraftRequest": {
       "type": "object",
@@ -2097,11 +3130,16 @@
         },
         "visibility": {
           "type": "string",
-          "enum": ["private", "global"],
+          "enum": [
+            "private",
+            "global"
+          ],
           "description": "Private library or admin-only global publication. Omitted preserves the draft destination."
         }
       },
-      "required": ["revision"]
+      "required": [
+        "revision"
+      ]
     },
     "Capabilities": {
       "type": "object",
@@ -2159,7 +3197,10 @@
           "$ref": "#/$defs/WireValue"
         }
       },
-      "required": ["methodName", "args"],
+      "required": [
+        "methodName",
+        "args"
+      ],
       "additionalProperties": false
     },
     "OdysseyLevel": {
@@ -2188,7 +3229,12 @@
           "maxItems": 20
         }
       },
-      "required": ["title", "statementMarkdown", "methods", "examples"],
+      "required": [
+        "title",
+        "statementMarkdown",
+        "methods",
+        "examples"
+      ],
       "additionalProperties": false
     },
     "Odyssey": {
@@ -2203,7 +3249,9 @@
           "maxItems": 8
         }
       },
-      "required": ["levels"],
+      "required": [
+        "levels"
+      ],
       "additionalProperties": false
     },
     "OdysseyProgress": {
@@ -2233,12 +3281,19 @@
           "maximum": 8
         }
       },
-      "required": ["level", "completed", "levels"],
+      "required": [
+        "level",
+        "completed",
+        "levels"
+      ],
       "additionalProperties": false
     },
     "InterviewRole": {
       "type": "string",
-      "enum": ["interviewer", "interviewee"]
+      "enum": [
+        "interviewer",
+        "interviewee"
+      ]
     },
     "InterviewDocument": {
       "type": "object",
@@ -2253,7 +3308,11 @@
           "type": "string"
         }
       },
-      "required": ["source", "version", "epoch"],
+      "required": [
+        "source",
+        "version",
+        "epoch"
+      ],
       "additionalProperties": false
     },
     "InterviewUpdate": {
@@ -2267,7 +3326,10 @@
           "items": {}
         }
       },
-      "required": ["clientID", "changes"],
+      "required": [
+        "clientID",
+        "changes"
+      ],
       "additionalProperties": false
     },
     "InterviewUpdates": {
@@ -2286,7 +3348,11 @@
           }
         }
       },
-      "required": ["version", "epoch", "updates"],
+      "required": [
+        "version",
+        "epoch",
+        "updates"
+      ],
       "additionalProperties": false
     },
     "InterviewPush": {
@@ -2307,7 +3373,11 @@
           "maxItems": 32
         }
       },
-      "required": ["version", "epoch", "updates"],
+      "required": [
+        "version",
+        "epoch",
+        "updates"
+      ],
       "additionalProperties": false
     },
     "InterviewCustomQuestion": {
@@ -2338,14 +3408,19 @@
           "$ref": "#/$defs/AuthoredOdyssey"
         }
       },
-      "required": ["title", "statementMarkdown"],
+      "required": [
+        "title",
+        "statementMarkdown"
+      ],
       "allOf": [
         {
           "if": {
             "properties": {
               "odyssey": {}
             },
-            "required": ["odyssey"]
+            "required": [
+              "odyssey"
+            ]
           },
           "then": {
             "not": {
@@ -2354,16 +3429,22 @@
                   "properties": {
                     "publicCases": {}
                   },
-                  "required": ["publicCases"]
+                  "required": [
+                    "publicCases"
+                  ]
                 },
                 {
                   "properties": {
                     "privateCases": {}
                   },
-                  "required": ["privateCases"]
+                  "required": [
+                    "privateCases"
+                  ]
                 },
                 {
-                  "required": ["signature"],
+                  "required": [
+                    "signature"
+                  ],
                   "properties": {
                     "signature": {}
                   }
@@ -2376,7 +3457,10 @@
               "publicCases": {},
               "signature": {}
             },
-            "required": ["publicCases", "signature"]
+            "required": [
+              "publicCases",
+              "signature"
+            ]
           }
         }
       ],
@@ -2398,7 +3482,9 @@
           "$ref": "#/$defs/QuestionHints"
         }
       },
-      "required": ["language"],
+      "required": [
+        "language"
+      ],
       "additionalProperties": false
     },
     "InterviewMember": {
@@ -2425,7 +3511,12 @@
           "type": "boolean"
         }
       },
-      "required": ["userId", "name", "role", "guest"],
+      "required": [
+        "userId",
+        "name",
+        "role",
+        "guest"
+      ],
       "additionalProperties": false
     },
     "InterviewQuestion": {
@@ -2459,7 +3550,11 @@
           }
         }
       },
-      "required": ["problem", "language", "languages"],
+      "required": [
+        "problem",
+        "language",
+        "languages"
+      ],
       "additionalProperties": false
     },
     "InterviewSnapshot": {
@@ -2473,7 +3568,10 @@
         },
         "state": {
           "type": "string",
-          "enum": ["active", "closed"]
+          "enum": [
+            "active",
+            "closed"
+          ]
         },
         "hostId": {
           "type": "string"
@@ -2553,7 +3651,10 @@
           "$ref": "#/$defs/InterviewMonitoring"
         }
       },
-      "required": ["title", "question"],
+      "required": [
+        "title",
+        "question"
+      ],
       "additionalProperties": false
     },
     "InterviewPreview": {
@@ -2572,13 +3673,24 @@
           "$ref": "#/$defs/InterviewRole"
         }
       },
-      "required": ["title", "sessionId", "state", "role"],
+      "required": [
+        "title",
+        "sessionId",
+        "state",
+        "role"
+      ],
       "additionalProperties": false
     },
     "InterviewPresence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["clientID", "version", "epoch", "anchor", "head"],
+      "required": [
+        "clientID",
+        "version",
+        "epoch",
+        "anchor",
+        "head"
+      ],
       "properties": {
         "clientID": {
           "type": "string"
@@ -2613,7 +3725,10 @@
           "type": "string"
         }
       },
-      "required": ["interviewer", "interviewee"],
+      "required": [
+        "interviewer",
+        "interviewee"
+      ],
       "additionalProperties": false
     },
     "InterviewCaseDetail": {
@@ -2643,7 +3758,11 @@
           "type": "boolean"
         }
       },
-      "required": ["id", "case", "revealed"],
+      "required": [
+        "id",
+        "case",
+        "revealed"
+      ],
       "additionalProperties": false
     },
     "InterviewCaseResult": {
@@ -2692,7 +3811,12 @@
           "$ref": "#/$defs/CustomCase"
         }
       },
-      "required": ["index", "status", "caseId", "case"],
+      "required": [
+        "index",
+        "status",
+        "caseId",
+        "case"
+      ],
       "additionalProperties": false
     },
     "QuestionHints": {
@@ -2739,14 +3863,23 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["paste", "focus"]
+          "enum": [
+            "paste",
+            "focus"
+          ]
         },
         "occurredAt": {
           "type": "string",
           "format": "date-time"
         }
       },
-      "required": ["id", "userId", "name", "kind", "occurredAt"]
+      "required": [
+        "id",
+        "userId",
+        "name",
+        "kind",
+        "occurredAt"
+      ]
     },
     "InterviewRuleEventInput": {
       "type": "object",
@@ -2754,15 +3887,22 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["paste", "focus"]
+          "enum": [
+            "paste",
+            "focus"
+          ]
         }
       },
-      "required": ["kind"]
+      "required": [
+        "kind"
+      ]
     },
     "InterviewCommandAck": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id"],
+      "required": [
+        "id"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -2773,7 +3913,15 @@
     "InterviewSummary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "state", "hostId", "role", "problemTitle", "memberCount"],
+      "required": [
+        "id",
+        "title",
+        "state",
+        "hostId",
+        "role",
+        "problemTitle",
+        "memberCount"
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -2784,7 +3932,10 @@
         },
         "state": {
           "type": "string",
-          "enum": ["active", "closed"]
+          "enum": [
+            "active",
+            "closed"
+          ]
         },
         "hostId": {
           "type": "string"
@@ -2883,13 +4034,17 @@
           "if": {
             "anyOf": [
               {
-                "required": ["sql"],
+                "required": [
+                  "sql"
+                ],
                 "properties": {
                   "sql": {}
                 }
               },
               {
-                "required": ["odyssey"],
+                "required": [
+                  "odyssey"
+                ],
                 "properties": {
                   "odyssey": {}
                 }
@@ -2898,14 +4053,18 @@
           },
           "then": {
             "not": {
-              "required": ["signature"],
+              "required": [
+                "signature"
+              ],
               "properties": {
                 "signature": {}
               }
             }
           },
           "else": {
-            "required": ["signature"],
+            "required": [
+              "signature"
+            ],
             "properties": {
               "signature": {}
             }
@@ -2926,7 +4085,9 @@
           }
         }
       },
-      "required": ["levels"]
+      "required": [
+        "levels"
+      ]
     },
     "AuthoredOdysseyLevel": {
       "type": "object",
@@ -2961,7 +4122,13 @@
           }
         }
       },
-      "required": ["title", "statementMarkdown", "methods", "examples", "hiddenCases"],
+      "required": [
+        "title",
+        "statementMarkdown",
+        "methods",
+        "examples",
+        "hiddenCases"
+      ],
       "additionalProperties": false
     },
     "PartySettings": {
@@ -2972,7 +4139,12 @@
         },
         "durationMinutes": {
           "type": "integer",
-          "enum": [15, 30, 45, 60]
+          "enum": [
+            15,
+            30,
+            45,
+            60
+          ]
         },
         "mode": {
           "$ref": "#/$defs/MatchMode"
@@ -2988,7 +4160,10 @@
         },
         "questionSelection": {
           "type": "string",
-          "enum": ["random", "recommended"]
+          "enum": [
+            "random",
+            "recommended"
+          ]
         },
         "questionFilters": {
           "$ref": "#/$defs/MatchQuestionFilters"
@@ -3002,7 +4177,10 @@
         },
         "accessMode": {
           "type": "string",
-          "enum": ["accounts_only", "guests_allowed"]
+          "enum": [
+            "accounts_only",
+            "guests_allowed"
+          ]
         },
         "admissionLocked": {
           "type": "boolean"
@@ -3015,7 +4193,9 @@
           "type": "boolean"
         }
       },
-      "required": ["durationMinutes"],
+      "required": [
+        "durationMinutes"
+      ],
       "additionalProperties": false,
       "allOf": [
         {
@@ -3027,7 +4207,9 @@
                   "$ref": "#/$defs/Difficulty"
                 }
               },
-              "required": ["difficulty"]
+              "required": [
+                "difficulty"
+              ]
             },
             {
               "type": "object",
@@ -3042,7 +4224,9 @@
                   "uniqueItems": true
                 }
               },
-              "required": ["difficulties"]
+              "required": [
+                "difficulties"
+              ]
             },
             {
               "type": "object",
@@ -3052,7 +4236,9 @@
                   "format": "uuid"
                 }
               },
-              "required": ["selectedProblemVersionId"]
+              "required": [
+                "selectedProblemVersionId"
+              ]
             }
           ]
         }
@@ -3090,7 +4276,13 @@
           "format": "date-time"
         }
       },
-      "required": ["userId", "displayName", "ready", "online", "joinedAt"],
+      "required": [
+        "userId",
+        "displayName",
+        "ready",
+        "online",
+        "joinedAt"
+      ],
       "additionalProperties": false
     },
     "PartySnapshot": {
@@ -3117,19 +4309,31 @@
           }
         },
         "currentMatchId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uuid"
         },
         "latestMatchId": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uuid"
         },
         "countdownEndsAt": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "date-time"
         },
         "queueError": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -3159,7 +4363,9 @@
           ]
         }
       },
-      "required": ["party"],
+      "required": [
+        "party"
+      ],
       "additionalProperties": false
     },
     "PartyCreated": {
@@ -3172,7 +4378,10 @@
           "type": "string"
         }
       },
-      "required": ["party", "inviteUrl"],
+      "required": [
+        "party",
+        "inviteUrl"
+      ],
       "additionalProperties": false
     },
     "PartyJoinRequest": {
@@ -3182,7 +4391,9 @@
           "type": "string"
         }
       },
-      "required": ["token"],
+      "required": [
+        "token"
+      ],
       "additionalProperties": false
     },
     "PartyReadyRequest": {
@@ -3192,7 +4403,9 @@
           "type": "boolean"
         }
       },
-      "required": ["ready"],
+      "required": [
+        "ready"
+      ],
       "additionalProperties": false
     },
     "PresenceHeartbeatRequest": {
@@ -3203,7 +4416,9 @@
           "format": "uuid"
         }
       },
-      "required": ["windowId"],
+      "required": [
+        "windowId"
+      ],
       "additionalProperties": false
     },
     "PartyInvitation": {
@@ -3236,7 +4451,12 @@
             },
             "durationMinutes": {
               "type": "integer",
-              "enum": [15, 30, 45, 60]
+              "enum": [
+                15,
+                30,
+                45,
+                60
+              ]
             },
             "rules": {
               "$ref": "#/$defs/MatchRules"
@@ -3245,11 +4465,21 @@
               "type": "boolean"
             }
           },
-          "required": ["difficulties", "durationMinutes", "shareCodeAfterMatch"],
+          "required": [
+            "difficulties",
+            "durationMinutes",
+            "shareCodeAfterMatch"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["id", "participantCount", "capacity", "guestAllowed", "matchSetup"],
+      "required": [
+        "id",
+        "participantCount",
+        "capacity",
+        "guestAllowed",
+        "matchSetup"
+      ],
       "additionalProperties": false
     },
     "MatchReviewWorkspace": {
@@ -3263,7 +4493,10 @@
           "type": "string"
         }
       },
-      "required": ["id", "language"],
+      "required": [
+        "id",
+        "language"
+      ],
       "additionalProperties": false
     },
     "MatchReviewSubmission": {
@@ -3289,7 +4522,12 @@
           "$ref": "#/$defs/SubmissionState"
         }
       },
-      "required": ["language", "source", "verdict", "state"],
+      "required": [
+        "language",
+        "source",
+        "verdict",
+        "state"
+      ],
       "additionalProperties": false
     },
     "MatchReviewParticipant": {
@@ -3334,7 +4572,13 @@
           ]
         }
       },
-      "required": ["userId", "displayName", "own", "workspace", "submission"],
+      "required": [
+        "userId",
+        "displayName",
+        "own",
+        "workspace",
+        "submission"
+      ],
       "additionalProperties": false
     },
     "MatchReview": {
@@ -3390,13 +4634,19 @@
           "maxLength": 40
         }
       },
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "additionalProperties": false
     },
     "RuleApproval": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["ruleVersion", "seconds", "points"],
+      "required": [
+        "ruleVersion",
+        "seconds",
+        "points"
+      ],
       "properties": {
         "ruleVersion": {
           "type": "string"
@@ -3416,11 +4666,18 @@
     "RuleActionRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["topics", "complexity", "hiddenCase", "submission"]
+          "enum": [
+            "topics",
+            "complexity",
+            "hiddenCase",
+            "submission"
+          ]
         },
         "submissionId": {
           "type": "string",
@@ -3439,7 +4696,9 @@
     "RuleActionResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["quote"],
+      "required": [
+        "quote"
+      ],
       "properties": {
         "quote": {
           "type": "object",
@@ -3468,7 +4727,12 @@
             },
             "kind": {
               "type": "string",
-              "enum": ["topics", "complexity", "hiddenCase", "submission"]
+              "enum": [
+                "topics",
+                "complexity",
+                "hiddenCase",
+                "submission"
+              ]
             },
             "cooldownSeconds": {
               "type": "integer",

@@ -23,7 +23,7 @@ import type {
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
 import { object, storageProjection } from "../storage.ts";
-import { persistQuestionVersion, updateQuestionCatalogMetadata } from "../publication.ts";
+import { persistQuestionVersion } from "../publication.ts";
 import { readAuthoringQuestion } from "../private-content.ts";
 import { preserveCaseLiterals } from "../case-literals.ts";
 import { authoringQueries } from "./queries.ts";
@@ -335,7 +335,7 @@ async function editPublication(
   const { c, p } = preparePublication(raw, runtime);
   await lockIdentity(tx, str(p.slug), sourceId(p));
   const parent = await lockPublication(tx, versionId);
-  if (draft.editVersionId && (parent.token !== draft.editBase || parent.current !== versionId))
+  if (parent.current !== versionId || (draft.editVersionId && parent.token !== draft.editBase))
     throw conflict();
   if (parent.owner !== draft.ownerId || parent.slug !== p.slug)
     throw bad("Keep the published question slug and ownership");
@@ -362,7 +362,6 @@ async function editPublication(
     sql`SELECT set_config('quorem.question_replacement',${versionId}::uuid::text,true)`,
   );
   await removePublicationRow(tx, versionId);
-  await tx.execute(sql`SELECT set_config('quorem.question_replacement','',true)`);
   const replacement = stringifyLosslessJson(c);
   await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
   await persistQuestionVersion(
@@ -373,8 +372,8 @@ async function editPublication(
     parent.version,
     parent.owner,
     runtime,
-    { updateCatalog: parent.current === versionId },
   );
+  await tx.execute(sql`SELECT set_config('quorem.question_replacement','',true)`);
   return replacement;
 }
 
@@ -424,33 +423,21 @@ async function publish(
   if (privateOwner && p.leetcodeId !== undefined && p.leetcodeId !== null)
     throw bad("LeetCode IDs are reserved for global questions");
   await lockIdentity(tx, slug, sourceId(p));
-  await tx.execute(
-    sql`INSERT INTO problems(slug,owner_id) VALUES(${slug},${privateOwner}) ON CONFLICT(slug) DO NOTHING`,
-  );
   const [existing] = (
-    await tx.execute<{ id: string; owner: string | null }>(
-      sql`SELECT id::text AS id,owner_id AS owner FROM problems WHERE slug=${slug} FOR UPDATE`,
+    await tx.execute<{ id: string }>(
+      sql`INSERT INTO problems(slug,owner_id) VALUES(${slug},${privateOwner}) ON CONFLICT(slug) DO NOTHING RETURNING id::text AS id`,
     )
   ).rows;
-  if (!existing) throw new Error("problem namespace unavailable");
-  if (privateOwner ? existing.owner !== privateOwner : existing.owner !== null)
-    throw privateOwner
-      ? new ApplicationError("forbidden", "Private question namespace unavailable", 403)
-      : bad("Choose a new slug for global publication");
-  const [next] = (
-    await tx.execute<{ version: number }>(
-      sql`SELECT COALESCE(MAX(version),0)+1 AS version FROM problem_versions WHERE problem_id=${existing.id}::uuid`,
-    )
-  ).rows;
+  if (!existing) throw bad("Choose a new question slug");
   const versionId = crypto.randomUUID();
   p.id = versionId;
-  p.version = String(next.version);
+  p.version = "1";
   await persistQuestionVersion(
     tx,
     stringifyLosslessJson(c),
     existing.id,
     versionId,
-    next.version,
+    1,
     privateOwner,
     runtime,
   );
@@ -511,44 +498,12 @@ function authorizePublicationDeletion(
 /** Caller holds the publication lock and has checked ownership and step-up. */
 async function deletePublicationVersion(
   tx: Transaction,
-  actor: AuthorActor,
-  admin: boolean,
   versionId: string,
   version: Awaited<ReturnType<typeof lockPublication>>,
-  replacement: string | null | undefined,
 ): Promise<void> {
   await assertPublicationIdle(tx, versionId);
-  if (version.current === versionId) {
-    if (replacement === undefined) throw bad("Choose a replacement or unpublish the question");
-    if (replacement) {
-      const valid = (
-        await tx.execute(sql`SELECT 1 FROM problem_versions
-              WHERE id=${replacement}::uuid AND id<>${versionId}::uuid AND problem_id=${version.id}::uuid AND sealed`)
-      ).rows.length;
-      if (!valid) throw bad("Choose another published version of this question");
-      const [saved] = (
-        await tx.execute<DraftRow>(sql`
-              SELECT ${draftColumns} FROM question_drafts WHERE published_version_id=${replacement}::uuid
-              ORDER BY updated_at DESC,id LIMIT 1
-            `)
-      ).rows;
-      const raw =
-        saved?.content ??
-        (await readAuthoringQuestion(tx, actor.userId, replacement, admin, false));
-      if (raw)
-        await updateQuestionCatalogMetadata(
-          tx,
-          version.id,
-          object(content(raw).problem),
-          version.owner,
-        );
-    }
-    await tx.execute(
-      sql`UPDATE problems SET current_version_id=${replacement}::uuid WHERE id=${version.id}::uuid`,
-    );
-  } else if (replacement !== undefined) {
-    throw conflict();
-  }
+  if (version.current !== versionId) throw conflict();
+  await tx.execute(sql`UPDATE problems SET current_version_id=NULL WHERE id=${version.id}::uuid`);
   await detachPublication(tx, versionId);
   await removePublicationRow(tx, versionId);
   await tx.execute(sql`DELETE FROM problems p WHERE p.id=${version.id}::uuid
@@ -595,18 +550,9 @@ function createQuestionAuthoring(
             } else if (batch.action === "delete-drafts") {
               await deleteDraft(tx, actor, admin, id, batch.items[index].revision);
             } else {
-              const item = batch.items[index];
               const version = await lockPublication(tx, id);
               authorizePublicationDeletion(actor, admin, version.owner);
-              if ((version.current === id) !== item.current) throw conflict();
-              await deletePublicationVersion(
-                tx,
-                actor,
-                admin,
-                id,
-                version,
-                item.current ? null : undefined,
-              );
+              await deletePublicationVersion(tx, id, version);
             }
             items.push({ id, status: "succeeded" });
           } catch (error) {
@@ -630,10 +576,13 @@ function createQuestionAuthoring(
         return draftJson(await readDraft(tx, actor, admin, id));
       }, true);
     },
-    async create(actor, raw, versionId, edit = false) {
+    async create(actor, raw, versionId) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, true);
-        const target = edit && versionId ? await lockPublication(tx, versionId) : undefined;
+        if ((raw === undefined) === (versionId === undefined))
+          throw bad("Provide content or problemVersionId");
+        const target = versionId ? await lockPublication(tx, versionId) : undefined;
+        if (target && target.current !== versionId) throw missing();
         if (target && target.owner !== actor.userId && (target.owner !== null || !admin))
           throw missing();
         const source =
@@ -746,13 +695,13 @@ function createQuestionAuthoring(
         const d = await readDraft(tx, actor, admin, id);
         if (!d.publishedVersionId) throw missing();
         const version = await lockPublication(tx, d.publishedVersionId);
+        if (version.current !== d.publishedVersionId) throw missing();
         return JSON.stringify({
-          ...(await publicationImpact(tx, d.publishedVersionId, version.id)),
-          current: version.current === d.publishedVersionId,
+          ...(await publicationImpact(tx, d.publishedVersionId)),
         });
       });
     },
-    async deletePublication(actor, id, rev, replacement) {
+    async deletePublication(actor, id, rev) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, true);
         const d = await readDraft(tx, actor, admin, id, true);
@@ -761,7 +710,7 @@ function createQuestionAuthoring(
         authorizePublicationDeletion(actor, admin, d.ownerId);
         const versionId = d.publishedVersionId;
         const version = await lockPublication(tx, versionId);
-        await deletePublicationVersion(tx, actor, admin, versionId, version, replacement);
+        await deletePublicationVersion(tx, versionId, version);
         return '{"deleted":true}';
       });
     },

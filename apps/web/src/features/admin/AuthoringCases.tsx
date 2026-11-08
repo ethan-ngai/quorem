@@ -9,13 +9,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
 import {
-  createCustomDraft,
   formatTypedField,
   parseCustomDraft,
+  parseTypedField,
   parseProblemDraft,
   type CustomCaseDraft,
 } from "../editor/customCases";
 import "../editor/components/customCases.css";
+type AuthoringDraft = CustomCaseDraft & { unformatted?: string[] };
+
 export function AuthoringCases({
   content,
   onChange,
@@ -44,46 +46,57 @@ export function AuthoringCases({
     },
     [caseKey],
   );
-  const defaults = createCustomDraft({ ...p, examples: [] });
   function format(
     type: string,
     value: Parameters<typeof formatTypedField>[1],
-    fallback: string,
+    field: string,
+    unformatted: string[],
     input?: Parameters<typeof formatTypedField>[2],
   ) {
     try {
-      return formatTypedField(type, value, input);
+      const source = formatTypedField(type, value, input);
+      if (JSON.stringify(parseTypedField(type, source, input)) !== JSON.stringify(value))
+        throw new Error("Incompatible case value");
+      return source;
     } catch {
-      return fallback;
+      unformatted.push(field);
+      return JSON.stringify(value) ?? "undefined";
     }
   }
 
-  const draft = (test: QuestionContent["hiddenCases"][number]): CustomCaseDraft => ({
-    id: randomUUID(),
-    args: p.sql
-      ? [JSON.stringify(test.args[0] ?? { tables: [] })]
-      : primarySignature(p).parameters.map((parameter, index) =>
-          format(
-            parameter.type,
-            test.args[index]!,
-            defaults.args[index]!,
-            caseFieldConfig(primarySignature(p), parameter.type, parameter.input, false, {
+  const draft = (test: QuestionContent["hiddenCases"][number]): AuthoringDraft => {
+    const unformatted: string[] = [];
+    const result: AuthoringDraft = {
+      id: randomUUID(),
+      args: p.sql
+        ? [JSON.stringify(test.args[0] ?? { tables: [] })]
+        : primarySignature(p).parameters.map((parameter, index) =>
+            format(
+              parameter.type,
+              test.args[index]!,
+              `arg:${index}`,
+              unformatted,
+              caseFieldConfig(primarySignature(p), parameter.type, parameter.input, false, {
+                args: test.args,
+              }),
+            ),
+          ),
+      expectedEnabled: true,
+      expected: p.sql
+        ? JSON.stringify(test.expected ?? { rows: [] })
+        : format(
+            primarySignature(p).returnType,
+            test.expected ?? null,
+            "expected",
+            unformatted,
+            caseFieldConfig(primarySignature(p), primarySignature(p).returnType, undefined, true, {
               args: test.args,
             }),
           ),
-        ),
-    expectedEnabled: true,
-    expected: p.sql
-      ? JSON.stringify(test.expected ?? { rows: [] })
-      : format(
-          primarySignature(p).returnType,
-          test.expected ?? null,
-          defaults.expected,
-          caseFieldConfig(primarySignature(p), primarySignature(p).returnType, undefined, true, {
-            args: test.args,
-          }),
-        ),
-  });
+    };
+    if (unformatted.length) result.unformatted = unformatted;
+    return result;
+  };
   const [values, setValues] = useState(() => ({
     public: examples.map(draft),
     hidden: hiddenCases.map(draft),
@@ -91,7 +104,14 @@ export function AuthoringCases({
   useEffect(() => {
     for (const tab of ["public", "hidden"] as const) {
       const label = `${stageIndex === undefined ? "" : `Step ${stageIndex + 1}, `}${tab === "public" ? "Example" : "Private test"}`;
-      const issues = caseValidationIssues(values[tab], p, label);
+      const issues = [
+        ...caseValidationIssues(values[tab], p, label),
+        ...values[tab].flatMap((test, index) =>
+          (test.unformatted ?? []).map((field) => ({
+            message: `${label} ${index + 1}: replace the incompatible ${field === "expected" ? "expected output" : `input ${Number(field.slice(4)) + 1}`}.`,
+          })),
+        ),
+      ];
       validity.current(`${caseKey}:${tab}`, issues.length > 0, issues);
     }
   }, [values, p.sql, p.signature, p.odyssey, p.constraints, caseKey]);
@@ -101,9 +121,20 @@ export function AuthoringCases({
     ),
   );
   function change(next: CustomCaseDraft[], descriptions = explanations) {
-    setValues((current) => ({ ...current, [collection]: next }));
+    const previous = new Map(values[collection].map((item) => [item.id, item]));
+    const updated: AuthoringDraft[] = next.map((item) => {
+      const before = previous.get(item.id);
+      const unformatted = before?.unformatted?.filter((field) =>
+        field === "expected"
+          ? item.expected === before.expected
+          : item.args[Number(field.slice(4))] === before.args[Number(field.slice(4))],
+      );
+      return { ...item, unformatted };
+    });
+    setValues((current) => ({ ...current, [collection]: updated }));
     try {
-      const tests = next.map((test) =>
+      if (updated.some((item) => item.unformatted?.length)) return;
+      const tests = updated.map((test) =>
         p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p)),
       );
       if (collection === "public") {

@@ -1,7 +1,7 @@
 /** @file ports.ts @description Transactional question authoring operations. @module problems */
 import type { CatalogFilter } from "../model.ts";
 
-export type AuthoringFilters = Omit<CatalogFilter, "sort" | "cursor"> & {
+export type AuthoringFilters = Omit<CatalogFilter, "sort"> & {
   sort: "title" | "difficulty" | "updatedAt";
   source?: string;
   readiness?: string;
@@ -17,7 +17,7 @@ export type DraftMutation = { id: string; revision: string };
 export type AuthoringBatch =
   | { action: "publish"; items: (DraftMutation & { visibility: "private" | "global" })[] }
   | { action: "delete-drafts"; items: DraftMutation[] }
-  | { action: "delete-publications"; items: { id: string; current: boolean }[] };
+  | { action: "delete-publications"; items: { id: string }[] };
 
 export interface QuestionAuthoring {
   mutateBatch(actor: AuthorActor, batch: AuthoringBatch): Promise<string>;
@@ -28,7 +28,6 @@ export interface QuestionAuthoring {
     actor: AuthorActor,
     content: string | undefined,
     versionId: string | undefined,
-    edit?: boolean,
   ): Promise<string>;
   importDraft(actor: AuthorActor, content: string, preview: boolean): Promise<string>;
   importDraftBatch(
@@ -39,12 +38,7 @@ export interface QuestionAuthoring {
   update(actor: AuthorActor, id: string, revision: string, content: string): Promise<string>;
   deleteDraft(actor: AuthorActor, id: string, revision: string): Promise<string>;
   deletionImpact(actor: AuthorActor, id: string): Promise<string>;
-  deletePublication(
-    actor: AuthorActor,
-    id: string,
-    revision: string,
-    replacement: string | null | undefined,
-  ): Promise<string>;
+  deletePublication(actor: AuthorActor, id: string, revision: string): Promise<string>;
   publish(
     actor: AuthorActor,
     id: string,

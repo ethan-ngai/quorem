@@ -58,3 +58,10 @@ test('permits only the pagination contract leaf', () => {
   expect(errors).toHaveLength(3);
   expect(errors.some((error) => error.endsWith(': @quorem/contracts/pagination'))).toBe(false);
 });
+
+test('permits Zod only in the bounded JSON owner', () => {
+  expect(violations({
+    'application/json-body.ts': "import { z } from 'zod';",
+    'application/other.ts': "import { z } from 'zod';",
+  })).toHaveLength(1);
+});

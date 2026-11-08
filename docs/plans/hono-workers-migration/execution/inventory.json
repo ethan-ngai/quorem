@@ -94,6 +94,12 @@
       "registration": "apps/api/src/runtime/composition/http.ts"
     },
     {
+      "method": "POST",
+      "path": "/v1/admin/question-publications/{id}/edit",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/src/modules/problems/authoring/routes.ts"
+    },
+    {
       "method": "GET",
       "path": "/v1/capabilities",
       "packet": "10",
@@ -432,6 +438,12 @@
       "packet": "13",
       "contract": "packages/contracts/openapi/api.json",
       "registration": "apps/api/internal/httpapi/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/recommendation-feedback",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/src/modules/problems/routes.ts"
     },
     {
       "method": "GET",

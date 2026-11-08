@@ -9,7 +9,6 @@ import "./bulk-question-confirmation.css";
 type Question = {
   id: string;
   title: string;
-  version?: string | number;
   revision?: string;
   editVersionId?: string;
 };
@@ -56,7 +55,15 @@ export function BulkQuestionConfirmation({
       onOpenChange={(open) => {
         if (!open && !running) onClose();
       }}
-      title={`${publish ? "Publish" : "Delete"} ${questions.length} ${publish || scope === "drafts" ? "drafts" : "versions"}?`}
+      title={`${publish ? "Publish" : "Delete"} ${questions.length} ${
+        publish || scope === "drafts"
+          ? questions.length === 1
+            ? "draft"
+            : "drafts"
+          : questions.length === 1
+            ? "question"
+            : "questions"
+      }?`}
       descriptionHidden={publish && !updates}
       description={
         publish
@@ -65,7 +72,7 @@ export function BulkQuestionConfirmation({
             : "Choose where to publish new questions."
           : scope === "drafts"
             ? "Removes these drafts and their imported content."
-            : "Selected current versions will be unpublished. Other versions stay available."
+            : "Removes these published questions and their associated results."
       }
     >
       {publish && admin && newDrafts && (
@@ -111,9 +118,6 @@ export function BulkQuestionConfirmation({
           {visible.map((question) => (
             <li key={question.id}>
               <span>{question.title || "Untitled question"}</span>
-              {question.version !== undefined && (
-                <span className="mono-text">v{question.version}</span>
-              )}
             </li>
           ))}
         </ul>

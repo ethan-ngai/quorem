@@ -60,8 +60,10 @@ export async function saveOperation(
   hash: string,
   id: string,
   response?: unknown,
+  expires = false,
 ): Promise<void> {
+  // Document and monitoring retries expire after 24 hours; lifecycle receipts remain durable.
   await tx.execute(
-    sql`INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,response) VALUES(${user},${key},${hash},${id}::uuid,${response === undefined ? null : JSON.stringify(response)}::jsonb)`,
+    sql`INSERT INTO interview_operations(owner_id,key,fingerprint,session_id,response,expires_at) VALUES(${user},${key},${hash},${id}::uuid,${response === undefined ? null : JSON.stringify(response)}::jsonb,CASE WHEN ${expires} THEN clock_timestamp()+interval '24 hours' ELSE NULL END)`,
   );
 }

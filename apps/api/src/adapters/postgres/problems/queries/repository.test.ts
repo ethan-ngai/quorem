@@ -15,7 +15,7 @@ import { parseCatalogFilter } from "../../../../modules/problems/queries.ts";
 
 const url = process.env.QUOREM_CATALOG_TEST_DATABASE_URL;
 describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
-  it("enforces visibility, redaction, filters, cursors, sidecars and editorial gates", async () => {
+  it("enforces visibility, redaction, filters, pagination, sidecars and editorial gates", async () => {
     const parsed = new URL(url!);
     expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     expect(parsed.pathname).toBe("/quorem_hono_catalog_test");
@@ -256,14 +256,21 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         );
         expect(page.total).toBe(2);
         expect(page.items).toHaveLength(1);
-        expect(page.nextCursor).toBeTruthy();
         const next = JSON.parse(
           await queries.catalog(
             undefined,
-            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=1&cursor=${page.nextCursor}`)),
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=1&page=2`)),
           ),
         );
         expect(next.items[0].id).not.toBe(page.items[0].id);
+        const distant = JSON.parse(
+          await queries.catalog(
+            undefined,
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=9007199254740991&page=10000`)),
+          ),
+        );
+        expect(distant.items).toEqual([]);
+        expect(distant.total).toBe(2);
         expect(
           JSON.parse(
             await queries.catalog(

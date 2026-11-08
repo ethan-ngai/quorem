@@ -1,4 +1,5 @@
 /** @file routes.ts @description Workspace HTTP transport. @module workspace */
+import { jsonObjectBody } from "../../application/json-body.ts";
 import { Hono, type Context } from "hono";
 import { ApplicationError } from "../../application/error.ts";
 import { identifyRequest } from "../identity/routes.ts";
@@ -10,33 +11,7 @@ export interface WorkspaceRouteDependencies {
   repository: WorkspaceRepository;
   identify(request: Request): Promise<Principal | undefined>;
 }
-export async function body(request: Request): Promise<Record<string, unknown>> {
-  if (Number(request.headers.get("content-length")) > 4096)
-    throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-  const reader = request.body?.getReader();
-  const decoder = new TextDecoder();
-  let size = 0,
-    text = "";
-  if (reader)
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > 4096) {
-        await reader.cancel();
-        throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-      }
-      text += decoder.decode(value, { stream: true });
-    }
-  text += decoder.decode();
-  try {
-    const parsed: unknown = JSON.parse(text);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
-    return parsed as Record<string, unknown>;
-  } catch {
-    throw new ApplicationError("invalid_input", "Invalid request body", 400);
-  }
-}
+
 export function workspaceRoutes(deps: WorkspaceRouteDependencies): Hono {
   const app = new Hono();
   const actor = async (request: Request): Promise<Principal> => {
@@ -48,7 +23,7 @@ export function workspaceRoutes(deps: WorkspaceRouteDependencies): Hono {
     c.body(result, 200, { "Content-Type": "application/json; charset=utf-8" });
   app.post("/v1/workspaces", async (c) => {
     const who = await actor(c.req.raw);
-    const value = await body(c.req.raw);
+    const value = await jsonObjectBody(c.req.raw, 4096);
     if (Object.keys(value).some((key) => key !== "problemVersionId" && key !== "language"))
       throw new ApplicationError("invalid_input", "Invalid request body", 400);
     if (typeof value.problemVersionId !== "string" || !uuid.test(value.problemVersionId))

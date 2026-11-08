@@ -106,9 +106,6 @@ type Projected = {
   id: string;
   data: string;
   lossless: Uint8Array | null;
-  sortTitle: string;
-  slug: string;
-  rank: number;
 };
 function projected(row: Projected): JsonValue {
   const value = object(parseLosslessJson(row.data));
@@ -144,53 +141,8 @@ async function redactMatchTopics(
   }
   return values;
 }
-type Cursor = { title: string; slug: string; rank: number; filter: string };
-function filterKey(f: CatalogFilter): string {
-  return JSON.stringify([
-    f.query,
-    f.difficulty,
-    f.topic,
-    f.company,
-    f.sort,
-    f.order,
-    f.library,
-    f.type,
-    f.sql,
-    ...((f.topic && f.topicMatch === "all") || (f.company && f.companyMatch === "all")
-      ? [f.topicMatch === "all", f.companyMatch === "all"]
-      : []),
-  ]);
-}
-function encodeCursor(c: Cursor): string {
-  return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(c))))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-function decodeCursor(raw: string, f: CatalogFilter): Cursor {
-  try {
-    const text = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
-    const c = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(
-        Uint8Array.from(text, (x) => x.charCodeAt(0)),
-      ),
-    ) as Cursor;
-    if (
-      typeof c.title !== "string" ||
-      typeof c.slug !== "string" ||
-      !Number.isInteger(c.rank) ||
-      c.rank < 0 ||
-      c.rank > 2 ||
-      c.filter !== filterKey(f)
-    )
-      throw new Error();
-    return c;
-  } catch {
-    throw new ApplicationError("invalid_input", "Invalid question filters", 400);
-  }
-}
 const rank = sql.raw("CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END");
-const rowProjection = sql`v.id::text AS id,${projection}::text AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank`;
+const rowProjection = sql`v.id::text AS id,${projection}::text AS data,v.lossless_public AS lossless`;
 async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: CatalogFilter) {
   const account = f.sort === "recommended" && actor && !actor.guestScope ? actor.userId : undefined;
   const where = sql`${catalogWhere(actor, f)}${
@@ -200,8 +152,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       AND r.dismissed_at>statement_timestamp()-interval '7 days')`
         : sql``
     }`,
-    visibility = catalogVisibility(actor, f.library),
-    cursor = f.cursor ? decodeCursor(f.cursor, f) : undefined;
+    visibility = catalogVisibility(actor, f.library);
   const [{ total }] = (
     await tx.execute<{ total: string }>(
       sql`SELECT count(*)::text AS total FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE ${where}`,
@@ -212,13 +163,8 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     f.sort === "difficulty"
       ? sql`${rank} ${direction}, lower(v.title) ${direction}, p.slug ${direction}`
       : sql`lower(v.title) ${direction}, p.slug ${direction}`;
-  const comparator = sql.raw(f.order === "asc" ? ">" : "<");
-  const after = cursor
-    ? f.sort === "difficulty"
-      ? sql`AND (${rank},lower(v.title),p.slug) ${comparator} (${cursor.rank},${cursor.title},${cursor.slug})`
-      : sql`AND (lower(v.title),p.slug) ${comparator} (${cursor.title},${cursor.slug})`
-    : sql``;
-  const offset = cursor ? 0 : (f.page - 1) * f.limit;
+  const requestedOffset = BigInt(f.page - 1) * BigInt(f.limit);
+  const offset = (requestedOffset > BigInt(total) ? BigInt(total) : requestedOffset).toString();
   const context =
     f.sort === "recommended"
       ? await recommendationContext(tx, account ? [account] : [])
@@ -245,28 +191,24 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
           await learningQuestions(tx, ids),
           context,
           Date.now(),
-          offset + f.limit,
+          f.limit,
           explore,
         );
       })()
     : undefined;
-  const recommendedIds = recommendations
-    ?.slice(offset, offset + f.limit)
-    .map((item) => item.question.id);
+  const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
   const rows = (
     await tx.execute<Projected>(
       recommendedIds
         ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
-        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
+        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ORDER BY ${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
   if (recommendedIds) {
     const positions = new Map(recommendedIds.map((id, index) => [id, index]));
     rows.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!);
   }
-  const more = rows.length > f.limit,
-    items = rows.slice(0, f.limit);
-  const last = items.at(-1);
+  const items = rows;
   const topicRows = (
     await tx.execute<{ tag: string; value: string | null; label: string | null }>(
       sql`WITH visible_tags AS (
@@ -313,20 +255,12 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     ),
     companies,
   };
-  if (more && last)
-    result.nextCursor = encodeCursor({
-      title: last.sortTitle,
-      slug: last.slug,
-      rank: last.rank,
-      filter: filterKey(f),
-    });
   return {
     result,
     account,
     ids: items.map((row) => row.id),
     model: context?.modelId ?? null,
     explore,
-    offset,
   };
 }
 async function byValue(
@@ -340,7 +274,7 @@ async function byValue(
     : sql`p.slug=${value} AND v.id=p.current_version_id`;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
     )
   ).rows;
   return rows.length
@@ -355,7 +289,7 @@ export async function projectAuthorizedVersion(
 ): Promise<string | null> {
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE v.id::text=${id} LIMIT 1`,
     )
   ).rows;
   return rows.length
@@ -452,7 +386,7 @@ export function problemQueries(run: ReadScope): ProblemQueries {
       const account = page.account;
       if (account && page.ids.length)
         page.result.recommendationImpressions = await write((tx) =>
-          impressionIds(tx, account, page.ids, page.offset, page.model, page.explore),
+          impressionIds(tx, account, page.ids, page.model, page.explore),
         );
       return stringifyLosslessJson(page.result);
     },

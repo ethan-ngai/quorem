@@ -10,7 +10,9 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "wrangler": "catalog:",
+    "zod": "4.6.7"
   },
   "engines": {
     "node": "24.21.0"

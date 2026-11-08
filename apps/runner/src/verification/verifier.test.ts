@@ -281,3 +281,60 @@ void test("verification service rejects unusable configuration before listening"
     /Invalid verifier signing key/,
   );
 });
+
+void test("native verifier aborts work when the response peer disconnects", async () => {
+  const { createServer, request } = await import("node:http");
+  const { verificationHandler } = await import("./http.ts");
+  const credential = new Uint8Array(32).fill(9);
+  let started!: () => void, aborted!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const stopped = new Promise<void>((resolve) => {
+    aborted = resolve;
+  });
+  const server = createServer(
+    verificationHandler({
+      credential,
+      timeoutMs: 5000,
+      async verify(_challenge, signal) {
+        started();
+        await new Promise<void>((resolve) =>
+          signal.addEventListener(
+            "abort",
+            () => {
+              aborted();
+              resolve();
+            },
+            { once: true },
+          ),
+        );
+        throw new Error("aborted");
+      },
+    }),
+  );
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const req = request({
+    host: "127.0.0.1",
+    port: address.port,
+    method: "POST",
+    path: "/internal/results/verify",
+    headers: { authorization: `Bearer ${Buffer.from(credential).toString("hex")}` },
+  });
+  req.on("error", () => {});
+  req.end('{"challenge":"fixture"}');
+  try {
+    await ready;
+    req.destroy();
+    await Promise.race([
+      stopped,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("abort missing")), 1000)),
+    ]);
+  } finally {
+    server.close();
+    await once(server, "close");
+  }
+});

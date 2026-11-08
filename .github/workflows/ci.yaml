@@ -65,7 +65,7 @@ jobs:
       - run: vp -C apps/api run test
       - run: vp -C apps/api run test:workers
       - name: Portable runner transport and stream lifetimes
-        run: vp -C apps/runner exec node --test src/queue/http.test.ts src/sandbox/remote.test.ts src/engine/stream-lifetime.test.ts src/drains/http.test.ts src/drains/drain.test.ts src/verification/fetch.test.ts src/engine/execute.test.ts
+        run: vp -C apps/runner exec node --test src/queue/http.test.ts src/sandbox/remote.test.ts src/engine/stream-lifetime.test.ts src/drains/http.test.ts src/drains/drain.test.ts src/verification/fetch.test.ts src/verification/verifier.test.ts src/engine/execute.test.ts
       - name: Canonical questions and identity runtime tests
         run: |
           vp -C packages/questions run typecheck
@@ -190,6 +190,7 @@ jobs:
           PROFILE_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_profile_test?sslmode=disable
       - run: vp -C apps/web test
       - run: vp node --test scripts/marketing-dev.test.mjs
+      - run: python3 -m unittest discover -s scripts -p import_leetcode_fixtures_test.py
       - run: vp run build
       - name: Canonical operator and migration fixtures
         env:
@@ -252,13 +253,13 @@ jobs:
         run: |
           node scripts/hono-stage-validation.mjs
           node scripts/hono-recovery-validation.mjs
-          node --test scripts/hono-production-terraform.test.mjs scripts/hono-native-image-reuse.test.mjs scripts/hono-production-private-workers.test.mjs
+          node --test scripts/hono-production-state.test.mjs scripts/hono-production-terraform.test.mjs scripts/hono-native-image-reuse.test.mjs scripts/hono-production-private-workers.test.mjs
           node --import ./deploy/test-register.mjs --test deploy/case-sandbox.test.mjs deploy/hono/services/*.test.mjs
       - run: node scripts/build-hono-service-workers.mjs
       - run: node --test scripts/hono-service-workers.test.mjs scripts/judging-workload-benchmark.test.mjs scripts/hono-production-workload-actors.test.mjs scripts/hono-judging-release.test.mjs
       - name: Isolated Terraform module contracts
         run: |
-          for stack in hono-bootstrap hono-stage hono-services; do
+          for stack in app hono-bootstrap hono-stage hono-services; do
             terraform -chdir=infra/terraform/$stack fmt -check -recursive
             terraform -chdir=infra/terraform/$stack init -backend=false -input=false
             terraform -chdir=infra/terraform/$stack validate

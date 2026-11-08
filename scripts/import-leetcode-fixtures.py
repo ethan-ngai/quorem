@@ -65,18 +65,27 @@ def read_manifest(directory):
 
 
 def draft_index(base, user):
-    cursor, seen, index = '', set(), {}
+    page_number, limit, seen, index = 1, 50, set(), {}
+    total = None
     while True:
-        query = '?cursor=' + urllib.parse.quote(cursor) if cursor else ''
-        page = request(base, user, 'GET', '/v1/admin/question-drafts' + query)
+        query = urllib.parse.urlencode({'page': page_number, 'limit': limit, 'sort': 'title', 'order': 'asc'})
+        page = request(base, user, 'GET', '/v1/admin/question-drafts?' + query)
+        if page['page'] != page_number or page['limit'] != limit:
+            raise ValueError('unexpected draft page')
+        if total is None:
+            total = page['total']
+        if total != page['total']:
+            raise ValueError('draft catalog changed during pagination')
         for item in page['items']:
+            if item['id'] in seen:
+                raise ValueError('draft catalog changed during pagination')
+            seen.add(item['id'])
             index.setdefault(item['slug'], []).append(item)
-        cursor = page.get('nextCursor') or ''
-        if not cursor:
+        if len(seen) == total:
             return index
-        if cursor in seen:
-            raise ValueError('draft pagination repeated cursor')
-        seen.add(cursor)
+        if len(page['items']) != limit or len(seen) > total:
+            raise ValueError('draft catalog changed during pagination')
+        page_number += 1
 
 
 def same_fixture(actual, expected):

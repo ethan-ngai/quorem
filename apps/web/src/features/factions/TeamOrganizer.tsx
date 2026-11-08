@@ -20,8 +20,7 @@ import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useState, type ReactNode } from "react";
 import type { PartySnapshot } from "@quorem/contracts";
-import type { TeamLobby } from "@quorem/contracts/factions";
-import { partyRequest } from "../matches/party";
+import { organizeFactions } from "./api";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { PartyMemberReadiness } from "../matches/PartyReadyStatus";
 import "./factions.css";
@@ -58,7 +57,7 @@ export function TeamOrganizer({
     setLockPending(body.action === "lock");
     setError(undefined);
     try {
-      const next = await partyRequest<TeamLobby>(`/v1/parties/${party.id}/teams`, "POST", body);
+      const next = await organizeFactions(party.id, body);
       client.setQueryData(["party-teams", party.id], next);
       await client.invalidateQueries({ queryKey: ["current-party"] });
       return true;

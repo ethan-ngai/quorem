@@ -1134,6 +1134,7 @@ export const submissions = pgTable(
     match_sequence: bigint({ mode: "bigint" }),
     odyssey_level: integer(),
     custom_run: boolean().default(false).notNull(),
+    practice_assisted: boolean().default(false).notNull(),
     interview_id: uuid(),
     result_payload: bytea("result_payload"),
     lossless_cases: bytea("lossless_cases"),
@@ -1539,6 +1540,7 @@ export const interview_operations = pgTable(
     fingerprint: text().notNull(),
     session_id: uuid().notNull(),
     response: jsonb(),
+    expires_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
@@ -1552,6 +1554,9 @@ export const interview_operations = pgTable(
       name: "interview_operations_session_id_fkey",
     }).onDelete("cascade"),
     primaryKey({ columns: [table.owner_id, table.key], name: "interview_operations_pkey" }),
+    index("interview_operations_expiry")
+      .on(table.expires_at)
+      .where(sql`${table.expires_at} IS NOT NULL`),
   ],
 );
 

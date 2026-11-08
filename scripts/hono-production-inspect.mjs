@@ -1,27 +1,55 @@
-/** @file hono-production-inspect.mjs @description Read-only production cutover inventory. @module deployment */
+/** @file hono-production-inspect.mjs @description Read-only inventory of the active production deployment. @module deployment */
 import { createRequire } from "node:module";
-import { productionState } from "./hono-production-state.mjs";
+import { z } from "zod";
+import { activeProduction } from "./hono-production-state.mjs";
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
 );
+const worker = "quorem-hono-production";
+const settingsSchema = z.object({
+  result: z.object({
+    bindings: z.array(
+      z.object({ name: z.string(), type: z.string(), text: z.string().optional() }),
+    ),
+  }),
+});
+const publicFlags = [
+  "AUTH_MODE",
+  "AUTH_LOGIN_ONLY",
+  "AUTH_EMAIL_DRIVER",
+  "AUTH_PASSKEYS",
+  "AUTH_ORIGIN",
+  "PROFILE_STORAGE_DRIVER",
+];
 try {
-  const settingsResponse = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/quorem-hono-production/settings`,
+  const { database } = activeProduction(process.env);
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${worker}/settings`,
     {
       headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+      redirect: "error",
       signal: AbortSignal.timeout(15000),
     },
   );
-  if (settingsResponse.ok) {
-    const settings = await settingsResponse.json();
-    console.log(JSON.stringify({
-      nativeWorkerBindings: (settings.result?.bindings ?? []).map(({ name, type }) => ({ name, type })),
-    }));
-  } else await settingsResponse.body?.cancel();
-  const { states, resource, worker, runtime, databaseURL } = productionState(process.env);
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new Error("Native Worker settings unavailable");
+  }
+  const settings = settingsSchema.safeParse(await response.json());
+  if (!settings.success) throw new Error("Native Worker settings unavailable");
+  const bindings = settings.data.result.bindings;
+  const runtime = new Map(
+    bindings.filter(({ type }) => type === "plain_text").map(({ name, text }) => [name, text]),
+  );
+  if (
+    runtime.get("APP_ENV") !== "production" ||
+    runtime.get("AUTH_ORIGIN") !== "https://quorem.app"
+  )
+    throw new Error("Unexpected production Worker");
+  database.search = "?sslmode=verify-full";
   const client = new Client({
-    connectionString: databaseURL,
-    connectionTimeoutMillis: 10000,
+    connectionString: database.href,
+    connectionTimeoutMillis: 5000,
     query_timeout: 15000,
   });
   await client.connect();
@@ -78,46 +106,17 @@ try {
         "SELECT current_user AS operator,pg_get_userbyid(datdba) AS owner FROM pg_database WHERE datname=current_database()",
       )
     ).rows[0];
-    const runtimeFlags = Object.fromEntries(
-      Object.entries(runtime).filter(([key]) =>
-        [
-          "AUTH_MODE",
-          "AUTH_LOGIN_ONLY",
-          "AUTH_EMAIL_DRIVER",
-          "AUTH_PASSKEYS",
-          "AUTH_ORIGIN",
-          "PROFILE_STORAGE_DRIVER",
-        ].includes(key),
-      ),
-    );
-    const routes = (states.app.resources ?? [])
-      .filter((item) => item.type === "cloudflare_workers_route")
-      .flatMap((item) =>
-        item.instances.map((instance) => ({
-          pattern: instance.attributes.pattern,
-          script: instance.attributes.script,
-        })),
-      );
     console.log(
       JSON.stringify({
-        worker: worker.name,
-        database: new URL(databaseURL).pathname.slice(1),
+        worker,
+        database: database.pathname.slice(1),
         counts,
         migrations,
         jobs,
         photos,
         roles,
-        runtimeFlags,
-        runtimeKeys: Object.keys(runtime).sort(),
-        routes,
-        containers: ["container", "judge_container", "fast_judge_container", "case_container"].map(
-          (name) => ({ name, id: resource("restapi_object", name)?.id }),
-        ),
-        secretContinuity: {
-          auth: runtime.BETTER_AUTH_SECRET === process.env.BETTER_AUTH_SECRET,
-          internal: runtime.AUTH_INTERNAL_SECRET === process.env.AUTH_INTERNAL_SECRET,
-          invite: runtime.QUOREM_INVITE_KEY === process.env.QUOREM_INVITE_KEY,
-        },
+        runtimeFlags: Object.fromEntries(publicFlags.map((name) => [name, runtime.get(name)])),
+        bindings: bindings.map(({ name, type }) => ({ name, type })),
       }),
     );
     await client.query("ROLLBACK");
@@ -128,9 +127,14 @@ try {
   console.error(
     JSON.stringify({
       error: "production-inspection-failed",
-      diagnostic: error.diagnostic,
       code: /^[A-Z0-9]{5}$/.test(error?.code ?? "") ? error.code : undefined,
-      reason: ["Invalid production backend", "Production identity mismatch"].includes(error.message)
+      reason: [
+        "Invalid Terraform backend identity",
+        "Native production state is not active",
+        "Unexpected production database",
+        "Native Worker settings unavailable",
+        "Unexpected production Worker",
+      ].includes(error.message)
         ? error.message
         : undefined,
     }),
