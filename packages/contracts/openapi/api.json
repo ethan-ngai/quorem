@@ -1178,6 +1178,37 @@
         }
       }
     },
+    "/v1/admin/question-publications/{id}/edit": {
+      "post": {
+        "operationId": "editQuestionPublication",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Editable record for the current publication",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuestionDraft" }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/question-drafts": {
       "get": {
         "operationId": "listQuestionDrafts",
@@ -7540,29 +7571,14 @@
         "required": ["items", "total", "page", "limit"]
       },
       "CreateQuestionDraftRequest": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "content": {
-                "$ref": "#/components/schemas/QuestionContent"
-              }
-            },
-            "required": ["content"]
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "problemVersionId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            },
-            "required": ["problemVersionId"]
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/QuestionContent"
           }
-        ]
+        },
+        "required": ["content"]
       },
       "UpdateQuestionDraftRequest": {
         "type": "object",

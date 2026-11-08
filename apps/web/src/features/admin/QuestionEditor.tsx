@@ -28,6 +28,7 @@ import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences
 import { useTheme } from "../editor/useTheme";
 import {
   createDraft,
+  editPublicationDraft,
   deleteQuestionPublication,
   fetchDeletionImpact,
   getDraft,
@@ -98,8 +99,7 @@ function QuestionSelection({
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    queryFn: () =>
-      publication ? createDraft({ problemVersionId: publication }) : getDraft(draft!),
+    queryFn: () => (publication ? editPublicationDraft(publication) : getDraft(draft!)),
   });
   if (draft || publication) {
     if (question.isPending || question.isFetching)
@@ -360,7 +360,7 @@ function AuthoringWorkspace({
                 disabled={busy || bulkRunning}
                 onClick={() =>
                   void perform(
-                    () => createDraft({ content: blankQuestion() }),
+                    () => createDraft(blankQuestion()),
                     "Draft created.",
                     "Could not create the draft.",
                   )

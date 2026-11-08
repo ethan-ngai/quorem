@@ -312,6 +312,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/question-publications/{id}/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["editQuestionPublication"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/question-drafts": {
         parameters: {
             query?: never;
@@ -2055,9 +2071,6 @@ export interface components {
         };
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
-        } | {
-            /** Format: uuid */
-            problemVersionId: string;
         };
         UpdateQuestionDraftRequest: {
             revision: string;
@@ -3128,6 +3141,37 @@ export interface operations {
                         page: number;
                         limit: number;
                     };
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    editQuestionPublication: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Editable record for the current publication */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionDraft"];
                 };
             };
             /** @description Safe application error */

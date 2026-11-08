@@ -532,7 +532,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           { ...global, globalAllowed: false },
           {
             action: "delete-publications",
-            items: [{ id: first.publishedVersionId, current: true }],
+            items: [{ id: first.publishedVersionId }],
           },
         ),
       );
@@ -624,7 +624,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         [active, owner, workspace],
       );
       await expect(
-        repository.deletePublication(global, edited.id, edited.revision, null),
+        repository.deletePublication(global, edited.id, edited.revision),
       ).rejects.toMatchObject({ code: "revision_conflict" });
       await expect(
         repository.update(global, edited.id, edited.revision, JSON.stringify(changed)),
@@ -647,7 +647,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       await expect(
         repository.deleteDraft(global, afterDrain.id, afterDrain.revision),
       ).rejects.toMatchObject({ code: "revision_conflict" });
-      await repository.deletePublication(global, afterDrain.id, afterDrain.revision, null);
+      await repository.deletePublication(global, afterDrain.id, afterDrain.revision);
       expect(await recommendationCounts()).toEqual({
         events: 0,
         exposures: 0,

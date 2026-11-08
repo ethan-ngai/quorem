@@ -62,13 +62,12 @@ it("requires identity and validates input without elevating routine publishing",
   });
   expect(response.status).toBe(201);
   expect(await response.text()).toContain("1e309");
-  response = await app.request("/v1/admin/question-drafts", {
+  response = await app.request(`/v1/admin/question-publications/${id}/edit`, {
     method: "POST",
-    body: JSON.stringify({ problemVersionId: id }),
   });
   expect(response.status).toBe(201);
   expect(await response.json()).toEqual({ versionId: id });
-  for (const obsolete of [{ edit: true }, { content: {} }]) {
+  for (const obsolete of [{}, { edit: true }, { content: {} }]) {
     response = await app.request("/v1/admin/question-drafts", {
       method: "POST",
       body: JSON.stringify({ problemVersionId: id, ...obsolete }),

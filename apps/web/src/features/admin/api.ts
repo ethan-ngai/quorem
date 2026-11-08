@@ -22,13 +22,17 @@ export async function listDrafts(
   return requireData(data, error);
 }
 
-/** @returns A fresh mutable draft or a clone of an immutable publication. */
-export async function createDraft(
-  body:
-    | { content: QuestionContent; problemVersionId?: never }
-    | { problemVersionId: string; content?: never },
-) {
-  const { data, error } = await api().POST("/v1/admin/question-drafts", { body });
+/** @returns A new unpublished question draft. */
+export async function createDraft(content: QuestionContent) {
+  const { data, error } = await api().POST("/v1/admin/question-drafts", { body: { content } });
+  return requireData(data, error);
+}
+
+/** @returns The editable record for an existing publication. */
+export async function editPublicationDraft(id: string) {
+  const { data, error } = await api().POST("/v1/admin/question-publications/{id}/edit", {
+    params: { path: { id } },
+  });
   return requireData(data, error);
 }
 
@@ -183,11 +187,6 @@ export async function mutateQuestionBatch(
         : await api().POST("/v1/admin/question-publications/delete-batch", {
             body: { items: batch.items },
           });
-  if (result.response.status === 404)
-    throw new ApiError(
-      "Bulk actions are unavailable on this server. Try again after it updates.",
-      "batch_unavailable",
-    );
   return requireData(result.data, result.error);
 }
 

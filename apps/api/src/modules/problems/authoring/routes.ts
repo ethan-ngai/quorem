@@ -27,10 +27,7 @@ const content = z.custom<{ [key: string]: JsonValue }>(
   (value) =>
     !!value && typeof value === "object" && !Array.isArray(value) && !(value instanceof JsonNumber),
 );
-const createDraft = z.union([
-  z.strictObject({ content }),
-  z.strictObject({ problemVersionId: idSchema }),
-]);
+const createDraft = z.strictObject({ content });
 const saveDraft = z.strictObject({ revision, content });
 const visibility = z.enum(["private", "global"]);
 const publishDraft = z.strictObject({
@@ -115,6 +112,12 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const p = await principal(c.req.raw);
     return json(c, await deps.authoring.publications(p, filters(c.req.url)));
   });
+  app.post("/v1/admin/question-publications/:id/edit", async (c) => {
+    const p = await principal(c.req.raw);
+    const id = c.req.param("id");
+    parse(idSchema, id, "Invalid publication ID");
+    return json(c, await deps.authoring.create(p, undefined, id), 201);
+  });
   app.get("/v1/admin/question-drafts", async (c) => {
     const p = await principal(c.req.raw);
     return json(c, await deps.authoring.list(p, filters(c.req.url)));
@@ -127,16 +130,10 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   });
   app.post("/v1/admin/question-drafts", async (c) => {
     const p = await principal(c.req.raw);
-    const req = parse(
-      createDraft,
-      await body(c.req.raw, (2 << 20) + 1024),
-      "Provide content or problemVersionId",
-    );
+    const req = parse(createDraft, await body(c.req.raw, (2 << 20) + 1024));
     return json(
       c,
-      "content" in req
-        ? await deps.authoring.create(p, stringifyLosslessJson(req.content), undefined)
-        : await deps.authoring.create(p, undefined, req.problemVersionId),
+      await deps.authoring.create(p, stringifyLosslessJson(req.content), undefined),
       201,
     );
   });

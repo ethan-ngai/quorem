@@ -3092,32 +3092,15 @@
       ]
     },
     "CreateQuestionDraftRequest": {
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "content": {
-              "$ref": "#/$defs/QuestionContent"
-            }
-          },
-          "required": [
-            "content"
-          ]
-        },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "problemVersionId": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "required": [
-            "problemVersionId"
-          ]
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/QuestionContent"
         }
+      },
+      "required": [
+        "content"
       ]
     },
     "UpdateQuestionDraftRequest": {
