@@ -25,17 +25,17 @@ export function matchSubmissionDeadline(match: SQL) {
     ),0)::double precision))) ELSE ${match}.deadline END`;
 }
 
-/** Caller holds the match lock and uses the admission timestamp sampled under that lock. */
+/** Caller holds the match lock. Submission admission supplies its persisted timestamp. */
 export async function requireSubmissionTime(
   tx: Transaction,
   match: string,
   subject: string,
-  admittedAt: string,
   additionalSeconds: number,
+  admittedAt?: string,
 ) {
   const [window] = (
     await tx.execute<{ open: boolean }>(sql`
-      SELECT ${admittedAt}::timestamptz + make_interval(secs => ${additionalSeconds} + COALESCE((
+      SELECT COALESCE(${admittedAt ?? null}::timestamptz, clock_timestamp()) + make_interval(secs => ${additionalSeconds} + COALESCE((
         SELECT sum(e.seconds) FROM match_rule_events e
         WHERE e.match_id=m.id AND e.competitor_id=${subject} AND e.seconds>0 AND ${effectiveEvent(sql`e`)}
       ),0)::double precision) < m.deadline AS open
@@ -43,7 +43,13 @@ export async function requireSubmissionTime(
     `)
   ).rows;
   if (!window?.open)
-    throw new ApplicationError("invalid_transition", "Your submission time has ended", 409);
+    throw new ApplicationError(
+      "invalid_transition",
+      additionalSeconds > 0
+        ? "The time penalty must be less than your remaining submission time"
+        : "Your submission time has ended",
+      409,
+    );
 }
 export async function competitiveSubject(tx: Transaction, match: string, actor: string) {
   const row = (

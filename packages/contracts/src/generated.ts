@@ -1394,8 +1394,6 @@ export interface components {
             adjustedScore?: number;
             /** Format: date-time */
             cooldownUntil?: string;
-            /** Format: date-time */
-            eligibleFinishAt?: string;
             revealedAssistance?: ("topics" | "complexity")[];
             team?: number;
         };

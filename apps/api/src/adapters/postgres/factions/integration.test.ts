@@ -257,6 +257,25 @@ test("direct paid reveal cannot bypass team vote", async () => {
   const vote = (await live.command(user("a"), match, "reveal-proposal", "propose", {
     action: { kind: "reveal", target: "topics" },
   })) as any;
+  const originalDeadline = (
+    await pool.query("SELECT deadline::text FROM matches WHERE id=$1", [match])
+  ).rows[0].deadline;
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+make_interval(secs=>$2) WHERE id=$1",
+    [match, vote.quote.cost.seconds + 10],
+  );
+  await expect(
+    live.command(user("b"), match, "reveal-approve", "vote", { id: vote.id, approve: true }),
+  ).rejects.toThrow("time penalty must be less than your remaining submission time");
+  const saved = await pool.query("SELECT vote FROM team_votes WHERE id=$1", [vote.id]);
+  expect(saved.rows[0].vote).toMatchObject({ state: "pending", ballots: { [ids.a!]: true } });
+  expect(saved.rows[0].vote.ballots).not.toHaveProperty(ids.b!);
+  const charged = await pool.query(
+    "SELECT 1 FROM match_rule_events WHERE match_id=$1 AND kind='topics'",
+    [match],
+  );
+  expect(charged.rows).toHaveLength(0);
+  await pool.query("UPDATE matches SET deadline=$2 WHERE id=$1", [match, originalDeadline]);
   await live.command(user("b"), match, "reveal-approve", "vote", { id: vote.id, approve: true });
   expect(
     (

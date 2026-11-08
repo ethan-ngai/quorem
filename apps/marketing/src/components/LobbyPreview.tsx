@@ -1,7 +1,7 @@
 import { matchPreset } from "@quorem/contracts/match-rules";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MatchSettings } from "../../../web/src/features/matches/MatchControls";
-import { SelfIndicator } from "../../../web/src/ui/SelfIndicator";
+import { ParticipantHost } from "../../../web/src/features/collaboration/ParticipantName";
 import { ModeIcon } from "../../../web/src/features/matches/ModeIcon";
 const catalog = [{ id: "two-sum-preview", title: "Two Sum", difficulty: "easy" }];
 const settings = {
@@ -31,9 +31,9 @@ export default function LobbyPreview() {
             <div className="competitive-seat" key={name}>
               <span className="participant-avatar">{i === 3 ? "+" : name[0]}</span>
               <div>
-                <strong>
+                <strong className="participant-name">
                   {name}
-                  {i === 0 && <SelfIndicator focusable={false} />}
+                  {i === 0 && <ParticipantHost />}
                 </strong>
                 <span>{i === 0 ? "Host" : i === 3 ? "Invite a friend" : "Player"}</span>
               </div>

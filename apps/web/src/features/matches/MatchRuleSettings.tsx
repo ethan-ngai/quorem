@@ -284,7 +284,7 @@ export function MatchRuleSettingsControls({
           <Tooltip
             content={
               value.victory === "race"
-                ? "First correct submission after time penalties wins. Highest eligible score wins at the time limit."
+                ? "First correct submission wins. Time penalties shorten submission time. Highest score wins at the time limit."
                 : "Play until time runs out. Your best test score minus point penalties decides the winner."
             }
           >
