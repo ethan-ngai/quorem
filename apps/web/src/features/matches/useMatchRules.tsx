@@ -23,10 +23,14 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
       (kind, action) => {
         const reason =
           kind === "focus"
-            ? "Match window focus change recorded."
+            ? "You left the match window."
             : action === "warning"
-              ? "Clipboard action is disabled."
-              : "Clipboard action recorded.";
+              ? kind === "copy"
+                ? "Copying from the window is disabled."
+                : "Pasting into the editor is disabled."
+              : kind === "copy"
+                ? "You copied from the window."
+                : "You pasted into the editor.";
         toast.warning(reason, { id: `match-rule:${scope}` });
         if (action === "warning") return;
         void reportRuleEvent(identity, match.id, kind)
