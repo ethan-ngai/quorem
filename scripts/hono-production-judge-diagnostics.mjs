@@ -4,7 +4,7 @@ import {
   acceptedSource,
   version,
 } from "../apps/api/src/runtime/composition/fixtures/staged-actor.ts";
-async function productionRunnerProfile(keys) {
+export async function productionRunnerProfile(keys) {
   const response = await fetch("https://runner-hono.quorem.app/internal/profile", {
     method: "POST",
     headers: { authorization: `Bearer ${keys.QUOREM_RUNNER_DRAIN_SECRET}` },

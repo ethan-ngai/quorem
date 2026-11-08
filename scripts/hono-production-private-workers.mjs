@@ -136,6 +136,15 @@ async function rollout(env, benchmarkOnly) {
       DATABASE_URL: database.href,
       BETTER_AUTH_SECRET: keys.BETTER_AUTH_SECRET ?? env.BETTER_AUTH_SECRET,
     };
+    if (benchmarkOnly && env.QUOREM_REPLAY_MATCH) {
+      await current.requireActive(runner.generation);
+      const { replayProductionMatch } = await import("./hono-production-match-replay.mjs");
+      const { productionRunnerProfile } = await import("./hono-production-judge-diagnostics.mjs");
+      await replayProductionMatch(db, benchmarkEnv, env.QUOREM_REPLAY_MATCH, () =>
+        productionRunnerProfile(keys),
+      );
+      return { replayCompleted: true };
+    }
     if (benchmarkOnly || (runner.status === "active" && runner.release === release)) {
       await current.requireActive(runner.generation);
       return benchmarkEnv;
@@ -319,7 +328,11 @@ async function rollout(env, benchmarkOnly) {
 if (import.meta.main) {
   try {
     const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
-    if (benchmarkEnv.sandboxDiagnostics || process.env.JUDGING_DIAGNOSTICS === "true") {
+    if (
+      benchmarkEnv.replayCompleted ||
+      benchmarkEnv.sandboxDiagnostics ||
+      process.env.JUDGING_DIAGNOSTICS === "true"
+    ) {
       console.log(JSON.stringify(benchmarkEnv));
     } else {
       report("benchmark-python");
