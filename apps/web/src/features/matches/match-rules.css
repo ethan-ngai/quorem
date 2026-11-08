@@ -128,7 +128,7 @@
 }
 .lobby-settings .match-option {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr);
   align-items: start;
   gap: var(--space-3);
 }

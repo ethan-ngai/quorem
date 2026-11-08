@@ -409,7 +409,7 @@
 
 /* Multi-mode controls stay compact while wrapping players and bounded modal content. */
 .match-creation-dialog {
-  width: min(560px, calc(100vw - 32px));
+  width: min(600px, calc(100vw - 32px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   --interaction-fast: var(--motion-fast);
