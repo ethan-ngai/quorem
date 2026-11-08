@@ -29,6 +29,7 @@ export function useAccountIdentity() {
 }
 
 export const defaultMatchSettings: PartySettings = {
+  questionSelection: "recommended",
   mode: "showdown",
   accessMode: "accounts_only",
   difficulties: ["easy"],
@@ -52,7 +53,7 @@ function matchesValues(
   return match === "all" ? requested.every(includes) : requested.some(includes);
 }
 
-/** @returns Whether this question belongs to the lobby's random pool. */
+/** @returns Whether this question belongs to the lobby's adaptive pool. */
 function matchesPool(
   problem: MatchProblem,
   difficulties: readonly string[],
@@ -145,15 +146,20 @@ export function MatchSettings({
     difficulties: typeof pools,
     questionFilters: PartySettings["questionFilters"],
   ) => {
+    const selectedProblemVersionId =
+      selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
+        ? selectedId
+        : undefined;
     onChange?.({
       ...value,
       difficulty: undefined,
       difficulties,
       questionFilters,
-      selectedProblemVersionId:
-        selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
-          ? selectedId
-          : undefined,
+      selectedProblemVersionId,
+      questionSelection:
+        selectedId && !selectedProblemVersionId
+          ? defaultMatchSettings.questionSelection
+          : value.questionSelection,
     });
   };
   const rules = value.rules ?? matchPreset();
@@ -242,11 +248,25 @@ export function MatchSettings({
             onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
             value={value.selectedProblemVersionId}
             disabled={disabled || loadingSelection}
-            allowRandom
+            automaticSelection={{
+              mode: value.questionSelection ?? "random",
+              onChange: (questionSelection) =>
+                onChange?.({
+                  ...value,
+                  difficulties: pools,
+                  questionSelection,
+                  selectedProblemVersionId: undefined,
+                }),
+            }}
             discloseFilters
             onChange={(selectedProblemVersionId, problem) => {
               setPickedProblem(problem);
-              onChange?.({ ...value, difficulties: pools, selectedProblemVersionId });
+              onChange?.({
+                ...value,
+                difficulties: pools,
+                selectedProblemVersionId,
+                questionSelection: undefined,
+              });
             }}
           />
         )}

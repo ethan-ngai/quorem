@@ -566,6 +566,10 @@
 .problem-picker-trigger svg {
   flex-shrink: 0;
 }
+.problem-picker-popover[data-automatic-selection] {
+  width: min(288px, calc(100vw - 32px));
+}
+
 .problem-picker-popover {
   max-height: min(480px, var(--radix-popover-content-available-height));
   display: flex;

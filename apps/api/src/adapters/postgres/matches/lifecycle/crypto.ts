@@ -26,6 +26,7 @@ export function settingsBody(s: Settings): object {
     mode: s.mode,
     difficulties: s.difficulties,
     ...(s.selectedProblemVersionId ? { selectedProblemVersionId: s.selectedProblemVersionId } : {}),
+    ...(s.questionSelection ? { questionSelection: s.questionSelection } : {}),
     rules: s.rules,
     difficulty: s.difficulty,
     durationMinutes: s.durationMinutes,

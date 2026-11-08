@@ -1,5 +1,5 @@
 /** @file model.ts @description Catalog query values. @module problems */
-import type { FilterMatch } from "@quorem/contracts";
+export type FilterMatch = "any" | "all";
 
 export interface CatalogFilter {
   query: string;
@@ -8,7 +8,7 @@ export interface CatalogFilter {
   topicMatch?: FilterMatch;
   company: string;
   companyMatch?: FilterMatch;
-  sort: "title" | "difficulty";
+  sort: "title" | "difficulty" | "recommended";
   order: "asc" | "desc";
   library: "" | "global" | "private";
   type: "" | "classic" | "odyssey";

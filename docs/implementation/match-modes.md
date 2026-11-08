@@ -6,7 +6,7 @@ Issue #28; depends on #27.
 
 - Shared global navigation and centered creation dialog; Showdown and eight-seat Free-for-all.
 - Hosts switch modes before start; Showdown requires at most two seated players. Changed settings clear readiness.
-- Always-visible Difficulty segments whose adjacent selections share one continuous background constrain searchable problem selection in an anchored popover and Random. Incompatible selected problems reset to Random. Selection freezes at start.
+- Always-visible Difficulty segments whose adjacent selections share one continuous background constrain searchable problem selection in an anchored popover and Adaptive. Incompatible selected problems reset to Adaptive. Selection freezes at start.
 - Host rules appear only in the lobby; creation retains mode, difficulty, problem and duration.
 - Free-for-all starts explicitly by its host after two or more players all ready. First correct wins; deadline uses highest passed count, drawing on a tie.
 - Forfeit excludes that player, including pending results. Last remaining player wins; reservations remain until completion.
@@ -28,3 +28,5 @@ Issue #28; depends on #27.
 - Browser at 711×771: unified creation, specific/multiple-pool selection, mode switch resetting readiness, explicit FFA start and blocked Run/Submit after copy.
 - Issue #78: live Vite modal fixture verified duration/problem selection, search, keyboard rule selection, Escape/focus return, dark/light themes and 390px menu bounds without horizontal overflow.
 - Real Docker judge completed the isolated Charlie/Dana FFA with first_correct; opponent snapshot omitted the winner workspace ID.
+
+Adaptive question selection uses every seated participant at activation; see [adaptive questions](adaptive-questions.md).

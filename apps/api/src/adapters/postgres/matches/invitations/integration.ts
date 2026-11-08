@@ -359,7 +359,7 @@ void test("candidate selection admits only the sealed current host-owned problem
   const choose = (owner: string) =>
     run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-        selectMatchCandidate(tx, owner, settings),
+        selectMatchCandidate(tx, owner, settings, [owner]),
       ),
     );
   assert.equal((await choose(host.userId)).id, version);

@@ -82,6 +82,9 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     value.difficulties.every((pool) => typeof pool === "string" && difficulties.has(pool)) &&
     new Set(value.difficulties).size === value.difficulties.length &&
     matchRulesSchema.safeParse(value.rules).success &&
+    (value.questionSelection === undefined ||
+      value.questionSelection === "random" ||
+      value.questionSelection === "recommended") &&
     (value.selectedProblemVersionId === undefined ||
       (typeof value.selectedProblemVersionId === "string" &&
         uuidPattern.test(value.selectedProblemVersionId))) &&

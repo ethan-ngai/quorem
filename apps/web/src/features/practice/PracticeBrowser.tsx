@@ -9,7 +9,7 @@ import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { X, Layers, Globe, LockKeyhole } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
@@ -18,7 +18,8 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { addFilter } from "./catalogSearch";
+import { addFilter, catalogSearch } from "./catalogSearch";
+import { PracticeRecommendations } from "./PracticeRecommendations";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
@@ -30,7 +31,8 @@ export function PracticeBrowser() {
   const queryClient = useQueryClient();
   const actor = session.data === undefined ? undefined : identity;
   const { preference, setPreference } = useTheme();
-  const search = useSearch({ from: "/practice" });
+  const rawSearch = useSearch({ from: "/practice" });
+  const search = useMemo(() => catalogSearch(rawSearch), [rawSearch]);
   const canChooseLibrary =
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
   const library = search.library;
@@ -110,6 +112,11 @@ export function PracticeBrowser() {
           )
         }
       >
+        <PracticeRecommendations
+          key={JSON.stringify([actor, library])}
+          actor={actor}
+          library={library}
+        />
         <div className="practice-toolbar">
           <SearchField
             className="practice-search"
@@ -193,7 +200,7 @@ export function PracticeBrowser() {
                     <TableSortHeader column={table.getColumn("difficulty")!}>
                       Difficulty
                     </TableSortHeader>
-                    <th aria-label="Question format" />
+                    <th aria-label="Question details and actions" />
                   </tr>
                 }
               >

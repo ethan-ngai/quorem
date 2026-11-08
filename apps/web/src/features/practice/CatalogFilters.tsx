@@ -14,7 +14,7 @@ export function CompanyFilter({
   companies,
 }: {
   search: Pick<CatalogSearch, "company" | "companyMatch">;
-  update: (change: Partial<CatalogSearch>) => void;
+  update: (change: Partial<Pick<CatalogSearch, "company" | "companyMatch">>) => void;
   companies: string[];
 }) {
   const selected = filterValues(search.company);
@@ -34,6 +34,11 @@ export function CompanyFilter({
   );
 }
 
+type FilterSearch = Pick<
+  CatalogSearch,
+  "type" | "sql" | "difficulty" | "topic" | "topicMatch" | "company" | "companyMatch"
+>;
+
 export function CatalogFilters({
   search,
   update,
@@ -42,11 +47,8 @@ export function CatalogFilters({
   companies,
   showDifficulty = true,
 }: {
-  search: Pick<
-    CatalogSearch,
-    "type" | "sql" | "difficulty" | "topic" | "topicMatch" | "company" | "companyMatch"
-  >;
-  update: (change: Partial<CatalogSearch>) => void;
+  search: FilterSearch;
+  update: (change: Partial<FilterSearch>) => void;
   topics: string[];
   foundationalTopics?: FoundationalTopic[];
   companies: string[];
