@@ -21,6 +21,20 @@ void test("oversized or ambiguous headers are rejected before buffering bodies",
   assert.throws(() => new FrameDecoder().push(Buffer.alloc(4097)));
 });
 
+void test("the end of a maximum-sized frame can arrive with the next complete frame", () => {
+  const large = JSON.stringify("x".repeat(2 * 1024 * 1024 - 2));
+  const small = JSON.stringify("y".repeat(10 * 1024));
+  const first = encodeFrame(large);
+  const decoder = new FrameDecoder();
+  const split = first.length - 12;
+  assert.deepEqual(decoder.push(first.subarray(0, split)), []);
+  assert.deepEqual(decoder.push(Buffer.concat([first.subarray(split), encodeFrame(small)])), [
+    large,
+    small,
+  ]);
+  decoder.finish();
+});
+
 void test("invalid UTF-8, JSON, malformed headers and truncated output fail closed", () => {
   for (const data of [
     Buffer.from("Content-Length: 1\r\n\r\n{"),

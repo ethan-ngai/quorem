@@ -14,7 +14,7 @@ import { JUDGING_DEFAULTS } from "../packages/execution/src/scheduling.ts";
 import { putWorkerSecrets } from "./hono-stage-deploy-secrets.mjs";
 import { workerConfig } from "./hono-stage-config.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
-import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
+import { activeProduction, productionOutputs } from "./hono-production-state.mjs";
 import { configureProductionHyperdrive } from "./hono-production-capacity.mjs";
 
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
@@ -22,12 +22,7 @@ const { Client } = createRequire(new URL("../packages/database/package.json", im
 );
 const worker = "quorem-hono-production";
 const origin = "https://quorem.app";
-function outputs(env, directory, key) {
-  runStageCommand("terraform", terraformBackendArgs(env, directory, key), env);
-  return JSON.parse(
-    runStageCommand("terraform", [`-chdir=infra/terraform/${directory}`, "output", "-json"], env),
-  );
-}
+
 async function bindings(env) {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${worker}/settings`,
@@ -78,12 +73,7 @@ async function release(env) {
   )
     throw new Error("Exact main release required");
   runStageCommand("bash", ["scripts/require-main.sh"], env);
-  const bootstrap = outputs(env, "hono-production", "hono-production");
-  if (bootstrap.activation?.value?.phase !== "active")
-    throw new Error("Native production is inactive");
-  const database = new URL(bootstrap.secrets.value.DATABASE_URL);
-  if (database.pathname !== "/neondb" || !database.hostname.endsWith(".neon.tech"))
-    throw new Error("Unexpected production database");
+  const { keys, database } = activeProduction(env);
 
   const before = await bindings(env);
   const vars = Object.fromEntries(
@@ -97,8 +87,8 @@ async function release(env) {
   // Coordinated topology releases adopt the tested case-lane policy.
   if (env.HONO_JUDGING_SCOPE_UPDATE === "true" && vars.JUDGING_CASE_LANES !== undefined)
     vars.JUDGING_CASE_LANES = String(JUDGING_DEFAULTS.caseLanes);
-  const api = outputs(env, "hono-stage", "hono-production-api");
-  const services = outputs(env, "hono-services", "hono-production-services");
+  const api = productionOutputs(env, "hono-stage", "hono-production-api");
+  const services = productionOutputs(env, "hono-services", "hono-production-services");
   const temporary = await mkdtemp(join(tmpdir(), "quorem-api-release-"));
   try {
     const configFile = join(temporary, "wrangler.json");
@@ -152,7 +142,6 @@ async function release(env) {
         DATABASE_URL: database.href,
       },
     );
-    const keys = bootstrap.secrets.value;
     if (!/^quorem_hono_runtime_[a-f0-9]{12,32}$/.test(keys.RUNTIME_ROLE ?? ""))
       throw new Error("Invalid active runtime role");
     database.search = "?sslmode=verify-full";
