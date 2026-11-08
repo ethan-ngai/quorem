@@ -26,7 +26,7 @@ export async function listDrafts(
 export async function createDraft(
   body:
     | { content: QuestionContent; problemVersionId?: never }
-    | { problemVersionId: string; edit?: boolean; content?: never },
+    | { problemVersionId: string; content?: never },
 ) {
   const { data, error } = await api().POST("/v1/admin/question-drafts", { body });
   return requireData(data, error);
@@ -133,14 +133,11 @@ export async function fetchDeletionImpact(id: string) {
   return requireData(data, error);
 }
 
-export async function deleteQuestionPublication(
-  draft: QuestionDraft,
-  replacementVersionId?: string | null,
-) {
+export async function deleteQuestionPublication(draft: QuestionDraft) {
   const send = async () => {
     const { data, error } = await api().DELETE("/v1/admin/question-drafts/{id}/publication", {
       params: { path: { id: draft.id } },
-      body: { revision: draft.revision, replacementVersionId },
+      body: { revision: draft.revision },
     });
     return requireData(data, error);
   };
@@ -172,7 +169,7 @@ export async function mutateQuestionBatch(
         items: { id: string; revision: string; visibility: "private" | "global" }[];
       }
     | { action: "delete-drafts"; items: { id: string; revision: string }[] }
-    | { action: "delete-publications"; items: { id: string; current: boolean }[] },
+    | { action: "delete-publications"; items: { id: string }[] },
 ) {
   const result =
     batch.action === "publish"

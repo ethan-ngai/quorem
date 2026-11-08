@@ -179,7 +179,7 @@ export function QuestionDashboard({
                     action: "delete-publications",
                     items: rows
                       .filter((row): row is Publication => !("revision" in row))
-                      .map(({ id, current }) => ({ id, current })),
+                      .map(({ id }) => ({ id })),
                   },
           );
         },
@@ -461,14 +461,7 @@ export function QuestionDashboard({
                           <span className="admin-question-status">Needs fixes</span>
                         )}
                       </>
-                    ) : (
-                      !row.current && (
-                        <span className="admin-question-status">
-                          <Icon name="eye-off" width={14} height={14} />
-                          Unpublished
-                        </span>
-                      )
-                    )}
+                    ) : null}
                     {row.isOdyssey && <QuestionIndicators privateQuestion={false} odyssey />}
                   </div>
                   <QuestionTopics
