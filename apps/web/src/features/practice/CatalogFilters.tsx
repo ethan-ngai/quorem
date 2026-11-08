@@ -61,6 +61,7 @@ export function CatalogFilters({
       />
       <CatalogFilter
         label="Companies"
+        searchPlaceholder="Search companies"
         selected={filterValues(search.company)}
         onChange={(values) => update({ company: values.join(",") || undefined })}
         options={[...new Set([...companies, ...filterValues(search.company)])].map((value) => ({
