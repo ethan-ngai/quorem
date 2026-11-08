@@ -39,14 +39,18 @@ export function ParticipantName({
           <span className="participant-name-label">{label ?? participant.displayName}</span>
         </span>
       </Tooltip>
-      {host && (
-        <Tooltip content="Lobby host">
-          <span className="participant-host" role="img" aria-label="Lobby host" tabIndex={0}>
-            <Star size={12} fill="currentColor" aria-hidden="true" />
-          </span>
-        </Tooltip>
-      )}
+      {host && <ParticipantHost />}
       {nameSuffix}
     </span>
+  );
+}
+
+export function ParticipantHost() {
+  return (
+    <Tooltip content="Lobby host">
+      <span className="participant-host" role="img" aria-label="Lobby host" tabIndex={0}>
+        <Star size={12} fill="currentColor" aria-hidden="true" />
+      </span>
+    </Tooltip>
   );
 }
