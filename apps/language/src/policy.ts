@@ -1,7 +1,9 @@
 /** @file policy.ts @description Development identity and document boundaries. @module language */
+import { z } from "zod";
+
 export const documentUri = "file:///workspace/main.py";
 const allowedUris = new Set([documentUri, "file:///workspace", "file:///workspace/"]);
-const methods = new Set([
+const languageMethod = z.enum([
   "initialize",
   "initialized",
   "shutdown",
@@ -16,6 +18,11 @@ const methods = new Set([
   "textDocument/signatureHelp",
   "$/cancelRequest",
 ]);
+const languageMessage = z.looseObject({
+  jsonrpc: z.literal("2.0"),
+  method: languageMethod.optional(),
+  params: z.unknown().optional(),
+});
 
 /** Resolve a loopback-only development owner. @returns Owner or null for unauthorized upgrades. */
 export function authorizeUpgrade(
@@ -47,17 +54,9 @@ export function authorizeUpgrade(
 
 /** Validate JSON-RPC methods and virtual document paths. @returns Parsed message. */
 export function validateMessage(text: string): Record<string, unknown> {
-  const value: unknown = JSON.parse(text);
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("Invalid JSON-RPC message");
-  const message = value as Record<string, unknown>;
-  if (message.jsonrpc !== "2.0") throw new Error("Invalid JSON-RPC version");
-  if (
-    message.method !== undefined &&
-    (typeof message.method !== "string" || !methods.has(message.method))
-  ) {
-    throw new Error("Unsupported language method");
-  }
+  const parsed = languageMessage.safeParse(JSON.parse(text));
+  if (!parsed.success) throw new Error("Invalid language message");
+  const message = parsed.data;
   inspectUris(message.params);
   return message;
 }
