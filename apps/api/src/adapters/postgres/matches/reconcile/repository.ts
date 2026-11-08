@@ -27,10 +27,9 @@ type Person = {
   best: number;
   points: number;
   percentage: number;
-  finish: string | null;
 };
 type Submission = {
-  eligible: string;
+  admittedAt: string;
   owner: string;
   state: string;
   job: string | null;
@@ -65,12 +64,12 @@ export async function reconcileMatch(
   if (match.deadline === null) throw new Error("Started match has no deadline");
   const people = (
     await tx.execute<Person>(
-      sql`SELECT p.owner_id AS owner,COALESCE(p.competitor_id,p.owner_id) AS subject,COALESCE(p.submission_state,'') AS state,p.best_passed AS best,p.best_percentage AS percentage,${timestamp(sql`p.eligible_finish_at`)} AS finish,COALESCE((SELECT sum(e.points) FROM match_rule_events e WHERE e.match_id=p.match_id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND ${effectiveEvent(sql`e`)}),0)::int AS points FROM match_participants p WHERE p.match_id=${id}::uuid AND NOT p.forfeited`,
+      sql`SELECT p.owner_id AS owner,COALESCE(p.competitor_id,p.owner_id) AS subject,COALESCE(p.submission_state,'') AS state,p.best_passed AS best,p.best_percentage AS percentage,COALESCE((SELECT sum(e.points) FROM match_rule_events e WHERE e.match_id=p.match_id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND ${effectiveEvent(sql`e`)}),0)::int AS points FROM match_participants p WHERE p.match_id=${id}::uuid AND NOT p.forfeited`,
     )
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql` s.admitted_at + make_interval(secs=>CASE WHEN ${match.rules.victory}='race' THEN COALESCE((SELECT sum(e.seconds) FROM match_rule_events e WHERE e.match_id=s.match_id AND e.competitor_id=COALESCE(mp.competitor_id,s.owner_id) AND (e.occurred_at<=s.admitted_at OR e.submission_id=s.id) AND ${effectiveEvent(sql`e`)}),0)::double precision ELSE 0 END)`)} AS eligible,s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql`s.admitted_at`)} AS "admittedAt",s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
   const submissions: SubmissionProgress[] = [];
@@ -103,7 +102,7 @@ export async function reconcileMatch(
         : null;
     submissions.push({
       owner: row.owner,
-      eligibleAt: BigInt(row.eligible),
+      admittedAt: BigInt(row.admittedAt),
       state: row.state,
       verdict: terminal?.verdict ?? "",
       score: terminal && verified ? { passed: terminal.passed, total: verified.caseCount } : null,
@@ -112,19 +111,6 @@ export async function reconcileMatch(
       cannotPass: max !== null,
     });
   }
-  const nextEligibility = submissions.reduce<bigint | null>((next, s) => {
-    const time = s.eligibleAt!;
-    return time > BigInt(match.now) &&
-      time <= BigInt(match.deadline!) &&
-      s.state !== "failed" &&
-      s.state !== "cancelled" &&
-      (next === null || time < next)
-      ? time
-      : next;
-  }, null);
-  await tx.execute(
-    sql`UPDATE matches SET rule_deadline=to_timestamp(${nextEligibility?.toString() ?? null}::numeric/1000000) WHERE id=${id}::uuid AND rule_deadline IS DISTINCT FROM to_timestamp(${nextEligibility?.toString() ?? null}::numeric/1000000)`,
-  );
   const decision = reconcile(
     BigInt(match.now),
     BigInt(match.deadline),
@@ -143,11 +129,10 @@ export async function reconcileMatch(
     if (
       p.state !== next.state ||
       p.best !== next.bestPassed ||
-      p.percentage !== next.bestPercentage ||
-      p.finish !== (next.eligibleFinishAt?.toString() ?? null)
+      p.percentage !== next.bestPercentage
     ) {
       await tx.execute(
-        sql`UPDATE match_participants SET best_percentage=${next.bestPercentage},eligible_finish_at=to_timestamp(${next.eligibleFinishAt?.toString() ?? null}::numeric/1000000),best_passed=${next.bestPassed},submission_state=NULLIF(${next.state},'') WHERE match_id=${id}::uuid AND owner_id=${p.owner}`,
+        sql`UPDATE match_participants SET best_percentage=${next.bestPercentage},best_passed=${next.bestPassed},submission_state=NULLIF(${next.state},'') WHERE match_id=${id}::uuid AND owner_id=${p.owner}`,
       );
       changed = true;
     }
@@ -225,18 +210,31 @@ export async function reconcileScheduledMatch(
   generation: string | null,
 ): Promise<void> {
   if (!uuid.test(id)) return;
-  const locked = await tx.execute(sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE`);
+  const locked = await tx.execute(
+    sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE SKIP LOCKED`,
+  );
   if (!locked.rows.length) return;
+  if (generation !== null && !/^\d+$/.test(generation))
+    throw new Error("Invalid reconciliation generation");
+  // Snapshot the generation before reading evidence. An absent row can be recreated with generation 1.
+  const pending =
+    generation === null
+      ? undefined
+      : (
+          await tx.execute<{ publish_update: boolean }>(sql`SELECT publish_update
+      FROM match_reconciliation_pending WHERE match_id=${id}::uuid AND generation=${generation}::bigint`)
+        ).rows[0];
   // A submission transition can settle or refund a charge without changing standings.
-  await reconcileMatch(tx, id, { publishUpdate: generation !== null });
+  await reconcileMatch(tx, id, { publishUpdate: pending?.publish_update });
   await tx.execute(sql`UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=${id}::uuid`);
-  if (generation !== null) {
-    if (!/^\d+$/.test(generation)) throw new Error("Invalid reconciliation generation");
-    const settled =
-      await tx.execute(sql`SELECT 1 FROM matches m JOIN match_reconciliation_pending p ON p.match_id=m.id
-      WHERE m.id=${id}::uuid AND p.generation=${generation}::bigint AND m.state IN ('completed','cancelled')
-        AND NOT (${reviewPending(sql`m.id`)})`);
-    if (settled.rows.length) await matchEvent(tx, id, "match.updated");
+  if (pending) {
+    if (pending.publish_update) {
+      const settled =
+        await tx.execute(sql`SELECT 1 FROM matches m JOIN match_reconciliation_pending p ON p.match_id=m.id
+        WHERE m.id=${id}::uuid AND p.generation=${generation}::bigint AND m.state IN ('completed','cancelled')
+          AND NOT (${reviewPending(sql`m.id`)})`);
+      if (settled.rows.length) await matchEvent(tx, id, "match.updated");
+    }
     await tx.execute(
       sql`DELETE FROM match_reconciliation_pending WHERE match_id=${id}::uuid AND generation=${generation}::bigint`,
     );

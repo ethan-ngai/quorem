@@ -12,6 +12,7 @@ type SocketOptions = {
   onMessage: (event: MessageEvent) => void;
   onDisconnect: () => void;
   onError?: (cause: unknown) => void;
+  onComplete?: () => void;
 };
 
 /** Transport lifecycle only; each domain owns its frame validation and recovery protocol. */
@@ -32,10 +33,10 @@ export function createReconnectingSocket(options: SocketOptions) {
     (callback, delay) => setTimeout(callback, delay),
     (timer) => clearTimeout(timer),
   );
-  async function connect() {
+  async function connect(renewing = false) {
     if (stopped) return;
     const started = generation;
-    options.onConnecting?.();
+    if (!renewing) options.onConnecting?.();
     const valid = () => !stopped && started === generation;
     try {
       const bearer = options.authenticate === false ? undefined : await token();
@@ -48,14 +49,17 @@ export function createReconnectingSocket(options: SocketOptions) {
       socket = current;
       const owns = () => valid() && socket === current;
       // Browser close handshakes can stall on broken networks; detach before reconnecting.
-      const disconnect = (immediate = false) => {
+      const detach = () => {
         if (!owns()) return;
         clearTimers();
         socket = undefined;
-        options.onDisconnect();
         current.close();
-        if (immediate) void connect();
-        else reconnect.schedule();
+        return true;
+      };
+      const disconnect = () => {
+        if (!detach()) return;
+        options.onDisconnect();
+        reconnect.schedule();
       };
       const renewIdle = () => {
         clearTimeout(idleTimer);
@@ -71,7 +75,10 @@ export function createReconnectingSocket(options: SocketOptions) {
         renewIdle();
         if (expires)
           refreshTimer = setTimeout(
-            () => disconnect(true),
+            () => {
+              // Renewal refreshes the snapshot on open, and only a failed attempt reports a disconnect.
+              if (detach()) void connect(true);
+            },
             Math.max(1000, expires - Date.now() - 30_000),
           );
         options.onOpen();
@@ -112,7 +119,13 @@ export function createReconnectingSocket(options: SocketOptions) {
         options.onError?.(new Error("Event connection failed"));
         disconnect();
       };
-      current.onclose = () => disconnect();
+      current.onclose = (event) => {
+        if (options.onComplete && event.code === 1000 && event.reason === "Complete") {
+          if (detach()) options.onComplete();
+          return;
+        }
+        disconnect();
+      };
     } catch (cause) {
       if (!valid()) return;
       options.onError?.(cause);

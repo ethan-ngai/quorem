@@ -1,25 +1,43 @@
-import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+/** @file Disclosure.tsx @description Shared settings disclosure with an optional inline trigger slot. @module ui */
+import { useId, useState, type ReactNode } from "react";
+import { Settings } from "lucide-react";
+import { Tooltip } from "./Tooltip";
 import "./disclosure.css";
 
-/** Native disclosure preserves child state and uses shared reduced-motion transitions. */
 export function Disclosure({
   title,
-  summary,
+  header,
+  highlighted = false,
   children,
 }: {
   title: string;
-  summary?: ReactNode;
+  header?: (trigger: ReactNode) => ReactNode;
+  highlighted?: boolean;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const contentId = useId();
+  const trigger = (
+    <Tooltip content={title}>
+      <button
+        type="button"
+        className="icon-button settings-disclosure-trigger"
+        aria-label={title}
+        aria-expanded={open}
+        aria-controls={contentId}
+        data-highlighted={highlighted || undefined}
+        onClick={() => setOpen((previous) => !previous)}
+      >
+        <Settings size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
   return (
-    <details className="disclosure settings-disclosure">
-      <summary>
-        <ChevronRight size={16} className="disclosure-chevron" aria-hidden="true" />
-        <span>{title}</span>
-        {summary && <small>{summary}</small>}
-      </summary>
-      <div className="settings-disclosure-content">{children}</div>
-    </details>
+    <div className="settings-disclosure" data-open={open}>
+      {header ? header(trigger) : <div className="settings-disclosure-actions">{trigger}</div>}
+      <div id={contentId} className="settings-disclosure-panel" inert={!open}>
+        <div className="settings-disclosure-content">{children}</div>
+      </div>
+    </div>
   );
 }

@@ -3,11 +3,8 @@ import { sql } from "drizzle-orm";
 import type { TeamAction } from "@quorem/contracts/factions";
 import type { RuleActionRequest } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
-import {
-  prepareRuleAction,
-  executeRuleAction,
-  assertRuleApproval,
-} from "../matches/rules/actions.ts";
+import { prepareRuleAction, executeRuleAction } from "../matches/rules/actions.ts";
+import { requireSubmissionTime } from "../matches/rules/ledger.ts";
 import {
   admitWorkspaceInTransaction,
   type AdmissionOptions,
@@ -64,6 +61,8 @@ export function paidTeamActions(config: AdmissionOptions): TeamActionExecutor {
         };
       } else throw new ApplicationError("invalid_input", "Invalid paid proposal", 400);
       const plan = await prepareRuleAction(tx, id, actor.userId, team.rules, request);
+      if (plan.quote.seconds > 0)
+        await requireSubmissionTime(tx, id, plan.subject, plan.quote.seconds);
       if (plan.quote.cooldownSeconds)
         throw new ApplicationError(
           "submission_cooldown",
@@ -119,8 +118,6 @@ export function paidTeamActions(config: AdmissionOptions): TeamActionExecutor {
           caseIndex: action.caseIndex,
           approval,
         };
-        const current = await prepareRuleAction(tx, id, actor.userId, team.rules, request);
-        assertRuleApproval(current.quote, approval);
         await executeRuleAction(tx, id, actor.userId, team.rules, request, vote.id);
       } else throw new ApplicationError("invalid_input", "Invalid paid action", 400);
     },

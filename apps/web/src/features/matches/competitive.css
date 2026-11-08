@@ -409,7 +409,7 @@
 
 /* Multi-mode controls stay compact while wrapping players and bounded modal content. */
 .match-creation-dialog {
-  width: min(560px, calc(100vw - 32px));
+  width: min(600px, calc(100vw - 32px));
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   --interaction-fast: var(--motion-fast);
@@ -620,6 +620,12 @@
   transform-origin: var(--radix-popover-content-transform-origin);
 }
 
+.invite-roster-count {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  margin-block: var(--space-2) var(--space-4);
+}
+
 .guest-name-field {
   display: grid;
   gap: 8px;
@@ -672,12 +678,12 @@
   height: 19px;
 }
 .guest-access-slash {
-  stroke-dasharray: 1;
+  stroke-dasharray: 1 1.2;
   stroke-dashoffset: 0;
   transition: stroke-dashoffset var(--motion-fast) var(--motion-easing);
 }
 .guest-access-button[aria-pressed="true"] .guest-access-slash {
-  stroke-dashoffset: 1;
+  stroke-dashoffset: 1.1;
 }
 @media (prefers-reduced-motion: reduce) {
   .guest-access-slash {

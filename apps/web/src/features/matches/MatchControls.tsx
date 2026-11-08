@@ -1,3 +1,5 @@
+/** @file MatchControls.tsx @description Shared match creation and lobby settings. @module matches */
+import { Tooltip } from "../../ui/Tooltip";
 import { Disclosure } from "../../ui/Disclosure";
 import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -6,12 +8,14 @@ import { matchPreset } from "@quorem/contracts/match-rules";
 import { MatchRuleSettingsControls } from "./MatchRuleSettings";
 import { useSession } from "../auth/session";
 import { ProblemPicker } from "../practice/ProblemPicker";
+import { problemQueryOptions } from "../practice/problemQueries";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
-import { Swords, Gauge, BookOpen, Clock, Users, Code2 } from "lucide-react";
+import { Swords, Gauge, BookOpen, Clock, Users, Code2, Info } from "lucide-react";
 import { matchModeLabels, ModeIcon } from "./ModeIcon";
 
 export function useAccountIdentity() {
@@ -28,29 +32,68 @@ export const defaultMatchSettings: PartySettings = {
   rules: matchPreset(),
 };
 
+type MatchProblem = Pick<ProblemVersion, "id" | "title"> & {
+  difficulty: string;
+} & Partial<Pick<ProblemVersion, "sql" | "odyssey" | "tags" | "companies">>;
+
+/** @returns Whether this question belongs to the lobby's random pool. */
+function matchesPool(
+  problem: MatchProblem,
+  difficulties: readonly string[],
+  filters: PartySettings["questionFilters"] = {},
+) {
+  return (
+    difficulties.includes(problem.difficulty) &&
+    !!problem.sql === (filters.sql === "true") &&
+    (!filters.type || !!problem.odyssey === (filters.type === "odyssey")) &&
+    (!filters.topic || filters.topic.split(",").some((topic) => problem.tags?.includes(topic))) &&
+    (!filters.company ||
+      filters.company.split(",").some((company) => problem.companies?.includes(company)))
+  );
+}
+
+export function LobbySetupHeading({ options, hint }: { options: ReactNode; hint?: string }) {
+  return (
+    <div className="lobby-setup-heading">
+      <h2>Match setup</h2>
+      {hint && (
+        <Tooltip content={hint}>
+          <button type="button" className="icon-button" aria-label="About lobby settings">
+            <Info size={16} aria-hidden="true" />
+          </button>
+        </Tooltip>
+      )}
+      {options}
+    </div>
+  );
+}
+
 /** Shared creation/lobby controls; the server validates and resets readiness on edits. */
 export function MatchSettings({
   value,
   onChange,
-  disabled = false,
+  disabled: locked = false,
   identity,
   participantCount = 0,
   canEditPermissions = true,
   catalog,
+  heading,
 }: {
   value: PartySettings;
-  onChange: (value: PartySettings) => void;
+  onChange?: (value: PartySettings) => void;
   disabled?: boolean;
   identity: DevelopmentIdentity;
   participantCount?: number;
   canEditPermissions?: boolean;
-  catalog?: { id: string; title: string; difficulty: string; hasComplexity?: boolean }[];
+  heading?: (lobbyOptions: ReactNode) => ReactNode;
+  catalog?: MatchProblem[];
 }) {
-  const [problems, setProblems] = useState<
-    { id: string; title: string; difficulty: string; hasComplexity?: boolean }[]
-  >(catalog ?? []);
+  const preview = !onChange;
+  const disabled = locked || preview;
+  const [problems, setProblems] = useState<MatchProblem[]>(catalog ?? []);
   const [catalogError, setCatalogError] = useState<string>();
   useEffect(() => {
+    if (preview) return;
     if (catalog) {
       setProblems(catalog);
       return;
@@ -71,27 +114,70 @@ export function MatchSettings({
     return () => {
       active = false;
     };
-  }, [identity, catalog]);
+  }, [identity, catalog, preview]);
   const [pickedProblem, setPickedProblem] = useState<ProblemVersion>();
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
-  const selectedProblem =
-    problems.find((problem) => problem.id === value.selectedProblemVersionId) ??
-    (pickedProblem?.id === value.selectedProblemVersionId ? pickedProblem : undefined);
-  const changeDifficulties = (difficulties: typeof pools) => {
-    onChange({
+  const selectedId = preview ? undefined : value.selectedProblemVersionId;
+  const knownProblem =
+    (pickedProblem?.id === selectedId ? pickedProblem : undefined) ??
+    problems.find((problem) => problem.id === selectedId);
+  const client = useQueryClient();
+  const { data: selectedDetail, isLoading: loadingSelection } = useQuery(
+    problemQueryOptions(client, identity, knownProblem ? "" : (selectedId ?? ""), true),
+  );
+  const selectedProblem = knownProblem ?? selectedDetail;
+  const changePool = (
+    difficulties: typeof pools,
+    questionFilters: PartySettings["questionFilters"],
+  ) => {
+    onChange?.({
       ...value,
       difficulty: undefined,
       difficulties,
+      questionFilters,
       selectedProblemVersionId:
-        selectedProblem &&
-        !difficulties.includes(selectedProblem.difficulty as (typeof pools)[number])
-          ? undefined
-          : value.selectedProblemVersionId,
+        selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
+          ? selectedId
+          : undefined,
     });
   };
   const rules = value.rules ?? matchPreset();
+  const lobbyOptions = (
+    <Disclosure title="Lobby options" header={heading}>
+      <div className="match-option">
+        <span>
+          <Users size={16} aria-hidden="true" />
+          Everyone can edit settings
+        </span>
+        <ToggleSwitch
+          label="Everyone can edit lobby settings"
+          checked={rules.settingsEditors === "everyone"}
+          disabled={disabled || !canEditPermissions}
+          onChange={(enabled) =>
+            onChange?.({
+              ...value,
+              rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
+            })
+          }
+        />
+      </div>
+      <div className="match-option">
+        <span>
+          <Code2 size={16} aria-hidden="true" />
+          Share code after match
+        </span>
+        <ToggleSwitch
+          label="Share code after match"
+          checked={value.shareCodeAfterMatch}
+          disabled={disabled}
+          onChange={(shareCodeAfterMatch) => onChange?.({ ...value, shareCodeAfterMatch })}
+        />
+      </div>
+    </Disclosure>
+  );
   return (
     <div className="match-options lobby-settings">
+      {heading && lobbyOptions}
       <div className="match-option">
         <span>
           <Swords size={16} aria-hidden="true" />
@@ -109,7 +195,7 @@ export function MatchSettings({
             disabled: mode === "showdown" && participantCount > 2,
             hint: mode === "showdown" ? "Two players or fewer" : "Up to eight players",
           }))}
-          onChange={(mode) => onChange({ ...value, mode })}
+          onChange={(mode) => onChange?.({ ...value, mode })}
         />
       </div>
       <div className="match-option difficulty-option">
@@ -119,9 +205,9 @@ export function MatchSettings({
         </span>
         <DifficultySegments
           selected={pools}
-          onChange={changeDifficulties}
+          onChange={(difficulties) => changePool(difficulties, value.questionFilters)}
           required
-          disabled={disabled}
+          disabled={disabled || loadingSelection}
         />
       </div>
       <div className="match-option">
@@ -130,23 +216,25 @@ export function MatchSettings({
           Problem
           <PersistentNotice message={catalogError} label="Problem list unavailable" />
         </span>
-        <ProblemPicker
-          items={problems.filter((problem) =>
-            pools.includes(problem.difficulty as (typeof pools)[number]),
-          )}
-          identity={identity}
-          difficulties={pools}
-          filters={value.questionFilters}
-          onFiltersChange={(questionFilters) => onChange({ ...value, questionFilters })}
-          value={value.selectedProblemVersionId}
-          disabled={disabled}
-          allowRandom
-          discloseFilters
-          onChange={(selectedProblemVersionId, problem) => {
-            setPickedProblem(problem);
-            onChange({ ...value, difficulties: pools, selectedProblemVersionId });
-          }}
-        />
+        {preview ? (
+          <span>Visible after joining</span>
+        ) : (
+          <ProblemPicker
+            items={selectedProblem ? [selectedProblem] : []}
+            identity={identity}
+            difficulties={pools}
+            filters={value.questionFilters}
+            onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
+            value={value.selectedProblemVersionId}
+            disabled={disabled || loadingSelection}
+            allowRandom
+            discloseFilters
+            onChange={(selectedProblemVersionId, problem) => {
+              setPickedProblem(problem);
+              onChange?.({ ...value, difficulties: pools, selectedProblemVersionId });
+            }}
+          />
+        )}
       </div>
       <div className="match-option">
         <span>
@@ -158,7 +246,7 @@ export function MatchSettings({
           value={String(value.durationMinutes)}
           disabled={disabled}
           onChange={(duration) =>
-            onChange({
+            onChange?.({
               ...value,
               durationMinutes: Number(duration) as PartySettings["durationMinutes"],
             })
@@ -172,39 +260,9 @@ export function MatchSettings({
       <MatchRuleSettingsControls
         value={rules}
         disabled={disabled}
-        onChange={(rules) => onChange({ ...value, rules })}
+        onChange={(rules) => onChange?.({ ...value, rules })}
       />
-      <Disclosure title="Lobby options">
-        <div className="match-option">
-          <span>
-            <Users size={16} aria-hidden="true" />
-            Everyone can edit settings
-          </span>
-          <ToggleSwitch
-            label="Everyone can edit lobby settings"
-            checked={rules.settingsEditors === "everyone"}
-            disabled={disabled || !canEditPermissions}
-            onChange={(enabled) =>
-              onChange({
-                ...value,
-                rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
-              })
-            }
-          />
-        </div>
-        <div className="match-option">
-          <span>
-            <Code2 size={16} aria-hidden="true" />
-            Share code after match
-          </span>
-          <ToggleSwitch
-            label="Share code after match"
-            checked={value.shareCodeAfterMatch}
-            disabled={disabled}
-            onChange={(shareCodeAfterMatch) => onChange({ ...value, shareCodeAfterMatch })}
-          />
-        </div>
-      </Disclosure>
+      {!heading && lobbyOptions}
     </div>
   );
 }

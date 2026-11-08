@@ -3,7 +3,6 @@ import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import { verifyResultReceipt, type VerificationReceipt } from "@quorem/execution";
 import { lockVerificationChallenge, writeVerificationChunks } from "./verification-source.ts";
-import { reconcileMatch } from "../../matches/reconcile/repository.ts";
 import type { PreparedVerification } from "./verification-prepare.ts";
 import type { VerifiedField } from "./verification-client.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -15,7 +14,7 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
     receipt: VerificationReceipt,
     signature: Uint8Array,
     inline?: readonly VerifiedField[],
-  ): Promise<void> => {
+  ): Promise<string | undefined> => {
     if (!(await verifyResultReceipt(receipt, signature, publicKey)))
       throw new Error("Invalid verification signature");
     const { job } = prepared;
@@ -31,19 +30,8 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
       receipt.binding !== prepared.binding
     )
       throw new Error("Verification provenance mismatch");
-    await run((scope) =>
+    return run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-        const match = (
-          await tx.execute<{ id: string | null }>(
-            sql`SELECT s.match_id::text AS id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid`,
-          )
-        ).rows[0]?.id;
-        if (match) {
-          const locked = await tx.execute(
-            sql`SELECT id FROM matches WHERE id=${match}::uuid FOR UPDATE`,
-          );
-          if (!locked.rows.length) throw new Error("Verification unavailable");
-        }
         const row = await lockVerificationChallenge(tx, receipt.challenge);
         if (
           row.job_id !== job.jobId ||
@@ -112,7 +100,19 @@ export function postgresVerificationCommit(run: Run, publicKey: CryptoKey) {
           INSERT INTO execution_verified_cases(job_id,ordinal,attempt_id,sandbox_scope,challenge_id,binding,frame_hash,actual_hash,expected_hash,type_mismatch,status) SELECT job_id,${receipt.ordinal},${job.attemptId}::uuid,${job.sandboxScope},${receipt.challenge}::uuid,decode(${receipt.binding},'hex'),decode(${receipt.frameHash},'hex'),CASE WHEN ${receipt.actualHash}::text IS NULL THEN NULL ELSE decode(${receipt.actualHash},'hex') END,CASE WHEN ${receipt.expectedHash}::text IS NULL THEN NULL ELSE decode(${receipt.expectedHash},'hex') END,${receipt.typeMismatch},${receipt.status} FROM frame RETURNING ordinal`,
         );
         if (!frame.rows.length) throw new Error("Completion frame conflict");
-        if (match) await reconcileMatch(tx, match);
+        // Only a definitive hidden failure can change settlement before the verdict is promoted.
+        if (
+          row.match_id &&
+          row.result_channel === "private" &&
+          receipt.status !== "accepted" &&
+          receipt.status !== "executed"
+        ) {
+          await tx.execute(
+            sql`INSERT INTO match_reconciliation_pending(match_id,publish_update) VALUES(${row.match_id}::uuid,false)
+                ON CONFLICT(match_id) DO UPDATE SET generation=match_reconciliation_pending.generation+1`,
+          );
+          return row.match_id;
+        }
       }),
     );
   };

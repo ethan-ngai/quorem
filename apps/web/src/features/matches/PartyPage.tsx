@@ -5,9 +5,10 @@ import { Spinner } from "../../ui/Spinner";
 import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAccountIdentity, MatchSettings } from "./MatchControls";
+import { useAccountIdentity, MatchSettings, LobbySetupHeading } from "./MatchControls";
 import {
   partyCommand,
   readPartyInvitation,
@@ -16,14 +17,15 @@ import {
   type PartySettings,
 } from "./party";
 import { PartyInvitation } from "./PartyInvitation";
+import { GuestAccessToggle } from "./GuestAccessToggle";
 import { PartyReadyStatus, PartyMemberReadiness } from "./PartyReadyStatus";
-import { useActiveMatch } from "./useActiveMatch";
+import { usePartyRoundNavigation } from "./useActiveMatch";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { matchModeLabels } from "./ModeIcon";
 import { readPendingCommand } from "./commandRecovery";
-import { Trash2, Info, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
+import { Trash2, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -34,6 +36,8 @@ import { isRouteDenied } from "../auth/protectedRoute";
 import { NotFoundPage } from "../public/NotFoundPage";
 
 const factionReadyHint = "Every faction needs at least one player";
+const settingsReadyHint =
+  "Changing the round or guest access, or enabling code sharing, resets readiness.";
 
 export function PartyPage() {
   const { identity, account } = useAccountIdentity();
@@ -72,7 +76,7 @@ export function PartyPage() {
           party.members.some((member) => member.userId === assignment.userId),
         ),
       }));
-  const activeMatch = useActiveMatch(identity, !!party?.currentMatchId);
+  const round = usePartyRoundNavigation(identity, party?.currentMatchId);
   const recovery =
     !pending &&
     party &&
@@ -86,10 +90,6 @@ export function PartyPage() {
       }))
       .find((entry) => entry.command);
   const inviteUrl = party ? readPartyInvitation(party.id) : undefined;
-  useEffect(() => {
-    if (party?.currentMatchId && activeMatch.match?.id === party.currentMatchId)
-      window.location.assign(`/match/${party.currentMatchId}`);
-  }, [party?.currentMatchId, activeMatch.match?.id]);
   const run = async (operation: string, body?: unknown, method = "POST", scope = "all") => {
     if (!party) return;
     const settings = operation === "settings" ? (body as PartySettings) : undefined;
@@ -140,7 +140,7 @@ export function PartyPage() {
       setRecoveryRevision((value) => value + 1);
       setError(
         failure instanceof RejectedMatchCommand
-          ? "Could not update the lobby."
+          ? failure.message
           : "Could not update the lobby. Retry the previous action.",
       );
     } finally {
@@ -173,12 +173,15 @@ export function PartyPage() {
           <button className="button button-secondary" onClick={() => void query.refetch()}>
             Try again
           </button>
-          <a href="/practice">Back to practice</a>
+          <Link className="button button-secondary" to="/practice">
+            Back to practice
+          </Link>
         </section>
       </main>
     );
   const displayedSettings =
     pendingSettings?.partyId === party.id ? pendingSettings.value : party.settings;
+  const guestsAllowed = displayedSettings.accessMode === "guests_allowed";
   const memberActions = (member: { userId: string; displayName: string }) =>
     host && !party.currentMatchId && member.userId !== identity ? (
       <Tooltip content={`Remove ${member.displayName}`}>
@@ -239,6 +242,23 @@ export function PartyPage() {
                     party.members.find((member) => member.userId === party.hostUserId)?.displayName
                   }
                   settings={party.settings}
+                />
+              )}
+              {host && !party.currentMatchId && account.data?.capabilities?.hostGuests && (
+                <GuestAccessToggle
+                  allowed={guestsAllowed}
+                  disabled={joiningPending || !!recovery}
+                  onToggle={() =>
+                    void run(
+                      "settings",
+                      {
+                        ...party.settings,
+                        accessMode: guestsAllowed ? "accounts_only" : "guests_allowed",
+                      },
+                      "PUT",
+                      "joining",
+                    )
+                  }
                 />
               )}
               {host && !party.currentMatchId && (
@@ -336,31 +356,11 @@ export function PartyPage() {
               queueError={party.queueError}
             />
           )}
-          {party.currentMatchId && (
-            <p>
-              {activeMatch.match?.id === party.currentMatchId ? (
-                <a href={`/match/${party.currentMatchId}`}>Return to match</a>
-              ) : (
-                "A round is in progress. You can join the next round."
-              )}
-            </p>
+          {party.currentMatchId && !round.entering && !round.checking && (
+            <p>A round is in progress. You can join the next round.</p>
           )}
         </fieldset>
         {readinessActions}
-        <div className="lobby-setup-heading">
-          <h2>Match setup</h2>
-          <Tooltip
-            content={
-              host || party.settings.rules?.settingsEditors === "everyone"
-                ? "Changes to the round or enabling code sharing reset readiness."
-                : "Only the host can change settings. Changes to the round or enabling code sharing reset readiness."
-            }
-          >
-            <button type="button" className="icon-button" aria-label="About lobby settings">
-              <Info size={16} aria-hidden="true" />
-            </button>
-          </Tooltip>
-        </div>
         <fieldset className="lobby-command-lock" disabled={controlsPending && !pendingSettings}>
           <MatchSettings
             value={displayedSettings}
@@ -373,6 +373,16 @@ export function PartyPage() {
             }
             onChange={(settings) => void run("settings", settings satisfies PartySettings, "PUT")}
             canEditPermissions={host}
+            heading={(options) => (
+              <LobbySetupHeading
+                options={options}
+                hint={
+                  host || party.settings.rules?.settingsEditors === "everyone"
+                    ? settingsReadyHint
+                    : `Only the host can change settings. ${settingsReadyHint}`
+                }
+              />
+            )}
           />
         </fieldset>
         {readinessActions}

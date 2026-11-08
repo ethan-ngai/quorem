@@ -62,9 +62,15 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       await migrate(pool, owner, dir);
       const ledger =
         owner === "auth" ? "quorem_auth.schema_migrations" : "public.schema_migrations";
-      assert.equal(
-        Number((await pool.query(`SELECT count(*) FROM ${ledger}`)).rows[0].count),
-        names.length,
+      const upgrades = (await readdir(dir))
+        .filter((name) => name.endsWith(".sql") && !name.endsWith("_baseline.sql"))
+        .sort();
+      const { rows } = await pool.query<{ name: string }>(
+        `SELECT name FROM ${ledger} ORDER BY name`,
+      );
+      assert.deepEqual(
+        rows.map(({ name }) => name),
+        [...names, ...upgrades],
       );
       const checksum = (
         await pool.query(`SELECT checksum FROM ${ledger} WHERE name=$1`, [names[0]])

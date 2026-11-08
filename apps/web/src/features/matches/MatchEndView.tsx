@@ -15,9 +15,9 @@ import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
 import { PartyReadyStatus, MatchLobbyReadiness, PartyReadinessIndicator } from "./PartyReadyStatus";
-import { useActiveMatch } from "./useActiveMatch";
+import { usePartyRoundNavigation } from "./useActiveMatch";
 import { partyCommand, useParty } from "./party";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 import { outcomeLabel, ownParticipant, matchCompletionOutcome } from "./matchState";
 
@@ -61,24 +61,17 @@ export function MatchEndView({
   problemTitle?: string;
 }) {
   const [celebrate, setCelebrate] = useState(open);
-  const [pending, setPending] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<"leave" | "ready">();
+  const pending = pendingOperation !== undefined;
   const [error, setError] = useState("");
   const client = useQueryClient();
   const partyQuery = useParty(identity);
   const candidateParty = partyQuery.data?.party;
   const party = candidateParty?.id === snapshot.partyId ? candidateParty : null;
-  const activeMatch = useActiveMatch(
+  usePartyRoundNavigation(
     identity,
-    !!party?.currentMatchId && party.currentMatchId !== snapshot.id,
+    party?.currentMatchId === snapshot.id ? null : party?.currentMatchId,
   );
-  useEffect(() => {
-    if (
-      party?.currentMatchId &&
-      party.currentMatchId !== snapshot.id &&
-      activeMatch.match?.id === party.currentMatchId
-    )
-      window.location.assign(`/match/${party.currentMatchId}`);
-  }, [party?.currentMatchId, snapshot.id, activeMatch.match?.id]);
   const member = party?.members.find((person) => person.userId === participantUserId(identity));
   const recovery =
     party &&
@@ -87,7 +80,7 @@ export function MatchEndView({
     party && readPendingCommand(identity, `party:/v1/parties/${party.id}/leave`);
   const leaveLobby = async () => {
     if (!party || pending) return;
-    setPending(true);
+    setPendingOperation("leave");
     setError("");
     try {
       await partyCommand(identity, `/v1/parties/${party.id}/leave`, "POST");
@@ -95,12 +88,12 @@ export function MatchEndView({
     } catch {
       setError("Could not leave the lobby. Try again.");
     } finally {
-      setPending(false);
+      setPendingOperation(undefined);
     }
   };
   const toggleReady = async () => {
     if (!party || !member || pending) return;
-    setPending(true);
+    setPendingOperation("ready");
     setError("");
     try {
       await partyCommand(identity, `/v1/parties/${party.id}/ready`, "POST", {
@@ -110,7 +103,7 @@ export function MatchEndView({
     } catch {
       setError("Could not update readiness. Try again.");
     } finally {
-      setPending(false);
+      setPendingOperation(undefined);
     }
   };
   const settled =
@@ -144,7 +137,12 @@ export function MatchEndView({
         party && !partyQuery.isError && member
           ? {
               ready: member.ready,
-              disabled: pending || !!leaveRecovery || !member.online || !!party.currentMatchId,
+              pending: pendingOperation === "ready",
+              disabled:
+                pendingOperation === "leave" ||
+                !!leaveRecovery ||
+                !member.online ||
+                !!party.currentMatchId,
               retry: !!recovery,
               onClick: () => void toggleReady(),
             }

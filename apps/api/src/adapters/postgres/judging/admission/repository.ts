@@ -165,8 +165,8 @@ export async function admitWorkspaceInTransaction(
           tx,
           row.matchId,
           rulePlan.subject,
-          admissionTime,
           rulePlan.quote.seconds,
+          admissionTime,
         );
       if (rulePlan.quote.cooldownSeconds > 0)
         throw failure(

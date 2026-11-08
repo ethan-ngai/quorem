@@ -28,7 +28,7 @@ export function postgresExecutionCommands(
   const cap = Object.freeze({ ...capabilities }),
     claims = postgresClaims(run, cap),
     checkpoints = postgresCheckpoints(run),
-    staging = postgresCompletionStaging(run, verification);
+    staging = postgresCompletionStaging(run, verification, wakeMatchDeadline);
   const resumable = () => {
     if (!cap.resumable) throw new Error("Checkpoint capability unavailable");
   };

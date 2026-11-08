@@ -215,25 +215,23 @@ export function TeamOrganizer({
                   }
                   onSave={(name) => change({ action: "rename", team, name })}
                 />
-                {members.length > 0 && (
-                  <PartyMemberReadiness
-                    members={members}
-                    hostUserId={party.hostUserId}
-                    ownUserId={identity}
-                    actions={(member) => (
-                      <>
-                        {memberActions?.(member)}
-                        {host || (!changesLocked && member.userId === identity) ? (
-                          <FactionDragHandle
-                            userId={member.userId}
-                            name={member.displayName}
-                            disabled={controlsBusy}
-                          />
-                        ) : null}
-                      </>
-                    )}
-                  />
-                )}
+                <PartyMemberReadiness
+                  members={members}
+                  hostUserId={party.hostUserId}
+                  ownUserId={identity}
+                  actions={(member) => (
+                    <>
+                      {memberActions?.(member)}
+                      {host || (!changesLocked && member.userId === identity) ? (
+                        <FactionDragHandle
+                          userId={member.userId}
+                          name={member.displayName}
+                          disabled={controlsBusy}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                />
                 {team > 0 && assignments.find((a) => a.userId === identity)?.team !== team && (
                   <button
                     className="button button-secondary faction-join"

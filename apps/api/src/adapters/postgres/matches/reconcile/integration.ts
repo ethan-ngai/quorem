@@ -202,6 +202,11 @@ for (const [verdict, source] of [
     if (!socket) throw new Error("Disposable Docker socket required for verified match regression");
     const r = await room(),
       key = crypto.randomUUID();
+    if (verdict === "accepted")
+      await pool.query(
+        "INSERT INTO match_rule_events(id,match_id,owner_id,competitor_id,kind,action,seconds,points) VALUES($1,$2,$3,$3,'topics','penalty',60,0)",
+        [crypto.randomUUID(), r.id, r.a],
+      );
     const fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
     await prearmReceipts(run, "execution").create(fence.receiptId, 0);
     const command = await parseWorkspaceCommand(
@@ -368,6 +373,19 @@ void test("verified early failure permits guest winner and late completion canno
         return sandboxA.runCase(...args);
       },
     };
+    const jobB = await port.claimAfterTeardown(true, sandboxB.scope, null);
+    assert.equal(jobB?.jobId, second.fence.jobId);
+    await executeAndStage(jobB!, port, sandboxB);
+    await finishAfterTeardown(port, sandboxB, jobB!);
+    assert.equal(
+      (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0].outcome,
+      null,
+    );
+    const beforeFailure = await pool.query(
+      "SELECT generation::text FROM match_reconciliation_pending WHERE match_id=$1",
+      [r.id],
+    );
+    await call(r.id, beforeFailure.rows[0].generation);
     const pending = executeAndStage(jobA!, port, suspended);
     await secondCase;
     // Result staging overlaps the next case; wait for signed evidence, not sandbox entry.
@@ -383,10 +401,12 @@ void test("verified early failure permits guest winner and late completion canno
       if (!verified.length) await new Promise((resolve) => setTimeout(resolve, 10));
     }
     assert.equal(verified[0]?.status, "wrong_answer");
-    const jobB = await port.claimAfterTeardown(true, sandboxB.scope, null);
-    assert.equal(jobB?.jobId, second.fence.jobId);
-    await executeAndStage(jobB!, port, sandboxB);
-    await finishAfterTeardown(port, sandboxB, jobB!);
+    const caseIntent = await pool.query(
+      "SELECT generation::text,publish_update FROM match_reconciliation_pending WHERE match_id=$1",
+      [r.id],
+    );
+    assert.equal(caseIntent.rows[0]?.publish_update, false);
+    await call(r.id, caseIntent.rows[0].generation);
     let match = (await pool.query("SELECT outcome FROM matches WHERE id=$1", [r.id])).rows[0];
     assert.equal(match.outcome.reason, "first_correct");
     const winner = (await pool.query("SELECT participant_id::text FROM users WHERE id=$1", [r.b]))

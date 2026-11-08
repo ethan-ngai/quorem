@@ -15,7 +15,12 @@ import {
   approachesProjection,
   canonicalApproachProjection,
 } from "../../problems/editorial-storage.ts";
-import { competitiveSubject, recordRuleEvent, submissionPolicy } from "./ledger.ts";
+import {
+  competitiveSubject,
+  recordRuleEvent,
+  requireSubmissionTime,
+  submissionPolicy,
+} from "./ledger.ts";
 
 export function assertRuleApproval(actual: RuleApproval, approved?: RuleApproval) {
   if (
@@ -141,6 +146,8 @@ export async function executeRuleAction(
     throw new ApplicationError("invalid_input", "Confirm the selected case", 400);
   assertRuleApproval(plan.quote, input.approval);
   await requireTeamApproval(tx, match, actor, plan.quote, input, approvedTeamVoteId);
+  if (plan.quote.seconds > 0)
+    await requireSubmissionTime(tx, match, plan.subject, plan.quote.seconds);
   if (!plan.quote.alreadyRevealed)
     await recordRuleEvent(tx, {
       match,

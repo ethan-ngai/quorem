@@ -1,9 +1,10 @@
 /** @file PartyReadyStatus.tsx @description Shared per-member readiness and automatic-start feedback. @module matches */
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { CircleCheck, CircleDashed, Crown, LogOut, WifiOff } from "lucide-react";
+import { CircleCheck, CircleDashed, LogOut, WifiOff } from "lucide-react";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { StateIcon } from "../../ui/StateIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -13,8 +14,9 @@ import "./party-ready.css";
 
 type ReadyMember = Pick<
   PartyMember,
-  "userId" | "displayName" | "ready" | "online" | "image" | "color" | "previousWinner"
->;
+  "userId" | "displayName" | "image" | "color" | "previousWinner"
+> &
+  Partial<Pick<PartyMember, "ready" | "online">>;
 
 export function PartyReadinessIndicator({
   member,
@@ -59,34 +61,32 @@ export function PartyMemberReadiness({
   actions?: (member: ReadyMember) => ReactNode;
 }) {
   return (
-    <ul
-      className="party-ready-members"
-      data-actions={actions ? true : undefined}
-      aria-label="Lobby readiness"
-    >
-      {members.map((member) => (
-        <li key={member.userId} className="action-reveal-group">
+    <AnimatedRows
+      as="ul"
+      className={
+        actions ? "party-ready-members party-ready-members-with-actions" : "party-ready-members"
+      }
+      rowClassName="action-reveal-group"
+      label="Lobby readiness"
+      items={members}
+      getKey={(member) => member.userId}
+      renderRow={(member) => (
+        <>
           <span className="party-ready-person">
             <ParticipantName
               participant={member}
               self={member.userId === ownUserId}
+              host={member.userId === hostUserId}
               nameSuffix={member.previousWinner && <MatchWinnerMetadata previous />}
-              nameAdornment={
-                hostUserId && member.userId === hostUserId ? (
-                  <Tooltip content="Lobby host">
-                    <span role="img" aria-label="Lobby host" tabIndex={0}>
-                      <Crown size={12} aria-hidden="true" />
-                    </span>
-                  </Tooltip>
-                ) : undefined
-              }
             />
-            <PartyReadinessIndicator member={member} />
+            {member.ready !== undefined && member.online !== undefined && (
+              <PartyReadinessIndicator member={{ ready: member.ready, online: member.online }} />
+            )}
           </span>
           {actions?.(member)}
-        </li>
-      ))}
-    </ul>
+        </>
+      )}
+    />
   );
 }
 
@@ -99,49 +99,10 @@ export function PartyReadyStatus({
   queueError?: string | null;
   firstMatch?: boolean;
 }) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    if (!countdownEndsAt) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => {
-      const sample = Date.now();
-      setNow(sample);
-      if (sample >= Date.parse(countdownEndsAt)) window.clearInterval(timer);
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [countdownEndsAt]);
-  const remaining = countdownEndsAt ? Date.parse(countdownEndsAt) - now : NaN;
-  const counting = Number.isFinite(remaining);
-  const seconds = Math.max(0, Math.ceil(remaining / 1000));
-  const starting = seconds === 0;
-  const matchLabel = firstMatch ? "Match" : "Next match";
-  const title = firstMatch ? "Starting match" : "Starting next match";
-  if (!counting && !queueError) return null;
   return (
     <>
-      {counting && (
-        <>
-          <span className="sr-only" role="alert">
-            {starting ? `${title}.` : `${matchLabel} starts shortly.`}
-          </span>
-          <span className="sr-only" role="timer">
-            {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
-          </span>
-          {typeof document !== "undefined" &&
-            createPortal(
-              <div className="party-countdown-popup" aria-hidden="true">
-                <span className="party-countdown-ring">
-                  <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
-                  <span>{seconds}</span>
-                </span>
-                <span className="party-countdown-label">
-                  {title}
-                  {starting ? "…" : ""}
-                </span>
-              </div>,
-              document.body,
-            )}
-        </>
+      {countdownEndsAt && (
+        <PartyCountdown key={countdownEndsAt} deadline={countdownEndsAt} firstMatch={firstMatch} />
       )}
       {queueError && (
         <div className="party-ready-feedback">
@@ -151,6 +112,50 @@ export function PartyReadyStatus({
           />
         </div>
       )}
+    </>
+  );
+}
+
+function PartyCountdown({ deadline, firstMatch }: { deadline: string; firstMatch: boolean }) {
+  const endsAt = Date.parse(deadline);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!Number.isFinite(endsAt)) return;
+    const timer = window.setInterval(() => {
+      const sample = Date.now();
+      setNow(sample);
+      if (sample >= endsAt) window.clearInterval(timer);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [endsAt]);
+  const remaining = endsAt - now;
+  if (!Number.isFinite(remaining)) return null;
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
+  const starting = seconds === 0;
+  const matchLabel = firstMatch ? "Match" : "Next match";
+  const title = firstMatch ? "Starting match" : "Starting next match";
+  return (
+    <>
+      <span className="sr-only" role="alert">
+        {starting ? `${title}.` : `${matchLabel} starts shortly.`}
+      </span>
+      <span className="sr-only" role="timer">
+        {starting ? `${title}…` : `${matchLabel} in ${seconds}s`}
+      </span>
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div className="party-countdown-popup" aria-hidden="true">
+            <span className="party-countdown-ring">
+              <MatchTimeRing fraction={remaining / (PARTY_READY_COUNTDOWN_SECONDS * 1000)} />
+              <span>{seconds}</span>
+            </span>
+            <span className="party-countdown-label">
+              {title}
+              {starting ? "…" : ""}
+            </span>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -176,9 +181,7 @@ export function MatchLobbyReadiness({
           {ready} / {members.length} ready
         </span>
       </div>
-      {joined.length > 0 && (
-        <PartyMemberReadiness members={joined} hostUserId={hostUserId} ownUserId={ownUserId} />
-      )}
+      <PartyMemberReadiness members={joined} hostUserId={hostUserId} ownUserId={ownUserId} />
     </section>
   );
 }

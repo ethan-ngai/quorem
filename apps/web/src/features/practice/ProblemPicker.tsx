@@ -157,157 +157,164 @@ export function ProblemPicker({
       />
     </fieldset>
   );
-  return (
-    <div className="problem-picker">
-      <Popover.Root
-        open={open}
-        onOpenChange={(value) => {
-          setOpen(value);
-          if (value) {
-            setSearch("");
-          }
-        }}
-      >
-        <Tooltip content={randomWarning} disabled={!randomWarning}>
-          <Popover.Trigger asChild>
-            <button
-              type="button"
-              className="select-field match-choice problem-picker-trigger"
-              data-warning={!!randomWarning || undefined}
-              disabled={disabled}
-              aria-label={label}
-              aria-describedby={randomWarning ? warningId : undefined}
-            >
-              {allowRandom && !value ? (
-                <span className="problem-picker-labels" aria-hidden="true">
-                  <span className="problem-picker-label problem-picker-label-default">
-                    <Dices size={16} />
-                    Random
-                  </span>
-                  <span className="problem-picker-label problem-picker-label-warning">
-                    <AlertCircle size={16} />
-                    {!emptyRandomPool && randomPool.isError
-                      ? "Could not check questions"
-                      : "No matching questions"}
-                  </span>
+  const picker = (
+    <Popover.Root
+      open={open}
+      onOpenChange={(value) => {
+        setOpen(value);
+        if (value) {
+          setSearch("");
+        }
+      }}
+    >
+      <Tooltip content={randomWarning} disabled={!randomWarning}>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="select-field match-choice problem-picker-trigger"
+            data-warning={!!randomWarning || undefined}
+            disabled={disabled}
+            aria-label={label}
+            aria-describedby={randomWarning ? warningId : undefined}
+          >
+            {allowRandom && !value ? (
+              <span className="problem-picker-labels" aria-hidden="true">
+                <span className="problem-picker-label problem-picker-label-default">
+                  <Dices size={16} />
+                  Random
                 </span>
-              ) : (
-                <span>{selected?.title ?? (value ? "Selected problem" : "Choose question")}</span>
-              )}
-              <span className="select-field-chevron">
-                <Icon name="chevron" />
+                <span className="problem-picker-label problem-picker-label-warning">
+                  <AlertCircle size={16} />
+                  {!emptyRandomPool && randomPool.isError
+                    ? "Could not check questions"
+                    : "No matching questions"}
+                </span>
               </span>
-            </button>
-          </Popover.Trigger>
-        </Tooltip>
-        <Popover.Portal>
-          <Popover.Content
-            ref={popover}
-            className="problem-picker-popover"
-            sideOffset={8}
-            collisionPadding={12}
-            align="end"
-            aria-label="Choose problem"
-            onOpenAutoFocus={(event) => {
-              event.preventDefault();
-              input.current?.focus();
+            ) : (
+              <span>{selected?.title ?? (value ? "Selected problem" : "Choose question")}</span>
+            )}
+            <span className="select-field-chevron">
+              <Icon name="chevron" />
+            </span>
+          </button>
+        </Popover.Trigger>
+      </Tooltip>
+      <Popover.Portal>
+        <Popover.Content
+          ref={popover}
+          className="problem-picker-popover"
+          sideOffset={8}
+          collisionPadding={12}
+          align="end"
+          aria-label="Choose problem"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            input.current?.focus();
+          }}
+        >
+          <SearchField
+            className="problem-picker-search"
+            ref={input}
+            shortcutTarget={popover}
+            aria-label="Search problems"
+            placeholder="Search problems"
+            value={search}
+            maxLength={120}
+            onChange={(event) => {
+              setSearch(event.target.value);
+            }}
+          />
+          <div
+            key={JSON.stringify([search, filters, allowed])}
+            className="problem-picker-results"
+            role="group"
+            aria-label="Matching problems"
+            onScroll={(event) => {
+              const list = event.currentTarget;
+              if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) loadMore();
             }}
           >
-            <SearchField
-              className="problem-picker-search"
-              ref={input}
-              shortcutTarget={popover}
-              aria-label="Search problems"
-              placeholder="Search problems"
-              value={search}
-              maxLength={120}
-              onChange={(event) => {
-                setSearch(event.target.value);
-              }}
-            />
-            <div
-              key={JSON.stringify([search, filters, allowed])}
-              className="problem-picker-results"
-              role="group"
-              aria-label="Matching problems"
-              onScroll={(event) => {
-                const list = event.currentTarget;
-                if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) loadMore();
-              }}
-            >
-              {allowRandom && (
-                <button
-                  type="button"
-                  className="problem-picker-item"
-                  aria-pressed={!value}
-                  onClick={() => choose(undefined)}
-                >
-                  <Dices size={18} />
-                  <span className="problem-picker-title">Random</span>
-                  {!value && <Icon name="submit" />}
-                </button>
-              )}
-              {filtered.map((item) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  className="problem-picker-item"
-                  aria-pressed={value === item.id}
-                  onClick={() => choose(item.id)}
-                >
-                  {value === item.id && <Icon name="submit" />}
-                  <span className="problem-picker-title">{item.title}</span>
-                  <QuestionIndicators privateQuestion={!!item.isPrivate} odyssey={!!item.odyssey} />
-                  <small className={`difficulty-${item.difficulty}`}>{item.difficulty}</small>
-                </button>
-              ))}
-              {catalog.isError ? (
-                <div role="alert">
-                  <p>
-                    {filtered.length ? "Could not load more questions." : "Questions unavailable."}
-                  </p>
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    onClick={() =>
-                      void (catalog.isFetchNextPageError
-                        ? catalog.fetchNextPage({ cancelRefetch: false })
-                        : catalog.refetch())
-                    }
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : catalog.isFetching ? (
-                <p role="status">Loading questions…</p>
-              ) : !filtered.length ? (
-                <p role="status">No matching problems</p>
-              ) : catalog.hasNextPage ? (
+            {allowRandom && (
+              <button
+                type="button"
+                className="problem-picker-item"
+                aria-pressed={!value}
+                onClick={() => choose(undefined)}
+              >
+                <Dices size={18} />
+                <span className="problem-picker-title">Random</span>
+                {!value && <Icon name="submit" />}
+              </button>
+            )}
+            {filtered.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                className="problem-picker-item"
+                aria-pressed={value === item.id}
+                onClick={() => choose(item.id)}
+              >
+                {value === item.id && <Icon name="submit" />}
+                <span className="problem-picker-title">{item.title}</span>
+                <QuestionIndicators privateQuestion={!!item.isPrivate} odyssey={!!item.odyssey} />
+                <small className={`difficulty-${item.difficulty}`}>{item.difficulty}</small>
+              </button>
+            ))}
+            {catalog.isError ? (
+              <div role="alert">
+                <p>
+                  {filtered.length ? "Could not load more questions." : "Questions unavailable."}
+                </p>
                 <button
                   type="button"
                   className="quiet-button"
-                  onClick={() => void catalog.fetchNextPage({ cancelRefetch: false })}
+                  onClick={() =>
+                    void (catalog.isFetchNextPageError
+                      ? catalog.fetchNextPage({ cancelRefetch: false })
+                      : catalog.refetch())
+                  }
                 >
-                  Load more questions
+                  Retry
                 </button>
-              ) : null}
-            </div>
-          </Popover.Content>
-        </Popover.Portal>
-      </Popover.Root>
+              </div>
+            ) : catalog.isFetching ? (
+              <p role="status">Loading questions…</p>
+            ) : !filtered.length ? (
+              <p role="status">No matching problems</p>
+            ) : catalog.hasNextPage ? (
+              <button
+                type="button"
+                className="quiet-button"
+                onClick={() => void catalog.fetchNextPage({ cancelRefetch: false })}
+              >
+                Load more questions
+              </button>
+            ) : null}
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+  return (
+    <div className="problem-picker">
       {discloseFilters ? (
         <Disclosure
           title="Question filters"
-          summary={
-            Object.values(filters).filter((value) => value && value !== "false").length
-              ? "Filtered pool"
-              : undefined
-          }
+          highlighted={Object.values(filters).some((value) => value && value !== "false")}
+          header={(trigger) => (
+            <div className="settings-disclosure-controls">
+              {picker}
+              {trigger}
+            </div>
+          )}
         >
           {filterControls}
         </Disclosure>
       ) : (
-        filterControls
+        <>
+          {picker}
+          {filterControls}
+        </>
       )}
       {allowRandom && (
         <div className="sr-only" id={warningId} role="status">

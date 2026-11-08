@@ -263,11 +263,6 @@ function MatchLedger({
             <ScorePenalty unit="seconds" value={player.penaltySeconds} />
           )}
           {!!player?.penaltyPoints && <ScorePenalty unit="points" value={player.penaltyPoints} />}
-          {player?.eligibleFinishAt && snapshot.state === "active" && (
-            <span className="score-judging">
-              Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
-            </span>
-          )}
           {(player?.submissionState === "running" || player?.submissionState === "queued") && (
             <span className="score-judging motion-reveal">Judging…</span>
           )}
@@ -424,7 +419,7 @@ export function MatchPage({
             <p>
               {snapshot.partyId ? "Returning to your lobby…" : "This lobby is no longer available."}
             </p>
-            <a href={snapshot.partyId ? "/party" : "/practice"}>
+            <a className="button button-secondary" href={snapshot.partyId ? "/party" : "/practice"}>
               {snapshot.partyId ? "Return to lobby" : "Back to practice"}
             </a>
           </>

@@ -1,39 +1,59 @@
 .settings-disclosure {
   min-width: 0;
 }
-.settings-disclosure > summary {
+.settings-disclosure-controls,
+.settings-disclosure-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 36px;
-  padding-block: var(--space-2);
-  cursor: pointer;
-  list-style: none;
-  font-size: var(--text-label);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-sm);
+  min-width: 0;
 }
-.settings-disclosure > summary::-webkit-details-marker {
-  display: none;
+.settings-disclosure-controls > :first-child {
+  flex: 1;
+  min-width: 0;
 }
-.settings-disclosure > summary:hover {
-  color: var(--color-text);
+.settings-disclosure-actions {
+  justify-content: flex-end;
 }
-.settings-disclosure > summary:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.settings-disclosure-trigger:is([aria-expanded="true"], [data-highlighted]) {
+  color: var(--color-primary);
 }
-.settings-disclosure > summary > svg {
-  flex-shrink: 0;
-}
-.settings-disclosure > summary small {
-  margin-left: auto;
-  font: inherit;
-  text-align: right;
+.settings-disclosure-trigger[aria-expanded="true"] {
+  background: var(--color-control-selected);
 }
 .settings-disclosure-content {
   display: grid;
   gap: var(--space-3);
   padding-block: var(--space-2);
   min-width: 0;
+}
+
+/* Keep the content mounted so closing preserves settings and scrollable layout. */
+.settings-disclosure-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 0fr);
+  overflow: clip;
+  opacity: 0;
+}
+.settings-disclosure[data-open="true"] > .settings-disclosure-panel {
+  grid-template-rows: minmax(0, 1fr);
+  overflow: visible;
+  opacity: 1;
+}
+.settings-disclosure-trigger[aria-expanded="true"] > svg {
+  rotate: 35deg;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .settings-disclosure-trigger > svg {
+    transition: rotate var(--motion-fast) var(--motion-easing);
+  }
+  .settings-disclosure-panel {
+    transition:
+      opacity var(--motion-standard) var(--motion-easing),
+      grid-template-rows var(--motion-standard) var(--motion-easing),
+      overflow 0s allow-discrete;
+  }
+  .settings-disclosure[data-open="true"] > .settings-disclosure-panel {
+    transition-delay: 0s, 0s, var(--motion-standard);
+  }
 }

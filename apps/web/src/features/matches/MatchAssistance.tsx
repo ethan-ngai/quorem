@@ -61,7 +61,7 @@ export function MatchAssistance({
   }>();
   const disabled = pending || match.state !== "active" || !!own?.forfeited;
   const confirmationOpen = !!confirmation && match.state === "active" && !own?.forfeited;
-  useErrorNotification(confirmationOpen ? undefined : error);
+  useErrorNotification(error || undefined);
   function closeConfirmation() {
     setConfirmation(undefined);
     setError("");
@@ -239,7 +239,7 @@ export function MatchAssistance({
                   {penalty && <CostIcon size={16} aria-hidden="true" />}
                   <span>
                     {cost.seconds
-                      ? "Added to finish time"
+                      ? "Deducted from submission time"
                       : cost.points
                         ? "Deducted from score"
                         : "Reveal cost"}
@@ -247,7 +247,6 @@ export function MatchAssistance({
                   <strong>{ruleCostLabel(cost)}</strong>
                 </div>
               )}
-              {error && <p role="alert">{error}</p>}
               <div className="assistance-confirmation-actions">
                 <button
                   type="button"

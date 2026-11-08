@@ -1049,6 +1049,40 @@ async function activateRulesRoom(room: Awaited<ReturnType<typeof rulesRoom>>) {
     true,
   )) as import("@quorem/contracts").MatchSnapshot;
 }
+void test("rejects a reveal costing the personal time remaining without charging it", async () => {
+  const { ruleApproval } = await import("@quorem/contracts/match-rules");
+  const room = await rulesRoom();
+  await activateRulesRoom(room);
+  const topics = await repo.ruleAction(room.actor, room.id, "topics-quote", { kind: "topics" });
+  const complexity = await repo.ruleAction(room.actor, room.id, "complexity-quote", {
+    kind: "complexity",
+  });
+  await repo.ruleAction(room.actor, room.id, "topics-buy", {
+    kind: "topics",
+    approval: ruleApproval(topics.quote),
+  });
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+make_interval(secs=>$2) WHERE id=$1",
+    [room.id, topics.quote.seconds + complexity.quote.seconds],
+  );
+  await assert.rejects(
+    repo.ruleAction(room.actor, room.id, "complexity-buy", {
+      kind: "complexity",
+      approval: ruleApproval(complexity.quote),
+    }),
+    /time penalty must be less than your remaining submission time/,
+  );
+  const snapshot = (await repo.read(
+    room.actor,
+    room.id,
+  )) as import("@quorem/contracts").MatchSnapshot;
+  assert.deepEqual(
+    snapshot.ruleEvents.map(({ kind, seconds }) => [kind, seconds]),
+    [["topics", topics.quote.seconds]],
+  );
+  const fresh = await repo.ruleAction(room.actor, room.id, "fresh-quote", { kind: "complexity" });
+  assert.equal(fresh.quote.alreadyRevealed, false);
+});
 void test("closes personal admission and schedules the race at the last settled cutoff", async () => {
   const { postgresWorkspaceAdmission } = await import("../../judging/admission/repository.ts");
   const { parseWorkspaceCommand } =
@@ -1366,6 +1400,7 @@ for (const accepted of [false, true])
       guestExecution: true,
     })(room.actor, "hidden-run", command, { receiptId: null, shard: 0, jobId });
     const verifier = await localVerifier(run);
+    const wakes: string[] = [];
     const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-hidden-reveal-")));
     try {
       const sandbox = await dockerSandbox({
@@ -1383,10 +1418,32 @@ for (const accepted of [false, true])
           losslessResults: true,
         },
         verifier.verification,
+        async (match) => {
+          wakes.push(match);
+        },
       );
       const job = await port.claimAfterTeardown(true, sandbox.scope, null);
       assert.equal(job?.jobId, jobId);
-      await executeAndStage(job!, port, sandbox);
+      await pool.query("DELETE FROM match_reconciliation_pending WHERE match_id=$1", [room.id]);
+      const blocker = await pool.connect();
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query("SELECT id FROM matches WHERE id=$1 FOR UPDATE", [room.id]);
+        // Hold the match lock until the case commits and its durable intent is observable.
+        await executeAndStage(job!, port, sandbox);
+        const pending = await pool.query(
+          "SELECT publish_update FROM match_reconciliation_pending WHERE match_id=$1",
+          [room.id],
+        );
+        assert.deepEqual(pending.rows, accepted ? [] : [{ publish_update: false }]);
+        assert.deepEqual(wakes, accepted ? [] : [room.id]);
+      } finally {
+        try {
+          await blocker.query("ROLLBACK");
+        } finally {
+          blocker.release();
+        }
+      }
       const live = (await new Response(
         await submissionSnapshots(run).read(room.actor, admitted.id),
       ).json()) as import("@quorem/contracts").Submission;
