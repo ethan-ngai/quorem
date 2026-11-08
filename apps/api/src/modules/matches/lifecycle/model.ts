@@ -7,14 +7,23 @@ import {
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
+import type { FilterMatch } from "../../problems/model.ts";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
-  questionFilters: { type?: string; sql?: string; topic?: string; company?: string };
+  questionFilters: {
+    type?: string;
+    sql?: string;
+    topic?: string;
+    company?: string;
+    topicMatch?: FilterMatch;
+    companyMatch?: FilterMatch;
+  };
   admissionLocked: boolean;
   accessMode: string;
   mode: string;
   difficulties: string[];
   selectedProblemVersionId?: string;
+  questionSelection?: "random" | "recommended";
   rules: MatchRuleSettings;
   difficulty: string;
   durationMinutes: number;
@@ -43,12 +52,15 @@ export function normalizeSettings(value: unknown): Settings {
           "mode",
           "difficulties",
           "selectedProblemVersionId",
+          "questionSelection",
           "rules",
           "difficulty",
           "durationMinutes",
         ].includes(k),
     ) ||
-    Object.keys(filters).some((k) => !["type", "sql", "topic", "company"].includes(k)) ||
+    Object.keys(filters).some(
+      (k) => !["type", "sql", "topic", "company", "topicMatch", "companyMatch"].includes(k),
+    ) ||
     (v.difficulties !== undefined && v.difficulties !== null && !Array.isArray(v.difficulties))
   )
     throw invalid();
@@ -74,6 +86,9 @@ export function normalizeSettings(value: unknown): Settings {
     ds.length > 3 ||
     new Set(ds).size !== ds.length ||
     ds.some((x) => typeof x !== "string" || !["easy", "medium", "hard"].includes(x)) ||
+    (v.questionSelection !== undefined &&
+      v.questionSelection !== "random" &&
+      v.questionSelection !== "recommended") ||
     (v.admissionLocked != null && typeof v.admissionLocked !== "boolean")
   )
     throw invalid();
@@ -88,6 +103,12 @@ export function normalizeSettings(value: unknown): Settings {
     durationMinutes: duration,
   };
   if (selected) out.selectedProblemVersionId = selected;
+  else if (v.questionSelection === "recommended") out.questionSelection = v.questionSelection;
+  for (const k of ["topicMatch", "companyMatch"] as const) {
+    const input = filters[k];
+    if (input === "all") out.questionFilters[k] = input;
+    else if (input !== undefined && input !== "any") throw invalid();
+  }
   for (const k of ["type", "sql", "topic", "company"] as const) {
     const input = filters[k];
     if (input === undefined || input === null || input === "") continue;

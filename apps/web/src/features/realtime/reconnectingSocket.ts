@@ -76,7 +76,7 @@ export function createReconnectingSocket(options: SocketOptions) {
         if (expires)
           refreshTimer = setTimeout(
             () => {
-              // Renewal refreshes the snapshot on open, and only a failed attempt reports a disconnect.
+              // Renewal stays quiet until a connection attempt fails.
               if (detach()) void connect(true);
             },
             Math.max(1000, expires - Date.now() - 30_000),

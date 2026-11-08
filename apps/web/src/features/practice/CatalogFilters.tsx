@@ -6,20 +6,63 @@ import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter } from "./CatalogFilter";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { filterValues, type CatalogSearch } from "./catalogSearch";
+import type { FoundationalTopic } from "./problemQueries";
+
+export function CompanyFilter({
+  search,
+  update,
+  companies,
+}: {
+  search: Pick<CatalogSearch, "company" | "companyMatch">;
+  update: (change: Partial<Pick<CatalogSearch, "company" | "companyMatch">>) => void;
+  companies: string[];
+}) {
+  const selected = filterValues(search.company);
+  return (
+    <CatalogFilter
+      label="Companies"
+      searchPlaceholder="Search companies"
+      selected={selected}
+      onChange={(values) => update({ company: values.join(",") || undefined })}
+      match={search.companyMatch}
+      onMatchChange={(match) => update({ companyMatch: match === "all" ? match : undefined })}
+      options={[...new Set([...companies, ...selected])].map((value) => ({
+        value,
+        label: value,
+      }))}
+    />
+  );
+}
+
+type FilterSearch = Pick<
+  CatalogSearch,
+  "type" | "sql" | "difficulty" | "topic" | "topicMatch" | "company" | "companyMatch"
+>;
 
 export function CatalogFilters({
   search,
   update,
   topics,
+  foundationalTopics,
   companies,
   showDifficulty = true,
 }: {
-  search: Pick<CatalogSearch, "type" | "sql" | "difficulty" | "topic" | "company">;
-  update: (change: Partial<CatalogSearch>) => void;
+  search: FilterSearch;
+  update: (change: Partial<FilterSearch>) => void;
   topics: string[];
+  foundationalTopics?: FoundationalTopic[];
   companies: string[];
   showDifficulty?: boolean;
 }) {
+  const selectedTopics = filterValues(search.topic);
+  const featured = foundationalTopics ?? [];
+  const featuredValues = new Set(featured.map(({ value }) => value));
+  const featuredTags = new Set(featured.flatMap(({ tags }) => tags));
+  const otherTopics = [
+    ...new Set([...topics.filter((tag) => !featuredTags.has(tag)), ...selectedTopics]),
+  ]
+    .filter((value) => !featuredValues.has(value) && value.toLowerCase() !== "sql")
+    .map((value) => ({ value, label: formatLabel(value.replace(/^foundational:/, "")) }));
   return (
     <>
       <QuestionTypeFilter value={search.type} onChange={(type) => update({ type })} />
@@ -42,21 +85,14 @@ export function CatalogFilters({
       )}
       <CatalogFilter
         label="Topics"
-        selected={filterValues(search.topic)}
+        selected={selectedTopics}
         onChange={(values) => update({ topic: values.join(",") || undefined })}
-        options={[...new Set([...topics, ...filterValues(search.topic)])]
-          .filter((value) => value.toLowerCase() !== "sql")
-          .map((value) => ({ value, label: formatLabel(value) }))}
+        match={search.topicMatch}
+        onMatchChange={(match) => update({ topicMatch: match === "all" ? match : undefined })}
+        options={otherTopics}
+        featuredOptions={featured}
       />
-      <CatalogFilter
-        label="Companies"
-        selected={filterValues(search.company)}
-        onChange={(values) => update({ company: values.join(",") || undefined })}
-        options={[...new Set([...companies, ...filterValues(search.company)])].map((value) => ({
-          value,
-          label: value,
-        }))}
-      />
+      <CompanyFilter search={search} update={update} companies={companies} />
     </>
   );
 }

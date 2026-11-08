@@ -128,7 +128,6 @@ export interface ExecutionRepository {
   ): Promise<Job | null>;
   lease(job: Job, heartbeat: boolean, signal?: AbortSignal): Promise<boolean>;
   beginCompletion(job: Job, header: CompletionHeader, signal?: AbortSignal): Promise<void>;
-  writeCompletionChunk(job: Job, chunk: CompletionFieldChunk, signal?: AbortSignal): Promise<void>;
   writeCompletionChunks(
     job: Job,
     chunks: readonly CompletionFieldChunk[],

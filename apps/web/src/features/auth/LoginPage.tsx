@@ -33,6 +33,7 @@ import { PasswordReset } from "./PasswordReset";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { LoginShowcase } from "./LoginShowcase";
 import "./auth.css";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function LoginPage() {
   const search = new URLSearchParams(location.search);
@@ -229,7 +230,7 @@ function LoginForm() {
             </p>
           )}
           {setupRequested && setup.isPending ? (
-            <p role="status">Verifying your email…</p>
+            <LoadingIndicator label="Verifying your email…" />
           ) : setupRequested && (setup.isError || setup.data?.registered) ? (
             <div className="auth-verification">
               <p role="status">

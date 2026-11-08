@@ -70,3 +70,17 @@ it("makes large selections searchable without changing the confirmed set", () =>
   expect(markup).toContain('aria-label="Filter selected questions"');
   expect(markup).toContain('class="bulk-review-list"');
 });
+
+it("describes deletion of published questions without version history", () => {
+  const markup = renderToStaticMarkup(
+    <BulkQuestionConfirmation
+      {...props}
+      action="delete"
+      scope="publications"
+      questions={[{ id: "a", title: "Question A" }]}
+    />,
+  );
+  expect(markup).toContain("Delete 1 question?");
+  expect(markup).toContain("Removes these published questions and their associated results.");
+  expect(markup).not.toContain("versions");
+});

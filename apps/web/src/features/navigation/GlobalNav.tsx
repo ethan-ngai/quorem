@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
 import { Tooltip } from "../../ui/Tooltip";
+import { DelayedSpinner } from "../../ui/Spinner";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/ModeIcon";
 import { ModeText } from "../matches/ModeText";
@@ -231,15 +232,17 @@ export function GlobalNav({
                       (onCreateMatch ?? (() => setCreating(true)))();
                     }}
                   >
-                    <Plus size={18} />
+                    <DelayedSpinner
+                      active={checkingMatch}
+                      label="Checking active match"
+                      fallback={<Plus size={16} aria-hidden="true" />}
+                    />
                     <span>
-                      {checkingMatch
-                        ? "Checking match…"
-                        : activeMatch.failed
-                          ? "Match status unavailable"
-                          : session.data?.kind === "guest"
-                            ? "Sign in to create a match"
-                            : "Create match"}
+                      {activeMatch.failed
+                        ? "Match status unavailable"
+                        : session.data?.kind === "guest"
+                          ? "Sign in to create a match"
+                          : "Create match"}
                     </span>
                   </button>
                 </Tooltip>

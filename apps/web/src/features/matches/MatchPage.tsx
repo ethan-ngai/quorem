@@ -21,14 +21,16 @@ import { useEffect, useRef, useState } from "react";
 import * as Popover from "../../ui/Popover";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { Icon } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
-import { useMatchSync } from "../realtime/useMatchSync";
+import { useMatchSync, type MatchSyncStatus } from "../realtime/useMatchSync";
 import { forfeitMatch } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
 import {
+  isMatchTerminal,
   outcomeLabel,
   ownParticipant,
   remainingTime,
@@ -166,7 +168,7 @@ function MatchLedger({
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
-  status: string;
+  status: MatchSyncStatus;
   onForfeit: () => void;
   onResults?: () => void;
 }) {
@@ -203,9 +205,9 @@ function MatchLedger({
               }[event.kind],
             }))}
           />
-          {status !== "live" && snapshot.state === "active" && !own?.forfeited && (
-            <Tooltip content="Connection interrupted; refreshing match state">
-              <span className="sync-label">Reconnecting…</span>
+          {status === "reconnecting" && !isMatchTerminal(snapshot) && !own?.forfeited && (
+            <Tooltip content="Refreshing match state while reconnecting">
+              <LoadingIndicator label="Reconnecting…" immediate />
             </Tooltip>
           )}
           {snapshot.startedAt && (
@@ -285,12 +287,9 @@ export function MatchPage({
   const { snapshot, error, status, refetch } = useMatchSync(identity, matchId, true);
   const httpStatus = error instanceof ApiError ? error.status : undefined;
   const denied = isRouteDenied(httpStatus);
+  const terminal = isMatchTerminal(snapshot);
   const finished =
-    snapshot &&
-    account.data &&
-    (snapshot.state === "completed" ||
-      snapshot.state === "cancelled" ||
-      ownParticipant(snapshot, identity)?.forfeited)
+    snapshot && account.data && (terminal || ownParticipant(snapshot, identity)?.forfeited)
       ? { snapshot, identity }
       : undefined;
   const [resultsOpen, setResultsOpen] = useState(!reviewEntry);
@@ -299,14 +298,20 @@ export function MatchPage({
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
   useErrorNotification(
-    snapshot && error && !denied && httpStatus !== 401
-      ? "Connection interrupted. Refreshing match state."
+    snapshot && !terminal && error && !denied && httpStatus !== 401
+      ? "Could not refresh match state."
       : undefined,
   );
   const [conceding, setConceding] = useState(false);
+  const [liveWorkspaceMatch, setLiveWorkspaceMatch] = useState<string>();
+  const ownWorkspaceId = snapshot?.startedAt
+    ? ownParticipant(snapshot, identity)?.workspaceId
+    : undefined;
+  const showLiveWorkspace = !terminal && !!ownWorkspaceId && !!snapshot?.problemVersionId;
   useEffect(() => {
-    if (snapshot?.state === "completed" || snapshot?.state === "cancelled") setConceding(false);
-  }, [snapshot?.state]);
+    if (terminal) setConceding(false);
+    if (showLiveWorkspace) setLiveWorkspaceMatch(matchId);
+  }, [matchId, showLiveWorkspace, terminal]);
   useEffect(() => {
     if (snapshot?.partyId && (snapshot.state === "waiting" || snapshot.state === "ready"))
       window.location.assign("/party");
@@ -336,8 +341,6 @@ export function MatchPage({
         <MatchRecovery failed={!!error} onRetry={refetch} />
       </main>
     );
-  const own = ownParticipant(snapshot, identity);
-  const ownWorkspaceId = snapshot.startedAt ? own?.workspaceId : undefined;
   const concession = (
     <ConcessionDialog
       open={conceding}
@@ -397,6 +400,13 @@ export function MatchPage({
       )}
     </>
   );
+  if (terminal && !reviewing && liveWorkspaceMatch !== matchId)
+    return (
+      <main className="match-page">
+        <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
+        <section className="match-page-content">{ledger()}</section>
+      </main>
+    );
   if (snapshot.mode === "factions" && ownWorkspaceId && !reviewing)
     return <FactionWorkspace match={snapshot} identity={identity} header={ledger} />;
   if (ownWorkspaceId && snapshot.problemVersionId)

@@ -14,7 +14,7 @@ vi.mock("../../api/client", () => ({
   },
 }));
 
-it("appends pages, retains results after a page failure, retries and resets for search", async () => {
+it("prefetches for fast scrolling, retains results after a failure, retries and resets for search", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   let failNext = true;
   get.mockImplementation(
@@ -64,7 +64,25 @@ it("appends pages, retains results after a page failure, retries and resets for 
   await act(async () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Question 29"));
   });
-  await click("Load more questions");
+  const list = document.querySelector<HTMLDivElement>(".problem-picker-results")!;
+  Object.defineProperties(list, {
+    clientHeight: { value: 115 },
+    scrollHeight: { value: 1320 },
+  });
+  const scroll = (top: number, timeStamp: number) =>
+    act(async () => {
+      list.scrollTop = top;
+      const event = new Event("scroll");
+      Object.defineProperty(event, "timeStamp", { value: timeStamp });
+      list.dispatchEvent(event);
+    });
+  const requestedPageTwo = () =>
+    get.mock.calls.some(([, options]) => options?.params?.query?.page === 2);
+  await scroll(4, 16);
+  await scroll(8, 32);
+  expect(requestedPageTwo()).toBe(false);
+  await scroll(168, 48);
+  expect(requestedPageTwo()).toBe(true);
   await act(async () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Could not load more"));
   });
@@ -75,6 +93,7 @@ it("appends pages, retains results after a page failure, retries and resets for 
   });
   expect(document.body.textContent).not.toContain("Load more questions");
   const search = document.querySelector<HTMLInputElement>('[aria-label="Search problems"]')!;
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
       search,
@@ -82,6 +101,12 @@ it("appends pages, retains results after a page failure, retries and resets for 
     );
     search.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  expect(get.mock.calls.some(([, options]) => options?.params?.query?.q)).toBe(false);
+  expect(document.querySelector(".problem-picker-results")).toBe(list);
+  expect(document.body.textContent).toContain("Question 29");
+  await act(async () => vi.advanceTimersByTimeAsync(250));
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  vi.useRealTimers();
   await act(async () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Searched question"));
   });

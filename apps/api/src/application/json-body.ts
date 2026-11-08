@@ -1,9 +1,14 @@
 /** @file json-body.ts @description Bounded UTF-8 JSON object decoding. @module application */
+import { z } from "zod";
 import { ApplicationError } from "./error.ts";
-export async function jsonObjectBody(
-  request: Request,
-  limit: number,
-): Promise<Record<string, unknown>> {
+
+const jsonObject = z.record(z.string(), z.unknown());
+const invalidBody = () => new ApplicationError("invalid_input", "Invalid request body", 400);
+
+/** Read bounded UTF-8 without choosing a numeric representation. */
+export async function boundedUtf8Body(request: Request, limit: number): Promise<string> {
+  if (Number(request.headers.get("content-length")) > limit)
+    throw new ApplicationError("payload_too_large", "Request too large", 413);
   const reader = request.body?.getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let text = "",
@@ -20,12 +25,24 @@ export async function jsonObjectBody(
         }
         text += decoder.decode(part.value, { stream: true });
       }
-    text += decoder.decode();
-    const value: unknown = JSON.parse(text);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
-    return value as Record<string, unknown>;
+    return text + decoder.decode();
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
-    throw new ApplicationError("invalid_input", "Invalid request body", 400);
+    throw invalidBody();
+  } finally {
+    reader?.releaseLock();
+  }
+}
+
+export async function jsonObjectBody(
+  request: Request,
+  limit: number,
+  options: { emptyObject?: boolean } = {},
+): Promise<Record<string, unknown>> {
+  const text = await boundedUtf8Body(request, limit);
+  try {
+    return jsonObject.parse(JSON.parse(text || (options.emptyObject ? "{}" : text)));
+  } catch {
+    throw invalidBody();
   }
 }

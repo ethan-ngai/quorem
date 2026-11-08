@@ -15,7 +15,7 @@ import { parseCatalogFilter } from "../../../../modules/problems/queries.ts";
 
 const url = process.env.QUOREM_CATALOG_TEST_DATABASE_URL;
 describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
-  it("enforces visibility, redaction, filters, cursors, sidecars and editorial gates", async () => {
+  it("enforces visibility, redaction, filters, pagination, sidecars and editorial gates", async () => {
     const parsed = new URL(url!);
     expect(["127.0.0.1", "localhost", "[::1]"]).toContain(parsed.hostname);
     expect(parsed.pathname).toBe("/quorem_hono_catalog_test");
@@ -119,13 +119,17 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
       await pool.query(
-        "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
-        [ids[2], `${uid}-company`],
+        "INSERT INTO problem_companies(problem_id,company_id) SELECT p,id FROM companies CROSS JOIN unnest($1::uuid[]) p WHERE name=$2",
+        [[ids[1], ids[2]], `${uid}-company`],
       );
       await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,1)", [
         versions[1],
         `${uid}-private-tag`,
       ]);
+      await pool.query(
+        "INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2)",
+        [versions[1], versions[2]],
+      );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-private-company`]);
       await pool.query(
         "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
@@ -162,6 +166,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problem_examples: "version_id,ordinal,args,expected,explanation,calls",
         runner_version_input_cases: "version_id,channel,stage",
         problem_tags: "version_id,tag,ordinal",
+        foundational_topics: "slug,label,aliases",
         problem_solution_approaches:
           "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
         problem_solutions: "version_id,approach_id,language,source",
@@ -251,14 +256,21 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         );
         expect(page.total).toBe(2);
         expect(page.items).toHaveLength(1);
-        expect(page.nextCursor).toBeTruthy();
         const next = JSON.parse(
           await queries.catalog(
             undefined,
-            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=1&cursor=${page.nextCursor}`)),
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=1&page=2`)),
           ),
         );
         expect(next.items[0].id).not.toBe(page.items[0].id);
+        const distant = JSON.parse(
+          await queries.catalog(
+            undefined,
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&limit=9007199254740991&page=10000`)),
+          ),
+        );
+        expect(distant.items).toEqual([]);
+        expect(distant.total).toBe(2);
         expect(
           JSON.parse(
             await queries.catalog(
@@ -285,8 +297,62 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             visible,
           );
           expect(result.topics.includes(`${uid}-private-tag`)).toBe(visible);
+          expect(
+            result.foundationalTopics.some((topic: { tags: string[] }) =>
+              topic.tags.includes("Heap (Priority Queue)"),
+            ),
+          ).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
         }
+        const foundational = JSON.parse(
+          await queries.catalog(
+            { userId: owner },
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&topic=foundational:heap`)),
+          ),
+        );
+        expect(foundational.items.map((item: { id: string }) => item.id)).toEqual(
+          expect.arrayContaining([versions[1], versions[2]]),
+        );
+        expect(foundational.total).toBe(2);
+        const topicPair = "foundational:heap,foundational:breadth-first-search";
+        const companyPair = `${uid}-company,${uid}-private-company`;
+        for (const [param, want] of [
+          [`topic=${topicPair}&topicMatch=any`, 2],
+          [`topic=${topicPair}&topicMatch=all`, 1],
+          [`company=${companyPair}&companyMatch=all`, 1],
+          [`topic=${topicPair}&topicMatch=all&company=${companyPair}&companyMatch=all`, 0],
+        ] as const) {
+          const result = JSON.parse(
+            await queries.catalog(
+              { userId: owner },
+              parseCatalogFilter(new URLSearchParams(`q=${uid}&${param}`)),
+            ),
+          );
+          expect(result.total, param).toBe(want);
+        }
+        expect(
+          await queries.candidates(
+            { userId: owner },
+            {
+              topic: topicPair,
+              topicMatch: "all",
+              company: "",
+              difficulty: "",
+              type: "",
+              sql: "false",
+            },
+          ),
+        ).toContainEqual({ id: versions[2], sql: false });
+        expect(foundational.foundationalTopics).toEqual(
+          expect.arrayContaining([
+            { value: "foundational:heap", label: "Heap", tags: ["Heap (Priority Queue)", "heap"] },
+            {
+              value: "foundational:breadth-first-search",
+              label: "Breadth-First Search",
+              tags: ["breadth first search"],
+            },
+          ]),
+        );
         expect(await queries.byVersion(undefined, historical)).toContain(
           "-- Write your query here.",
         );

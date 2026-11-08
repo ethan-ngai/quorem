@@ -41,6 +41,15 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           problem_examples: "version_id,ordinal,args,expected,explanation,calls",
           runner_version_input_cases: "version_id,channel,stage",
           problem_tags: "version_id,tag,ordinal",
+          foundational_topics: "slug,label,aliases",
+          question_exposure: "owner_id,version_id,last_seen_at",
+          question_learning_events:
+            "submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at,observed_at",
+          question_learning_observations:
+            "submission_id,owner_id,version_id,difficulty,tags,accepted,context,assisted,session_end",
+          recommendation_impressions:
+            "id,owner_id,version_id,model_id,variant,position,served_at,dismissed_at",
+          recommendation_models: "id,model,active,expires_at",
           problem_solution_approaches:
             "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
           problem_solutions: "version_id,approach_id,language,source",
@@ -53,6 +62,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
         };
         for (const [table, columns] of Object.entries(grants))
           await tx.execute(sql.raw(`GRANT SELECT(${columns}) ON ${table} TO ${role}`));
+        await tx.execute(sql.raw(`GRANT INSERT,UPDATE ON recommendation_impressions TO ${role}`));
         await tx.execute(
           sql`INSERT INTO users(id,display_name) VALUES(${user},'Worker actor') ON CONFLICT(id) DO UPDATE SET disabled=false`,
         );
@@ -106,6 +116,13 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     const detail = await SELF.fetch(`http://localhost/v1/problem-versions/${version}`);
     expect(detail.status).toBe(200);
     expect(detail.headers.get("X-Fixture-Queries")).toBe("2");
+    const suggested = await SELF.fetch(`http://localhost/v1/problems?q=${slug}&sort=recommended`);
+    expect(suggested.status).toBe(200);
+    expect(suggested.headers.get("X-Fixture-Queries")).toBe("11");
+    const suggestedText = await suggested.text();
+    expect(suggestedText).toContain('"recommendationReason":"challenge"');
+    expect(suggestedText).toContain("9007199254740993");
+    expect(suggestedText).not.toContain("SECRET");
   });
   it("denies private columns and rejects a revoked live identity before opening the catalog scope", async () => {
     const restricted = new URL(url);

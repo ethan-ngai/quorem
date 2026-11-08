@@ -1,6 +1,7 @@
 /** @file durable.ts @description Hibernating browser socket transport. @module runtime */
 // @ts-expect-error Provided by the Worker runtime, not Node's TypeScript libraries.
 import { DurableObject } from "cloudflare:workers";
+import { armSocketAlarm } from "./schedule.ts";
 import { socketHandshake } from "./handshake.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import { mapIdentityError } from "../../../modules/identity/routes.ts";
@@ -48,6 +49,7 @@ interface SocketStorage {
   put<T>(key: string, value: T): Promise<void>;
   delete(key: string): Promise<boolean>;
   list<T>(options: { prefix: string; limit: number }): Promise<Map<string, T>>;
+  getAlarm(): Promise<number | null>;
   setAlarm(time: number): Promise<void>;
   transaction<T>(callback: (tx: SocketStorage) => Promise<T>): Promise<T>;
 }
@@ -198,13 +200,13 @@ export function browserSocketObject<Env>(
           if ((await tx.list({ prefix: "socket:", limit: 1024 })).size >= 1024)
             throw new Error("Socket capacity");
           await tx.put(key(id), record);
+          await armSocketAlarm(tx, Date.now());
         });
         storedId = id;
         const pair = new WebSocketPair();
         pair[1].serializeAttachment({ id });
         this.state.acceptWebSocket(pair[1]);
         accepted = pair[1];
-        await this.state.storage.setAlarm(Date.now() + 10_000);
         this.state.waitUntil(
           this.ensure(pair[1]).catch(() => {
             pair[1].close(1008, "Access changed");
@@ -296,7 +298,10 @@ export function browserSocketObject<Env>(
         if (!active.has(storedKey) && (await this.state.storage.delete(storedKey)))
           await this.authority.release(record);
       }
-      if (sockets.length) await this.state.storage.setAlarm(Date.now() + 10_000);
+      if (sockets.length)
+        await this.state.storage.transaction(async (tx) => {
+          await armSocketAlarm(tx, Date.now());
+        });
     }
   };
 }

@@ -49,8 +49,8 @@ it("registers the full HTTP inventory in the domain app or native socket classif
       ),
   );
   expect(missing).toEqual([]);
-  expect(inventory.http).toHaveLength(90);
   const recorded = new Set(inventory.http.map((item) => `${item.method} ${normalize(item.path)}`));
+  expect(recorded.size).toBe(inventory.http.length);
   expect(
     [...registered].filter((route) => !route.startsWith("ALL ") && !recorded.has(route)),
   ).toEqual([]);

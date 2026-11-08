@@ -19,6 +19,7 @@ it("uses injected identity, validates filters and returns contract errors", asyn
     },
     byVersion: async () => null,
     editorials: async () => '{"items":[]}',
+    recommendationFeedback: async () => {},
     candidates: async () => [],
   };
   const routes = problemRoutes({
@@ -40,6 +41,8 @@ it("uses injected identity, validates filters and returns contract errors", asyn
   expect(calls).toEqual(["identify", "catalog:anonymous:20"]);
   const invalid = await app.request("/v1/problems?sort=hidden");
   expect(invalid.status).toBe(400);
+  expect((await app.request("/v1/problems?sort=recommended&limit=21")).status).toBe(400);
+  expect((await app.request("/v1/problems?sort=recommended&page=2")).status).toBe(400);
   expect(await invalid.json()).toMatchObject({ error: { code: "invalid_input" } });
   const rate = await app.request("/v1/problems?q=rate");
   expect(rate.status).toBe(429);
@@ -54,4 +57,23 @@ it("uses injected identity, validates filters and returns contract errors", asyn
   expect((await app.request("/v1/problems", { headers: { Authorization: "bad" } })).status).toBe(
     401,
   );
+});
+
+it("rejects cursors and reverse ordering for adaptive ranks", async () => {
+  const { parseCatalogFilter } = await import("./queries.ts");
+  expect(parseCatalogFilter(new URLSearchParams("sort=recommended"))).toMatchObject({
+    sort: "recommended",
+  });
+  for (const query of [
+    "sort=recommended&order=desc",
+    "sort=recommended&cursor=anything",
+    "sort=recommended&sort=title",
+    "sort=recommended&page=2",
+    "sort=recommended&limit=21",
+  ])
+    expect(() => parseCatalogFilter(new URLSearchParams(query))).toThrow();
+  expect(parseCatalogFilter(new URLSearchParams("limit=100&page=2"))).toMatchObject({
+    limit: 100,
+    page: 2,
+  });
 });

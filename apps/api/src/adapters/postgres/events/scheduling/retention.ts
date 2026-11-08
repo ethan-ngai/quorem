@@ -22,6 +22,12 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     return sql`DELETE FROM ${table} WHERE ctid IN (SELECT ctid FROM ${table} WHERE published_at IS NOT NULL AND occurred_at < statement_timestamp()-interval '7 days' ORDER BY occurred_at,sequence FOR UPDATE SKIP LOCKED LIMIT ${limit})`;
   });
   statements.push(
+    sql`DELETE FROM question_learning_events WHERE submission_id IN (SELECT submission_id FROM question_learning_events WHERE observed_at<statement_timestamp()-interval '180 days' ORDER BY observed_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_match_selections WHERE match_id IN (SELECT match_id FROM recommendation_match_selections WHERE selected_at<statement_timestamp()-interval '30 days' ORDER BY selected_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_impressions WHERE id IN (SELECT id FROM recommendation_impressions WHERE served_at<statement_timestamp()-interval '30 days' ORDER BY served_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM recommendation_models WHERE id IN (SELECT id FROM recommendation_models WHERE expires_at<statement_timestamp()-interval '15 days' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+  );
+  statements.push(
     sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );
   statements.push(
@@ -50,6 +56,7 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     sql`DELETE FROM execution_checkpoints WHERE ctid IN (SELECT c.ctid FROM execution_checkpoints c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END FOR UPDATE OF c SKIP LOCKED LIMIT ${limit})`,
     sql`UPDATE interview_execution SET private_results=NULL, private_results_payload=NULL WHERE ctid IN (SELECT e.ctid FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END AND (e.private_results IS NOT NULL OR e.private_results_payload IS NOT NULL) FOR UPDATE OF e SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM guest_request_buckets WHERE ctid IN (SELECT ctid FROM guest_request_buckets WHERE window_start < statement_timestamp()-interval '2 hours' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM interview_operations WHERE ctid IN (SELECT ctid FROM interview_operations WHERE expires_at<statement_timestamp() ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
     sql`UPDATE submissions SET source='',result=NULL,result_payload=NULL,cases='[]'::jsonb,lossless_cases=NULL WHERE ctid IN (SELECT s.ctid FROM submissions s JOIN users u ON u.id=s.owner_id WHERE s.admitted_at < statement_timestamp()-interval '7 days' AND s.state NOT IN ('queued','running') AND u.kind='guest' AND NOT (${reviewHold}) AND (s.source<>'' OR s.result IS NOT NULL OR s.result_payload IS NOT NULL OR s.cases<>'[]'::jsonb OR s.lossless_cases IS NOT NULL) FOR UPDATE OF s SKIP LOCKED LIMIT ${limit})`,
     sql`UPDATE users SET display_name='Expired guest' WHERE ctid IN (SELECT u.ctid FROM users u WHERE u.kind='guest' AND u.display_name<>'Expired guest' AND EXISTS (SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days') FOR UPDATE OF u SKIP LOCKED LIMIT ${limit})`,
     ...["execution_idempotency", "cancellation_idempotency", "match_idempotency"].map((name) => {

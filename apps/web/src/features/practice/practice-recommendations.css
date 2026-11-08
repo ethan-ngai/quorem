@@ -1,0 +1,137 @@
+.practice-recommendations {
+  margin-block-end: var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+}
+
+.practice-recommendations-header,
+.practice-recommendations-controls,
+.practice-recommendation-meta,
+.practice-recommendation-title,
+.practice-recommendation-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.practice-recommendations-header {
+  justify-content: space-between;
+  min-height: var(--control-height);
+  margin-block-end: var(--space-2);
+  padding-inline: var(--space-1);
+}
+
+.practice-recommendations-header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+
+.practice-recommendations-header h2 svg {
+  color: var(--color-info);
+}
+
+.practice-recommendations-controls,
+.practice-recommendation-meta,
+.practice-recommendations-status {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.practice-recommendations-controls {
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-recommendations-controls button[aria-disabled="true"] {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.practice-recommendations-track {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  border-radius: var(--radius-sm);
+}
+
+.practice-recommendation-slide {
+  display: flex;
+  flex: 0 0 100%;
+  box-sizing: border-box;
+  scroll-snap-align: start;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1);
+}
+
+.practice-recommendation-details {
+  min-width: 0;
+}
+
+.practice-recommendation-details h3 {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.practice-recommendation-title {
+  align-items: baseline;
+  font-size: var(--text-small);
+}
+
+.practice-recommendation-title > span {
+  flex: none;
+}
+
+.practice-recommendation-meta {
+  flex-wrap: wrap;
+  margin-block-start: var(--space-1);
+}
+
+.practice-recommendation-meta .practice-topic-list {
+  margin: 0;
+}
+
+.practice-recommendation-title .practice-indicators:empty {
+  display: none;
+}
+
+.practice-recommendations-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  margin: 0;
+}
+
+@media (max-width: 650px) {
+  .practice-recommendation-slide {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .practice-recommendation-actions {
+    justify-content: space-between;
+  }
+
+  .practice-recommendations .icon-button {
+    min-width: var(--narrow-touch-target);
+    min-height: var(--narrow-touch-target);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-recommendations-track {
+    scroll-behavior: auto;
+  }
+}

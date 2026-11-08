@@ -31,7 +31,8 @@
     "hono": "catalog:",
     "jose": "6.2.15",
     "pg": "catalog:",
-    "ws": "catalog:"
+    "ws": "catalog:",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "catalog:",

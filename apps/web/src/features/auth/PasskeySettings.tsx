@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Fingerprint } from "lucide-react";
 import { addPasskey, deletePasskey, fetchAuthCapabilities, listPasskeys } from "./capabilities";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function PasskeySettings() {
   const capabilities = useQuery({
@@ -43,7 +44,7 @@ export function PasskeySettings() {
       </h3>
       <p>Sign in using your fingerprint, face or device lock.</p>
       {capabilities.isPending ? (
-        <p role="status">Loading sign-in methods…</p>
+        <LoadingIndicator label="Loading sign-in methods…" />
       ) : capabilities.isError ? (
         <p role="alert">
           Sign-in methods unavailable.{" "}
@@ -56,7 +57,7 @@ export function PasskeySettings() {
       ) : (
         <>
           {keys.isPending ? (
-            <p role="status">Loading passkeys…</p>
+            <LoadingIndicator label="Loading passkeys…" />
           ) : keys.isError ? (
             <p role="alert">
               Passkeys unavailable.{" "}

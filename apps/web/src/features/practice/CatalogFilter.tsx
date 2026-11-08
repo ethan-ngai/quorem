@@ -1,71 +1,181 @@
-import { useChangeMotion } from "../../ui/useChangeMotion";
+/** @file CatalogFilter.tsx @description Shared catalog filter popover. @module practice */
+import { useRef, useState } from "react";
+import { ScrollCue } from "../../ui/ScrollCue";
+import { SearchField } from "../../ui/SearchField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import type { FilterMatch } from "@quorem/contracts";
+import { ContentTransition } from "../../ui/ContentTransition";
 import * as Popover from "../../ui/Popover";
 import { ChevronDown } from "lucide-react";
 import "../../ui/select-field.css";
+
+const matchModes = [
+  {
+    value: "any",
+    label: "Any",
+    hint: "Match any selected option (OR)",
+    icon: <span aria-hidden="true">||</span>,
+  },
+  {
+    value: "all",
+    label: "All",
+    hint: "Match every selected option (AND)",
+    icon: <span aria-hidden="true">&&</span>,
+  },
+] as const;
 
 export function CatalogFilter({
   label,
   selected,
   options,
+  featuredOptions,
+  searchPlaceholder,
+  match = "any",
+  onMatchChange,
   onChange,
 }: {
   label: string;
   selected: string[];
   options: { value: string; label: string }[];
+  featuredOptions?: { value: string; label: string }[];
+  searchPlaceholder?: string;
+  match?: FilterMatch;
+  onMatchChange?: (match: FilterMatch) => void;
   onChange: (values: string[]) => void;
 }) {
-  const summary = useChangeMotion<HTMLSpanElement>(selected.join(","));
+  const [query, setQuery] = useState("");
+  const popover = useRef<HTMLDivElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const groups = featuredOptions?.length
+    ? [
+        { label: "Foundational", options: featuredOptions },
+        { label: "Other topics", options },
+      ]
+    : [{ label: "", options }];
+  const firstLabel = groups
+    .flatMap((group) => group.options)
+    .find((option) => option.value === selected[0])?.label;
+  const summary = [firstLabel, selected.length > 1 ? `+${selected.length - 1}` : ""]
+    .filter(Boolean)
+    .join(" ");
+  const term = query.trim().toLowerCase();
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      options: term
+        ? group.options.filter((option) => option.label.toLowerCase().includes(term))
+        : group.options,
+    }))
+    .filter((group) => group.options.length > 0);
+  const choices = visibleGroups.map((group) => (
+    <div key={group.label} className="practice-filter-group">
+      {group.label && <div className="practice-filter-group-label">{group.label}</div>}
+      <div
+        className="practice-filter-choices"
+        data-layout={group.options.length > 3 ? "grid" : "row"}
+        role="group"
+        aria-label={group.label || label}
+      >
+        {group.options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className="practice-filter-choice"
+            aria-pressed={selected.includes(option.value)}
+            disabled={selected.length >= 16 && !selected.includes(option.value)}
+            onClick={() =>
+              onChange(
+                selected.includes(option.value)
+                  ? selected.filter((value) => value !== option.value)
+                  : [...selected, option.value],
+              )
+            }
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  ));
   return (
-    <Popover.Root>
+    <Popover.Root
+      onOpenChange={(open) => {
+        if (open) setQuery("");
+      }}
+    >
       <Popover.Trigger className="select-field practice-filter-trigger" aria-label={label}>
-        {label}
-        {selected.length > 0 && (
-          <span className="practice-filter-summary motion-reveal" ref={summary}>
-            {options.find((option) => option.value === selected[0])?.label}
-            {selected.length > 1 && ` +${selected.length - 1}`}
-          </span>
-        )}
+        <span className="practice-filter-label">
+          {label}
+          <ContentTransition inline contentKey={summary}>
+            {summary && <span className="practice-filter-summary">{summary}</span>}
+          </ContentTransition>
+        </span>
         <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
+          ref={popover}
           className="select-field-menu practice-filter-popover"
+          data-searchable={searchPlaceholder ? "" : undefined}
+          onOpenAutoFocus={(event) => {
+            if (!searchInput.current) return;
+            event.preventDefault();
+            searchInput.current.focus();
+          }}
           align="start"
           sideOffset={8}
           collisionPadding={12}
           aria-label={`${label} filters`}
         >
           <div className="practice-filter-header">
-            <span>{label}</span>
-            <button type="button" disabled={!selected.length} onClick={() => onChange([])}>
-              Clear
-            </button>
+            <div className="practice-filter-heading">
+              <span>{label}</span>
+              {selected.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    (searchInput.current ?? popover.current)?.focus({ preventScroll: true });
+                    onChange([]);
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {onMatchChange && (
+              <SegmentedControl
+                iconOnly
+                mono
+                label={`${label} match mode`}
+                options={matchModes}
+                value={match}
+                onChange={onMatchChange}
+              />
+            )}
           </div>
-          <div
-            className="practice-filter-choices"
-            data-layout={options.length > 3 ? "grid" : "row"}
-            role="group"
-            aria-label={label}
-          >
-            {options.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className="practice-filter-choice"
-                aria-pressed={selected.includes(option.value)}
-                disabled={selected.length >= 16 && !selected.includes(option.value)}
-                onClick={() =>
-                  onChange(
-                    selected.includes(option.value)
-                      ? selected.filter((value) => value !== option.value)
-                      : [...selected, option.value],
-                  )
-                }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          {searchPlaceholder ? (
+            <>
+              <SearchField
+                ref={searchInput}
+                shortcutTarget={popover}
+                className="practice-filter-search"
+                aria-label={searchPlaceholder}
+                placeholder={searchPlaceholder}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+              <ScrollCue resetKey={term} className="practice-filter-results">
+                {choices}
+                {visibleGroups.length === 0 && (
+                  <div className="practice-filter-empty" role="status">
+                    {term ? "No matches" : `No ${label.toLowerCase()} available`}
+                  </div>
+                )}
+              </ScrollCue>
+            </>
+          ) : (
+            choices
+          )}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

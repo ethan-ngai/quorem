@@ -16,7 +16,9 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     type = "",
     difficulty = "",
     topic = "",
+    topicMatch,
     company = "",
+    companyMatch,
     source = "",
   } = filters ?? {};
   return sql`
@@ -24,8 +26,8 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     AND (${language}='' OR "isSql"=(${language}='true'))
     AND (${type}='' OR "isOdyssey"=(${type}='odyssey'))
     AND (${difficulty}='' OR difficulty=ANY(string_to_array(${difficulty},',')))
-    AND (${topic}='' OR tags && string_to_array(${topic},','))
-    AND (${company}='' OR companies && string_to_array(${company},','))
+    AND (${topic}='' OR tags ${topicMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${topic},','))
+    AND (${company}='' OR companies ${companyMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${company},','))
     AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
   `;
 }
@@ -87,20 +89,16 @@ export function authoringQueries(
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, false);
         const catalog = sql`
-          SELECT chosen.id::text,chosen.title,p.slug,chosen.version::text,
+          SELECT chosen.id::text,chosen.title,p.slug,
                  chosen.difficulty,
                  COALESCE(jsonb_typeof(chosen.odyssey)='object',false) AS "isOdyssey",
                  ARRAY(SELECT tag FROM problem_tags WHERE version_id=chosen.id ORDER BY ordinal) AS tags,
                  ARRAY(SELECT c.name FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id ORDER BY c.name) AS companies,
                  p.owner_id IS NOT NULL AS "isPrivate",
                  p.leetcode_id IS NOT NULL AS "fromLeetCode",
-                 COALESCE(jsonb_typeof(chosen.sql_config)='object',false) AS "isSql",
-                 COALESCE(chosen.id=p.current_version_id,false) AS current
+                 COALESCE(jsonb_typeof(chosen.sql_config)='object',false) AS "isSql"
           FROM problems p
-          CROSS JOIN LATERAL (
-            SELECT v.id,v.title,v.version,v.sql_config,v.difficulty,v.odyssey FROM problem_versions v WHERE v.problem_id=p.id AND v.sealed
-            ORDER BY (v.id IS NOT DISTINCT FROM p.current_version_id) DESC,v.version DESC LIMIT 1
-          ) chosen
+          JOIN problem_versions chosen ON chosen.id=p.current_version_id AND chosen.sealed
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
         `;
         const { page = 1, limit = 50 } = filters ?? {};

@@ -10,6 +10,7 @@ import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences
 import { Field } from "./AuthoringFields";
 import { useTheme } from "../editor/useTheme";
 import type { EditorLanguage } from "../editor/editorLanguages";
+import { LoadingIndicator } from "../../ui/Spinner";
 const CodeEditor = lazy(() =>
   import("../editor/PythonEditor").then((module) => ({ default: module.PythonEditor })),
 );
@@ -37,7 +38,7 @@ export function AuthoringCodeField({
         {label}
       </span>
       <div className="admin-source-editor" role="group" aria-labelledby={id}>
-        <Suspense fallback={<p role="status">Loading editor…</p>}>
+        <Suspense fallback={<LoadingIndicator label="Loading editor…" />}>
           <CodeEditor
             documentKey={id}
             documentUri={`file:///question/${encodeURIComponent(id)}`}

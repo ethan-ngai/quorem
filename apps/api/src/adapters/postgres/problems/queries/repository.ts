@@ -1,5 +1,8 @@
-import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 /** @file repository.ts @description Explicit authorized PostgreSQL catalog projections. @module problems */
+import { impressionIds, recordFeedback } from "../recommendations/feedback.ts";
+import { rankPractice } from "../../../../modules/problems/recommendations/ranking.ts";
+import { recommendationContext, learningQuestions } from "../recommendations/repository.ts";
+import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -59,15 +62,50 @@ function catalogVisibility(
   const who = owner(actor);
   return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who})) AND (${library}='' OR (${library}='global' AND p.owner_id IS NULL) OR (${library}='private' AND (${who}<>'' AND p.owner_id=${who})))`;
 }
+// Match imported spelling variants without rewriting published tags.
+const tagKey = sql`trim(both '-' from regexp_replace(lower(t.tag), '[^a-z0-9]+', '-', 'g'))`;
+const foundationalMatch = sql`(${tagKey}=ft.slug OR ${tagKey}=ANY(ft.aliases))`;
+const foundationalFilter = sql`'foundational:' || ft.slug`;
+
+/** Test each selected value independently so a topic's aliases count as one choice. */
+function matchValues(values: string, all: boolean, matches: SQL): SQL {
+  const selection = sql`SELECT 1 FROM unnest(string_to_array(${values},',')) AS selected(value)`;
+  return all
+    ? sql`NOT EXISTS (${selection} WHERE NOT ${matches})`
+    : sql`EXISTS (${selection} WHERE ${matches})`;
+}
+
 function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
-  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) AND (${f.topic}='' OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND t.tag=ANY(string_to_array(${f.topic},',')))) AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
+  const topics = f.topic
+    ? sql`AND ${matchValues(
+        f.topic,
+        f.topicMatch === "all",
+        sql`EXISTS (
+          SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND (
+            t.tag=selected.value OR EXISTS (
+              SELECT 1 FROM foundational_topics ft
+              WHERE ${foundationalFilter}=selected.value AND ${foundationalMatch}
+            )
+          )
+        )`,
+      )}`
+    : sql``;
+  const companies = f.company
+    ? sql`AND ${matchValues(
+        f.company,
+        f.companyMatch === "all",
+        sql`EXISTS (
+          SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id
+          WHERE pc.problem_id=p.id AND c.name=selected.value
+        )`,
+      )}`
+    : sql``;
+  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
 }
 type Projected = {
+  id: string;
   data: string;
   lossless: Uint8Array | null;
-  sortTitle: string;
-  slug: string;
-  rank: number;
 };
 function projected(row: Projected): JsonValue {
   const value = object(parseLosslessJson(row.data));
@@ -96,61 +134,25 @@ async function redactMatchTopics(
   const ids = new Set(restricted.map((r) => r.id));
   for (const value of values) {
     const problem = object(value);
-    if (typeof problem.id === "string" && ids.has(problem.id)) problem.tags = [];
+    if (typeof problem.id === "string" && ids.has(problem.id)) {
+      problem.tags = [];
+      delete problem.recommendationReason;
+    }
   }
   return values;
 }
-type Cursor = { title: string; slug: string; rank: number; filter: string };
-function filterKey(f: CatalogFilter): string {
-  return JSON.stringify([
-    f.query,
-    f.difficulty,
-    f.topic,
-    f.company,
-    f.sort,
-    f.order,
-    f.library,
-    f.type,
-    f.sql,
-  ]);
-}
-function encodeCursor(c: Cursor): string {
-  return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(c))))
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/=+$/, "");
-}
-function decodeCursor(raw: string, f: CatalogFilter): Cursor {
-  try {
-    const text = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
-    const c = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(
-        Uint8Array.from(text, (x) => x.charCodeAt(0)),
-      ),
-    ) as Cursor;
-    if (
-      typeof c.title !== "string" ||
-      typeof c.slug !== "string" ||
-      !Number.isInteger(c.rank) ||
-      c.rank < 0 ||
-      c.rank > 2 ||
-      c.filter !== filterKey(f)
-    )
-      throw new Error();
-    return c;
-  } catch {
-    throw new ApplicationError("invalid_input", "Invalid question filters", 400);
-  }
-}
 const rank = sql.raw("CASE v.difficulty WHEN 'easy' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END");
-async function readCatalog(
-  tx: Transaction,
-  actor: ProblemActor | undefined,
-  f: CatalogFilter,
-): Promise<string> {
-  const where = catalogWhere(actor, f),
-    visibility = catalogVisibility(actor, f.library),
-    cursor = f.cursor ? decodeCursor(f.cursor, f) : undefined;
+const rowProjection = sql`v.id::text AS id,${projection}::text AS data,v.lossless_public AS lossless`;
+async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: CatalogFilter) {
+  const account = f.sort === "recommended" && actor && !actor.guestScope ? actor.userId : undefined;
+  const where = sql`${catalogWhere(actor, f)}${
+      account
+        ? sql` AND NOT EXISTS(
+    SELECT 1 FROM recommendation_impressions r WHERE r.owner_id=${account} AND r.version_id=v.id
+      AND r.dismissed_at>statement_timestamp()-interval '7 days')`
+        : sql``
+    }`,
+    visibility = catalogVisibility(actor, f.library);
   const [{ total }] = (
     await tx.execute<{ total: string }>(
       sql`SELECT count(*)::text AS total FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE ${where}`,
@@ -161,26 +163,70 @@ async function readCatalog(
     f.sort === "difficulty"
       ? sql`${rank} ${direction}, lower(v.title) ${direction}, p.slug ${direction}`
       : sql`lower(v.title) ${direction}, p.slug ${direction}`;
-  const comparator = sql.raw(f.order === "asc" ? ">" : "<");
-  const after = cursor
-    ? f.sort === "difficulty"
-      ? sql`AND (${rank},lower(v.title),p.slug) ${comparator} (${cursor.rank},${cursor.title},${cursor.slug})`
-      : sql`AND (lower(v.title),p.slug) ${comparator} (${cursor.title},${cursor.slug})`
-    : sql``;
-  const offset = cursor ? 0 : (f.page - 1) * f.limit;
+  const requestedOffset = BigInt(f.page - 1) * BigInt(f.limit);
+  const offset = (requestedOffset > BigInt(total) ? BigInt(total) : requestedOffset).toString();
+  const context =
+    f.sort === "recommended"
+      ? await recommendationContext(tx, account ? [account] : [])
+      : undefined;
+  // Stable account assignment keeps repeated queries in the same experiment arm.
+  const explore = account
+    ? (new Uint8Array(
+        await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode("recommendation-v2:" + account),
+        ),
+      )[0] &
+        1) ===
+      1
+    : false;
+  const recommendations = context
+    ? await (async () => {
+        const ids = (
+          await tx.execute<{ id: string }>(
+            sql`SELECT v.id::text AS id ${from} WHERE ${where} ORDER BY v.id`,
+          )
+        ).rows.map((row) => row.id);
+        return rankPractice(
+          await learningQuestions(tx, ids),
+          context,
+          Date.now(),
+          f.limit,
+          explore,
+        );
+      })()
+    : undefined;
+  const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${projection}::text AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${where} ${after} ORDER BY ${ordering} LIMIT ${f.limit + 1} OFFSET ${offset}`,
+      recommendedIds
+        ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
+        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ORDER BY ${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
-  const more = rows.length > f.limit,
-    items = rows.slice(0, f.limit);
-  const last = items.at(-1);
-  const topics = (
-    await tx.execute<{ tag: string }>(
-      sql`SELECT DISTINCT t.tag FROM problem_tags t JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility} ORDER BY t.tag`,
+  if (recommendedIds) {
+    const positions = new Map(recommendedIds.map((id, index) => [id, index]));
+    rows.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!);
+  }
+  const items = rows;
+  const topicRows = (
+    await tx.execute<{ tag: string; value: string | null; label: string | null }>(
+      sql`WITH visible_tags AS (
+        SELECT DISTINCT t.tag FROM problem_tags t
+        JOIN problems p ON p.current_version_id=t.version_id WHERE ${visibility}
+      )
+      SELECT t.tag,${foundationalFilter} AS value,ft.label FROM visible_tags t
+      LEFT JOIN foundational_topics ft ON ${foundationalMatch} ORDER BY t.tag`,
     )
-  ).rows.map((r) => r.tag);
+  ).rows;
+  const topics = [...new Set(topicRows.map((row) => row.tag))];
+  const foundationalTopics = new Map<string, { value: string; label: string; tags: string[] }>();
+  for (const { tag, value, label } of topicRows) {
+    if (value === null || label === null) continue;
+    const topic = foundationalTopics.get(value);
+    if (topic) topic.tags.push(tag);
+    else foundationalTopics.set(value, { value, label, tags: [tag] });
+  }
   const companies = (
     await tx.execute<{ name: string }>(
       sql`SELECT DISTINCT c.name FROM companies c JOIN problem_companies pc ON pc.company_id=c.id JOIN problems p ON p.id=pc.problem_id WHERE p.current_version_id IS NOT NULL AND ${visibility} ORDER BY c.name`,
@@ -188,22 +234,34 @@ async function readCatalog(
   ).rows.map((r) => r.name);
   const n = Number(total);
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
+  const reasons = new Map(recommendations?.map((item) => [item.question.id, item.reason]));
   const result: { [key: string]: JsonValue } = {
-    items: await redactMatchTopics(tx, actor, items.map(projected)),
+    items: await redactMatchTopics(
+      tx,
+      actor,
+      items.map((row) => {
+        const value = object(projected(row));
+        const reason = reasons.get(row.id);
+        if (reason) value.recommendationReason = reason;
+        return value;
+      }),
+    ),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
     topics,
+    foundationalTopics: [...foundationalTopics.values()].sort((a, b) =>
+      a.label.localeCompare(b.label),
+    ),
     companies,
   };
-  if (more && last)
-    result.nextCursor = encodeCursor({
-      title: last.sortTitle,
-      slug: last.slug,
-      rank: last.rank,
-      filter: filterKey(f),
-    });
-  return stringifyLosslessJson(result);
+  return {
+    result,
+    account,
+    ids: items.map((row) => row.id),
+    model: context?.modelId ?? null,
+    explore,
+  };
 }
 async function byValue(
   tx: Transaction,
@@ -216,7 +274,7 @@ async function byValue(
     : sql`p.slug=${value} AND v.id=p.current_version_id`;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
     )
   ).rows;
   return rows.length
@@ -231,7 +289,7 @@ export async function projectAuthorizedVersion(
 ): Promise<string | null> {
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless,lower(v.title) AS "sortTitle",p.slug AS slug,${rank} AS rank ${from} WHERE v.id::text=${id} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE v.id::text=${id} LIMIT 1`,
     )
   ).rows;
   return rows.length
@@ -265,6 +323,19 @@ async function readEditorials(
       sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`${id}::uuid`)},'items',${approachesProjection(sql`${id}::uuid`, !complexityOnly)})::text AS value`,
     )
   ).rows[0];
+  if (
+    actor &&
+    !actor.guestScope &&
+    !complexityOnly &&
+    !state.active &&
+    JSON.parse(row.value).items.length
+  ) {
+    await tx.execute(sql`
+      INSERT INTO question_exposure(owner_id,version_id,last_seen_at,assisted_at)
+      VALUES(${actor.userId},${id}::uuid,statement_timestamp(),statement_timestamp())
+      ON CONFLICT(owner_id,version_id) DO UPDATE SET assisted_at=EXCLUDED.assisted_at
+    `);
+  }
   return row.value;
 }
 /** Select only candidate identifiers under the caller's transaction. */
@@ -284,7 +355,9 @@ export async function readCandidates(
     query: "",
     difficulty: criteria.difficulty,
     topic: criteria.topic,
+    topicMatch: criteria.topicMatch,
     company: criteria.company,
+    companyMatch: criteria.companyMatch,
     sort: "title",
     order: "asc",
     library: "",
@@ -303,11 +376,28 @@ export async function readCandidates(
 export function problemQueries(run: ReadScope): ProblemQueries {
   const read = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
+  const write = <T>(f: (tx: Transaction) => Promise<T>) =>
+    run((scope) =>
+      scope.transaction({ ...options, readOnly: false, isolation: "read committed" }, f),
+    );
   return {
-    catalog: (actor, filter) => read((tx) => readCatalog(tx, actor, filter)),
+    catalog: async (actor, filter) => {
+      const page = await read((tx) => readCatalog(tx, actor, filter));
+      const account = page.account;
+      if (account && page.ids.length)
+        page.result.recommendationImpressions = await write((tx) =>
+          impressionIds(tx, account, page.ids, page.model, page.explore),
+        );
+      return stringifyLosslessJson(page.result);
+    },
+    recommendationFeedback: (owner, ids, action) =>
+      write((tx) => recordFeedback(tx, owner, ids, action)),
     bySlug: (actor, slug) => read((tx) => byValue(tx, actor, slug, false)),
     byVersion: (actor, id) => read((tx) => byValue(tx, actor, id, true)),
-    editorials: (actor, id, complexity) => read((tx) => readEditorials(tx, actor, id, complexity)),
+    editorials: (actor, id, complexity) =>
+      (actor && !actor.guestScope && !complexity ? write : read)((tx) =>
+        readEditorials(tx, actor, id, complexity),
+      ),
     candidates: (actor, criteria) => read((tx) => readCandidates(tx, actor, criteria)),
   };
 }

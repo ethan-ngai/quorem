@@ -7,6 +7,7 @@ on:
       - apps/marketing/**
       - packages/ui/**
       - packages/contracts/**
+      - packages/questions/**
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -14,6 +15,9 @@ on:
       - scripts/build-site.mjs
       - scripts/prepare-pages.mjs
       - scripts/prepare-pages.test.mjs
+      - scripts/require-main.sh
+      - scripts/terraform-state.py
+      - infra/terraform/app/**
       - .github/workflows/frontend.yaml
   workflow_dispatch:
     inputs:
@@ -40,15 +44,6 @@ jobs:
       TF_VAR_account_id: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
       TF_VAR_zone_id: ${{ vars.CLOUDFLARE_ZONE_ID || secrets.CLOUDFLARE_ZONE_ID }}
       TF_VAR_domain: ${{ vars.PRODUCTION_DOMAIN || 'quorem.app' }}
-      TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      # The targeted project bootstrap has no backend dependencies or mutations.
-      TF_VAR_image: unused
-      TF_VAR_judge_image: unused
-      TF_VAR_case_image_revision: unused
-      TF_VAR_database_url: unused
-      TF_VAR_better_auth_secret: unused
-      TF_VAR_auth_internal_secret: unused
-      TF_VAR_invite_key: unused
       WRANGLER_SEND_METRICS: "false"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -85,8 +80,9 @@ jobs:
           terraform -chdir=infra/terraform/app apply -input=false -auto-approve -lock-timeout=5m -target=cloudflare_pages_project.frontend
       - name: Publish Pages
         run: |
+          bash scripts/require-main.sh
           project="$(terraform -chdir=infra/terraform/app output -raw frontend_project)"
-          vp -C apps/realtime-cloudflare exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/dist" --project-name "$project" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=false
+          vp exec wrangler pages deploy "$GITHUB_WORKSPACE/apps/web/dist" --project-name "$project" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=false
       - name: Verify published frontend
         run: |
           url="$(terraform -chdir=infra/terraform/app output -raw frontend_url)"

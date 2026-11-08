@@ -125,6 +125,14 @@ describe.skipIf(!url)("document PostgreSQL", () => {
       expect([first.status, second.status].sort()).toEqual(["fulfilled", "rejected"]);
       const key = first.status === "fulfilled" ? "one" : "two";
       expect(await docs.push(host, id, key, update)).toEqual({ ...update, version: 1 });
+      expect(
+        (
+          await pool.query(
+            "SELECT expires_at > clock_timestamp()+interval '23 hours' AS valid FROM interview_operations WHERE owner_id=$1 AND key=$2",
+            [host.userId, key],
+          )
+        ).rows[0].valid,
+      ).toBe(true);
       expect((await docs.read(host, id)).source).toBe("😀" + initial.source);
       expect((await docs.pull(host, id, initial.epoch, 0)).updates).toEqual(update.updates);
       await expect(docs.push(host, id, "stale", update)).rejects.toMatchObject({

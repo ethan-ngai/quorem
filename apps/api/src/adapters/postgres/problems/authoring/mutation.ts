@@ -50,21 +50,18 @@ export async function removePublicationRow(tx: Transaction, versionId: string) {
   await tx.execute(sql`DELETE FROM problem_versions WHERE id=${versionId}::uuid`);
 }
 
-export async function publicationImpact(tx: Transaction, versionId: string, problemId: string) {
+export async function publicationImpact(tx: Transaction, versionId: string) {
   return (
     await tx.execute<{
       workspaces: number;
       matches: number;
       submissions: number;
-      replacements: { id: string; version: string; title: string }[];
     }>(sql`
     SELECT
       (SELECT count(*)::int FROM workspaces WHERE problem_version_id=${versionId}::uuid) AS workspaces,
       (SELECT count(*)::int FROM matches WHERE problem_version_id=${versionId}::uuid OR selected_problem_version_id=${versionId}::uuid) AS matches,
       (SELECT count(*)::int FROM submissions s JOIN workspaces w ON w.id=s.workspace_id
-        WHERE w.problem_version_id=${versionId}::uuid AND s.match_id IS NULL) AS submissions,
-      COALESCE((SELECT jsonb_agg(jsonb_build_object('id',id,'version',version::text,'title',title) ORDER BY version DESC)
-        FROM problem_versions WHERE problem_id=${problemId}::uuid AND id<>${versionId}::uuid AND sealed),'[]') AS replacements
+        WHERE w.problem_version_id=${versionId}::uuid AND s.match_id IS NULL) AS submissions
   `)
   ).rows[0];
 }

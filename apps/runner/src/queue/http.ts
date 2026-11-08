@@ -8,7 +8,6 @@ import {
   type AttemptFence,
   type Checkpoint,
   type CheckpointCase,
-  type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
   type ExecutionQueueControl,
@@ -116,13 +115,37 @@ export function privateRunnerCommands(options: {
       });
     }
   }
+  async function boundedJSON(response: Response, limit: number): Promise<unknown> {
+    if (!response.body) throw new Error("Missing response body");
+    const reader = response.body.getReader();
+    const parts: Uint8Array[] = [];
+    let size = 0;
+    try {
+      for (;;) {
+        const part = await reader.read();
+        if (part.done) break;
+        size += part.value.byteLength;
+        if (size > limit) throw new Error("Response too large");
+        parts.push(part.value);
+      }
+      return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(parts)));
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      throw error;
+    } finally {
+      reader.releaseLock();
+    }
+  }
   async function json(
     op: string,
     data: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<unknown> {
     try {
-      return await (await call(op, data, signal)).json();
+      return await boundedJSON(
+        await call(op, data, signal),
+        op === "checkpoint" ? 40 * 1024 * 1024 : 1024 * 1024,
+      );
     } catch (error) {
       if (error instanceof RunnerCommandError) throw error;
       throw new RunnerCommandError(op === "claim" || op === "lease" ? "unknown" : "unavailable", {
@@ -140,7 +163,7 @@ export function privateRunnerCommands(options: {
     extra?: Record<string, string>,
   ): Promise<void> {
     try {
-      await (await call(op, data, signal, raw, extra)).json();
+      await boundedJSON(await call(op, data, signal, raw, extra), 1024 * 1024);
     } catch (error) {
       if (error instanceof RunnerCommandError) throw error;
       throw new RunnerCommandError("unknown", { operation: op, status: 200, failure: "decode" });
@@ -305,16 +328,6 @@ export function privateRunnerCommands(options: {
           }),
         ),
       );
-    },
-    async writeCompletionChunk(job, chunk: CompletionFieldChunk, signal) {
-      const metadata = JSON.stringify({
-        job: j(job),
-        channel: chunk.channel,
-        ordinal: chunk.ordinal,
-        field: chunk.field,
-        chunkOrdinal: chunk.chunkOrdinal,
-      });
-      await ack("chunk", {}, signal, chunk.bytes, { "x-runner-command": metadata });
     },
     async sealCompletionFrame(job, channel, ordinal, status, signal) {
       await ack("seal", { job: j(job), channel, ordinal, status }, signal);

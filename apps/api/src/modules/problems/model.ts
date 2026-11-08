@@ -1,17 +1,20 @@
 /** @file model.ts @description Catalog query values. @module problems */
+export type FilterMatch = "any" | "all";
+
 export interface CatalogFilter {
   query: string;
   difficulty: string;
   topic: string;
+  topicMatch?: FilterMatch;
   company: string;
-  sort: "title" | "difficulty";
+  companyMatch?: FilterMatch;
+  sort: "title" | "difficulty" | "recommended";
   order: "asc" | "desc";
   library: "" | "global" | "private";
   type: "" | "classic" | "odyssey";
   sql: "" | "true" | "false";
   page: number;
   limit: number;
-  cursor?: string;
 }
 export interface ProblemActor {
   readonly userId: string;
@@ -21,7 +24,9 @@ export interface CandidateCriteria {
   readonly selectedVersionId?: string;
   readonly difficulty: string;
   readonly topic: string;
+  readonly topicMatch?: FilterMatch;
   readonly company: string;
+  readonly companyMatch?: FilterMatch;
   readonly type: "" | "classic" | "odyssey";
   readonly sql: "true" | "false";
 }

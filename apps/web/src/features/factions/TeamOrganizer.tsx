@@ -20,11 +20,11 @@ import { Tooltip } from "../../ui/Tooltip";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useState, type ReactNode } from "react";
 import type { PartySnapshot } from "@quorem/contracts";
-import type { TeamLobby } from "@quorem/contracts/factions";
-import { partyRequest } from "../matches/party";
+import { organizeFactions } from "./api";
 import { NoticeRegion } from "../../ui/PersistentNotice";
 import { PartyMemberReadiness } from "../matches/PartyReadyStatus";
 import "./factions.css";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 const factionNameConstraint: InputConstraint = {
   edit: (value) => factionNameInputSchema.safeParse(value).success,
@@ -57,7 +57,7 @@ export function TeamOrganizer({
     setLockPending(body.action === "lock");
     setError(undefined);
     try {
-      const next = await partyRequest<TeamLobby>(`/v1/parties/${party.id}/teams`, "POST", body);
+      const next = await organizeFactions(party.id, body);
       client.setQueryData(["party-teams", party.id], next);
       await client.invalidateQueries({ queryKey: ["current-party"] });
       return true;
@@ -75,7 +75,7 @@ export function TeamOrganizer({
         message={query.isError ? "Factions unavailable" : undefined}
         actions={[{ label: "Retry", onClick: () => void query.refetch() }]}
       >
-        <p role="status">Loading factions…</p>
+        <LoadingIndicator label="Loading factions…" />
       </NoticeRegion>
     );
   const { teamCount, assignments, names } = query.data;

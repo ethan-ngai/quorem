@@ -19,9 +19,9 @@ it("requires identity and validates input without elevating routine publishing",
     publications: async () => '{"items":[]}',
     list: async () => '{"items":[]}',
     get: async () => '{"id":"draft"}',
-    create: async (_actor, raw) => {
+    create: async (_actor, raw, versionId) => {
       called++;
-      return raw ?? "{}";
+      return raw ?? JSON.stringify({ versionId });
     },
     importDraft: async (_actor, raw) => raw,
     importDraftBatch: async () => '{"items":[]}',
@@ -62,6 +62,26 @@ it("requires identity and validates input without elevating routine publishing",
   });
   expect(response.status).toBe(201);
   expect(await response.text()).toContain("1e309");
+  response = await app.request(`/v1/admin/question-publications/${id}/edit`, {
+    method: "POST",
+  });
+  expect(response.status).toBe(201);
+  expect(await response.json()).toEqual({ versionId: id });
+  for (const obsolete of [{}, { edit: true }, { content: {} }]) {
+    response = await app.request("/v1/admin/question-drafts", {
+      method: "POST",
+      body: JSON.stringify({ problemVersionId: id, ...obsolete }),
+    });
+    expect(response.status).toBe(400);
+  }
+  expect(
+    (
+      await app.request(`/v1/admin/question-drafts/${id}/publication`, {
+        method: "DELETE",
+        body: JSON.stringify({ revision: "1", replacementVersionId: null }),
+      })
+    ).status,
+  ).toBe(400);
   response = await app.request("/v1/admin/question-drafts", {
     method: "POST",
     body: '{"content":{},"role":"admin"}',
@@ -104,7 +124,7 @@ it("validates bounded mutation batches and forwards server-owned step-up state",
   for (const [path, item] of [
     ["question-drafts/publish-batch", { id, revision: "1", visibility: "global" }],
     ["question-drafts/delete-batch", { id, revision: "1" }],
-    ["question-publications/delete-batch", { id, current: true }],
+    ["question-publications/delete-batch", { id }],
   ] as const) {
     expect((await post(path, [item])).status).toBe(200);
     expect((await post(path, [])).status).toBe(400);
@@ -118,7 +138,9 @@ it("validates bounded mutation batches and forwards server-owned step-up state",
     actor: { userId: "owner", globalAllowed: false },
     batch: { action: "publish" },
   });
-  expect((await post("question-publications/delete-batch", [{ id }])).status).toBe(400);
+  expect((await post("question-publications/delete-batch", [{ id, current: true }])).status).toBe(
+    400,
+  );
   expect(
     (await post("question-drafts/publish-batch", [{ id, revision: "1", visibility: "any" }]))
       .status,

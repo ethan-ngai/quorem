@@ -15,6 +15,7 @@ import { InvitationLayout } from "../../ui/InvitationLayout";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { TextInput } from "../../ui/TextControl";
 import { PartyMemberReadiness } from "./PartyReadyStatus";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function InvitePage({
   token,
@@ -86,7 +87,7 @@ export function InvitePage({
       }
     >
       {invitation.isPending || checkingAccount ? (
-        <p role="status">Opening invitation…</p>
+        <LoadingIndicator label="Opening invitation…" />
       ) : !invitation.data ? (
         <>
           <h1>Invitation unavailable</h1>

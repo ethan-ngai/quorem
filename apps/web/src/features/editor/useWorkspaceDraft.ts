@@ -152,7 +152,10 @@ export function useWorkspaceDraft({
         active &&
         snapshot &&
         editGeneration.current === generation &&
-        readBrowserDraft(identity, context.storageId, problem.id) === undefined
+        readBrowserDraft(identity, context.storageId, problem.id) === undefined &&
+        (!accountPresent ||
+          readBrowserDraft("anonymous" as DevelopmentIdentity, context.storageId, problem.id) ===
+            undefined)
       ) {
         setSource(snapshot.source);
         editorRef.current?.replaceSource(snapshot.source);
@@ -164,7 +167,7 @@ export function useWorkspaceDraft({
     return () => {
       active = false;
     };
-  }, [workspace, problem, identity]);
+  }, [workspace, problem, identity, accountPresent]);
 
   const updateSource = useCallback((next: string) => {
     if (!editable.current) return;

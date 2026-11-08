@@ -16,6 +16,7 @@ import { PasskeySettings } from "../auth/PasskeySettings";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { participantColor, participantColors } from "../collaboration/participantColor";
 import { resetToken, fetchSession } from "../auth/session";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function ProfileSettings({
   userId,
@@ -58,7 +59,7 @@ export function ProfileSettings({
       setBusy(false);
     }
   }
-  if (profile.isPending) return <p role="status">Loading account…</p>;
+  if (profile.isPending) return <LoadingIndicator label="Loading account…" />;
   if (!profile.data)
     return (
       <p role="alert">

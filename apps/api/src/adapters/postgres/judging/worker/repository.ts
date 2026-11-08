@@ -37,7 +37,6 @@ export function postgresExecutionCommands(
     ...postgresInputReader(run),
     beginCompletion: (job, header) => staging.begin(job, header),
     writeCompletionChunks: (job, chunks) => staging.chunks(job, chunks),
-    writeCompletionChunk: (job, chunk) => staging.chunk(job, chunk),
     sealCompletionFrame: (job, channel, ordinal, status) =>
       staging.seal(job, channel, ordinal, status),
     sealCompletionDiagnostics: (job) => staging.sealDiagnostics(job),

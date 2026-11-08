@@ -208,6 +208,30 @@ it("never uses another user's rows as a personalization or private-library place
   expect(privateLibrary.getCurrentResult().data).toBeUndefined();
 });
 
+it("keeps rows for filter changes within a private library and drops them at scope boundaries", async () => {
+  const cache = client();
+  const account = actor("account-a");
+  const initial = catalogQueryOptions(cache, account, { library: "private" });
+  await cache.fetchQuery(initial);
+  const observer = new QueryObserver(cache, initial);
+  const stop = observer.subscribe(() => {});
+  try {
+    observer.setOptions(catalogQueryOptions(cache, account, { library: "private", q: "tree" }));
+    expect(observer.getCurrentResult().isPlaceholderData).toBe(true);
+    expect(observer.getCurrentResult().data?.items).toContainEqual(privateProblem);
+
+    observer.setOptions(catalogQueryOptions(cache, account, { q: "tree" }));
+    expect(observer.getCurrentResult().data).toBeUndefined();
+
+    observer.setOptions(
+      catalogQueryOptions(cache, actor("account-b"), { library: "private", q: "tree" }),
+    );
+    expect(observer.getCurrentResult().data).toBeUndefined();
+  } finally {
+    stop();
+  }
+});
+
 it("does not initialize a newly resolved account from expired public details", async () => {
   const cache = client();
   const clock = vi.spyOn(Date, "now").mockReturnValue(1000);
@@ -275,4 +299,17 @@ it("keys and requests catalog pages by the selected page size", async () => {
     "2",
     "2",
   ]);
+});
+
+it("isolates suggested global catalogs by identity and never seeds public question caches", async () => {
+  const cache = client();
+  const search = { sort: "recommended", library: "global" } as const;
+  const first = catalogQueryOptions(cache, actor("account-a"), search);
+  const second = catalogQueryOptions(cache, actor("account-b"), search);
+  expect(first.queryKey).not.toEqual(second.queryKey);
+  expect(first.placeholderData).toBeUndefined();
+  await cache.fetchQuery(first);
+  expect(requests[0]!.headers.get("Authorization")).toBe("Bearer account-a");
+  expect(cache.getQueryData(["problem", "public", "slug", publicProblem.slug])).toBeUndefined();
+  expect(catalogQueryOptions(cache, undefined, search).enabled).toBe(false);
 });

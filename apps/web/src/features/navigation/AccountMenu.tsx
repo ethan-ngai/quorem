@@ -6,6 +6,7 @@ import { useEffect, useState, type Ref } from "react";
 import { signOut, type Session } from "../auth/session";
 import { useProfile } from "../auth/profile";
 import { Tooltip } from "../../ui/Tooltip";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { AccountAvatar } from "./AccountAvatar";
 import { participantColor } from "../collaboration/participantColor";
 import { clearAvatarHint, readAvatarHint, writeAvatarHint } from "../auth/avatarCache";
@@ -131,9 +132,7 @@ export function AccountMenu({
               </div>
             </div>
             {pending ? (
-              <p className="account-menu-status" role="status">
-                Checking account…
-              </p>
+              <LoadingIndicator label="Checking account…" />
             ) : failed ? (
               <p className="account-menu-status" role="alert">
                 Account unavailable. Reload to retry.

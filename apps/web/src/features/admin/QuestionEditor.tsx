@@ -11,7 +11,7 @@ import type { EditorLanguage } from "../editor/editorLanguages";
 import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { SelectField } from "../../ui/SelectField";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 /** @file QuestionEditor.tsx @description Form-based question authoring. @module admin */
@@ -28,6 +28,7 @@ import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences
 import { useTheme } from "../editor/useTheme";
 import {
   createDraft,
+  editPublicationDraft,
   deleteQuestionPublication,
   fetchDeletionImpact,
   getDraft,
@@ -43,7 +44,6 @@ import {
   ArrowUpRight,
   Ellipsis,
   Eye,
-  FilePlus2,
   Globe,
   LockKeyhole,
   FileJson,
@@ -99,8 +99,7 @@ function QuestionSelection({
     staleTime: 5_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    queryFn: () =>
-      publication ? createDraft({ problemVersionId: publication, edit: true }) : getDraft(draft!),
+    queryFn: () => (publication ? editPublicationDraft(publication) : getDraft(draft!)),
   });
   if (draft || publication) {
     if (question.isPending || question.isFetching)
@@ -146,17 +145,22 @@ function AuthoringWorkspace({
   const search = useSearch({ from: "/questions" });
   const navigate = useNavigate({ from: "/questions" });
   const { section, readiness, draft: draftId, publication, ...filters } = search;
+  const draftScope = ["admin-drafts", userId, admin] as const;
+  const publicationScope = ["admin-problems", userId, admin] as const;
   const drafts = useQuery({
-    queryKey: ["admin-drafts", admin, filters, readiness],
+    queryKey: [...draftScope, filters, readiness],
+    placeholderData: scopedPlaceholder(draftScope),
     enabled: !initialDraft && section !== "publications",
     queryFn: ({ signal }) => listDrafts({ ...filters, readiness }, signal),
   });
   const draftItems = drafts.data?.items ?? [];
   const problems = useQuery({
-    queryKey: ["admin-problems", admin, filters],
+    queryKey: [...publicationScope, filters],
+    placeholderData: scopedPlaceholder(publicationScope),
     enabled: !initialDraft && section === "publications",
     queryFn: ({ signal }) => listPublications(filters, signal),
   });
+  const questionList = section === "publications" ? problems : drafts;
   const [draft, setDraft] = useState<QuestionDraft | undefined>(initialDraft);
   const questionTitle = draft?.content.problem.title || "Untitled question";
   usePageTitle(
@@ -181,29 +185,24 @@ function AuthoringWorkspace({
   const [visibility, setVisibility] = useState<"private" | "global">("private");
   const [bulkRunning, setBulkRunning] = useState(false);
   const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
-  const [replacement, setReplacement] = useState("");
   async function requestDeletion() {
     if (!draft) return;
     setBusy(true);
     setError("");
     try {
       setDeletion(await fetchDeletionImpact(draft.id));
-      setReplacement("");
     } catch (cause) {
-      setError(userFacingErrorMessage(cause, "Could not check what this version is used by."));
+      setError(userFacingErrorMessage(cause, "Could not check what this question is used by."));
     } finally {
       setBusy(false);
     }
   }
   async function confirmDeletion() {
-    if (!draft || !deletion || (deletion.current && !replacement)) return;
+    if (!draft || !deletion) return;
     setBusy(true);
     setError("");
     try {
-      await deleteQuestionPublication(
-        draft,
-        deletion.current ? (replacement === "unpublish" ? null : replacement) : undefined,
-      );
+      await deleteQuestionPublication(draft);
       setDeletion(undefined);
       cache.removeQueries({ queryKey: questionKey(userId, draftId, publication), exact: true });
       closeEditor();
@@ -213,16 +212,11 @@ function AuthoringWorkspace({
       ]);
     } catch (cause) {
       setDeletion(undefined);
-      setError(userFacingErrorMessage(cause, "Could not delete the published version."));
+      setError(userFacingErrorMessage(cause, "Could not delete the published question."));
     } finally {
       setBusy(false);
     }
   }
-  const versionHistory = useQuery({
-    queryKey: ["admin-publication-impact", draft?.id, draft?.revision],
-    enabled: !!draft?.publishedVersionId,
-    queryFn: () => fetchDeletionImpact(draft!.id),
-  });
   const saveStatus = dirty ? "Unsaved edits" : draft?.publishedVersionId ? "Published" : "Draft";
   const saveStatusElement = useChangeMotion<HTMLSpanElement>(saveStatus);
   const [invalidFields, setInvalidFields] = useState<Map<string, readonly AuthoringIssue[]>>(
@@ -269,7 +263,6 @@ function AuthoringWorkspace({
       toast.success(message);
       await cache.invalidateQueries({ queryKey: ["admin-drafts"] });
       await cache.invalidateQueries({ queryKey: ["admin-problems"] });
-      await cache.invalidateQueries({ queryKey: ["admin-publication-impact"] });
     } catch (cause) {
       setError(userFacingErrorMessage(cause, failure));
     } finally {
@@ -301,31 +294,13 @@ function AuthoringWorkspace({
         onOpenChange={(value) => {
           if (!value && !busy) setDeletion(undefined);
         }}
-        title="Delete published version?"
+        title="Delete published question?"
         description={
           deletion
             ? `This removes question content and results from ${deletion.submissions} practice attempts. It detaches ${deletion.workspaces} workspaces and ${deletion.matches} matches.`
             : ""
         }
       >
-        {deletion?.current && (
-          <label>
-            Current question
-            <select
-              value={replacement}
-              onChange={(event) => setReplacement(event.target.value)}
-              disabled={busy}
-            >
-              <option value="">Choose what to publish</option>
-              <option value="unpublish">Unpublish question</option>
-              {deletion.replacements.map((version) => (
-                <option key={version.id} value={version.id}>
-                  Version {version.version} · {version.title}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
         <footer className="competitive-dialog-actions">
           <button
             className="button button-secondary"
@@ -335,11 +310,11 @@ function AuthoringWorkspace({
             Cancel
           </button>
           <button
-            className="button button-primary"
-            disabled={busy || (deletion?.current && !replacement)}
+            className="button button-danger"
+            disabled={busy}
             onClick={() => void confirmDeletion()}
           >
-            <Trash2 size={16} aria-hidden="true" /> Delete version
+            <Trash2 size={16} aria-hidden="true" /> Delete question
           </button>
         </footer>
       </SessionDialog>
@@ -385,7 +360,7 @@ function AuthoringWorkspace({
                 disabled={busy || bulkRunning}
                 onClick={() =>
                   void perform(
-                    () => createDraft({ content: blankQuestion() }),
+                    () => createDraft(blankQuestion()),
                     "Draft created.",
                     "Could not create the draft.",
                   )
@@ -410,13 +385,13 @@ function AuthoringWorkspace({
               replace,
             })
           }
-          draftLoading={drafts.isPending}
-          publicationLoading={problems.isPending}
-          draftFailed={drafts.isError}
-          publicationFailed={problems.isError}
+          loading={questionList.isPending}
+          refreshing={questionList.isFetching && !!questionList.data}
+          failed={questionList.isError}
+          snapshot={questionList.isPlaceholderData ? questionList.data : undefined}
           busy={busy}
           onRunning={setBulkRunning}
-          total={section === "drafts" ? drafts.data?.total : problems.data?.total}
+          total={questionList.data?.total}
           onOpen={(row) =>
             void navigate({
               search: (previous) => ({
@@ -430,7 +405,6 @@ function AuthoringWorkspace({
             Promise.all([
               cache.invalidateQueries({ queryKey: ["admin-drafts"] }),
               cache.invalidateQueries({ queryKey: ["admin-problems"] }),
-              cache.invalidateQueries({ queryKey: ["admin-publication-impact"] }),
             ])
           }
         />
@@ -502,45 +476,6 @@ function AuthoringWorkspace({
                       align="end"
                       aria-label="Publication options"
                     >
-                      {!!versionHistory.data?.replacements.length && (
-                        <SelectField
-                          label="Published versions"
-                          value={draft.publishedVersionId}
-                          disabled={busy || dirty || invalidFields.size > 0}
-                          onChange={(id) => {
-                            setOptionsOpen(false);
-                            void perform(
-                              () => createDraft({ problemVersionId: id, edit: true }),
-                              "",
-                              "Could not open the version.",
-                            );
-                          }}
-                          options={[
-                            {
-                              value: draft.publishedVersionId,
-                              label: `Version ${content.problem.version}`,
-                            },
-                            ...versionHistory.data.replacements.map((version) => ({
-                              value: version.id,
-                              label: `Version ${version.version} · ${version.title}`,
-                            })),
-                          ]}
-                        />
-                      )}
-                      <button
-                        className="button button-secondary"
-                        disabled={busy || dirty || invalidFields.size > 0}
-                        onClick={() => {
-                          setOptionsOpen(false);
-                          void perform(
-                            () => createDraft({ problemVersionId: draft.publishedVersionId! }),
-                            "New version draft created.",
-                            "Could not create a version draft. Try again.",
-                          );
-                        }}
-                      >
-                        <FilePlus2 size={16} aria-hidden="true" /> Create next version
-                      </button>
                       <button
                         className="button button-secondary admin-delete-action"
                         disabled={busy || dirty}
@@ -549,7 +484,7 @@ function AuthoringWorkspace({
                           void requestDeletion();
                         }}
                       >
-                        <Trash2 size={16} aria-hidden="true" /> Delete version
+                        <Trash2 size={16} aria-hidden="true" /> Delete question
                       </button>
                     </Popover.Content>
                   </Popover.Portal>

@@ -9,9 +9,6 @@ const difficulties = new Set(["easy", "medium", "hard"]);
 const submissionStates = new Set(["queued", "running", "completed", "cancelled", "failed"]);
 const outcomeKinds = new Set(["win", "draw", "no_contest", "cancelled"]);
 
-export const MAX_BUFFERED_MATCH_EVENTS = 64;
-export type MatchEventBuffer = { events: EventEnvelope[]; overflow: boolean };
-
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -38,17 +35,6 @@ function validScore(value: unknown): boolean {
     (value.total as number) >= 0 &&
     (value.passed as number) <= (value.total as number)
   );
-}
-
-/** Caps events accumulated during a REST request and forces a fresh snapshot on overflow. */
-export function bufferMatchEvent(buffer: MatchEventBuffer, event: EventEnvelope): void {
-  if (buffer.overflow) return;
-  if (buffer.events.length >= MAX_BUFFERED_MATCH_EVENTS) {
-    buffer.events.length = 0;
-    buffer.overflow = true;
-    return;
-  }
-  buffer.events.push(event);
 }
 
 /** Checks the required public snapshot shape before trusting network JSON. */
@@ -96,6 +82,9 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     value.difficulties.every((pool) => typeof pool === "string" && difficulties.has(pool)) &&
     new Set(value.difficulties).size === value.difficulties.length &&
     matchRulesSchema.safeParse(value.rules).success &&
+    (value.questionSelection === undefined ||
+      value.questionSelection === "random" ||
+      value.questionSelection === "recommended") &&
     (value.selectedProblemVersionId === undefined ||
       (typeof value.selectedProblemVersionId === "string" &&
         uuidPattern.test(value.selectedProblemVersionId))) &&
@@ -150,8 +139,10 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
   );
 }
 
+type MatchEvent = Extract<EventEnvelope, { type: "match.updated" | "match.completed" }>;
+
 /** Accepts only match events carrying their complete, matching snapshot. */
-export function parseMatchEvent(value: unknown, matchId: string): EventEnvelope | undefined {
+export function parseMatchEvent(value: unknown, matchId: string): MatchEvent | undefined {
   if (
     !record(value) ||
     value.schemaVersion !== 1 ||
@@ -167,45 +158,7 @@ export function parseMatchEvent(value: unknown, matchId: string): EventEnvelope 
     return undefined;
 
   if (value.payload.version !== value.aggregateVersion) return undefined;
-  return value as unknown as EventEnvelope;
-}
-
-export type EventMerge = { snapshot: MatchSnapshot; gap: boolean };
-
-/** Applies newer events in version order, reporting skipped aggregate versions. */
-export function mergeMatchEvents(
-  snapshot: MatchSnapshot,
-  events: readonly EventEnvelope[],
-): EventMerge {
-  let current = snapshot;
-  let gap = false;
-  const ordered = [...events].sort((a, b) => {
-    const av = version(a.aggregateVersion) ?? 0n;
-    const bv = version(b.aggregateVersion) ?? 0n;
-    return av < bv ? -1 : av > bv ? 1 : 0;
-  });
-
-  for (const event of ordered) {
-    if (event.type === "submission.updated") continue;
-    const currentVersion = version(current.version);
-    const incomingVersion = version(event.aggregateVersion);
-    if (
-      currentVersion === undefined ||
-      incomingVersion === undefined ||
-      incomingVersion < currentVersion
-    )
-      continue;
-    if (incomingVersion === currentVersion) {
-      current = keepNewestSnapshot(current, event.payload);
-      continue;
-    }
-    if (incomingVersion !== currentVersion + 1n) {
-      gap = true;
-      continue;
-    }
-    current = event.payload;
-  }
-  return { snapshot: current, gap };
+  return value as unknown as MatchEvent;
 }
 
 /** Keeps a valid cache snapshot when an older request finishes late. */

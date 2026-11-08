@@ -1,15 +1,8 @@
 /** Read-only private mail ingress probe; credentials and response bodies stay private. */
-import { runStageCommand } from "./hono-stage-command.mjs";
-import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
-runStageCommand("terraform", terraformBackendArgs(process.env, "hono-production"), process.env);
-const state = JSON.parse(
-  runStageCommand(
-    "terraform",
-    ["-chdir=infra/terraform/hono-production", "output", "-json"],
-    process.env,
-  ),
-);
-const token = state.secrets.value.MAIL_RELAY_TOKEN;
+import { activeProduction } from "./hono-production-state.mjs";
+
+const { keys } = activeProduction(process.env);
+const token = keys.MAIL_RELAY_TOKEN;
 if (typeof token !== "string" || token.length < 32) throw new Error("Mail credential unavailable");
 for (let attempt = 1; attempt <= 3; attempt++) {
   const started = Date.now();

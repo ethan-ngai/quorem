@@ -3,14 +3,7 @@ import { createReconnectScheduler } from "./reconnectScheduler";
 /** @file matchSync.test.ts @description Regression coverage for match event guards and ordering. @module realtime */
 import type { EventEnvelope, MatchSnapshot } from "@quorem/contracts";
 import { describe, expect, it, vi } from "vitest";
-import {
-  bufferMatchEvent,
-  isMatchSnapshot,
-  keepNewestSnapshot,
-  mergeMatchEvents,
-  MAX_BUFFERED_MATCH_EVENTS,
-  parseMatchEvent,
-} from "./matchSync";
+import { isMatchSnapshot, keepNewestSnapshot, parseMatchEvent } from "./matchSync";
 
 const matchId = "11111111-1111-4111-8111-111111111111";
 const userId = "22222222-2222-4222-8222-222222222222";
@@ -52,45 +45,6 @@ describe("match sync guards and ordering", () => {
     expect(parseMatchEvent(event("2"), matchId)).toBeDefined();
     expect(parseMatchEvent({ ...event("2"), aggregateId: userId }, matchId)).toBeUndefined();
     expect(parseMatchEvent({ ...event("2"), aggregateVersion: "3" }, matchId)).toBeUndefined();
-  });
-
-  it("applies buffered updates by BigInt version and ignores duplicates or older snapshots", () => {
-    const initial = snapshot("9007199254740992");
-    const next = event("9007199254740993");
-    const latest = event("9007199254740994", "completed");
-    const merged = mergeMatchEvents(initial, [latest, next, next]);
-
-    expect(merged.snapshot.version).toBe("9007199254740994");
-    expect(merged.snapshot.state).toBe("completed");
-    expect(merged.gap).toBe(false);
-    expect(keepNewestSnapshot(merged.snapshot, initial)).toBe(merged.snapshot);
-  });
-
-  it("requests recovery when an aggregate version is skipped", () => {
-    expect(mergeMatchEvents(snapshot("3"), [event("5")])).toMatchObject({
-      snapshot: { version: "3" },
-      gap: true,
-    });
-  });
-
-  it("updates advisory presence from newer same-version heartbeats without accepting stale ones", () => {
-    const initial = snapshot("3");
-    const offline = {
-      ...initial,
-      serverNow: "2026-10-10T12:00:05Z",
-      participants: [{ ...initial.participants[0]!, presence: "offline" as const }],
-    };
-    const newer = { ...event("3"), type: "match.updated" as const, payload: offline };
-    const stale = { ...event("3"), type: "match.updated" as const, payload: initial };
-    const result = mergeMatchEvents(initial, [newer, stale]);
-    expect(result.gap).toBe(false);
-    expect(result.snapshot).toEqual(offline);
-  });
-
-  it("recovers an omitted terminal notice from a later heartbeat", () => {
-    const result = mergeMatchEvents(snapshot("3"), [event("5", "completed")]);
-    expect(result.gap).toBe(true);
-    expect(result.snapshot.state).toBe("active");
   });
 
   it("rejects malformed optional fields, duplicate seats, and invalid seat counts", () => {
@@ -203,17 +157,6 @@ describe("match sync guards and ordering", () => {
     ).toMatchObject({
       participants: [{ presence: "offline" }],
     });
-  });
-
-  it("caps buffered events and marks overflow for snapshot recovery", () => {
-    const buffer = { events: [] as EventEnvelope[], overflow: false };
-    for (let index = 1; index <= MAX_BUFFERED_MATCH_EVENTS + 1; index += 1) {
-      bufferMatchEvent(buffer, event(String(index)));
-    }
-    expect(buffer.events).toHaveLength(0);
-    expect(buffer.overflow).toBe(true);
-    bufferMatchEvent(buffer, event("99"));
-    expect(buffer.events).toHaveLength(0);
   });
 });
 

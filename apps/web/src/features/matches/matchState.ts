@@ -3,6 +3,11 @@ import { isMatchWinner } from "./competitors";
 import type { CompletionOutcome } from "../../ui/completionOutcome";
 import { participantUserId, type DevelopmentIdentity, type MatchSnapshot } from "@quorem/contracts";
 
+/** @returns Whether a match has reached its terminal state. */
+export function isMatchTerminal(snapshot: MatchSnapshot | undefined): boolean {
+  return snapshot?.state === "completed" || snapshot?.state === "cancelled";
+}
+
 export const submissionTimeEndedLabel = "Submission time ended";
 
 /** @returns A return label only for a current, non-forfeited member of a live match. */

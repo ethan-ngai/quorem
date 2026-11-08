@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { SessionDialog } from "../../../ui/SessionDialog";
 import { browserDraftScope, readBrowserHistory } from "../recovery";
+import { LoadingIndicator } from "../../../ui/Spinner";
 
 function errorMessage(error: unknown) {
   return userFacingErrorMessage(error, "Could not load draft history.");
@@ -45,7 +46,7 @@ export function HistoryDialog({
       className="history-dialog"
       pending={!!restoringRevision}
     >
-      {historyQuery.isPending ? <p className="dialog-state">Loading saved versions…</p> : null}
+      {historyQuery.isPending ? <LoadingIndicator label="Loading saved versions…" /> : null}
       {historyQuery.error ? (
         <p className="dialog-state result-error">{errorMessage(historyQuery.error)}</p>
       ) : null}

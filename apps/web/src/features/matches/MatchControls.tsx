@@ -12,7 +12,12 @@ import { problemQueryOptions } from "../practice/problemQueries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type {
+  PartySettings,
+  DevelopmentIdentity,
+  ProblemVersion,
+  FilterMatch,
+} from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
 import { Swords, Gauge, BookOpen, Clock, Users, Code2, Info } from "lucide-react";
@@ -24,6 +29,7 @@ export function useAccountIdentity() {
 }
 
 export const defaultMatchSettings: PartySettings = {
+  questionSelection: "recommended",
   mode: "showdown",
   accessMode: "accounts_only",
   difficulties: ["easy"],
@@ -36,7 +42,18 @@ type MatchProblem = Pick<ProblemVersion, "id" | "title"> & {
   difficulty: string;
 } & Partial<Pick<ProblemVersion, "sql" | "odyssey" | "tags" | "companies">>;
 
-/** @returns Whether this question belongs to the lobby's random pool. */
+function matchesValues(
+  selection: string | undefined,
+  match: FilterMatch | undefined,
+  values: string[] = [],
+) {
+  if (!selection) return true;
+  const requested = selection.split(",");
+  const includes = (value: string) => values.includes(value);
+  return match === "all" ? requested.every(includes) : requested.some(includes);
+}
+
+/** @returns Whether this question belongs to the lobby's adaptive pool. */
 function matchesPool(
   problem: MatchProblem,
   difficulties: readonly string[],
@@ -46,9 +63,8 @@ function matchesPool(
     difficulties.includes(problem.difficulty) &&
     !!problem.sql === (filters.sql === "true") &&
     (!filters.type || !!problem.odyssey === (filters.type === "odyssey")) &&
-    (!filters.topic || filters.topic.split(",").some((topic) => problem.tags?.includes(topic))) &&
-    (!filters.company ||
-      filters.company.split(",").some((company) => problem.companies?.includes(company)))
+    matchesValues(filters.topic, filters.topicMatch, problem.tags) &&
+    matchesValues(filters.company, filters.companyMatch, problem.companies)
   );
 }
 
@@ -130,15 +146,20 @@ export function MatchSettings({
     difficulties: typeof pools,
     questionFilters: PartySettings["questionFilters"],
   ) => {
+    const selectedProblemVersionId =
+      selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
+        ? selectedId
+        : undefined;
     onChange?.({
       ...value,
       difficulty: undefined,
       difficulties,
       questionFilters,
-      selectedProblemVersionId:
-        selectedProblem && matchesPool(selectedProblem, difficulties, questionFilters)
-          ? selectedId
-          : undefined,
+      selectedProblemVersionId,
+      questionSelection:
+        selectedId && !selectedProblemVersionId
+          ? defaultMatchSettings.questionSelection
+          : value.questionSelection,
     });
   };
   const rules = value.rules ?? matchPreset();
@@ -227,11 +248,25 @@ export function MatchSettings({
             onFiltersChange={(questionFilters) => changePool(pools, questionFilters)}
             value={value.selectedProblemVersionId}
             disabled={disabled || loadingSelection}
-            allowRandom
+            automaticSelection={{
+              mode: value.questionSelection ?? "random",
+              onChange: (questionSelection) =>
+                onChange?.({
+                  ...value,
+                  difficulties: pools,
+                  questionSelection,
+                  selectedProblemVersionId: undefined,
+                }),
+            }}
             discloseFilters
             onChange={(selectedProblemVersionId, problem) => {
               setPickedProblem(problem);
-              onChange?.({ ...value, difficulties: pools, selectedProblemVersionId });
+              onChange?.({
+                ...value,
+                difficulties: pools,
+                selectedProblemVersionId,
+                questionSelection: undefined,
+              });
             }}
           />
         )}

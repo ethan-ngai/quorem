@@ -669,14 +669,27 @@
                         "type": "string"
                       }
                     },
-                    "nextCursor": {
-                      "type": "string",
-                      "description": "Opaque continuation for the same filters and ordering."
+                    "recommendationImpressions": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string", "format": "uuid" }
                     },
                     "topics": {
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "foundationalTopics": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": { "type": "string" },
+                          "label": { "type": "string" },
+                          "tags": { "type": "array", "items": { "type": "string" } }
+                        },
+                        "required": ["value", "label", "tags"],
+                        "additionalProperties": false
                       }
                     }
                   },
@@ -716,13 +729,23 @@
             "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string",
               "maxLength": 1295
             },
-            "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
+            "description": "Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each."
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -735,9 +758,10 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "Recommended requires page 1, ascending order, and a limit of at most 20.",
             "schema": {
               "type": "string",
-              "enum": ["title", "difficulty"],
+              "enum": ["title", "difficulty", "recommended"],
               "default": "title"
             }
           },
@@ -758,15 +782,6 @@
               "minimum": 1,
               "maximum": 10000,
               "default": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "Opaque continuation returned by the preceding page; use with page 1 or omit page.",
-            "schema": {
-              "type": "string",
-              "maxLength": 32768
             }
           },
           {
@@ -803,6 +818,40 @@
             }
           }
         ]
+      }
+    },
+    "/v1/recommendation-feedback": {
+      "post": {
+        "operationId": "recordRecommendationFeedback",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action", "ids"],
+                "properties": {
+                  "action": { "type": "string", "enum": ["view", "dismiss"] },
+                  "ids": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": { "type": "string", "format": "uuid" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Feedback recorded." },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
       }
     },
     "/v1/problem-versions/{id}/solutions": {
@@ -940,11 +989,21 @@
             }
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -1040,8 +1099,6 @@
                           "id",
                           "title",
                           "slug",
-                          "version",
-                          "current",
                           "isPrivate",
                           "isSql",
                           "fromLeetCode",
@@ -1059,9 +1116,6 @@
                             "type": "string"
                           },
                           "slug": {
-                            "type": "string"
-                          },
-                          "version": {
                             "type": "string"
                           },
                           "isPrivate": {
@@ -1089,9 +1143,6 @@
                             "type": "boolean"
                           },
                           "fromLeetCode": {
-                            "type": "boolean"
-                          },
-                          "current": {
                             "type": "boolean"
                           }
                         }
@@ -1121,6 +1172,37 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/question-publications/{id}/edit": {
+      "post": {
+        "operationId": "editQuestionPublication",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Editable record for the current publication",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuestionDraft" }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -1160,11 +1242,21 @@
             }
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -1617,32 +1709,9 @@
                     },
                     "submissions": {
                       "type": "integer"
-                    },
-                    "current": {
-                      "type": "boolean"
-                    },
-                    "replacements": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "title": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "string"
-                          }
-                        },
-                        "required": ["id", "title", "version"]
-                      }
                     }
                   },
-                  "required": ["workspaces", "matches", "submissions", "current", "replacements"]
+                  "required": ["workspaces", "matches", "submissions"]
                 }
               }
             }
@@ -1713,10 +1782,6 @@
                 "properties": {
                   "revision": {
                     "type": "string"
-                  },
-                  "replacementVersionId": {
-                    "type": ["string", "null"],
-                    "format": "uuid"
                   }
                 },
                 "required": ["revision"]
@@ -3504,14 +3569,11 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["id", "current"],
+                      "required": ["id"],
                       "properties": {
                         "id": {
                           "type": "string",
                           "format": "uuid"
-                        },
-                        "current": {
-                          "type": "boolean"
                         }
                       }
                     }
@@ -4307,6 +4369,489 @@
           }
         }
       }
+    },
+    "/v1/parties/{id}/teams": {
+      "get": {
+        "operationId": "getFactionLobby",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionLobby"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "organizeFactions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionLobby"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionOrganize"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team": {
+      "get": {
+        "operationId": "getFactionSnapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionSnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/pull": {
+      "post": {
+        "operationId": "pullFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewUpdates"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionPosition"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/push": {
+      "post": {
+        "operationId": "pushFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewUpdates"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewUpdates"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/presence": {
+      "post": {
+        "operationId": "presenceFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FactionPeer"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionPresenceInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/propose": {
+      "post": {
+        "operationId": "proposeFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionVote"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionPropose"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/vote": {
+      "post": {
+        "operationId": "voteFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionVote"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionBallot"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/team/cancel": {
+      "post": {
+        "operationId": "cancelFaction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactionVote"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactionCancel"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4325,6 +4870,661 @@
       }
     },
     "schemas": {
+      "FactionLobby": {
+        "type": "object",
+        "properties": {
+          "teamCount": {
+            "type": "integer"
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string"
+                },
+                "team": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "userId",
+                "team"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "teamCount",
+          "assignments"
+        ],
+        "additionalProperties": false
+      },
+      "FactionOrganize": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "balance"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "create"
+              }
+            },
+            "required": [
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "delete"
+              },
+              "team": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "action",
+              "team"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "rename"
+              },
+              "team": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "team",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "assign"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "team": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "action",
+              "userId",
+              "team"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "const": "lock"
+              },
+              "locked": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "action",
+              "locked"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "FactionPosition": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "epoch",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "FactionPresenceInput": {
+        "type": "object",
+        "properties": {
+          "clientID": {
+            "type": "string"
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "anchor": {
+            "type": "integer"
+          },
+          "head": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clientID",
+          "epoch",
+          "version",
+          "anchor",
+          "head"
+        ],
+        "additionalProperties": false
+      },
+      "FactionPeer": {
+        "type": "object",
+        "properties": {
+          "clientID": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "anchor": {
+            "type": "integer"
+          },
+          "head": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "clientID",
+          "userId",
+          "name",
+          "epoch",
+          "version",
+          "anchor",
+          "head"
+        ],
+        "additionalProperties": false
+      },
+      "FactionDocument": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "epoch": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "version",
+          "epoch"
+        ],
+        "additionalProperties": false
+      },
+      "FactionAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "submit"
+              },
+              "workspaceId": {
+                "type": "string"
+              },
+              "level": {
+                "type": "integer"
+              },
+              "source": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "documentEpoch": {
+                "type": "string"
+              },
+              "documentVersion": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "workspaceId",
+              "level",
+              "source",
+              "language",
+              "documentEpoch",
+              "documentVersion"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "reveal"
+              },
+              "target": {
+                "type": "string",
+                "enum": [
+                  "topics",
+                  "complexity",
+                  "case"
+                ]
+              },
+              "caseIndex": {
+                "type": "integer"
+              },
+              "submissionId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "target"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "language"
+              },
+              "language": {
+                "type": "string"
+              },
+              "documentEpoch": {
+                "type": "string"
+              },
+              "documentVersion": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "language",
+              "documentEpoch",
+              "documentVersion"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "reset"
+              },
+              "documentEpoch": {
+                "type": "string"
+              },
+              "documentVersion": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "documentEpoch",
+              "documentVersion"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "concede"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "FactionVote": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "proposerId": {
+            "type": "string"
+          },
+          "electorate": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ballots": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "quote": {
+            "type": "object",
+            "properties": {
+              "action": {
+                "$ref": "#/components/schemas/FactionAction"
+              },
+              "ruleVersion": {
+                "type": "string"
+              },
+              "cost": {
+                "type": "object",
+                "properties": {
+                  "seconds": {
+                    "type": "integer"
+                  },
+                  "points": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "seconds",
+                  "points"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "action",
+              "ruleVersion",
+              "cost"
+            ],
+            "additionalProperties": false
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "approved",
+              "rejected",
+              "expired",
+              "cancelled",
+              "executed"
+            ]
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "expiresAt": {
+            "type": "number"
+          },
+          "resolvedAt": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "proposerId",
+          "electorate",
+          "ballots",
+          "quote",
+          "state",
+          "createdAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "FactionSnapshot": {
+        "type": "object",
+        "properties": {
+          "team": {
+            "type": "integer"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "serverNow": {
+            "type": "number"
+          },
+          "document": {
+            "$ref": "#/components/schemas/FactionDocument"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "userId",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "votes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactionVote"
+            }
+          },
+          "peers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FactionPeer"
+            }
+          },
+          "latestSubmissionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "team",
+          "workspaceId",
+          "language",
+          "serverNow",
+          "document",
+          "members",
+          "votes",
+          "peers"
+        ],
+        "additionalProperties": false
+      },
+      "FactionPropose": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "submit"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "reveal"
+                  },
+                  "target": {
+                    "type": "string",
+                    "enum": [
+                      "topics",
+                      "complexity",
+                      "case"
+                    ]
+                  },
+                  "caseIndex": {
+                    "type": "integer"
+                  },
+                  "submissionId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "target"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "language"
+                  },
+                  "language": {
+                    "type": "string"
+                  },
+                  "documentEpoch": {
+                    "type": "string"
+                  },
+                  "documentVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "language",
+                  "documentEpoch",
+                  "documentVersion"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "reset"
+                  },
+                  "documentEpoch": {
+                    "type": "string"
+                  },
+                  "documentVersion": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "documentEpoch",
+                  "documentVersion"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "concede"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "additionalProperties": false
+      },
+      "FactionBallot": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "approve": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "approve"
+        ],
+        "additionalProperties": false
+      },
+      "FactionCancel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      },
       "AdminOverview": {
         "type": "object",
         "additionalProperties": false,
@@ -4839,6 +6039,11 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          "recommendationReason": {
+            "type": "string",
+            "enum": ["review", "weak_topic", "new_topic", "challenge", "practice"],
+            "description": "Practice ranking explanation; contains no other player history."
           }
         },
         "required": [
@@ -5327,6 +6532,10 @@
             "maxItems": 3,
             "uniqueItems": true
           },
+          "questionSelection": {
+            "type": "string",
+            "enum": ["random", "recommended"]
+          },
           "questionFilters": {
             "$ref": "#/components/schemas/MatchQuestionFilters"
           },
@@ -5382,6 +6591,11 @@
         ],
         "additionalProperties": false
       },
+      "FilterMatch": {
+        "type": "string",
+        "enum": ["any", "all"],
+        "description": "Match any selected value by default, or require all selected values."
+      },
       "MatchQuestionFilters": {
         "type": "object",
         "properties": {
@@ -5393,6 +6607,8 @@
             "type": "string",
             "enum": ["true"]
           },
+          "topicMatch": { "$ref": "#/components/schemas/FilterMatch" },
+          "companyMatch": { "$ref": "#/components/schemas/FilterMatch" },
           "topic": {
             "type": "string",
             "maxLength": 1295
@@ -6355,32 +7571,14 @@
         "required": ["items", "total", "page", "limit"]
       },
       "CreateQuestionDraftRequest": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "content": {
-                "$ref": "#/components/schemas/QuestionContent"
-              }
-            },
-            "required": ["content"]
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "edit": {
-                "type": "boolean"
-              },
-              "problemVersionId": {
-                "type": "string",
-                "format": "uuid"
-              }
-            },
-            "required": ["problemVersionId"]
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/QuestionContent"
           }
-        ]
+        },
+        "required": ["content"]
       },
       "UpdateQuestionDraftRequest": {
         "type": "object",
@@ -7294,6 +8492,10 @@
             "minItems": 1,
             "maxItems": 3,
             "uniqueItems": true
+          },
+          "questionSelection": {
+            "type": "string",
+            "enum": ["random", "recommended"]
           },
           "questionFilters": {
             "$ref": "#/components/schemas/MatchQuestionFilters"

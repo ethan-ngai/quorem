@@ -3,14 +3,20 @@ import type { DevelopmentIdentity, paths, ProblemVersion } from "@quorem/contrac
 import { api, publicApi, requireData } from "../../api/client";
 import { fetchProblem, fetchProblemVersion } from "../editor/api";
 import type { CatalogSearch } from "./catalogSearch";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
 type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
+export type FoundationalTopic = NonNullable<CatalogPage["foundationalTopics"]>[number];
+type CatalogFacets = Pick<CatalogPage, "topics" | "foundationalTopics" | "companies">;
 const publicScope = "public";
 const pendingScope = "pending";
 const signedOutPrivateScope = "signed-out-private";
 const staleTime = 30_000;
 export const catalogPageSize = 20;
+type CatalogRequest = Omit<CatalogSearch, "sort"> & {
+  sort?: CatalogSearch["sort"] | "recommended";
+};
 
 // Only explicitly global responses enter the shared public scope.
 function catalogContext(actor: ProblemActor, library: CatalogSearch["library"]) {
@@ -35,6 +41,8 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
 
 const facetsKey = (scope: string, library: CatalogSearch["library"]) =>
   ["public-problem-facets", scope, library] as const;
+const catalogScope = (scope: string, library: CatalogSearch["library"]) =>
+  ["public-problems", scope, library] as const;
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();
@@ -50,9 +58,18 @@ function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, st
 export function catalogQueryOptions(
   client: QueryClient,
   actor: ProblemActor,
-  search: CatalogSearch,
+  search: CatalogRequest,
 ) {
-  const context = catalogContext(actor, search.library);
+  const context =
+    search.sort === "recommended"
+      ? {
+          scope:
+            actor === "anonymous" && search.library === "private"
+              ? signedOutPrivateScope
+              : (actor ?? pendingScope),
+          library: actor === "anonymous" ? (search.library ?? "global") : search.library,
+        }
+      : catalogContext(actor, search.library);
   const filters = {
     ...search,
     sql: search.sql ?? ("false" as const),
@@ -60,19 +77,26 @@ export function catalogQueryOptions(
     page: search.page ?? 1,
     limit: search.limit ?? catalogPageSize,
   };
+  const scope =
+    search.sort === "recommended"
+      ? (["recommended-problems", context.scope, context.library] as const)
+      : catalogScope(context.scope, context.library);
+  const retain = scopedPlaceholder(scope);
   return queryOptions<CatalogPage>({
-    queryKey: ["public-problems", context.scope, filters] as const,
+    queryKey: [...scope, filters] as const,
     enabled: context.scope !== pendingScope,
-    staleTime,
+    staleTime: search.sort === "recommended" ? 0 : staleTime,
     placeholderData:
-      context.scope !== publicScope && search.library !== "private"
-        ? () =>
-            freshState<CatalogPage>(client, [
-              "public-problems",
-              publicScope,
-              { ...filters, library: "global" },
-            ])?.data
-        : undefined,
+      search.sort === "recommended"
+        ? undefined
+        : (previous, query) =>
+            retain(previous, query) ??
+            (context.scope !== publicScope && search.library !== "private"
+              ? freshState<CatalogPage>(client, [
+                  ...catalogScope(publicScope, "global"),
+                  { ...filters, library: "global" },
+                ])?.data
+              : undefined),
     queryFn: async ({ signal }) => {
       if (context.scope === pendingScope) throw new Error("Account still loading");
       // A local development server may assign an owner even without browser credentials.
@@ -87,15 +111,18 @@ export function catalogQueryOptions(
         };
       const started = Date.now();
       const transport =
-        context.scope === publicScope ? publicApi() : api(actor as DevelopmentIdentity);
+        context.scope === publicScope || actor === "anonymous"
+          ? publicApi()
+          : api(actor as DevelopmentIdentity);
       const { data, error } = await transport.GET("/v1/problems", {
         params: { query: filters },
         signal,
       });
       const page = requireData(data, error);
-      seedQuestions(client, context.scope, page, started);
+      if (search.sort !== "recommended") seedQuestions(client, context.scope, page, started);
       client.setQueryData(facetsKey(context.scope, context.library), {
         topics: page.topics,
+        foundationalTopics: page.foundationalTopics,
         companies: page.companies,
       });
       return page;
@@ -113,9 +140,10 @@ export function catalogFacets(
   const context = catalogContext(actor, search.library);
   return (
     page ??
-    client.getQueryData<Pick<CatalogPage, "topics" | "companies">>(
-      facetsKey(context.scope, context.library),
-    ) ?? { topics: [], companies: [] }
+    client.getQueryData<CatalogFacets>(facetsKey(context.scope, context.library)) ?? {
+      topics: [],
+      companies: [],
+    }
   );
 }
 
