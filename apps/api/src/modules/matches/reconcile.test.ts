@@ -10,6 +10,7 @@ const entry = (
   extra: Partial<SubmissionProgress> = {},
 ): SubmissionProgress => ({
   owner,
+  admittedAt: now - minute,
   state,
   verdict: "",
   score: null,
@@ -30,8 +31,16 @@ describe("Go match reconciliation vectors", () => {
     ["forfeited actor ignored", [accepted("carol"), accepted("alice")], "alice"],
   ])("%s", (_name, submissions, winner) => {
     expect(
-      reconcile(now, now + minute, null, ["alice", "bob"], submissions as SubmissionProgress[])
-        .outcome,
+      reconcile(
+        now,
+        now + minute,
+        null,
+        ["alice", "bob"],
+        (submissions as SubmissionProgress[]).map((submission, index) => ({
+          ...submission,
+          admittedAt: now - minute + BigInt(index),
+        })),
+      ).outcome,
     ).toEqual({ kind: "win", winnerUserId: winner, reason: "first_correct" });
   });
   it("blocks an earlier opponent and uses the persisted finalization boundary", () => {
@@ -86,39 +95,27 @@ describe("Go match reconciliation vectors", () => {
 
 describe("penalty victory rules", () => {
   const players = ["alice", "bob"];
-  it("closes early while retaining the original eligibility boundary and finish order", () => {
+  it("uses the original admission order even after personal submission time ends", () => {
     const deadline = now + minute;
     const rules = { victory: "race" as const, penalties: new Map(), submissionDeadline: now };
-    const winner = { ...accepted("bob"), eligibleAt: now + minute / 2n };
-    const later = { ...accepted("alice"), eligibleAt: deadline };
-    expect(reconcile(now - 1n, deadline, null, players, [later, winner], rules).outcome).toBeNull();
-    expect(reconcile(now, deadline, null, players, [later, winner], rules).outcome).toEqual({
-      kind: "win",
-      winnerUserId: "bob",
-      reason: "first_correct",
-    });
-    const pending = entry("alice", "running", { eligibleAt: now + 1n });
+    const winner = { ...accepted("bob"), admittedAt: now - minute / 2n };
+    const later = { ...accepted("alice"), admittedAt: now - 1n };
+    for (const time of [now - 1n, now])
+      expect(reconcile(time, deadline, null, players, [later, winner], rules).outcome).toEqual({
+        kind: "win",
+        winnerUserId: "bob",
+        reason: "first_correct",
+      });
+    const pending = entry("alice", "running", { admittedAt: now - minute });
     const unresolved = reconcile(now, deadline, null, players, [pending, winner], rules);
     expect(unresolved.outcome).toBeNull();
     expect(unresolved.finalizingAt).toBe(now);
   });
-  it("keeps Race open until the adjusted finish and lets an opponent beat it", () => {
-    const delayed = { ...accepted("alice"), eligibleAt: now + minute };
-    expect(reconcile(now, now + 5n * minute, null, players, [delayed]).outcome).toBeNull();
-    const rival = { ...accepted("bob"), eligibleAt: now + minute / 2n };
-    expect(
-      reconcile(now + minute / 2n, now + 5n * minute, null, players, [delayed, rival]).outcome
-        ?.winnerUserId,
-    ).toBe("bob");
-    expect(
-      reconcile(now + minute, now + 5n * minute, null, players, [delayed]).outcome?.winnerUserId,
-    ).toBe("alice");
-  });
   it("does not let an over-deadline perfect submission win through score fallback", () => {
     const rows = [
-      { ...partial("alice", 1), eligibleAt: now - minute },
-      { ...accepted("alice"), eligibleAt: now + 1n },
-      { ...partial("bob", 2), eligibleAt: now - minute },
+      { ...partial("alice", 1), admittedAt: now - minute },
+      { ...accepted("alice"), admittedAt: now + 1n },
+      { ...partial("bob", 2), admittedAt: now - minute },
     ];
     expect(reconcile(now, now, null, players, rows).outcome).toEqual({
       kind: "win",
@@ -133,19 +130,19 @@ describe("penalty victory rules", () => {
         now + minute,
         null,
         players,
-        players.map((p) => ({ ...accepted(p), eligibleAt: now })),
+        players.map((p) => ({ ...accepted(p), admittedAt: now })),
       ).outcome?.kind,
     ).toBe("draw");
   });
   it("waits for an earlier eligible unresolved rival", () => {
     const rows = [
-      { ...entry("bob", "running"), eligibleAt: now - 1n },
-      { ...accepted("alice"), eligibleAt: now },
+      { ...entry("bob", "running"), admittedAt: now - 1n },
+      { ...accepted("alice"), admittedAt: now },
     ];
     expect(reconcile(now, now + minute, null, players, rows).outcome).toBeNull();
   });
   it("does not turn unresolved persisted finalization into a draw", () => {
-    const rows = [{ ...entry("bob", "running"), eligibleAt: now - minute }];
+    const rows = [{ ...entry("bob", "running"), admittedAt: now - minute }];
     expect(reconcile(now, now + minute, now - 2n * minute, players, rows).outcome).toEqual({
       kind: "no_contest",
       reason: "unresolved_eligible_work",

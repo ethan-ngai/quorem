@@ -1,5 +1,7 @@
 /** @file MatchCompletionActions.tsx @description Shared post-match navigation and quick readiness. @module matches */
 import { FileCode2, Plus, RotateCcw, Users, X, Zap } from "lucide-react";
+import { Spinner } from "../../ui/Spinner";
+import { StateIcon } from "../../ui/StateIcon";
 
 export function MatchCompletionActions({
   review,
@@ -8,7 +10,13 @@ export function MatchCompletionActions({
 }: {
   review?: { onClick: () => void; disabled: boolean };
   lobby?: "return" | "create";
-  readiness?: { ready: boolean; disabled: boolean; retry: boolean; onClick: () => void };
+  readiness?: {
+    ready: boolean;
+    pending: boolean;
+    disabled: boolean;
+    retry: boolean;
+    onClick: () => void;
+  };
 }) {
   return (
     <div className="match-completion-actions">
@@ -38,16 +46,23 @@ export function MatchCompletionActions({
       {readiness && (
         <button
           className={`button match-completion-primary ${readiness.ready ? "button-secondary" : "button-primary"}`}
-          disabled={readiness.disabled}
+          disabled={readiness.disabled || readiness.pending}
+          aria-busy={readiness.pending}
           onClick={readiness.onClick}
         >
-          {readiness.retry ? (
-            <RotateCcw size={16} aria-hidden="true" />
-          ) : readiness.ready ? (
-            <X size={16} aria-hidden="true" />
-          ) : (
-            <Zap size={16} aria-hidden="true" />
-          )}
+          <StateIcon
+            active={readiness.pending}
+            on={<Spinner active={readiness.pending} />}
+            off={
+              readiness.retry ? (
+                <RotateCcw size={16} />
+              ) : readiness.ready ? (
+                <X size={16} />
+              ) : (
+                <Zap size={16} />
+              )
+            }
+          />
           {readiness.retry ? "Retry readiness" : readiness.ready ? "Unready" : "Quick ready"}
         </button>
       )}

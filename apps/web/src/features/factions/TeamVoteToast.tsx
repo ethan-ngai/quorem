@@ -1,4 +1,5 @@
 import { Vote } from "lucide-react";
+import { useErrorNotification } from "../../ui/Notifications";
 /** @file TeamVoteToast.tsx @description Team ballots in persistent nonmodal notifications. @module factions */
 import { useEffect, useRef, useState } from "react";
 import { teamVoteThreshold, type TeamVote, type TeamAction } from "@quorem/contracts/factions";
@@ -55,6 +56,7 @@ export function TeamVoteToast({
   const acting = useRef(false);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string>();
+  useErrorNotification(error);
   const [showCode, setShowCode] = useState(false);
   async function act(fn: () => Promise<void>) {
     if (acting.current || Date.now() >= localExpiry) return;
@@ -63,8 +65,8 @@ export function TeamVoteToast({
     setError(undefined);
     try {
       await fn();
-    } catch {
-      setError("Vote could not be recorded. Try again.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Vote could not be recorded. Try again.");
     } finally {
       acting.current = false;
       setBusy(false);

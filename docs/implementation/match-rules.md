@@ -15,7 +15,7 @@ Topics, complexity, and any hidden case have separate free/paid/disabled policie
 
 ## Victory
 
-Race uses server admission time plus cumulative time penalties incurred through that submission. A verified correct submission cannot finish before its adjusted time. Earlier unresolved eligible work can delay settlement; uncertainty lasting two minutes produces no contest. Adjusted times beyond the deadline are excluded, including from score fallback. At the deadline, the highest eligible passed-test count wins; equal counts draw. Equal correct adjusted finish times draw.
+Race ranks verified correct submissions by server admission time. Cumulative time penalties shorten each competitor’s personal submission window. A paid action requires more remaining personal submission time than its time cost. Earlier unresolved eligible work can delay settlement for up to two minutes before the match ends in no contest. If nobody solves the problem, the highest eligible passed-test count wins at the cutoff. Equal scores or equal correct admission times draw.
 
 High Score always runs to the deadline. Each competitor's score is their highest verified test-pass percentage minus cumulative point penalties. Negative scores are retained. Equal scores draw. Time costs apply only in Race; point costs apply only in High Score. Typing remains available during cooldowns and pending finishes.
 

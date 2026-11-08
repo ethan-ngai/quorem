@@ -1,7 +1,7 @@
-/** @file reconcile.ts @description Penalty-adjusted race and full-duration score decisions. @module matches */
+/** @file reconcile.ts @description Admission-ordered race and full-duration score decisions. @module matches */
 import type { Reconciliation, SubmissionProgress } from "./model.ts";
 
-/** Times are server epoch microseconds; equal eligible finish times remain tied. */
+/** Times are server epoch microseconds; equal admission times remain tied. */
 export function reconcile(
   now: bigint,
   deadline: bigint,
@@ -18,36 +18,15 @@ export function reconcile(
   },
 ): Reconciliation {
   const progress = new Map(
-    owners.map((owner) => [
-      owner,
-      { state: "", bestPassed: 0, bestPercentage: 0, eligibleFinishAt: null as bigint | null },
-    ]),
+    owners.map((owner) => [owner, { state: "", bestPassed: 0, bestPercentage: 0 }]),
   );
   const percentages = new Map(owners.map((owner) => [owner, 0]));
-  const eligible = submissions.filter(
-    (s) => progress.has(s.owner) && (s.eligibleAt ?? 0n) <= deadline,
-  );
-  for (const s of eligible) {
-    const p = progress.get(s.owner)!;
-    p.state = s.state;
-    if (
-      s.state === "completed" &&
-      !s.intermediate &&
-      s.verdict === "accepted" &&
-      s.score &&
-      s.score.passed === s.score.total
-    ) {
-      const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
-      if (p.eligibleFinishAt === null || time < p.eligibleFinishAt) p.eligibleFinishAt = time;
-    }
-  }
+  const eligible = submissions.filter((s) => progress.has(s.owner) && s.admittedAt <= deadline);
   const submissionDeadline = rules.submissionDeadline ?? deadline;
   const submissionsClosed = now >= submissionDeadline;
-  // Once nobody can submit, adjusted timestamps still order eligible attempts.
-  const due = submissionsClosed ? eligible : eligible.filter((s) => (s.eligibleAt ?? 0n) <= now);
   let candidateTime: bigint | null = null;
   const candidates = new Set<string>();
-  for (const s of due) {
+  for (const s of eligible) {
     const p = progress.get(s.owner)!;
     p.state = s.state;
     if (s.state !== "completed" || s.score === null) continue;
@@ -64,7 +43,7 @@ export function reconcile(
       s.score.passed !== s.score.total
     )
       continue;
-    const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
+    const time = s.admittedAt;
     if (candidateTime === null || time < candidateTime) {
       candidateTime = time;
       candidates.clear();
@@ -86,7 +65,7 @@ export function reconcile(
     } else if (score === high) draw = true;
   }
   let blocked = false;
-  for (const s of due) {
+  for (const s of eligible) {
     if (
       s.state === "failed" ||
       s.state === "cancelled" ||
@@ -95,7 +74,7 @@ export function reconcile(
       continue;
     const cannotPass = s.cannotPass && s.maxPossible !== null && s.maxPossible >= 0;
     if (candidateTime !== null) {
-      const time = s.eligibleAt ?? BigInt(submissions.indexOf(s));
+      const time = s.admittedAt;
       if (time <= candidateTime && !s.intermediate && !cannotPass && !candidates.has(s.owner))
         blocked = true;
     } else if (submissionsClosed || finalizingAt !== null) {

@@ -112,8 +112,10 @@
   justify-content: flex-start;
   gap: var(--space-2);
   padding-top: var(--space-4);
-  margin-bottom: var(--space-4);
   border-top: 1px solid var(--color-border);
+}
+.lobby-setup-heading > .settings-disclosure-trigger {
+  margin-inline-start: auto;
 }
 .lobby-setup-heading h2 {
   margin: 0;
@@ -126,7 +128,7 @@
 }
 .lobby-settings .match-option {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr);
   align-items: start;
   gap: var(--space-3);
 }
@@ -205,10 +207,6 @@
 .assistance-confirmation h2 {
   font-size: var(--text-body);
   font-weight: 650;
-}
-.assistance-confirmation p[role="alert"] {
-  font-size: var(--text-small);
-  color: var(--color-error);
 }
 .assistance-confirmation-cost {
   display: grid;

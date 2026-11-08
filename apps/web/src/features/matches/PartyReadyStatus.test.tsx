@@ -29,6 +29,23 @@ it("distinguishes not-ready players from players who left", () => {
   expect(renderToStaticMarkup(<PartyReadinessIndicator />)).toContain('aria-label="Left lobby"');
 });
 
+it("marks the host without adding a separate self icon", () => {
+  const html = renderToStaticMarkup(
+    <PartyMemberReadiness
+      members={[
+        { userId: "alice", displayName: "Alice", ready: true, online: true },
+        { userId: "bob", displayName: "Bob", ready: true, online: true },
+      ]}
+      hostUserId="alice"
+      ownUserId="bob"
+    />,
+  );
+  expect(html.match(/aria-label="Lobby host"/g)).toHaveLength(1);
+  expect(html.match(/lucide-star/g)).toHaveLength(1);
+  expect(html).not.toContain('aria-label="You"');
+  expect(html).not.toContain("lucide-crown");
+});
+
 it("keeps countdown and failure feedback without idle readiness prose", () => {
   expect(renderToStaticMarkup(<PartyReadyStatus countdownEndsAt={null} />)).toBe("");
   const html = renderToStaticMarkup(

@@ -22,7 +22,7 @@
   box-shadow: var(--shadow-overlay);
   color: var(--color-text);
   pointer-events: none;
-  animation: party-countdown-enter var(--motion-standard) var(--motion-easing);
+  animation: party-countdown-enter var(--motion-standard) var(--motion-easing) both;
 }
 .party-countdown-ring {
   --match-time-ring-fill: var(--color-primary);
@@ -47,7 +47,7 @@
 @keyframes party-countdown-enter {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(calc(-1 * var(--space-4))) scale(0.96);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -81,7 +81,7 @@
   flex: 1;
   min-width: 0;
 }
-.party-ready-members[data-actions] {
+.party-ready-members-with-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
 }
@@ -124,7 +124,7 @@
 .party-ready-heading h3 {
   margin: 0;
 }
-.match-lobby-joined > .party-ready-heading:last-child {
+.match-lobby-joined:has(> .party-ready-members:empty) > .party-ready-heading {
   margin-bottom: 0;
 }
 .party-ready-heading > span {
@@ -212,4 +212,8 @@
   .lobby-roster > .party-ready-members > li:not(:nth-child(3n)):not(:last-child)::after {
     content: "";
   }
+}
+
+.party-ready-members:empty {
+  display: none;
 }

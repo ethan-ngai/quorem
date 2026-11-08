@@ -6,6 +6,7 @@ import { authenticatedFetch } from "../auth/session";
 import { randomUUID } from "../../randomUUID";
 import { recoverableCommand } from "./commandRecovery";
 import { RejectedMatchCommand } from "./errors";
+import { safeErrorMessage } from "../../api/safeError";
 
 export type Party = PartySnapshot;
 export type { PartySettings };
@@ -42,8 +43,14 @@ async function request<T>(path: string, method = "GET", body?: unknown, key?: st
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) {
-    if (response.status >= 400 && response.status < 500)
-      throw new RejectedMatchCommand("Party request rejected.", response.status);
+    if (response.status >= 400 && response.status < 500) {
+      const failure = await response.json().catch(() => null);
+      throw new RejectedMatchCommand(
+        safeErrorMessage(failure?.error?.code, failure?.error?.message) ??
+          "Could not update the lobby.",
+        response.status,
+      );
+    }
     throw new Error("Party request failed");
   }
   return (await response.json()) as T;
@@ -68,7 +75,14 @@ export function useParty(identity: DevelopmentIdentity, enabled = true, poll = f
     queryKey: ["current-party", identity],
     enabled,
     retry: false,
-    refetchInterval: (query) => (poll && query.state.data?.party ? 3000 : false),
+    refetchInterval: (query) => {
+      const party = query.state.data?.party;
+      if (!poll || !party) return false;
+      if (!party.countdownEndsAt) return 3000;
+      // Reading the party at the deadline lets the server reconcile the round immediately.
+      const remaining = Date.parse(party.countdownEndsAt) - Date.now();
+      return remaining > 0 ? Math.min(3000, remaining) : 500;
+    },
     queryFn: () => request<{ party: Party | null }>("/v1/parties/current"),
   });
 }

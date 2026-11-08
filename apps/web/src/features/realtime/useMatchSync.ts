@@ -64,6 +64,7 @@ export function useMatchSync(
   );
   const [status, setStatus] = useState<MatchSyncStatus>("connecting");
   const [readyOwner, setReadyOwner] = useState("");
+  const [completedSocketOwner, setCompletedSocketOwner] = useState("");
   const [transportError, setTransportError] = useState<Error | null>(null);
 
   const query = useQuery({
@@ -90,6 +91,11 @@ export function useMatchSync(
       }
     },
     enabled: enabled && Boolean(matchId) && readyOwner === ownerKey,
+    refetchInterval: ({ state: { data } }) =>
+      completedSocketOwner === ownerKey &&
+      (data?.reviewPending || (data?.state !== "completed" && data?.state !== "cancelled"))
+        ? 2_000
+        : false,
     structuralSharing: (previous, incoming) =>
       keepNewestSnapshot(previous as MatchSnapshot | undefined, incoming as MatchSnapshot),
   });
@@ -118,6 +124,7 @@ export function useMatchSync(
     }
 
     setReadyOwner("");
+    setCompletedSocketOwner("");
     syncState.disposed = false;
     let disposed = false;
 
@@ -179,6 +186,10 @@ export function useMatchSync(
         setTransportError(
           cause instanceof Error ? cause : new Error("Match event connection failed"),
         );
+      },
+      onComplete() {
+        setCompletedSocketOwner(ownerKey);
+        requestRefresh();
       },
       onDisconnect() {
         setStatus("reconnecting");

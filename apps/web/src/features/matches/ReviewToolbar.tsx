@@ -11,7 +11,6 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import * as Popover from "../../ui/Popover";
-import { SelfIndicator } from "../../ui/SelfIndicator";
 import { SelectField } from "../../ui/SelectField";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { participantColor } from "../collaboration/participantColor";
@@ -63,7 +62,11 @@ export function ReviewToolbar({
         options={review.participants.map((person) => ({
           value: person.userId,
           label: person.displayName,
-          trailing: person.own ? <SelfIndicator focusable={false} /> : undefined,
+          display: person.own ? (
+            <Tooltip content="You">
+              <span aria-hidden="true">{person.displayName}</span>
+            </Tooltip>
+          ) : undefined,
           leading: (
             <AccountAvatar
               name={person.displayName}

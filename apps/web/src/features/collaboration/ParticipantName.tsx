@@ -1,7 +1,8 @@
 /** @file ParticipantName.tsx @description Shared participant photo, identity color and name. @module collaboration */
 import type { ReactNode } from "react";
+import { Star } from "lucide-react";
 import { AccountAvatar } from "../navigation/AccountAvatar";
-import { SelfIndicator } from "../../ui/SelfIndicator";
+import { Tooltip } from "../../ui/Tooltip";
 import { participantColor } from "./participantColor";
 import "./participant-name.css";
 
@@ -16,31 +17,40 @@ export function ParticipantName({
   participant,
   label,
   self = false,
-  nameAdornment,
+  host = false,
   nameSuffix,
 }: {
   participant: ParticipantIdentity;
   label?: string;
   self?: boolean;
-  nameAdornment?: ReactNode;
+  host?: boolean;
   nameSuffix?: ReactNode;
 }) {
   return (
     <span className="participant-name">
-      <AccountAvatar
-        name={participant.displayName}
-        image={participant.image}
-        color={participantColor(participant.userId, participant.color)}
-        outline
-      />
-      <span className="participant-name-text">
-        <span className="participant-name-label">
-          {label ?? participant.displayName}
-          {nameAdornment && <span className="participant-name-adornment">{nameAdornment}</span>}
+      <Tooltip content="You" disabled={!self}>
+        <span className="participant-name-identity" tabIndex={self ? 0 : undefined}>
+          <AccountAvatar
+            name={participant.displayName}
+            image={participant.image}
+            color={participantColor(participant.userId, participant.color)}
+            outline
+          />
+          <span className="participant-name-label">{label ?? participant.displayName}</span>
         </span>
-        {self && <SelfIndicator />}
-        {nameSuffix}
-      </span>
+      </Tooltip>
+      {host && <ParticipantHost />}
+      {nameSuffix}
     </span>
+  );
+}
+
+export function ParticipantHost() {
+  return (
+    <Tooltip content="Lobby host">
+      <span className="participant-host" role="img" aria-label="Lobby host" tabIndex={0}>
+        <Star size={12} fill="currentColor" aria-hidden="true" />
+      </span>
+    </Tooltip>
   );
 }

@@ -5234,10 +5234,6 @@
             "type": "string",
             "format": "date-time"
           },
-          "eligibleFinishAt": {
-            "type": "string",
-            "format": "date-time"
-          },
           "revealedAssistance": {
             "type": "array",
             "items": {
@@ -7530,9 +7526,24 @@
           },
           "guestAllowed": {
             "type": "boolean"
+          },
+          "matchSetup": {
+            "type": "object",
+            "properties": {
+              "mode": { "$ref": "#/components/schemas/MatchMode" },
+              "difficulties": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Difficulty" }
+              },
+              "durationMinutes": { "type": "integer", "enum": [15, 30, 45, 60] },
+              "rules": { "$ref": "#/components/schemas/MatchRules" },
+              "shareCodeAfterMatch": { "type": "boolean" }
+            },
+            "required": ["difficulties", "durationMinutes", "shareCodeAfterMatch"],
+            "additionalProperties": false
           }
         },
-        "required": ["id", "participantCount", "capacity", "guestAllowed"],
+        "required": ["id", "participantCount", "capacity", "guestAllowed", "matchSetup"],
         "additionalProperties": false
       },
       "MatchReviewWorkspace": {
