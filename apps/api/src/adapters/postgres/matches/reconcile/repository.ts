@@ -210,18 +210,31 @@ export async function reconcileScheduledMatch(
   generation: string | null,
 ): Promise<void> {
   if (!uuid.test(id)) return;
-  const locked = await tx.execute(sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE`);
+  const locked = await tx.execute(
+    sql`SELECT id FROM matches WHERE id=${id}::uuid FOR UPDATE SKIP LOCKED`,
+  );
   if (!locked.rows.length) return;
+  if (generation !== null && !/^\d+$/.test(generation))
+    throw new Error("Invalid reconciliation generation");
+  // Snapshot the generation before reading evidence. An absent row can be recreated with generation 1.
+  const pending =
+    generation === null
+      ? undefined
+      : (
+          await tx.execute<{ publish_update: boolean }>(sql`SELECT publish_update
+      FROM match_reconciliation_pending WHERE match_id=${id}::uuid AND generation=${generation}::bigint`)
+        ).rows[0];
   // A submission transition can settle or refund a charge without changing standings.
-  await reconcileMatch(tx, id, { publishUpdate: generation !== null });
+  await reconcileMatch(tx, id, { publishUpdate: pending?.publish_update });
   await tx.execute(sql`UPDATE matches SET reconciled_at=clock_timestamp() WHERE id=${id}::uuid`);
-  if (generation !== null) {
-    if (!/^\d+$/.test(generation)) throw new Error("Invalid reconciliation generation");
-    const settled =
-      await tx.execute(sql`SELECT 1 FROM matches m JOIN match_reconciliation_pending p ON p.match_id=m.id
-      WHERE m.id=${id}::uuid AND p.generation=${generation}::bigint AND m.state IN ('completed','cancelled')
-        AND NOT (${reviewPending(sql`m.id`)})`);
-    if (settled.rows.length) await matchEvent(tx, id, "match.updated");
+  if (pending) {
+    if (pending.publish_update) {
+      const settled =
+        await tx.execute(sql`SELECT 1 FROM matches m JOIN match_reconciliation_pending p ON p.match_id=m.id
+        WHERE m.id=${id}::uuid AND p.generation=${generation}::bigint AND m.state IN ('completed','cancelled')
+          AND NOT (${reviewPending(sql`m.id`)})`);
+      if (settled.rows.length) await matchEvent(tx, id, "match.updated");
+    }
     await tx.execute(
       sql`DELETE FROM match_reconciliation_pending WHERE match_id=${id}::uuid AND generation=${generation}::bigint`,
     );

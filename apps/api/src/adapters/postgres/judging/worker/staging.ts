@@ -1,6 +1,10 @@
 /** @file staging.ts @description Attempt-fenced, idempotent completion frame staging. @module judging */
 import { sql } from "drizzle-orm";
-import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import {
+  classifyDatabaseError,
+  type ConnectionScope,
+  type Transaction,
+} from "@quorem/database/core";
 import {
   type CompletionFieldChunk,
   type CompletionHeader,
@@ -14,6 +18,16 @@ import { postgresVerificationCommit } from "./verification-commit.ts";
 import { lockCompletionFrame } from "./frame-lock.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+/** Retry only known PostgreSQL lock rollbacks, under a fresh attempt fence each time. */
+async function retryVerificationLock<T>(transaction: () => Promise<T>): Promise<T> {
+  for (let retry = 0; ; retry++) {
+    try {
+      return await transaction();
+    } catch (error) {
+      if (retry === 2 || classifyDatabaseError(error) !== "lock_timeout") throw error;
+    }
+  }
+}
 const encoder = new TextEncoder();
 async function digest(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data)));
@@ -64,6 +78,7 @@ async function locked(tx: Transaction, job: Job): Promise<boolean> {
 export function postgresCompletionStaging(
   run: Run,
   verification?: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
+  wakeMatchDeadline?: (match: string) => Promise<void>,
 ) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
@@ -104,14 +119,20 @@ export function postgresCompletionStaging(
       )
         throw new Error("Invalid result frame");
       if (!verification) throw new Error("Result verifier unavailable");
-      const challenge = await postgresVerificationPrepare(run)(job, channel, ordinal, status);
+      const prepare = postgresVerificationPrepare(run);
+      const commit = postgresVerificationCommit(run, verification.verificationPublicKey);
+      const challenge = await retryVerificationLock(() => prepare(job, channel, ordinal, status));
       const signed = await verification.verifier.verify(challenge.id);
-      await postgresVerificationCommit(run, verification.verificationPublicKey)(
-        challenge,
-        signed.receipt,
-        signed.signature,
-        signed.fields,
+      const pendingMatch = await retryVerificationLock(() =>
+        commit(challenge, signed.receipt, signed.signature, signed.fields),
       );
+      if (pendingMatch && wakeMatchDeadline) {
+        try {
+          await wakeMatchDeadline(pendingMatch);
+        } catch {
+          /* Scheduled repair can see the committed intent. */
+        }
+      }
     },
     async chunks(job: Job, items: readonly CompletionFieldChunk[]): Promise<void> {
       if (!items.length || items.length > 16) throw new Error("Invalid completion batch");

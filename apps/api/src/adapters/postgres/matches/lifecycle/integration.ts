@@ -1400,6 +1400,7 @@ for (const accepted of [false, true])
       guestExecution: true,
     })(room.actor, "hidden-run", command, { receiptId: null, shard: 0, jobId });
     const verifier = await localVerifier(run);
+    const wakes: string[] = [];
     const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-hidden-reveal-")));
     try {
       const sandbox = await dockerSandbox({
@@ -1417,10 +1418,32 @@ for (const accepted of [false, true])
           losslessResults: true,
         },
         verifier.verification,
+        async (match) => {
+          wakes.push(match);
+        },
       );
       const job = await port.claimAfterTeardown(true, sandbox.scope, null);
       assert.equal(job?.jobId, jobId);
-      await executeAndStage(job!, port, sandbox);
+      await pool.query("DELETE FROM match_reconciliation_pending WHERE match_id=$1", [room.id]);
+      const blocker = await pool.connect();
+      try {
+        await blocker.query("BEGIN");
+        await blocker.query("SELECT id FROM matches WHERE id=$1 FOR UPDATE", [room.id]);
+        // Hold the match lock until the case commits and its durable intent is observable.
+        await executeAndStage(job!, port, sandbox);
+        const pending = await pool.query(
+          "SELECT publish_update FROM match_reconciliation_pending WHERE match_id=$1",
+          [room.id],
+        );
+        assert.deepEqual(pending.rows, accepted ? [] : [{ publish_update: false }]);
+        assert.deepEqual(wakes, accepted ? [] : [room.id]);
+      } finally {
+        try {
+          await blocker.query("ROLLBACK");
+        } finally {
+          blocker.release();
+        }
+      }
       const live = (await new Response(
         await submissionSnapshots(run).read(room.actor, admitted.id),
       ).json()) as import("@quorem/contracts").Submission;
