@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { useSession } from "../auth/session";
@@ -22,6 +23,7 @@ export function CreateMatchDialog({
 }) {
   const session = useSession();
   const [open, setOpen] = useState(true);
+  const [optionsSlot, setOptionsSlot] = useState<HTMLSpanElement | null>(null);
   const [saved] = useState(
     () => readPendingCommand<PartySettings>(identity, "party:/v1/parties")?.payload,
   );
@@ -43,19 +45,22 @@ export function CreateMatchDialog({
       description="Choose settings for your party."
       descriptionHidden
       actions={
-        session.data?.capabilities?.hostGuests ? (
-          <GuestAccessToggle
-            allowed={settings.accessMode === "guests_allowed"}
-            disabled={pending || recovering}
-            onToggle={() =>
-              setSettings({
-                ...settings,
-                accessMode:
-                  settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
-              })
-            }
-          />
-        ) : undefined
+        <>
+          <span className="match-creation-options-slot" ref={setOptionsSlot} />
+          {session.data?.capabilities?.hostGuests && (
+            <GuestAccessToggle
+              allowed={settings.accessMode === "guests_allowed"}
+              disabled={pending || recovering}
+              onToggle={() =>
+                setSettings({
+                  ...settings,
+                  accessMode:
+                    settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
+                })
+              }
+            />
+          )}
+        </>
       }
     >
       {current.isPending ? (
@@ -99,6 +104,7 @@ export function CreateMatchDialog({
             identity={identity}
             onChange={setSettings}
             disabled={pending || recovering}
+            heading={(options) => optionsSlot && createPortal(options, optionsSlot)}
           />
           {recovering && (
             <p role="status">Retry the previous request to recover your invitation.</p>
