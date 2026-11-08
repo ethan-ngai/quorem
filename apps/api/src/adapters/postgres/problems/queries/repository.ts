@@ -64,18 +64,40 @@ const tagKey = sql`trim(both '-' from regexp_replace(lower(t.tag), '[^a-z0-9]+',
 const foundationalMatch = sql`(${tagKey}=ft.slug OR ${tagKey}=ANY(ft.aliases))`;
 const foundationalFilter = sql`'foundational:' || ft.slug`;
 
+/** Test each selected value independently so a topic's aliases count as one choice. */
+function matchValues(values: string, all: boolean, matches: SQL): SQL {
+  const selection = sql`SELECT 1 FROM unnest(string_to_array(${values},',')) AS selected(value)`;
+  return all
+    ? sql`NOT EXISTS (${selection} WHERE NOT ${matches})`
+    : sql`EXISTS (${selection} WHERE ${matches})`;
+}
+
 function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   const topics = f.topic
-    ? sql`AND EXISTS (
-        SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND (
-          t.tag=ANY(string_to_array(${f.topic},',')) OR EXISTS (
-            SELECT 1 FROM foundational_topics ft
-            WHERE ${foundationalFilter}=ANY(string_to_array(${f.topic},',')) AND ${foundationalMatch}
+    ? sql`AND ${matchValues(
+        f.topic,
+        f.topicMatch === "all",
+        sql`EXISTS (
+          SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND (
+            t.tag=selected.value OR EXISTS (
+              SELECT 1 FROM foundational_topics ft
+              WHERE ${foundationalFilter}=selected.value AND ${foundationalMatch}
+            )
           )
-        )
-      )`
+        )`,
+      )}`
     : sql``;
-  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} AND (${f.company}='' OR EXISTS(SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id AND c.name=ANY(string_to_array(${f.company},','))))`;
+  const companies = f.company
+    ? sql`AND ${matchValues(
+        f.company,
+        f.companyMatch === "all",
+        sql`EXISTS (
+          SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id
+          WHERE pc.problem_id=p.id AND c.name=selected.value
+        )`,
+      )}`
+    : sql``;
+  return sql`${catalogVisibility(actor, f.library)} AND (${f.type}='' OR (${f.type}='odyssey' AND v.odyssey IS NOT NULL) OR (${f.type}='classic' AND v.odyssey IS NULL)) AND (${f.sql}='' OR (${f.sql}='true' AND v.sql_config IS NOT NULL) OR (${f.sql}='false' AND v.sql_config IS NULL)) AND v.id=p.current_version_id AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0 OR EXISTS(SELECT 1 FROM problem_tags t WHERE t.version_id=v.id AND strpos(lower(t.tag),lower(${f.query}))>0)) AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
 }
 type Projected = {
   data: string;
@@ -127,6 +149,9 @@ function filterKey(f: CatalogFilter): string {
     f.library,
     f.type,
     f.sql,
+    ...((f.topic && f.topicMatch === "all") || (f.company && f.companyMatch === "all")
+      ? [f.topicMatch === "all", f.companyMatch === "all"]
+      : []),
   ]);
 }
 function encodeCursor(c: Cursor): string {
@@ -315,7 +340,9 @@ export async function readCandidates(
     query: "",
     difficulty: criteria.difficulty,
     topic: criteria.topic,
+    topicMatch: criteria.topicMatch,
     company: criteria.company,
+    companyMatch: criteria.companyMatch,
     sort: "title",
     order: "asc",
     library: "",

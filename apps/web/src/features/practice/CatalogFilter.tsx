@@ -2,10 +2,27 @@
 import { useRef, useState } from "react";
 import { ScrollCue } from "../../ui/ScrollCue";
 import { SearchField } from "../../ui/SearchField";
+import { SegmentedControl } from "../../ui/SegmentedControl";
+import type { FilterMatch } from "@quorem/contracts";
 import { useChangeMotion } from "../../ui/useChangeMotion";
 import * as Popover from "../../ui/Popover";
 import { ChevronDown } from "lucide-react";
 import "../../ui/select-field.css";
+
+const matchModes = [
+  {
+    value: "any",
+    label: "Any",
+    hint: "Match any selected option (OR)",
+    icon: <span aria-hidden="true">∪</span>,
+  },
+  {
+    value: "all",
+    label: "All",
+    hint: "Match every selected option (AND)",
+    icon: <span aria-hidden="true">∩</span>,
+  },
+] as const;
 
 export function CatalogFilter({
   label,
@@ -13,6 +30,8 @@ export function CatalogFilter({
   options,
   featuredOptions,
   searchPlaceholder,
+  match = "any",
+  onMatchChange,
   onChange,
 }: {
   label: string;
@@ -20,6 +39,8 @@ export function CatalogFilter({
   options: { value: string; label: string }[];
   featuredOptions?: { value: string; label: string }[];
   searchPlaceholder?: string;
+  match?: FilterMatch;
+  onMatchChange?: (match: FilterMatch) => void;
   onChange: (values: string[]) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -112,6 +133,18 @@ export function CatalogFilter({
               Clear
             </button>
           </div>
+          {onMatchChange && (
+            <div className="practice-filter-match">
+              <span>Match</span>
+              <SegmentedControl
+                compact
+                label={`${label} match mode`}
+                options={matchModes}
+                value={match}
+                onChange={onMatchChange}
+              />
+            </div>
+          )}
           {searchPlaceholder ? (
             <>
               <SearchField

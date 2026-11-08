@@ -7,7 +7,18 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const invalid = () => new ApplicationError("invalid_input", "Invalid question filters", 400);
 /** Parse the established catalog filters and bounded pagination. */
 export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
-  for (const key of ["q", "difficulty", "topic", "company", "library", "type", "sql", "cursor"])
+  for (const key of [
+    "q",
+    "difficulty",
+    "topic",
+    "topicMatch",
+    "company",
+    "companyMatch",
+    "library",
+    "type",
+    "sql",
+    "cursor",
+  ])
     if (q.getAll(key).length > 1) throw invalid();
   const query = (q.get("q") ?? "").trim(),
     difficulty = q.get("difficulty") ?? "",
@@ -15,12 +26,16 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     company = q.get("company") ?? "",
     library = q.get("library") ?? "",
     type = q.get("type") ?? "",
-    sql = q.get("sql") ?? "";
+    sql = q.get("sql") ?? "",
+    topicMatch = q.get("topicMatch"),
+    companyMatch = q.get("companyMatch");
   if (
     Array.from(query).length > 120 ||
     !["", "global", "private"].includes(library) ||
     !["", "classic", "odyssey"].includes(type) ||
-    !["", "true", "false"].includes(sql)
+    !["", "true", "false"].includes(sql) ||
+    (topicMatch !== null && topicMatch !== "any" && topicMatch !== "all") ||
+    (companyMatch !== null && companyMatch !== "any" && companyMatch !== "all")
   )
     throw invalid();
   for (const [value, isDifficulty] of [
@@ -54,7 +69,9 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     query,
     difficulty,
     topic,
+    ...(topicMatch === "all" && { topicMatch }),
     company,
+    ...(companyMatch === "all" && { companyMatch }),
     sort,
     order,
     library: library as CatalogFilter["library"],

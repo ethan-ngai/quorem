@@ -4,7 +4,7 @@ Issues #54 and #59. `/practice` uses a compact responsive question table: title 
 
 ## Query contract
 
-`GET /v1/problems` accepts `q`, `difficulty`, `topic`, `sort`, `order`, `page`, `limit`. Search is a literal case-insensitive substring of title, slug or tags; `%` and SQL syntax have no special meaning. Difficulty accepts comma-separated easy/medium/hard values. Topic accepts comma-separated tags and foundational topic values. Each group matches any selected value; difficulty and topic groups apply together. Title sort is default; difficulty sorts easy → medium → hard, with title/slug ties. Ascending is default.
+`GET /v1/problems` accepts `q`, `difficulty`, `topic`, `sort`, `order`, `page`, `limit`. Search is a literal case-insensitive substring of title, slug or tags; `%` and SQL syntax have no special meaning. Difficulty accepts comma-separated easy/medium/hard values. Topic accepts comma-separated tags and foundational topic values. Topics and companies support Any (OR) and All (AND) independently through `topicMatch` and `companyMatch`. Any is the default. Filter groups apply together. Title sort is default; difficulty sorts easy → medium → hard, with title/slug ties. Ascending is default.
 
 Defaults: page 1, limit 20; maximum page 10,000 and limit 100. Text bounds: 120 Unicode code points for q, 80 per difficulty/topic value, up to 16 values per group. Invalid enum, numeric, duplicate or oversized recognized parameters return 400. SQL binds all user strings; ordering uses fixed server fragments. Public projections exclude hidden cases/reference solutions.
 

@@ -7,9 +7,17 @@ import {
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
+import type { FilterMatch } from "@quorem/contracts";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
-  questionFilters: { type?: string; sql?: string; topic?: string; company?: string };
+  questionFilters: {
+    type?: string;
+    sql?: string;
+    topic?: string;
+    company?: string;
+    topicMatch?: FilterMatch;
+    companyMatch?: FilterMatch;
+  };
   admissionLocked: boolean;
   accessMode: string;
   mode: string;
@@ -48,7 +56,9 @@ export function normalizeSettings(value: unknown): Settings {
           "durationMinutes",
         ].includes(k),
     ) ||
-    Object.keys(filters).some((k) => !["type", "sql", "topic", "company"].includes(k)) ||
+    Object.keys(filters).some(
+      (k) => !["type", "sql", "topic", "company", "topicMatch", "companyMatch"].includes(k),
+    ) ||
     (v.difficulties !== undefined && v.difficulties !== null && !Array.isArray(v.difficulties))
   )
     throw invalid();
@@ -88,6 +98,11 @@ export function normalizeSettings(value: unknown): Settings {
     durationMinutes: duration,
   };
   if (selected) out.selectedProblemVersionId = selected;
+  for (const k of ["topicMatch", "companyMatch"] as const) {
+    const input = filters[k];
+    if (input === "all") out.questionFilters[k] = input;
+    else if (input !== undefined && input !== "any") throw invalid();
+  }
   for (const k of ["type", "sql", "topic", "company"] as const) {
     const input = filters[k];
     if (input === undefined || input === null || input === "") continue;

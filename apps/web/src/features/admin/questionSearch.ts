@@ -3,7 +3,16 @@ import { catalogSearch, type CatalogSearch } from "../practice/catalogSearch";
 
 export type QuestionSearch = Pick<
   CatalogSearch,
-  "q" | "sql" | "type" | "difficulty" | "topic" | "company" | "page" | "limit"
+  | "q"
+  | "sql"
+  | "type"
+  | "difficulty"
+  | "topic"
+  | "topicMatch"
+  | "company"
+  | "companyMatch"
+  | "page"
+  | "limit"
 > & {
   section: "drafts" | "publications";
   order?: "asc" | "desc";
@@ -15,7 +24,8 @@ export type QuestionSearch = Pick<
 };
 
 export function questionSearch(raw: Record<string, unknown>): QuestionSearch {
-  const { sql, type, difficulty, topic, company, page, limit } = catalogSearch(raw);
+  const { sql, type, difficulty, topic, topicMatch, company, companyMatch, page, limit } =
+    catalogSearch(raw);
   const uuid = (value: unknown) =>
     typeof value === "string" && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(value)
       ? value
@@ -38,7 +48,9 @@ export function questionSearch(raw: Record<string, unknown>): QuestionSearch {
     type,
     difficulty,
     topic,
+    topicMatch,
     company,
+    companyMatch,
     section: raw.section === "drafts" ? "drafts" : "publications",
     source: raw.source === "leetcode" || raw.source === "other" ? raw.source : undefined,
     readiness:

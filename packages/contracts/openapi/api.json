@@ -729,13 +729,23 @@
             "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string",
               "maxLength": 1295
             },
-            "description": "Comma-separated tags or values from foundationalTopics. Matches any selected value. Maximum 16 values, 80 characters each."
+            "description": "Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each."
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -953,11 +963,21 @@
             }
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -1173,11 +1193,21 @@
             }
           },
           {
+            "name": "topicMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
+          },
+          {
             "name": "topic",
             "in": "query",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "companyMatch",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/FilterMatch" }
           },
           {
             "name": "company",
@@ -5395,6 +5425,11 @@
         ],
         "additionalProperties": false
       },
+      "FilterMatch": {
+        "type": "string",
+        "enum": ["any", "all"],
+        "description": "Match any selected value by default, or require all selected values."
+      },
       "MatchQuestionFilters": {
         "type": "object",
         "properties": {
@@ -5406,6 +5441,8 @@
             "type": "string",
             "enum": ["true"]
           },
+          "topicMatch": { "$ref": "#/components/schemas/FilterMatch" },
+          "companyMatch": { "$ref": "#/components/schemas/FilterMatch" },
           "topic": {
             "type": "string",
             "maxLength": 1295

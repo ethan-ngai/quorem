@@ -8,6 +8,32 @@ import { QuestionTypeFilter } from "./QuestionTypeFilter";
 import { filterValues, type CatalogSearch } from "./catalogSearch";
 import type { FoundationalTopic } from "./problemQueries";
 
+export function CompanyFilter({
+  search,
+  update,
+  companies,
+}: {
+  search: Pick<CatalogSearch, "company" | "companyMatch">;
+  update: (change: Partial<CatalogSearch>) => void;
+  companies: string[];
+}) {
+  const selected = filterValues(search.company);
+  return (
+    <CatalogFilter
+      label="Companies"
+      searchPlaceholder="Search companies"
+      selected={selected}
+      onChange={(values) => update({ company: values.join(",") || undefined })}
+      match={search.companyMatch}
+      onMatchChange={(match) => update({ companyMatch: match === "all" ? match : undefined })}
+      options={[...new Set([...companies, ...selected])].map((value) => ({
+        value,
+        label: value,
+      }))}
+    />
+  );
+}
+
 export function CatalogFilters({
   search,
   update,
@@ -16,7 +42,10 @@ export function CatalogFilters({
   companies,
   showDifficulty = true,
 }: {
-  search: Pick<CatalogSearch, "type" | "sql" | "difficulty" | "topic" | "company">;
+  search: Pick<
+    CatalogSearch,
+    "type" | "sql" | "difficulty" | "topic" | "topicMatch" | "company" | "companyMatch"
+  >;
   update: (change: Partial<CatalogSearch>) => void;
   topics: string[];
   foundationalTopics?: FoundationalTopic[];
@@ -56,19 +85,12 @@ export function CatalogFilters({
         label="Topics"
         selected={selectedTopics}
         onChange={(values) => update({ topic: values.join(",") || undefined })}
+        match={search.topicMatch}
+        onMatchChange={(match) => update({ topicMatch: match === "all" ? match : undefined })}
         options={otherTopics}
         featuredOptions={featured}
       />
-      <CatalogFilter
-        label="Companies"
-        searchPlaceholder="Search companies"
-        selected={filterValues(search.company)}
-        onChange={(values) => update({ company: values.join(",") || undefined })}
-        options={[...new Set([...companies, ...filterValues(search.company)])].map((value) => ({
-          value,
-          label: value,
-        }))}
-      />
+      <CompanyFilter search={search} update={update} companies={companies} />
     </>
   );
 }

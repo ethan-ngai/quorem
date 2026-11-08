@@ -119,8 +119,8 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
       await pool.query(
-        "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
-        [ids[2], `${uid}-company`],
+        "INSERT INTO problem_companies(problem_id,company_id) SELECT p,id FROM companies CROSS JOIN unnest($1::uuid[]) p WHERE name=$2",
+        [[ids[1], ids[2]], `${uid}-company`],
       );
       await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,1)", [
         versions[1],
@@ -307,6 +307,35 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           expect.arrayContaining([versions[1], versions[2]]),
         );
         expect(foundational.total).toBe(2);
+        const topicPair = "foundational:heap,foundational:breadth-first-search";
+        const companyPair = `${uid}-company,${uid}-private-company`;
+        for (const [param, want] of [
+          [`topic=${topicPair}&topicMatch=any`, 2],
+          [`topic=${topicPair}&topicMatch=all`, 1],
+          [`company=${companyPair}&companyMatch=all`, 1],
+          [`topic=${topicPair}&topicMatch=all&company=${companyPair}&companyMatch=all`, 0],
+        ] as const) {
+          const result = JSON.parse(
+            await queries.catalog(
+              { userId: owner },
+              parseCatalogFilter(new URLSearchParams(`q=${uid}&${param}`)),
+            ),
+          );
+          expect(result.total, param).toBe(want);
+        }
+        expect(
+          await queries.candidates(
+            { userId: owner },
+            {
+              topic: topicPair,
+              topicMatch: "all",
+              company: "",
+              difficulty: "",
+              type: "",
+              sql: "false",
+            },
+          ),
+        ).toContainEqual({ id: versions[2], sql: false });
         expect(foundational.foundationalTopics).toEqual(
           expect.arrayContaining([
             { value: "foundational:heap", label: "Heap", tags: ["Heap (Priority Queue)", "heap"] },

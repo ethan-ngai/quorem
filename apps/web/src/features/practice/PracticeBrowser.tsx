@@ -2,7 +2,7 @@ import { useServerTable } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
-import { CatalogFilters } from "./CatalogFilters";
+import { CatalogFilters, CompanyFilter } from "./CatalogFilters";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CatalogLayout } from "./CatalogLayout";
 import { TableRow, Table } from "../../ui/Table";
@@ -17,8 +17,7 @@ import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import { CatalogFilter } from "./CatalogFilter";
-import { addFilter, filterValues } from "./catalogSearch";
+import { addFilter } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
@@ -83,7 +82,9 @@ export function PracticeBrowser() {
       q: undefined,
       difficulty: undefined,
       topic: undefined,
+      topicMatch: undefined,
       company: undefined,
+      companyMatch: undefined,
       library: undefined,
       type: undefined,
       sql: undefined,
@@ -252,14 +253,7 @@ export function PracticeBrowser() {
                       ? "Try another topic or a broader search."
                       : "Check back when new questions are published."}
                   </p>
-                  <CatalogFilter
-                    label="Companies"
-                    selected={filterValues(search.company)}
-                    onChange={(values) => update({ company: values.join(",") || undefined })}
-                    options={[...new Set([...companies, ...filterValues(search.company)])].map(
-                      (value) => ({ value, label: value }),
-                    )}
-                  />
+                  <CompanyFilter search={search} update={update} companies={companies} />
                   {filtered && (
                     <button className="practice-retry" onClick={clear}>
                       Clear filters

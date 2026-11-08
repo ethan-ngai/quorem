@@ -2,9 +2,12 @@
 import { motion } from "@quorem/ui/tokens";
 
 /** Capture the outgoing surface before a synchronous or React-driven update. */
-export function prepareContentChangeMotion(surface: HTMLElement): (() => () => void) | undefined {
+export function prepareContentChangeMotion(
+  surface: HTMLElement,
+  resizeWidth = false,
+): (() => () => void) | undefined {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const height = surface.getBoundingClientRect().height;
+  const { width, height } = surface.getBoundingClientRect();
   const outgoing = surface.cloneNode(true) as HTMLElement;
   outgoing.inert = true;
   outgoing.setAttribute("aria-hidden", "true");
@@ -13,13 +16,13 @@ export function prepareContentChangeMotion(surface: HTMLElement): (() => () => v
   Object.assign(outgoing.style, {
     position: "absolute",
     inset: "0",
-    width: "100%",
+    width: resizeWidth ? `${width}px` : "100%",
     height: `${height}px`,
     pointerEvents: "none",
     zIndex: "1",
   });
   return () => {
-    const nextHeight = surface.getBoundingClientRect().height;
+    const { width: nextWidth, height: nextHeight } = surface.getBoundingClientRect();
     const live = surface.firstElementChild;
     const previousPosition = surface.style.position;
     const previousOverflow = surface.style.overflow;
@@ -37,6 +40,10 @@ export function prepareContentChangeMotion(surface: HTMLElement): (() => () => v
     if (height !== nextHeight)
       animations.push(
         surface.animate([{ height: `${height}px` }, { height: `${nextHeight}px` }], timing),
+      );
+    if (resizeWidth && width !== nextWidth)
+      animations.push(
+        surface.animate([{ width: `${width}px` }, { width: `${nextWidth}px` }], timing),
       );
 
     let done = false;
