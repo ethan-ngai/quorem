@@ -13,6 +13,7 @@ import {
 import { accountRequest, connectProvider, listAccounts, type ConnectedAccount } from "./account";
 import { authErrorMessage } from "./errors";
 import { useErrorNotification } from "../../ui/Notifications";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function SocialAccounts({ userId }: { userId: string }) {
   const capabilities = useQuery({
@@ -54,7 +55,7 @@ export function SocialAccounts({ userId }: { userId: string }) {
     <section className="account-passkeys social-accounts" aria-label="Social accounts">
       <p>Connect another way to sign in to your account.</p>
       {accounts.isPending || capabilities.isPending ? (
-        <p role="status">Loading connections…</p>
+        <LoadingIndicator label="Loading connections…" />
       ) : accounts.isError || capabilities.isError ? (
         <p role="alert">
           Connections unavailable.{" "}

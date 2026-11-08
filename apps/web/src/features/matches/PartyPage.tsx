@@ -1,7 +1,7 @@
 import { useFactionLobby } from "../factions/useFactionLobby";
 import { allFactionsOccupied } from "@quorem/contracts/factions";
 import { StateIcon } from "../../ui/StateIcon";
-import { Spinner } from "../../ui/Spinner";
+import { LoadingIndicator, Spinner } from "../../ui/Spinner";
 import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
@@ -159,7 +159,7 @@ export function PartyPage() {
     return (
       <main className="match-page">
         {nav}
-        <p role="status">Loading lobby…</p>
+        <LoadingIndicator label="Loading lobby…" />
       </main>
     );
   if (status === 401) return <SignInRedirect />;

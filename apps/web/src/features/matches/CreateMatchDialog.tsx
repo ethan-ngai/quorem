@@ -13,6 +13,7 @@ import {
   type Party,
   type PartySettings,
 } from "./party";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function CreateMatchDialog({
   identity,
@@ -64,7 +65,7 @@ export function CreateMatchDialog({
       }
     >
       {current.isPending ? (
-        <p role="status">Checking your lobby…</p>
+        <LoadingIndicator label="Checking your lobby…" />
       ) : current.isError ? (
         <div>
           <p role="alert">Could not check your lobby.</p>

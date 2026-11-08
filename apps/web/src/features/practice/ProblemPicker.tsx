@@ -1,7 +1,7 @@
-import { Disclosure } from "../../ui/Disclosure";
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
+import { Disclosure } from "../../ui/Disclosure";
 import * as Popover from "../../ui/Popover";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type UIEvent } from "react";
 import { AlertCircle, Dices } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
@@ -12,10 +12,13 @@ import type { CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
 import { Icon } from "../../ui/Icon";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
 
 const pageSize = 30;
+const prefetchLeadMs = 600;
+const maxPrefetchDistance = 1200;
 
 export function ProblemPicker({
   items,
@@ -58,8 +61,9 @@ export function ProblemPicker({
     queryKey: ["picker-catalog-infinite", identity, library, search, filters, allowed],
     initialPageParam: 1,
     enabled: open && !noAllowedDifficulty,
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam, signal }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
+        signal,
         params: {
           query: {
             ...filters,
@@ -124,6 +128,7 @@ export function ProblemPicker({
   const [chosen, setChosen] = useState<{ id: string; title: string }>();
   const popover = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const lastScroll = useRef<{ list: HTMLDivElement; top: number; time: number }>(null);
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
   const filtered = noAllowedDifficulty
@@ -133,6 +138,19 @@ export function ProblemPicker({
     if (catalog.hasNextPage && !catalog.isFetching && !catalog.isFetchNextPageError)
       void catalog.fetchNextPage({ cancelRefetch: false });
   };
+  function prefetchOnScroll({ currentTarget: list, timeStamp }: UIEvent<HTMLDivElement>) {
+    const { scrollTop: top, clientHeight: height, scrollHeight } = list;
+    const previous = lastScroll.current?.list === list ? lastScroll.current : null;
+    lastScroll.current = { list, top, time: timeStamp };
+    const delta = top - (previous?.top ?? 0);
+    if (delta <= 0) return;
+
+    // After a pause, treat the first movement as one frame so flicks get a head start.
+    const elapsed = previous ? timeStamp - previous.time : Infinity;
+    const velocity = delta / (elapsed > 150 ? 16 : Math.max(16, elapsed));
+    const lead = Math.max(height, Math.min(maxPrefetchDistance, velocity * prefetchLeadMs));
+    if (scrollHeight - top - height <= lead) loadMore();
+  }
   function choose(id: string | undefined) {
     setOpen(false);
     if (id === value) return;
@@ -229,10 +247,7 @@ export function ProblemPicker({
             className="problem-picker-results"
             role="group"
             aria-label="Matching problems"
-            onScroll={(event) => {
-              const list = event.currentTarget;
-              if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) loadMore();
-            }}
+            onScroll={prefetchOnScroll}
           >
             {allowRandom && (
               <button
@@ -260,7 +275,7 @@ export function ProblemPicker({
                 <small className={`difficulty-${item.difficulty}`}>{item.difficulty}</small>
               </button>
             ))}
-            {catalog.isError ? (
+            {!noAllowedDifficulty && catalog.isError ? (
               <div role="alert">
                 <p>
                   {filtered.length ? "Could not load more questions." : "Questions unavailable."}
@@ -277,15 +292,18 @@ export function ProblemPicker({
                   Retry
                 </button>
               </div>
-            ) : catalog.isFetching ? (
-              <p role="status">Loading questions…</p>
+            ) : !noAllowedDifficulty && (catalog.isLoading || catalog.isFetchingNextPage) ? (
+              <LoadingIndicator
+                label={filtered.length ? "Loading more questions…" : "Loading questions…"}
+              />
             ) : !filtered.length ? (
               <p role="status">No matching problems</p>
             ) : catalog.hasNextPage ? (
               <button
                 type="button"
                 className="quiet-button"
-                onClick={() => void catalog.fetchNextPage({ cancelRefetch: false })}
+                aria-disabled={catalog.isFetching || undefined}
+                onClick={loadMore}
               >
                 Load more questions
               </button>

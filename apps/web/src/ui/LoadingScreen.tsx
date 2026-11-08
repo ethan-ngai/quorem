@@ -1,3 +1,4 @@
+/** @file LoadingScreen.tsx @description Branded loading states for pages and panels. @module ui */
 import "./loading.css";
 
 export function LogoSpinner() {
@@ -16,13 +17,9 @@ export function LoadingScreen({
   inline?: boolean;
 }) {
   return (
-    <div
-      className={inline ? "loading-state loading-state-inline" : "loading-state"}
-      role="status"
-      aria-busy="true"
-    >
+    <div className={inline ? "loading-state loading-state-inline" : "loading-state"} role="status">
       <LogoSpinner />
-      <p>{label}</p>
+      <span className="sr-only">{label}</span>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { ComplexityDetails } from "./ComplexityDetails";
 import type { EditorTheme } from "../PythonEditor";
 import type { EditorScheme } from "../editorSchemes";
 import "./editorial.css";
+import { LoadingIndicator } from "../../../ui/Spinner";
 
 /** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
@@ -144,7 +145,7 @@ export function EditorialPanel({
             )}
           {displayed === "complexity" ? (
             !requestComplexity && complexity.isPending ? (
-              <p role="status">Loading complexity…</p>
+              <LoadingIndicator label="Loading complexity…" />
             ) : !requestComplexity && complexity.isError ? (
               <p role="alert">
                 {userFacingErrorMessage(
@@ -158,7 +159,7 @@ export function EditorialPanel({
               <p>No published complexity.</p>
             )
           ) : solutions.isPending ? (
-            <p role="status">Loading solution…</p>
+            <LoadingIndicator label="Loading solution…" />
           ) : solutions.isError ? (
             <p role="alert">
               {userFacingErrorMessage(solutions.error, "Solution unavailable. Please try again.")}

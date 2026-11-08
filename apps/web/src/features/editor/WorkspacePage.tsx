@@ -37,7 +37,7 @@ import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel, type EditorialComplexity } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
-import { LogoSpinner, LoadingScreen } from "../../ui/LoadingScreen";
+import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
@@ -82,6 +82,7 @@ import { problemQueryOptions } from "../practice/problemQueries";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { matchModeLabels } from "../matches/ModeIcon";
 import { languageFileNames, type EditorLanguage } from "./editorLanguages";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function WorkspacePage({
   slug = "",
@@ -596,21 +597,18 @@ export function WorkspacePage({
       matchWorkspaceId,
       loaded: !loading,
     });
-  if (!problem || !workspace)
+  if (!problem || !workspace) {
+    if (!loadError) return <LoadingScreen />;
     return (
       <main className="workspace-loading" aria-live="polite">
-        {loadError ? null : <LogoSpinner />}
-        <h1>{loadError ? "Workspace unavailable" : "Opening workspace…"}</h1>
-        {loadError && (
-          <>
-            <p>{errorMessage(loadError)}</p>
-            <button className="button button-secondary" onClick={retryLoading}>
-              Retry
-            </button>
-          </>
-        )}
+        <h1>Workspace unavailable</h1>
+        <p>{errorMessage(loadError)}</p>
+        <button className="button button-secondary" onClick={retryLoading}>
+          Retry
+        </button>
       </main>
     );
+  }
 
   const solutionControls = (
     <SolutionControls
@@ -693,13 +691,12 @@ export function WorkspacePage({
         </OdysseyPanel>
       );
     }
+    if (account.data && !odyssey.isError) return <LoadingIndicator label="Loading levels…" />;
     return (
       <p className="result-message" role="status">
         {!account.data
           ? "Sign in to start Odyssey."
-          : odyssey.isError
-            ? "Odyssey is unavailable for this account. Reload to retry."
-            : "Loading levels…"}
+          : "Odyssey is unavailable for this account. Reload to retry."}
       </p>
     );
   };

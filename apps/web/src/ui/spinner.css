@@ -1,3 +1,10 @@
+.loading-indicator {
+  display: grid;
+  place-items: center;
+  padding: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
 .ui-spinner {
   flex-shrink: 0;
   margin-inline: auto;

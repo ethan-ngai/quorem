@@ -4,6 +4,7 @@ import { verdictIcon } from "./verdictPresentation";
 import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
+import { LoadingIndicator } from "../../../ui/Spinner";
 import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { CaseOutput, CaseVerdict, verdictTone } from "./CaseOutput";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
@@ -130,12 +131,7 @@ function ResultSummary({
   sql,
   returnType,
 }: ResultContentProps) {
-  if (busy)
-    return (
-      <p className="result-message" role="status">
-        Starting…
-      </p>
-    );
+  if (busy) return <LoadingIndicator label="Starting execution…" />;
   if (!submission)
     return showVerdict ? <p className="result-message">Run your code to see results.</p> : null;
   if (submission.state === "queued" || submission.state === "running")
