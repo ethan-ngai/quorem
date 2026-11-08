@@ -14,13 +14,13 @@ const matchModes = [
     value: "any",
     label: "Any",
     hint: "Match any selected option (OR)",
-    icon: <span aria-hidden="true">∪</span>,
+    icon: <span aria-hidden="true">||</span>,
   },
   {
     value: "all",
     label: "All",
     hint: "Match every selected option (AND)",
-    icon: <span aria-hidden="true">∩</span>,
+    icon: <span aria-hidden="true">&&</span>,
   },
 ] as const;
 
@@ -128,23 +128,23 @@ export function CatalogFilter({
           aria-label={`${label} filters`}
         >
           <div className="practice-filter-header">
-            <span>{label}</span>
+            <div className="practice-filter-heading">
+              <span>{label}</span>
+              {onMatchChange && (
+                <SegmentedControl
+                  iconOnly
+                  mono
+                  label={`${label} match mode`}
+                  options={matchModes}
+                  value={match}
+                  onChange={onMatchChange}
+                />
+              )}
+            </div>
             <button type="button" disabled={!selected.length} onClick={() => onChange([])}>
               Clear
             </button>
           </div>
-          {onMatchChange && (
-            <div className="practice-filter-match">
-              <span>Match</span>
-              <SegmentedControl
-                compact
-                label={`${label} match mode`}
-                options={matchModes}
-                value={match}
-                onChange={onMatchChange}
-              />
-            </div>
-          )}
           {searchPlaceholder ? (
             <>
               <SearchField
