@@ -208,10 +208,6 @@
   font-size: var(--text-body);
   font-weight: 650;
 }
-.assistance-confirmation p[role="alert"] {
-  font-size: var(--text-small);
-  color: var(--color-error);
-}
 .assistance-confirmation-cost {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

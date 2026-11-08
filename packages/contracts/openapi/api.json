@@ -5234,10 +5234,6 @@
             "type": "string",
             "format": "date-time"
           },
-          "eligibleFinishAt": {
-            "type": "string",
-            "format": "date-time"
-          },
           "revealedAssistance": {
             "type": "array",
             "items": {

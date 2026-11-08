@@ -263,11 +263,6 @@ function MatchLedger({
             <ScorePenalty unit="seconds" value={player.penaltySeconds} />
           )}
           {!!player?.penaltyPoints && <ScorePenalty unit="points" value={player.penaltyPoints} />}
-          {player?.eligibleFinishAt && snapshot.state === "active" && (
-            <span className="score-judging">
-              Eligible {new Date(player.eligibleFinishAt).toLocaleTimeString()}
-            </span>
-          )}
           {(player?.submissionState === "running" || player?.submissionState === "queued") && (
             <span className="score-judging motion-reveal">Judging…</span>
           )}

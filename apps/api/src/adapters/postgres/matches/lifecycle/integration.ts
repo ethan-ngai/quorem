@@ -1049,6 +1049,40 @@ async function activateRulesRoom(room: Awaited<ReturnType<typeof rulesRoom>>) {
     true,
   )) as import("@quorem/contracts").MatchSnapshot;
 }
+void test("rejects a reveal costing the personal time remaining without charging it", async () => {
+  const { ruleApproval } = await import("@quorem/contracts/match-rules");
+  const room = await rulesRoom();
+  await activateRulesRoom(room);
+  const topics = await repo.ruleAction(room.actor, room.id, "topics-quote", { kind: "topics" });
+  const complexity = await repo.ruleAction(room.actor, room.id, "complexity-quote", {
+    kind: "complexity",
+  });
+  await repo.ruleAction(room.actor, room.id, "topics-buy", {
+    kind: "topics",
+    approval: ruleApproval(topics.quote),
+  });
+  await pool.query(
+    "UPDATE matches SET deadline=clock_timestamp()+make_interval(secs=>$2) WHERE id=$1",
+    [room.id, topics.quote.seconds + complexity.quote.seconds],
+  );
+  await assert.rejects(
+    repo.ruleAction(room.actor, room.id, "complexity-buy", {
+      kind: "complexity",
+      approval: ruleApproval(complexity.quote),
+    }),
+    /time penalty must be less than your remaining submission time/,
+  );
+  const snapshot = (await repo.read(
+    room.actor,
+    room.id,
+  )) as import("@quorem/contracts").MatchSnapshot;
+  assert.deepEqual(
+    snapshot.ruleEvents.map(({ kind, seconds }) => [kind, seconds]),
+    [["topics", topics.quote.seconds]],
+  );
+  const fresh = await repo.ruleAction(room.actor, room.id, "fresh-quote", { kind: "complexity" });
+  assert.equal(fresh.quote.alreadyRevealed, false);
+});
 void test("closes personal admission and schedules the race at the last settled cutoff", async () => {
   const { postgresWorkspaceAdmission } = await import("../../judging/admission/repository.ts");
   const { parseWorkspaceCommand } =

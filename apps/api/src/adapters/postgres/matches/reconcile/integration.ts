@@ -202,6 +202,11 @@ for (const [verdict, source] of [
     if (!socket) throw new Error("Disposable Docker socket required for verified match regression");
     const r = await room(),
       key = crypto.randomUUID();
+    if (verdict === "accepted")
+      await pool.query(
+        "INSERT INTO match_rule_events(id,match_id,owner_id,competitor_id,kind,action,seconds,points) VALUES($1,$2,$3,$3,'topics','penalty',60,0)",
+        [crypto.randomUUID(), r.id, r.a],
+      );
     const fence = { receiptId: crypto.randomUUID(), jobId: crypto.randomUUID(), shard: 0 };
     await prearmReceipts(run, "execution").create(fence.receiptId, 0);
     const command = await parseWorkspaceCommand(
