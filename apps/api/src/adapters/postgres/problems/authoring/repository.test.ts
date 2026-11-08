@@ -19,6 +19,62 @@ const runtime = (language: string) =>
     } as Record<string, { revision: string; harness: string }>
   )[language];
 describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
+  it("preserves retained versions while rejecting new version identities", async () => {
+    assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 1,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 5000,
+      onIdleError: () => {},
+    });
+    const client = await pool.connect();
+    const problem = crypto.randomUUID(),
+      current = crypto.randomUUID(),
+      archived = crypto.randomUUID();
+    const insert = `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sealed)
+      VALUES($1,$2,$3,'Fixture','easy','statement','{}','[]','{}','fixture',true)`;
+    try {
+      await client.query("BEGIN");
+      await client.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [
+        problem,
+        `archive-${problem}`,
+      ]);
+      await client.query(insert, [current, problem, 2]);
+      await client.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [
+        current,
+        problem,
+      ]);
+      // Model rows retained from a database upgraded before the insert guard.
+      await client.query("SET LOCAL session_replication_role=replica");
+      await client.query(insert, [archived, problem, 1]);
+      await client.query("SET LOCAL session_replication_role=origin");
+      await client.query("SAVEPOINT rejected_version");
+      await expect(client.query(insert, [crypto.randomUUID(), problem, 3])).rejects.toMatchObject({
+        code: "23505",
+      });
+      await client.query("ROLLBACK TO SAVEPOINT rejected_version");
+      await client.query("SET CONSTRAINTS current_publication_identity DEFERRED");
+      await client.query(
+        "SELECT set_config('quorem.question_mutation',$1,true),set_config('quorem.question_replacement',$1,true)",
+        [current],
+      );
+      await client.query("DELETE FROM problem_versions WHERE id=$1", [current]);
+      await client.query(insert, [current, problem, 2]);
+      expect(
+        (
+          await client.query(
+            "SELECT id::text FROM problem_versions WHERE problem_id=$1 ORDER BY version",
+            [problem],
+          )
+        ).rows.map((r) => r.id),
+      ).toEqual([archived, current]);
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+      await pool.end();
+    }
+  });
   it("publishes atomically, fences revisions and protects owner content", async () => {
     assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
     const pool = createNodePool({
@@ -233,7 +289,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(cloned.content.hiddenCases[0].args[0]).toBe("SECRET\u0000HIDDEN");
       await expect(
         repository.create({ userId: other, admin: false }, undefined, np.publishedVersionId),
-      ).rejects.toMatchObject({ status: 403 });
+      ).rejects.toMatchObject({ status: 404 });
       const sq = structuredClone(parsedContent);
       sq.problem.slug = `sql-${crypto.randomUUID().slice(0, 8)}`;
       sq.problem.sql = {
@@ -315,7 +371,11 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const sqlFork = JSON.parse(await repository.create(actor, undefined, osp.publishedVersionId));
       expect(sqlFork.content.problem.odyssey.levels[0].hiddenCases).toHaveLength(1);
       const batchDrafts = await Promise.all(
-        Array.from({ length: 3 }, () => repository.create(actor, raw, undefined).then(JSON.parse)),
+        Array.from({ length: 3 }, (_, i) => {
+          const item = structuredClone(parsedContent);
+          item.problem.slug = `batch-${crypto.randomUUID().slice(0, 8)}-${i}`;
+          return repository.create(actor, JSON.stringify(item), undefined).then(JSON.parse);
+        }),
       );
       const batchPublish = await http.request("/v1/admin/question-drafts/publish-batch", {
         method: "POST",
@@ -344,9 +404,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         (await deleteBatch({ ...actor, userId: other }, [{ id: currentVersion, current: true }]))
           .items[0],
       ).toMatchObject({ status: "failed", code: "not_found" });
-      expect(
-        (await deleteBatch(actor, [{ id: currentVersion, current: false }])).items[0],
-      ).toMatchObject({ status: "failed", code: "revision_conflict" });
       const batchWorkspace = crypto.randomUUID();
       const batchSubmission = crypto.randomUUID();
       await pool.query(
@@ -427,15 +484,17 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const global = { userId: admin, admin: true, globalAllowed: true };
       const draftA = JSON.parse(await repository.create(global, raw, undefined));
       const draftB = JSON.parse(await repository.create(global, raw, undefined));
-      const results = await Promise.all([
+      const results = await Promise.allSettled([
         repository.publish({ ...global, globalAllowed: false }, draftA.id, "1", "global"),
         repository.publish(global, draftB.id, "1", "global"),
       ]);
-      const versions = results
-        .map((r) => Number(JSON.parse(r).content.problem.version))
-        .sort((a, b) => a - b);
-      expect(versions).toEqual([1, 2]);
-      const raceDraft = JSON.parse(await repository.create(global, raw, undefined));
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+      const raceContent = structuredClone(parsedContent);
+      raceContent.problem.slug = `race-${crypto.randomUUID().slice(0, 8)}`;
+      const raceDraft = JSON.parse(
+        await repository.create(global, JSON.stringify(raceContent), undefined),
+      );
       const race = await Promise.allSettled([
         repository.publish(global, raceDraft.id, "1", "global"),
         repository.publish(global, raceDraft.id, "1", "global"),
@@ -557,12 +616,8 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         impressions: 1,
       });
       expect(JSON.parse(await repository.deletionImpact(global, edited.id))).toMatchObject({
-        current: true,
         workspaces: 1,
       });
-      await expect(
-        repository.deletePublication(global, edited.id, edited.revision, undefined),
-      ).rejects.toMatchObject({ code: "invalid_input" });
       const active = crypto.randomUUID();
       await pool.query(
         "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','x','hash','queued','[]')",

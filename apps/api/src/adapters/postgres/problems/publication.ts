@@ -122,7 +122,7 @@ export async function persistQuestionVersion(
   await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
   if (updateCatalog)
     await tx.execute(
-      sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid AND (current_version_id IS NULL OR (SELECT version FROM problem_versions WHERE id=current_version_id)<${version})`,
+      sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid`,
     );
   await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
 }
