@@ -1,62 +1,61 @@
 /** @file queries.ts @description Catalog validation and authorized query service. @module problems */
+import { z } from "zod";
 import { parseListQuery } from "../../application/list-query.ts";
 import { ApplicationError } from "../../application/error.ts";
 import type { CatalogFilter, ProblemActor } from "./model.ts";
 import type { ProblemQueries } from "./ports.ts";
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuid = z.guid();
 const invalid = () => new ApplicationError("invalid_input", "Invalid question filters", 400);
-/** Parse the established catalog filters and bounded pagination. */
+const selection = (item: z.ZodType) =>
+  z
+    .string()
+    .refine((value) => {
+      if (!value) return true;
+      const items = value.split(",");
+      return items.length <= 16 && items.every((entry) => item.safeParse(entry).success);
+    })
+    .default("");
+const label = z
+  .string()
+  .refine((value) => value.length > 0 && !value.includes("\0") && Array.from(value).length <= 80);
+const match = z.enum(["any", "all"]).optional();
+const catalogQuery = z.strictObject({
+  q: z
+    .string()
+    .trim()
+    .refine((value) => !value.includes("\0") && Array.from(value).length <= 120)
+    .default(""),
+  difficulty: selection(z.enum(["easy", "medium", "hard"])),
+  topic: selection(label),
+  topicMatch: match,
+  company: selection(label),
+  companyMatch: match,
+  library: z.enum(["", "global", "private"]).default(""),
+  type: z.enum(["", "classic", "odyssey"]).default(""),
+  sql: z.enum(["", "true", "false"]).default(""),
+  page: z.string().optional(),
+  limit: z.string().optional(),
+  sort: z.string().optional(),
+  order: z.string().optional(),
+});
+
+/** Parse catalog filters and apply the distinct Browse and Recommended page rules. */
 export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
-  for (const key of [
-    "q",
-    "difficulty",
-    "topic",
-    "topicMatch",
-    "company",
-    "companyMatch",
-    "library",
-    "type",
-    "sql",
-  ])
-    if (q.getAll(key).length > 1) throw invalid();
-  if (q.has("cursor")) throw invalid();
-  const query = (q.get("q") ?? "").trim(),
-    difficulty = q.get("difficulty") ?? "",
-    topic = q.get("topic") ?? "",
-    company = q.get("company") ?? "",
-    library = q.get("library") ?? "",
-    type = q.get("type") ?? "",
-    sql = q.get("sql") ?? "",
-    topicMatch = q.get("topicMatch"),
-    companyMatch = q.get("companyMatch");
-  if (
-    Array.from(query).length > 120 ||
-    !["", "global", "private"].includes(library) ||
-    !["", "classic", "odyssey"].includes(type) ||
-    !["", "true", "false"].includes(sql) ||
-    (topicMatch !== null && topicMatch !== "any" && topicMatch !== "all") ||
-    (companyMatch !== null && companyMatch !== "any" && companyMatch !== "all")
-  )
-    throw invalid();
-  for (const [value, isDifficulty] of [
-    [difficulty, true],
-    [topic, false],
-    [company, false],
-  ] as const)
-    if (value) {
-      const values = value.split(",");
-      if (
-        values.length > 16 ||
-        values.some(
-          (x) =>
-            !x ||
-            x.includes("\0") ||
-            Array.from(x).length > 80 ||
-            (isDifficulty && !["easy", "medium", "hard"].includes(x)),
-        )
-      )
-        throw invalid();
-    }
+  const input = Object.fromEntries(q);
+  if (Object.keys(input).length !== q.size) throw invalid();
+  const parsed = catalogQuery.safeParse(input);
+  if (!parsed.success) throw invalid();
+  const {
+    q: query,
+    difficulty,
+    topic,
+    topicMatch,
+    company,
+    companyMatch,
+    library,
+    type,
+    sql,
+  } = parsed.data;
   const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty", "recommended"], {
     page: 1,
     limit: 20,
@@ -73,9 +72,9 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     ...(companyMatch === "all" && { companyMatch }),
     sort,
     order,
-    library: library as CatalogFilter["library"],
-    type: type as CatalogFilter["type"],
-    sql: sql as CatalogFilter["sql"],
+    library,
+    type,
+    sql,
     page,
     limit,
   };
@@ -87,7 +86,7 @@ export async function readProblem(
   value: string,
   byVersion: boolean,
 ): Promise<string> {
-  if (byVersion && !uuid.test(value))
+  if (byVersion && !uuid.safeParse(value).success)
     throw new ApplicationError("not_found", "Problem not found", 404);
   const result = byVersion
     ? await queries.byVersion(actor, value)
@@ -97,5 +96,6 @@ export async function readProblem(
 }
 /** Editorial endpoints reject malformed version identifiers before querying. */
 export function validateEditorialId(value: string): void {
-  if (!uuid.test(value)) throw new ApplicationError("invalid_input", "Invalid problem ID", 400);
+  if (!uuid.safeParse(value).success)
+    throw new ApplicationError("invalid_input", "Invalid problem ID", 400);
 }

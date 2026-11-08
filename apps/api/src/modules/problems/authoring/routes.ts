@@ -86,6 +86,8 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     c.body(value, status, { "Content-Type": "application/json; charset=utf-8" });
   function filters(url: string) {
     const query = new URL(url).searchParams;
+    if (query.getAll("source").length > 1 || query.getAll("readiness").length > 1)
+      invalid("Invalid question filters");
     const source = parse(
       sourceFilter,
       query.get("source") ?? undefined,
@@ -96,7 +98,6 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       query.get("readiness") ?? undefined,
       "Invalid question filters",
     );
-    if (query.has("cursor")) invalid("Cursor pagination is unsupported");
     const drafts = new URL(url).pathname.endsWith("question-drafts");
     const pagination = parseListQuery(
       query,
@@ -104,6 +105,8 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       { page: 1, limit: 50, sort: drafts ? "updatedAt" : "title", order: drafts ? "desc" : "asc" },
     );
     const catalogQuery = new URLSearchParams(query);
+    catalogQuery.delete("source");
+    catalogQuery.delete("readiness");
     catalogQuery.set("sort", pagination.sort === "updatedAt" ? "title" : pagination.sort);
     const catalog = parseCatalogFilter(catalogQuery);
     return { ...catalog, ...pagination, sql: catalog.sql || ("false" as const), source, readiness };
