@@ -1,4 +1,5 @@
 import { pageSizeSchema } from "@quorem/contracts/pagination";
+import type { FilterMatch } from "@quorem/contracts";
 
 export type CatalogSearch = {
   sql?: "true";
@@ -7,7 +8,9 @@ export type CatalogSearch = {
   q?: string;
   difficulty?: string;
   topic?: string;
+  topicMatch?: FilterMatch;
   company?: string;
+  companyMatch?: FilterMatch;
   sort?: "difficulty";
   order?: "desc";
   page?: number;
@@ -30,10 +33,12 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     (value) => Array.from(value).slice(0, 80).join(""),
   );
   if (topics.length) result.topic = [...new Set(topics)].join(",");
+  if (search.topicMatch === "all") result.topicMatch = "all";
   const companies = filterValues(
     typeof search.company === "string" ? search.company : undefined,
   ).map((value) => Array.from(value).slice(0, 80).join(""));
   if (companies.length) result.company = companies.join(",");
+  if (search.companyMatch === "all") result.companyMatch = "all";
   if (search.sort === "difficulty") result.sort = "difficulty";
   if (search.order === "desc") result.order = "desc";
   const page = Number(search.page);

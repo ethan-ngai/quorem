@@ -12,7 +12,12 @@ import { problemQueryOptions } from "../practice/problemQueries";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import type { PartySettings, DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type {
+  PartySettings,
+  DevelopmentIdentity,
+  ProblemVersion,
+  FilterMatch,
+} from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
 import { Swords, Gauge, BookOpen, Clock, Users, Code2, Info } from "lucide-react";
@@ -36,6 +41,17 @@ type MatchProblem = Pick<ProblemVersion, "id" | "title"> & {
   difficulty: string;
 } & Partial<Pick<ProblemVersion, "sql" | "odyssey" | "tags" | "companies">>;
 
+function matchesValues(
+  selection: string | undefined,
+  match: FilterMatch | undefined,
+  values: string[] = [],
+) {
+  if (!selection) return true;
+  const requested = selection.split(",");
+  const includes = (value: string) => values.includes(value);
+  return match === "all" ? requested.every(includes) : requested.some(includes);
+}
+
 /** @returns Whether this question belongs to the lobby's random pool. */
 function matchesPool(
   problem: MatchProblem,
@@ -46,9 +62,8 @@ function matchesPool(
     difficulties.includes(problem.difficulty) &&
     !!problem.sql === (filters.sql === "true") &&
     (!filters.type || !!problem.odyssey === (filters.type === "odyssey")) &&
-    (!filters.topic || filters.topic.split(",").some((topic) => problem.tags?.includes(topic))) &&
-    (!filters.company ||
-      filters.company.split(",").some((company) => problem.companies?.includes(company)))
+    matchesValues(filters.topic, filters.topicMatch, problem.tags) &&
+    matchesValues(filters.company, filters.companyMatch, problem.companies)
   );
 }
 

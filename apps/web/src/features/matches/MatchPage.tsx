@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Popover from "../../ui/Popover";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { Tooltip } from "../../ui/Tooltip";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { Icon } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync, type MatchSyncStatus } from "../realtime/useMatchSync";
@@ -206,7 +207,7 @@ function MatchLedger({
           />
           {status === "reconnecting" && !isMatchTerminal(snapshot) && !own?.forfeited && (
             <Tooltip content="Refreshing match state while reconnecting">
-              <span className="sync-label">Reconnecting…</span>
+              <LoadingIndicator label="Reconnecting…" immediate />
             </Tooltip>
           )}
           {snapshot.startedAt && (

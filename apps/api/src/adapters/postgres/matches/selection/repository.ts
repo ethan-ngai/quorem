@@ -33,7 +33,9 @@ export async function selectMatchCandidate(tx: Transaction, owner: string, setti
     type: (f.type ?? "") as "" | "classic" | "odyssey",
     sql: f.sql === "true" ? "true" : "false",
     topic: f.topic ?? "",
+    topicMatch: f.topicMatch,
     company: f.company ?? "",
+    companyMatch: f.companyMatch,
   };
   const available = await readCandidates(tx, { userId: owner }, criteria);
   const permitted = (

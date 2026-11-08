@@ -175,7 +175,7 @@ it("leaves only this match's party, exposes failure for retry, then preserves re
   }
 });
 
-it.each([false, true])("shows loading while changing readiness from %s", async (ready) => {
+it.each([false, true])("delays the readiness spinner (%s)", async (ready) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const member = {
     userId: participantUserId("alice"),
@@ -198,23 +198,33 @@ it.each([false, true])("shows loading while changing readiness from %s", async (
     await act(async () => root.render(view()));
     const button = panel.querySelector<HTMLButtonElement>(".match-completion-primary")!;
     expect(button.textContent).toBe(ready ? "Unready" : "Quick ready");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     await act(async () => button.click());
     expect(button.getAttribute("aria-busy")).toBe("true");
-    expect(button.querySelector(".ui-spinner")?.getAttribute("data-active")).toBe("true");
+    const spinning = () => !!button.querySelector('.ui-spinner[data-active="true"]');
+    await act(async () => vi.advanceTimersByTimeAsync(199));
+    expect(spinning()).toBe(false);
     expect(button.disabled).toBe(true);
     button.click();
     expect(partyState.command).toHaveBeenCalledTimes(1);
     expect(partyState.command).toHaveBeenCalledWith("alice", "/v1/parties/party/ready", "POST", {
       ready: !ready,
     });
+    if (!ready) {
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(spinning()).toBe(true);
+    }
     await act(async () => {
       member.ready = !ready;
       resolveCommand();
     });
     expect(button.getAttribute("aria-busy")).toBe("false");
+    await act(async () => vi.advanceTimersByTimeAsync(200));
+    expect(spinning()).toBe(false);
     expect(button.disabled).toBe(false);
     expect(button.textContent).toBe(ready ? "Quick ready" : "Unready");
   } finally {
+    vi.useRealTimers();
     await act(async () => root.unmount());
     delete snapshot.partyId;
     vi.unstubAllGlobals();

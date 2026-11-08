@@ -2,6 +2,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { Search } from "lucide-react";
 import { useRef, type ComponentPropsWithoutRef, type RefObject } from "react";
 import { ShortcutKeys } from "./ShortcutKeys";
+import { DelayedSpinner } from "./Spinner";
 import "./search-field.css";
 
 const searchKey = "/";
@@ -11,10 +12,12 @@ export function SearchField({
   disabled,
   ref,
   shortcutTarget,
+  refreshing,
   ...props
 }: Omit<ComponentPropsWithoutRef<"input">, "type"> & {
   ref?: RefObject<HTMLInputElement | null>;
   shortcutTarget?: RefObject<HTMLElement | null>;
+  refreshing?: boolean;
 }) {
   const localInput = useRef<HTMLInputElement>(null);
   const input = ref ?? localInput;
@@ -39,7 +42,11 @@ export function SearchField({
 
   return (
     <label className={className ? `search-field ${className}` : "search-field"}>
-      <Search className="search-field-icon" size={16} strokeWidth={1.5} aria-hidden="true" />
+      <DelayedSpinner
+        active={!!refreshing}
+        label="Updating results"
+        fallback={<Search size={16} strokeWidth={1.5} aria-hidden="true" />}
+      />
       <input
         {...props}
         ref={input}

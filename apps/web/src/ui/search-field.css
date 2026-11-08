@@ -16,10 +16,6 @@
   box-shadow: var(--focus-ring);
 }
 
-.search-field-icon {
-  flex: none;
-}
-
 .search-field input {
   flex: 1;
   width: 100%;
@@ -37,7 +33,7 @@
   box-shadow: none;
 }
 
-.search-field > span {
+.search-field > span[aria-hidden] {
   display: inline-flex;
 }
 

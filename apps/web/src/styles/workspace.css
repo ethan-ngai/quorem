@@ -529,10 +529,6 @@ kbd {
   gap: 6px;
   margin-right: 12px;
 }
-.sync-label {
-  font-size: 10px;
-  color: var(--color-text-secondary);
-}
 .participant-score {
   display: grid;
   grid-template-columns: auto auto;

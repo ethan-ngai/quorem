@@ -1052,6 +1052,11 @@
       ],
       "additionalProperties": false
     },
+    "FilterMatch": {
+      "type": "string",
+      "enum": ["any", "all"],
+      "description": "Match any selected value by default, or require all selected values."
+    },
     "MatchQuestionFilters": {
       "type": "object",
       "properties": {
@@ -1062,6 +1067,12 @@
         "sql": {
           "type": "string",
           "enum": ["true"]
+        },
+        "topicMatch": {
+          "$ref": "#/$defs/FilterMatch"
+        },
+        "companyMatch": {
+          "$ref": "#/$defs/FilterMatch"
         },
         "topic": {
           "type": "string",

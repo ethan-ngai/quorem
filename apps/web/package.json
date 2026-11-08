@@ -39,6 +39,7 @@
     "@radix-ui/react-switch": "1.4.1",
     "@radix-ui/react-tooltip": "1.4.1",
     "@tanstack/react-hotkeys": "0.22.0",
+    "@tanstack/react-pacer": "0.24.1",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "1.170.46",
     "@tanstack/react-table": "^8.21.3",

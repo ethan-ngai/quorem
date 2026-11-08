@@ -16,7 +16,9 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     type = "",
     difficulty = "",
     topic = "",
+    topicMatch,
     company = "",
+    companyMatch,
     source = "",
   } = filters ?? {};
   return sql`
@@ -24,8 +26,8 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     AND (${language}='' OR "isSql"=(${language}='true'))
     AND (${type}='' OR "isOdyssey"=(${type}='odyssey'))
     AND (${difficulty}='' OR difficulty=ANY(string_to_array(${difficulty},',')))
-    AND (${topic}='' OR tags && string_to_array(${topic},','))
-    AND (${company}='' OR companies && string_to_array(${company},','))
+    AND (${topic}='' OR tags ${topicMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${topic},','))
+    AND (${company}='' OR companies ${companyMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${company},','))
     AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
   `;
 }

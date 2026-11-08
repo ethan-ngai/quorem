@@ -12,6 +12,7 @@ import { nodeValueType } from "../nodeDiagram";
 import type { NodeContext } from "../nodeLiterals";
 import type { WireValue } from "../typedValues";
 import "./node-preview.css";
+import { LoadingIndicator } from "../../../ui/Spinner";
 
 const Diagram = lazy(() => import("./NodeDiagram"));
 type Selection = { type: string; name: string; choose: (reference: string) => void };
@@ -79,7 +80,7 @@ export function NodeCasePreview({ context, expected, actual, expectedSource }: N
       style={{ width: naturalWidth, maxWidth: "100%" }}
     >
       {width > 0 && (
-        <Suspense fallback={<p className="node-preview-message">Loading preview…</p>}>
+        <Suspense fallback={<LoadingIndicator label="Loading preview…" />}>
           <Diagram
             width={width}
             onNaturalWidth={setNaturalWidth}

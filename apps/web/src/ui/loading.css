@@ -4,16 +4,11 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
   background: var(--color-background);
   color: var(--color-text-secondary);
 }
 .loading-state-inline {
   min-height: 160px;
-}
-.loading-state p {
-  margin: 0;
-  font-size: 13px;
 }
 .logo-spinner {
   width: 64px;

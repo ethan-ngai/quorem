@@ -1441,11 +1441,18 @@ export interface components {
             reviewPending?: boolean;
             factionNames?: string[];
         };
+        /**
+         * @description Match any selected value by default, or require all selected values.
+         * @enum {string}
+         */
+        FilterMatch: "any" | "all";
         MatchQuestionFilters: {
             /** @enum {string} */
             type?: "classic" | "odyssey";
             /** @enum {string} */
             sql?: "true";
+            topicMatch?: components["schemas"]["FilterMatch"];
+            companyMatch?: components["schemas"]["FilterMatch"];
             topic?: string;
             company?: string;
         };
@@ -2600,8 +2607,10 @@ export interface operations {
                 q?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 difficulty?: string;
-                /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
+                topicMatch?: components["schemas"]["FilterMatch"];
+                /** @description Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each. */
                 topic?: string;
+                companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
                 sort?: "title" | "difficulty";
                 order?: "asc" | "desc";
@@ -2634,6 +2643,11 @@ export interface operations {
                         /** @description Opaque continuation for the same filters and ordering. */
                         nextCursor?: string;
                         topics: string[];
+                        foundationalTopics?: {
+                            value: string;
+                            label: string;
+                            tags: string[];
+                        }[];
                     };
                 };
             };
@@ -2723,7 +2737,9 @@ export interface operations {
                 sql?: string;
                 type?: string;
                 difficulty?: string;
+                topicMatch?: components["schemas"]["FilterMatch"];
                 topic?: string;
+                companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
                 source?: string;
                 readiness?: string;
@@ -2788,7 +2804,9 @@ export interface operations {
                 sql?: string;
                 type?: string;
                 difficulty?: string;
+                topicMatch?: components["schemas"]["FilterMatch"];
                 topic?: string;
+                companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
                 source?: string;
                 readiness?: string;

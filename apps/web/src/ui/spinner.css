@@ -1,6 +1,28 @@
+.loading-indicator {
+  display: grid;
+  place-items: center;
+  min-block-size: calc(1rem + 2 * var(--space-2));
+  padding: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
 .ui-spinner {
   flex-shrink: 0;
   margin-inline: auto;
+}
+
+.delayed-spinner {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--color-text-secondary);
+}
+
+.loading-indicator > [role="status"],
+.delayed-spinner > [role="status"] {
+  display: flex;
 }
 
 @media (prefers-reduced-motion: no-preference) {

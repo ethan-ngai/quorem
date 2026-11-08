@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { PageSizeControl } from "./PageSizeControl";
 import { Tooltip } from "./Tooltip";
+import type { ListState } from "./useServerTable";
 import "./table.css";
 export function TableSortHeader<T>({
   column,
@@ -34,13 +35,19 @@ export function TableSortHeader<T>({
 export function TablePagination<T>({
   table,
   disabled = false,
+  snapshot,
 }: {
   table: Table<T>;
   disabled?: boolean;
+  snapshot?: Pick<ListState, "page" | "limit">;
 }) {
-  const { pageIndex, pageSize } = table.getState().pagination;
+  // Display the page these rows came from; don't navigate from stale totals.
+  const { pageIndex, pageSize } = snapshot
+    ? { pageIndex: snapshot.page - 1, pageSize: snapshot.limit }
+    : table.getState().pagination;
+  const unavailable = disabled || !!snapshot;
   const total = table.getRowCount();
-  const pages = Math.max(1, table.getPageCount());
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
     <footer className="table-pagination">
       <span role="status">
@@ -52,7 +59,7 @@ export function TablePagination<T>({
         <PageSizeControl
           value={pageSize}
           onChange={(size) => table.setPageSize(size)}
-          disabled={disabled}
+          disabled={unavailable}
         />
         <div className="table-page-navigation">
           <Tooltip content="Previous page">
@@ -60,8 +67,11 @@ export function TablePagination<T>({
               type="button"
               className="table-page-button"
               aria-label="Previous page"
-              disabled={disabled || !table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
+              disabled={disabled || pageIndex === 0}
+              aria-disabled={!!snapshot || undefined}
+              onClick={() => {
+                if (!snapshot) table.previousPage();
+              }}
             >
               <ChevronLeft size={16} aria-hidden="true" />
             </button>
@@ -74,8 +84,11 @@ export function TablePagination<T>({
               type="button"
               className="table-page-button"
               aria-label="Next page"
-              disabled={disabled || !table.getCanNextPage()}
-              onClick={() => table.nextPage()}
+              disabled={disabled || pageIndex + 1 >= pages}
+              aria-disabled={!!snapshot || undefined}
+              onClick={() => {
+                if (!snapshot) table.nextPage();
+              }}
             >
               <ChevronRight size={16} aria-hidden="true" />
             </button>

@@ -1,7 +1,7 @@
-import { Disclosure } from "../../ui/Disclosure";
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
+import { Disclosure } from "../../ui/Disclosure";
 import * as Popover from "../../ui/Popover";
-import { useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState, type UIEvent } from "react";
 import { AlertCircle, Dices } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
@@ -11,11 +11,16 @@ import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
+import { useServerSearch } from "../../ui/useServerSearch";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { Icon } from "../../ui/Icon";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import "../matches/competitive.css";
 
 const pageSize = 30;
+const prefetchLeadMs = 600;
+const maxPrefetchDistance = 1200;
 
 export function ProblemPicker({
   items,
@@ -47,6 +52,7 @@ export function ProblemPicker({
   const warningId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const inputSearch = useServerSearch(search, setSearch);
   const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
   const filters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
   const allowed = difficulties?.join(",");
@@ -54,17 +60,22 @@ export function ProblemPicker({
     ?.split(",")
     .filter((value) => !difficulties || difficulties.includes(value));
   const noAllowedDifficulty = !!filters.difficulty && selectedDifficulties?.length === 0;
+  const scope = ["picker-catalog-infinite", identity, library, allowed] as const;
+  const queryKey = [...scope, search, filters] as const;
+  const resultsKey = JSON.stringify(queryKey);
   const catalog = useInfiniteQuery({
-    queryKey: ["picker-catalog-infinite", identity, library, search, filters, allowed],
+    queryKey,
+    placeholderData: scopedPlaceholder(scope),
     initialPageParam: 1,
     enabled: open && !noAllowedDifficulty,
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam, signal }) => {
       const { data, error } = await api(identity).GET("/v1/problems", {
+        signal,
         params: {
           query: {
             ...filters,
             sql: filters.sql ?? "false",
-            q: search.trim() || undefined,
+            q: search || undefined,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
             page: pageParam,
@@ -124,16 +135,39 @@ export function ProblemPicker({
   const [chosen, setChosen] = useState<{ id: string; title: string }>();
   const popover = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const results = useRef<HTMLDivElement>(null);
+  const lastScroll = useRef<{ list: HTMLDivElement; top: number; time: number }>(null);
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
   const filtered = noAllowedDifficulty
     ? []
     : (catalog.data?.pages.flatMap((page) => page.items) ?? []);
+  const replacingRows = catalog.isPlaceholderData || inputSearch.text.trim() !== search;
+  const settledKey = catalog.data && !catalog.isPlaceholderData ? resultsKey : undefined;
+  useLayoutEffect(() => {
+    if (settledKey && results.current) results.current.scrollTop = 0;
+  }, [settledKey, open]);
+  const canLoadMore = !replacingRows && !catalog.isFetching;
   const loadMore = () => {
-    if (catalog.hasNextPage && !catalog.isFetching && !catalog.isFetchNextPageError)
+    if (catalog.hasNextPage && canLoadMore && !catalog.isFetchNextPageError)
       void catalog.fetchNextPage({ cancelRefetch: false });
   };
+  function prefetchOnScroll({ currentTarget: list, timeStamp }: UIEvent<HTMLDivElement>) {
+    const { scrollTop: top, clientHeight: height, scrollHeight } = list;
+    const previous = lastScroll.current?.list === list ? lastScroll.current : null;
+    lastScroll.current = { list, top, time: timeStamp };
+    const delta = top - (previous?.top ?? 0);
+    if (delta <= 0) return;
+
+    // After a pause, treat the first movement as one frame so flicks get a head start.
+    const elapsed = previous ? timeStamp - previous.time : Infinity;
+    const velocity = delta / (elapsed > 150 ? 16 : Math.max(16, elapsed));
+    const lead = Math.max(height, Math.min(maxPrefetchDistance, velocity * prefetchLeadMs));
+    if (scrollHeight - top - height <= lead) loadMore();
+  }
   function choose(id: string | undefined) {
+    if (id && replacingRows) return;
+    inputSearch.reset();
     setOpen(false);
     if (id === value) return;
     setChosen(filtered.find((item) => item.id === id) ?? items.find((item) => item.id === id));
@@ -162,6 +196,7 @@ export function ProblemPicker({
       open={open}
       onOpenChange={(value) => {
         setOpen(value);
+        inputSearch.reset();
         if (value) {
           setSearch("");
         }
@@ -218,21 +253,18 @@ export function ProblemPicker({
             shortcutTarget={popover}
             aria-label="Search problems"
             placeholder="Search problems"
-            value={search}
+            value={inputSearch.text}
             maxLength={120}
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
+            onChange={(event) => inputSearch.change(event.target.value)}
+            refreshing={!noAllowedDifficulty && catalog.isFetching && !!catalog.data}
           />
           <div
-            key={JSON.stringify([search, filters, allowed])}
+            ref={results}
             className="problem-picker-results"
             role="group"
             aria-label="Matching problems"
-            onScroll={(event) => {
-              const list = event.currentTarget;
-              if (list.scrollHeight - list.scrollTop - list.clientHeight < 120) loadMore();
-            }}
+            aria-busy={!noAllowedDifficulty && catalog.isFetching}
+            onScroll={prefetchOnScroll}
           >
             {allowRandom && (
               <button
@@ -252,6 +284,7 @@ export function ProblemPicker({
                 key={item.id}
                 className="problem-picker-item"
                 aria-pressed={value === item.id}
+                aria-disabled={replacingRows || undefined}
                 onClick={() => choose(item.id)}
               >
                 {value === item.id && <Icon name="submit" />}
@@ -260,7 +293,7 @@ export function ProblemPicker({
                 <small className={`difficulty-${item.difficulty}`}>{item.difficulty}</small>
               </button>
             ))}
-            {catalog.isError ? (
+            {!noAllowedDifficulty && catalog.isError ? (
               <div role="alert">
                 <p>
                   {filtered.length ? "Could not load more questions." : "Questions unavailable."}
@@ -277,15 +310,16 @@ export function ProblemPicker({
                   Retry
                 </button>
               </div>
-            ) : catalog.isFetching ? (
-              <p role="status">Loading questions…</p>
+            ) : !noAllowedDifficulty && catalog.isLoading ? (
+              <LoadingIndicator label="Loading questions…" />
             ) : !filtered.length ? (
               <p role="status">No matching problems</p>
             ) : catalog.hasNextPage ? (
               <button
                 type="button"
                 className="quiet-button"
-                onClick={() => void catalog.fetchNextPage({ cancelRefetch: false })}
+                aria-disabled={!canLoadMore || undefined}
+                onClick={loadMore}
               >
                 Load more questions
               </button>

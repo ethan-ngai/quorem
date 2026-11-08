@@ -29,6 +29,7 @@ export type SolutionCode = components["schemas"]["SolutionCode"];
 export type ApproachComplexity = components["schemas"]["ApproachComplexity"];
 export type LanguageImplementation = components["schemas"]["LanguageImplementation"];
 export type ProblemVersion = components["schemas"]["ProblemVersion"];
+export type FilterMatch = components["schemas"]["FilterMatch"];
 export type Constraint = components["schemas"]["Constraint"];
 export type ConstraintTarget = components["schemas"]["ConstraintTarget"];
 export type InputPresetConfig = components["schemas"]["InputPresetConfig"];

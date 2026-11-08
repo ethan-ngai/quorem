@@ -8,6 +8,7 @@ import { languageFileNames, type EditorLanguage } from "../editor/editorLanguage
 import type { EditorScheme } from "../editor/editorSchemes";
 import { ReviewPaneHeader } from "./ReviewToolbar";
 import { createReviewWorkspace } from "./useMatchReview";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function ReviewComparison({
   identity,
@@ -112,7 +113,7 @@ export function ReviewComparison({
           }}
         />
       ) : (
-        <p role="status">Loading comparison…</p>
+        <LoadingIndicator label="Loading comparison…" />
       )}
     </div>
   );
