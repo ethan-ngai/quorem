@@ -1,4 +1,13 @@
 /** @file identity.ts @description Managed session authorization through the API authority. @module language */
+import { z } from "zod";
+
+const hostedAccount = z.object({
+  mode: z.literal("managed"),
+  kind: z.literal("account"),
+  user: z.object({ id: z.string().min(1), emailVerified: z.literal(true) }),
+  capabilities: z.object({ hostedIntelligence: z.literal(true) }),
+});
+
 export class IdentityUnavailable extends Error {
   constructor() {
     super("Identity service unavailable");
@@ -50,22 +59,8 @@ export async function managedOwner(
     } finally {
       reader.releaseLock();
     }
-    const data = JSON.parse(text) as {
-      mode?: string;
-      kind?: string;
-      user?: { id?: string; emailVerified?: boolean };
-      capabilities?: { hostedIntelligence?: boolean };
-    };
-    if (
-      data.mode !== "managed" ||
-      data.kind !== "account" ||
-      data.user?.emailVerified !== true ||
-      data.capabilities?.hostedIntelligence !== true ||
-      typeof data.user.id !== "string" ||
-      !data.user.id
-    )
-      return null;
-    return data.user.id;
+    const account = hostedAccount.safeParse(JSON.parse(text));
+    return account.success ? account.data.user.id : null;
   } catch {
     throw new IdentityUnavailable();
   }

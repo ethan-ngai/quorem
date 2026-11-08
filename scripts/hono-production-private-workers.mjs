@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { terraformBackendArgs } from "./hono-terraform-backend.mjs";
+import { activeProduction, productionOutputs } from "./hono-production-state.mjs";
 import { runStageCommand } from "./hono-stage-command.mjs";
 import { productionTerraform } from "./hono-production-terraform.mjs";
 import { productionImages, validatedJudgeImages } from "./hono-production-images.mjs";
@@ -37,13 +37,6 @@ export function rolloutPauseOperation(release, previousRelease, cases, preserveS
   return op(release, "pause-case");
 }
 
-function outputs(env, directory, key) {
-  runStageCommand("terraform", terraformBackendArgs(env, directory, key), env);
-  return JSON.parse(
-    runStageCommand("terraform", [`-chdir=infra/terraform/${directory}`, "output", "-json"], env),
-  );
-}
-
 async function quiesce(db) {
   const deadline = Date.now() + 90000;
   let idleSince;
@@ -67,20 +60,14 @@ async function rollout(env, benchmarkOnly) {
   )
     throw new Error("Exact main release required");
   report("read-active-production");
-  const bootstrap = outputs(env, "hono-production", "hono-production");
-  if (bootstrap.activation?.value?.phase !== "active")
-    throw new Error("Native production is inactive");
-  const keys = bootstrap.secrets.value;
-  const database = new URL(keys.DATABASE_URL);
-  if (database.pathname !== "/neondb" || !database.hostname.endsWith(".neon.tech"))
-    throw new Error("Unexpected production database");
+  const { keys, database } = activeProduction(env);
   database.search = "?sslmode=verify-full";
   const db = new Client({
     connectionString: database.href,
     connectionTimeoutMillis: 10000,
     query_timeout: 10000,
   });
-  const priorOutput = outputs(env, scope.directory, scope.key).origins.value;
+  const priorOutput = productionOutputs(env, scope.directory, scope.key).origins.value;
   if (
     priorOutput.QUOREM_RUNNER_COMMAND_ORIGIN !== "https://api-hono.quorem.app" ||
     priorOutput.QUOREM_VERIFICATION_SOURCE_ORIGIN !== "https://api-hono.quorem.app"

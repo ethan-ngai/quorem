@@ -43,14 +43,7 @@ export function inspectProductionPlan(plan, mode) {
     const actions = item.change?.actions;
     if (!Array.isArray(actions)) throw new Error("Invalid production plan actions");
     if (actions.join() === "no-op" || (item.mode === "data" && actions.join() === "read")) continue;
-    if (mode === "routes") {
-      if (
-        !/^cloudflare_workers_route\.api\[/.test(item.address) ||
-        actions.join() !== "update" ||
-        item.change.after?.script !== "quorem-hono-production"
-      )
-        throw new Error("Route plan includes unrelated mutation");
-    } else if (mode === "hyperdrive-capacity") {
+    if (mode === "hyperdrive-capacity") {
       const { before, after } = item.change;
       const configuration = (value) =>
         Object.fromEntries(
@@ -106,14 +99,6 @@ export function inspectProductionPlan(plan, mode) {
           error.planChange = { address: item.address, action };
         throw error;
       }
-    } else if (mode === "legacy-stop") {
-      if (
-        actions.join() !== "delete" ||
-        !/^(cloudflare_worker\.app|cloudflare_worker_version\.app|cloudflare_queue(?:_consumer)?\.(?:judge|judge_dead_letter)|random_password\.judge_control|restapi_object\.(?:container|rollout|judge_container|judge_rollout|fast_judge_container|case_container)|terraform_data\.fast_worker_version)$/.test(
-          item.address,
-        )
-      )
-        throw new Error("Legacy shutdown includes unrelated mutation");
     } else if (mode === "rehearsal-cleanup") {
       if (item.address !== "restapi_object.rehearsal[0]" || actions.join() !== "delete")
         throw new Error("Rehearsal cleanup includes unrelated mutation");
@@ -137,7 +122,7 @@ export async function productionTerraform(env, directory, key, options = {}) {
   const child = { ...env },
     variables = {};
   try {
-    // Linux limits each environment entry; retained state belongs in a private var file.
+    // Large Terraform values exceed the process environment entry limit.
     for (const [name, value] of Object.entries(child)) {
       if (name.startsWith("TF_VAR_") && Buffer.byteLength(value) > 32768) {
         variables[name.slice(7)] = JSON.parse(value);

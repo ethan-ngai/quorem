@@ -7,6 +7,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 SCRIPT = Path(__file__).with_name('import-leetcode-fixtures.py')
 
@@ -18,6 +19,7 @@ class Handler(BaseHTTPRequestHandler):
     fail_after_create = False
     fail_after_publish = False
     published = None
+    other_drafts = []
 
     def log_message(self, *args):
         pass
@@ -33,9 +35,14 @@ class Handler(BaseHTTPRequestHandler):
             if self.published:
                 return self.send_json(200, self.published)
             return self.send_json(404, {})
-        if self.path == '/v1/admin/question-drafts':
-            items = [] if not self.draft else [{'id': self.draft['id'], 'slug': 'lc-example'}]
-            return self.send_json(200, {'items': items})
+        route = urlsplit(self.path)
+        if route.path == '/v1/admin/question-drafts':
+            query = parse_qs(route.query)
+            if 'cursor' in query:
+                return self.send_json(400, {})
+            page, limit = int(query['page'][0]), int(query['limit'][0])
+            items = self.other_drafts + ([] if not self.draft else [{'id': self.draft['id'], 'slug': 'lc-example'}])
+            return self.send_json(200, {'items': items[(page - 1) * limit:page * limit], 'page': page, 'limit': limit, 'total': len(items)})
         if self.path == '/v1/admin/question-drafts/one' and self.draft:
             return self.send_json(200, self.draft)
         self.send_json(404, {})
@@ -67,6 +74,7 @@ class ImportTest(unittest.TestCase):
         Handler.fail_after_create = False
         Handler.fail_after_publish = False
         Handler.published = None
+        Handler.other_drafts = []
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.tmp = tempfile.TemporaryDirectory()
@@ -99,6 +107,12 @@ class ImportTest(unittest.TestCase):
         self.assertNotEqual(self.run_import('--apply').returncode, 0)
         self.assertEqual(self.run_import('--apply').returncode, 0)
         self.assertEqual(Handler.creates, 1)
+
+    def test_finds_existing_draft_after_first_page(self):
+        Handler.draft = {'id': 'one', 'revision': '1', 'content': self.content}
+        Handler.other_drafts = [{'id': f'other-{index}', 'slug': f'a-{index}'} for index in range(50)]
+        self.assertEqual(self.run_import('--apply').returncode, 0)
+        self.assertEqual(Handler.creates, 0)
 
     def test_hash_mismatch_prevents_writes(self):
         (self.directory / '1.json').write_text('{}')
