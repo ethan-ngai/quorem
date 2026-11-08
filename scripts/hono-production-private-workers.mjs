@@ -102,6 +102,17 @@ async function rollout(env, benchmarkOnly) {
       },
       priorOutput.QUOREM_CASE_NAMESPACE_ID,
     );
+    if (benchmarkOnly && env.QUOREM_SANDBOX_PROBE_MATCH) {
+      const { probeMatchSandboxes } = await import("./hono-production-judge-diagnostics.mjs");
+      return {
+        sandboxDiagnostics: await probeMatchSandboxes(
+          db,
+          keys,
+          namespace,
+          env.QUOREM_SANDBOX_PROBE_MATCH,
+        ),
+      };
+    }
     const controls = (targetRelease, bindings) =>
       stageControls({
         namespace: namespace.namespace,
@@ -308,7 +319,7 @@ async function rollout(env, benchmarkOnly) {
 if (import.meta.main) {
   try {
     const benchmarkEnv = await rollout(process.env, process.argv.includes("--benchmark-only"));
-    if (process.env.JUDGING_DIAGNOSTICS === "true") {
+    if (benchmarkEnv.sandboxDiagnostics || process.env.JUDGING_DIAGNOSTICS === "true") {
       console.log(JSON.stringify(benchmarkEnv));
     } else {
       report("benchmark-python");

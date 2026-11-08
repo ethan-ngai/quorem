@@ -4,15 +4,20 @@ import {
   acceptedSource,
   version,
 } from "../apps/api/src/runtime/composition/fixtures/staged-actor.ts";
-export async function diagnoseProductionJudge(database, keys, namespace, controls) {
-  const profileResponse = await fetch("https://runner-hono.quorem.app/internal/profile", {
+async function productionRunnerProfile(keys) {
+  const response = await fetch("https://runner-hono.quorem.app/internal/profile", {
     method: "POST",
     headers: { authorization: `Bearer ${keys.QUOREM_RUNNER_DRAIN_SECRET}` },
     signal: AbortSignal.timeout(10000),
     redirect: "error",
   });
-  const profile = profileResponse.ok ? await profileResponse.json() : null;
-  await profileResponse.body?.cancel().catch(() => {});
+  if (response.ok) return response.json();
+  await response.body?.cancel();
+  return null;
+}
+
+export async function diagnoseProductionJudge(database, keys, namespace, controls) {
+  const profile = await productionRunnerProfile(keys);
   const { rows: jobs } = await database.query(`SELECT s.state,j.finished,j.attempts,
     j.attempt_id IS NOT NULL AS claimed,j.lease_until>clock_timestamp() AS live,
     i.case_count AS cases,count(*)::int AS count,
@@ -161,4 +166,42 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
     command: { status: response.status, queued: body?.queued, running: body?.running },
     namespacePinned: /^[a-f0-9]{64}$/.test(namespace.namespace),
   };
+}
+
+/** Read sandbox phase metadata for reclaimed attempts using the current namespace. */
+export async function probeMatchSandboxes(database, keys, namespace, matchId) {
+  if (!/^[a-f0-9-]{36}$/i.test(matchId)) throw new Error("Invalid match identifier");
+  const { rows } = await database.query(
+    `SELECT a.attempt_id, a.claimed_at FROM execution_attempt_inventory a
+     JOIN execution_jobs j ON j.id=a.job_id JOIN submissions s ON s.id=j.submission_id
+     WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2 AND j.attempt_id<>a.attempt_id
+       AND NOT EXISTS (SELECT 1 FROM execution_completion_receipts r
+         WHERE r.job_id=j.id AND r.attempt_id=a.attempt_id)
+     ORDER BY a.claimed_at LIMIT 20`,
+    [matchId, namespace.scope],
+  );
+  const diagnostics = [];
+  for (const { attempt_id, claimed_at } of rows) {
+    const response = await fetch(`https://case-hono.quorem.app/internal/case/${attempt_id}`, {
+      headers: {
+        authorization: `Bearer ${keys.QUOREM_CASE_SECRET}`,
+        "x-quorem-owner-scope": namespace.scope,
+        "x-quorem-owner-nonce": randomUUID(),
+        "x-quorem-case-probe": "diagnostics",
+      },
+      redirect: "error",
+      signal: AbortSignal.timeout(10000),
+    });
+    const value = await response.json().catch(() => null);
+    const field = (name) => (/^[a-z-]{1,40}$/.test(value?.[name] ?? "") ? value[name] : undefined);
+    diagnostics.push({
+      attemptId: attempt_id,
+      claimedAt: claimed_at,
+      status: response.status,
+      phase: field("phase"),
+      failure: field("failure"),
+      source: field("source"),
+    });
+  }
+  return { attempts: diagnostics, runnerProfile: await productionRunnerProfile(keys) };
 }

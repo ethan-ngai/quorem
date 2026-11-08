@@ -18,6 +18,18 @@ on:
         description: UTC start time of a completed Python benchmark
         type: string
         default: ""
+      match_id:
+        description: Read persisted judge phases for one production match
+        type: string
+        default: ""
+      probe_match_sandboxes:
+        description: Read authenticated diagnostics for the match's failed sandbox attempts
+        type: boolean
+        default: false
+      worker_log_start:
+        description: UTC start of a 30-minute historical Worker diagnostics window
+        type: string
+        default: ""
       diagnostics:
         description: Read judging state and probe the private command path
         type: boolean
@@ -34,7 +46,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.mail && !inputs.sql && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' }}
+    if: ${{ !inputs.mail && !inputs.sql && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -43,7 +55,13 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: python3 scripts/container-logs.py --minutes 30 --stdout
+          QUOREM_WORKER_LOG_START: ${{ inputs.worker_log_start }}
+        run: |
+          if [ -n "$QUOREM_WORKER_LOG_START" ]; then
+            python3 scripts/production-worker-logs.py
+          else
+            python3 scripts/container-logs.py --minutes 30 --stdout
+          fi
   hyperdrive:
     if: ${{ inputs.hyperdrive && inputs.benchmark_start != '' }}
     runs-on: ubuntu-latest
@@ -57,7 +75,7 @@ jobs:
           QUOREM_BENCHMARK_START: ${{ inputs.benchmark_start }}
         run: python3 scripts/hono-production-hyperdrive-metrics.py
   sql:
-    if: ${{ inputs.sql || (inputs.benchmark_start != '' && !inputs.hyperdrive) }}
+    if: ${{ inputs.match_id != '' || inputs.sql || (inputs.benchmark_start != '' && !inputs.hyperdrive) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -74,15 +92,17 @@ jobs:
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
           QUOREM_BENCHMARK_START: ${{ inputs.benchmark_start }}
+          QUOREM_DIAGNOSTIC_MATCH_ID: ${{ inputs.match_id }}
         run: python3 scripts/profile-production-sql.py
   benchmark:
-    if: github.ref == 'refs/heads/dev' && (inputs.benchmark || inputs.workload || inputs.diagnostics)
+    if: github.ref == 'refs/heads/dev' && (inputs.benchmark || inputs.workload || inputs.diagnostics || (inputs.probe_match_sandboxes && inputs.match_id != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
       HONO_RELEASE_SHA: ${{ github.sha }}
       JUDGING_WORKLOAD: ${{ inputs.workload }}
       JUDGING_DIAGNOSTICS: ${{ inputs.diagnostics }}
+      QUOREM_SANDBOX_PROBE_MATCH: ${{ inputs.probe_match_sandboxes && inputs.match_id || '' }}
       BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

@@ -45,6 +45,17 @@ def main():
     if not isinstance(uri, str) or not uri.startswith(('postgres://', 'postgresql://')):
         raise RuntimeError('Neon did not return a connection URI')
     print('::add-mask::' + uri, flush=True)
+    match = os.environ.get('QUOREM_DIAGNOSTIC_MATCH_ID')
+    if match:
+        if not re.fullmatch(r'[0-9a-fA-F-]{36}', match):
+            raise RuntimeError('Invalid match identifier')
+        result = subprocess.run(
+            ['psql', '-X', '-d', uri, '-v', 'ON_ERROR_STOP=1', '-v', 'match_id=' + match,
+             '-f', 'scripts/production-match-attempts.sql'],
+            env={**os.environ, 'PGCONNECT_TIMEOUT': '10'}, check=False)
+        if result.returncode:
+            raise SystemExit(result.returncode)
+        return
     script = ('scripts/hono-production-benchmark-timing.mjs' if os.environ.get('QUOREM_BENCHMARK_START')
               else 'apps/api/src/cli/profile-reads.ts')
     subprocess.run(['node', '--experimental-strip-types', script], env={**os.environ, 'DATABASE_URL': uri}, check=True)
