@@ -3,7 +3,12 @@ import { matchPreset } from "@quorem/contracts/match-rules";
 import assert from "node:assert/strict";
 import { before, after, test } from "node:test";
 import { resolve } from "node:path";
-import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
+import {
+  classifyDatabaseError,
+  createNodePool,
+  withNodeConnection,
+  type ConnectionScope,
+} from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
@@ -1400,6 +1405,16 @@ for (const accepted of [false, true])
       guestExecution: true,
     })(room.actor, "hidden-run", command, { receiptId: null, shard: 0, jobId });
     const verifier = await localVerifier(run);
+    let releaseMatch: Promise<void> | undefined;
+    let lockTimeouts = 0;
+    const observedRun: typeof run = async (callback) => {
+      try {
+        return await run(callback);
+      } catch (error) {
+        if (classifyDatabaseError(error) === "lock_timeout") lockTimeouts++;
+        throw error;
+      }
+    };
     const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-hidden-reveal-")));
     try {
       const sandbox = await dockerSandbox({
@@ -1409,18 +1424,43 @@ for (const accepted of [false, true])
         cleanupMs: 10000,
       });
       const port = postgresExecutionCommands(
-        run,
+        observedRun,
         {
           inputProtocol: "manifest-v1",
           resumable: true,
           losslessCases: true,
           losslessResults: true,
         },
-        verifier.verification,
+        {
+          ...verifier.verification,
+          verifier: {
+            async verify(challenge) {
+              const signed = await verifier.verification.verifier.verify(challenge);
+              if (!accepted && !releaseMatch) {
+                const blocker = await pool.connect();
+                try {
+                  await blocker.query("BEGIN");
+                  await blocker.query("SELECT id FROM matches WHERE id=$1 FOR UPDATE", [room.id]);
+                } catch (error) {
+                  blocker.release(true);
+                  throw error;
+                }
+                releaseMatch = blocker
+                  .query("SELECT pg_sleep(1.35)")
+                  .then(async () => {
+                    await blocker.query("ROLLBACK");
+                  })
+                  .finally(() => blocker.release());
+              }
+              return signed;
+            },
+          },
+        },
       );
       const job = await port.claimAfterTeardown(true, sandbox.scope, null);
       assert.equal(job?.jobId, jobId);
       await executeAndStage(job!, port, sandbox);
+      assert.equal(lockTimeouts, accepted ? 0 : 1);
       const live = (await new Response(
         await submissionSnapshots(run).read(room.actor, admitted.id),
       ).json()) as import("@quorem/contracts").Submission;
@@ -1433,6 +1473,7 @@ for (const accepted of [false, true])
       await assert.rejects(submissionSnapshots(run).read(room.peer, admitted.id));
       await finishAfterTeardown(port, sandbox, job!);
     } finally {
+      await releaseMatch;
       await verifier.close();
       await rm(root, { recursive: true, force: true });
     }
