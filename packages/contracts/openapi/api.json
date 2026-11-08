@@ -673,10 +673,6 @@
                       "type": "object",
                       "additionalProperties": { "type": "string", "format": "uuid" }
                     },
-                    "nextCursor": {
-                      "type": "string",
-                      "description": "Opaque continuation for the same filters and ordering."
-                    },
                     "topics": {
                       "type": "array",
                       "items": {
@@ -762,6 +758,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "Recommended requires page 1, ascending order, and a limit of at most 20.",
             "schema": {
               "type": "string",
               "enum": ["title", "difficulty", "recommended"],
@@ -785,15 +782,6 @@
               "minimum": 1,
               "maximum": 10000,
               "default": 1
-            }
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "description": "Opaque continuation returned by the preceding page; use with page 1 or omit page.",
-            "schema": {
-              "type": "string",
-              "maxLength": 32768
             }
           },
           {
@@ -1111,8 +1099,6 @@
                           "id",
                           "title",
                           "slug",
-                          "version",
-                          "current",
                           "isPrivate",
                           "isSql",
                           "fromLeetCode",
@@ -1130,9 +1116,6 @@
                             "type": "string"
                           },
                           "slug": {
-                            "type": "string"
-                          },
-                          "version": {
                             "type": "string"
                           },
                           "isPrivate": {
@@ -1160,9 +1143,6 @@
                             "type": "boolean"
                           },
                           "fromLeetCode": {
-                            "type": "boolean"
-                          },
-                          "current": {
                             "type": "boolean"
                           }
                         }
@@ -1698,32 +1678,9 @@
                     },
                     "submissions": {
                       "type": "integer"
-                    },
-                    "current": {
-                      "type": "boolean"
-                    },
-                    "replacements": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "properties": {
-                          "id": {
-                            "type": "string",
-                            "format": "uuid"
-                          },
-                          "title": {
-                            "type": "string"
-                          },
-                          "version": {
-                            "type": "string"
-                          }
-                        },
-                        "required": ["id", "title", "version"]
-                      }
                     }
                   },
-                  "required": ["workspaces", "matches", "submissions", "current", "replacements"]
+                  "required": ["workspaces", "matches", "submissions"]
                 }
               }
             }
@@ -1794,10 +1751,6 @@
                 "properties": {
                   "revision": {
                     "type": "string"
-                  },
-                  "replacementVersionId": {
-                    "type": ["string", "null"],
-                    "format": "uuid"
                   }
                 },
                 "required": ["revision"]
@@ -3585,14 +3538,11 @@
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
-                      "required": ["id", "current"],
+                      "required": ["id"],
                       "properties": {
                         "id": {
                           "type": "string",
                           "format": "uuid"
-                        },
-                        "current": {
-                          "type": "boolean"
                         }
                       }
                     }
@@ -6467,9 +6417,6 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "edit": {
-                "type": "boolean"
-              },
               "problemVersionId": {
                 "type": "string",
                 "format": "uuid"

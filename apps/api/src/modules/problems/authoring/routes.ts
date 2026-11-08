@@ -2,6 +2,7 @@
 import { parseListQuery } from "../../../application/list-query.ts";
 import { parseCatalogFilter } from "../queries.ts";
 import { Hono, type Context } from "hono";
+import { z } from "zod";
 import {
   JsonNumber,
   parseLosslessJson,
@@ -18,14 +19,40 @@ export interface AuthoringDependencies {
   readonly allowLocalStrongBypass: boolean;
   readonly now: () => number;
 }
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const idSchema = z.guid();
+const revision = z.string().regex(/^[1-9][0-9]{0,18}$/);
+const deletion = z.strictObject({ revision });
+const content = z.custom<{ [key: string]: JsonValue }>(
+  (value) =>
+    !!value && typeof value === "object" && !Array.isArray(value) && !(value instanceof JsonNumber),
+);
+const createDraft = z.union([
+  z.strictObject({ content }),
+  z.strictObject({ problemVersionId: idSchema }),
+]);
+const saveDraft = z.strictObject({ revision, content });
+const visibility = z.enum(["private", "global"]);
+const publishDraft = z.strictObject({
+  revision,
+  visibility: z.union([visibility, z.literal("")]).default(""),
+});
+const mutationItem = z.strictObject({ id: idSchema, revision });
+const batchItems = <T extends z.ZodType>(item: T) =>
+  z.strictObject({ items: z.array(item).min(1).max(16) });
+const bulkPublish = batchItems(mutationItem.extend({ visibility }));
+const bulkDraftDelete = batchItems(mutationItem);
+const bulkPublicationDelete = batchItems(z.strictObject({ id: idSchema }));
+const bulkImport = batchItems(z.string());
+const previewFlag = z.literal("1").optional();
+const sourceFilter = z.enum(["leetcode", "other"]).optional();
+const readinessFilter = z.enum(["ready", "needs-fixes"]).optional();
 function invalid(message = "Invalid request body"): never {
   throw new ApplicationError("invalid_input", message, 400);
 }
-function object(value: JsonValue): { [key: string]: JsonValue } {
-  if (!value || typeof value !== "object" || Array.isArray(value) || value instanceof JsonNumber)
-    invalid();
-  return value;
+function parse<T>(schema: z.ZodType<T>, value: unknown, message?: string): T {
+  const result = schema.safeParse(value);
+  if (!result.success) invalid(message);
+  return result.data;
 }
 async function body(request: Request, limit: number): Promise<{ [key: string]: JsonValue }> {
   const chunks: Uint8Array[] = [];
@@ -53,22 +80,27 @@ async function body(request: Request, limit: number): Promise<{ [key: string]: J
     offset += part.length;
   }
   try {
-    return object(parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+    return parse(
+      content,
+      parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)),
+    );
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     return invalid();
   }
 }
-function fields(o: { [key: string]: JsonValue }, allowed: readonly string[]): void {
-  if (Object.keys(o).some((k) => !allowed.includes(k))) invalid();
-}
-function text(v: JsonValue | undefined): string {
-  if (v === undefined) return "";
-  if (typeof v !== "string") return invalid();
-  return v;
-}
 function draftId(id: string): void {
-  if (!uuid.test(id)) invalid("Invalid draft ID");
+  parse(idSchema, id, "Invalid draft ID");
+}
+function mutationBatch(action: AuthoringBatch["action"], body: unknown): AuthoringBatch {
+  switch (action) {
+    case "publish":
+      return { action, ...parse(bulkPublish, body) };
+    case "delete-drafts":
+      return { action, ...parse(bulkDraftDelete, body) };
+    case "delete-publications":
+      return { action, ...parse(bulkPublicationDelete, body) };
+  }
 }
 /** Routes rely on the injected identity transport and shared application error handler. */
 export function authoringRoutes(deps: AuthoringDependencies) {
@@ -82,13 +114,16 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     c.body(value, status, { "Content-Type": "application/json; charset=utf-8" });
   function filters(url: string) {
     const query = new URL(url).searchParams;
-    const source = query.get("source") ?? undefined;
-    const readiness = query.get("readiness") ?? undefined;
-    if (
-      (source !== undefined && !["leetcode", "other"].includes(source)) ||
-      (readiness !== undefined && !["ready", "needs-fixes"].includes(readiness))
-    )
-      invalid("Invalid question filters");
+    const source = parse(
+      sourceFilter,
+      query.get("source") ?? undefined,
+      "Invalid question filters",
+    );
+    const readiness = parse(
+      readinessFilter,
+      query.get("readiness") ?? undefined,
+      "Invalid question filters",
+    );
     if (query.has("cursor")) invalid("Cursor pagination is unsupported");
     const drafts = new URL(url).pathname.endsWith("question-drafts");
     const pagination = parseListQuery(
@@ -116,42 +151,34 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     return json(c, await deps.authoring.get(p, id));
   });
   app.post("/v1/admin/question-drafts", async (c) => {
-    const p = await principal(c.req.raw),
-      req = await body(c.req.raw, (2 << 20) + 1024);
-    fields(req, ["content", "problemVersionId", "edit"]);
-    const id = text(req.problemVersionId),
-      content =
-        req.content === undefined || req.content === null
-          ? undefined
-          : stringifyLosslessJson(req.content);
-    if ((content === undefined) === (id === "")) invalid("Provide content or problemVersionId");
-    if (id && !uuid.test(id)) invalid("Invalid problem version");
-    if (req.edit !== undefined && (typeof req.edit !== "boolean" || !id)) invalid();
+    const p = await principal(c.req.raw);
+    const req = parse(
+      createDraft,
+      await body(c.req.raw, (2 << 20) + 1024),
+      "Provide content or problemVersionId",
+    );
     return json(
       c,
-      await deps.authoring.create(p, content, id || undefined, req.edit === true),
+      "content" in req
+        ? await deps.authoring.create(p, stringifyLosslessJson(req.content), undefined)
+        : await deps.authoring.create(p, undefined, req.problemVersionId),
       201,
     );
   });
   app.post("/v1/admin/question-drafts/import", async (c) => {
     const p = await principal(c.req.raw),
-      preview = c.req.query("preview");
-    if (preview !== undefined && preview !== "1") invalid("Invalid import preview");
+      preview = parse(previewFlag, c.req.query("preview"), "Invalid import preview");
     const raw = stringifyLosslessJson(await body(c.req.raw, 2 << 20));
     return json(c, await deps.authoring.importDraft(p, raw, preview === "1"));
   });
   app.post("/v1/admin/question-drafts/import-batch", async (c) => {
     const p = await principal(c.req.raw),
-      preview = c.req.query("preview");
-    if (preview !== undefined && preview !== "1") invalid("Invalid import preview");
-    const req = await body(c.req.raw, 5 << 20);
-    fields(req, ["items"]);
-    if (!Array.isArray(req.items) || req.items.length < 1 || req.items.length > 16)
-      invalid("Choose 1 to 16 questions per request");
-    const items = req.items.map((item) => {
-      if (typeof item !== "string") invalid("Expected question JSON text");
-      return item;
-    });
+      preview = parse(previewFlag, c.req.query("preview"), "Invalid import preview");
+    const { items } = parse(
+      bulkImport,
+      await body(c.req.raw, 5 << 20),
+      "Choose 1 to 16 questions per request",
+    );
     const encoder = new TextEncoder();
     if (items.reduce((bytes, item) => bytes + encoder.encode(item).length, 0) > 2 << 20)
       throw new ApplicationError("payload_too_large", "Question batch exceeds 2 MiB", 413);
@@ -164,41 +191,15 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   ] as const) {
     app.post(path, async (c) => {
       const p = await principal(c.req.raw);
-      const req = await body(c.req.raw, 16 << 10);
-      fields(req, ["items"]);
-      if (!Array.isArray(req.items) || req.items.length < 1 || req.items.length > 16)
-        invalid("Choose 1 to 16 questions per request");
-      const items = req.items.map((value) => {
-        const item = object(value);
-        fields(
-          item,
-          action === "publish"
-            ? ["id", "revision", "visibility"]
-            : action === "delete-drafts"
-              ? ["id", "revision"]
-              : ["id", "current"],
-        );
-        const id = text(item.id);
-        draftId(id);
-        if (action === "delete-publications") {
-          if (typeof item.current !== "boolean") invalid("Expected current version selection");
-          return { id, current: item.current };
-        }
-        const revision = text(item.revision);
-        if (!/^[1-9][0-9]{0,18}$/.test(revision)) invalid("Invalid revision");
-        if (action === "delete-drafts") return { id, revision };
-        const visibility = text(item.visibility);
-        if (visibility !== "private" && visibility !== "global")
-          invalid("Choose private or global publication");
-        return { id, revision, visibility };
-      });
+      const batch = mutationBatch(action, await body(c.req.raw, 16 << 10));
+      const { items } = batch;
       if (new Set(items.map((item) => item.id)).size !== items.length)
         invalid("Choose each question only once");
       return json(
         c,
         await deps.authoring.mutateBatch(
           { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
-          { action, items } as AuthoringBatch,
+          batch,
         ),
       );
     });
@@ -207,21 +208,18 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const p = await principal(c.req.raw),
       id = c.req.param("id");
     draftId(id);
-    const req = await body(c.req.raw, (2 << 20) + 1024);
-    fields(req, ["revision", "content"]);
-    if (req.content === undefined || req.content === null) invalid("Content required");
+    const req = parse(saveDraft, await body(c.req.raw, (2 << 20) + 1024));
     return json(
       c,
-      await deps.authoring.update(p, id, text(req.revision), stringifyLosslessJson(req.content)),
+      await deps.authoring.update(p, id, req.revision, stringifyLosslessJson(req.content)),
     );
   });
   app.delete("/v1/admin/question-drafts/:id", async (c) => {
     const p = await principal(c.req.raw);
     const id = c.req.param("id");
     draftId(id);
-    const req = await body(c.req.raw, 1024);
-    fields(req, ["revision"]);
-    return json(c, await deps.authoring.deleteDraft(p, id, text(req.revision)));
+    const req = parse(deletion, await body(c.req.raw, 1024));
+    return json(c, await deps.authoring.deleteDraft(p, id, req.revision));
   });
   app.get("/v1/admin/question-drafts/:id/deletion-impact", async (c) => {
     const p = await principal(c.req.raw);
@@ -233,22 +231,13 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const p = await principal(c.req.raw);
     const id = c.req.param("id");
     draftId(id);
-    const req = await body(c.req.raw, 1024);
-    fields(req, ["revision", "replacementVersionId"]);
-    const replacement = req.replacementVersionId;
-    if (
-      replacement !== undefined &&
-      replacement !== null &&
-      (typeof replacement !== "string" || !uuid.test(replacement))
-    )
-      invalid("Invalid replacement version");
+    const req = parse(deletion, await body(c.req.raw, 1024));
     return json(
       c,
       await deps.authoring.deletePublication(
         { ...p, globalAllowed: deps.allowLocalStrongBypass || p.strongUntil > deps.now() },
         id,
-        text(req.revision),
-        replacement,
+        req.revision,
       ),
     );
   });
@@ -256,12 +245,8 @@ export function authoringRoutes(deps: AuthoringDependencies) {
     const p = await principal(c.req.raw),
       id = c.req.param("id");
     draftId(id);
-    const req = await body(c.req.raw, 1024);
-    fields(req, ["revision", "visibility"]);
-    const visibility = text(req.visibility);
-    if (visibility !== "" && visibility !== "private" && visibility !== "global")
-      invalid("Choose private or global publication");
-    return json(c, await deps.authoring.publish(p, id, text(req.revision), visibility));
+    const req = parse(publishDraft, await body(c.req.raw, 1024));
+    return json(c, await deps.authoring.publish(p, id, req.revision, req.visibility));
   });
   return app;
 }
