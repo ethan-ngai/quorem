@@ -2056,7 +2056,6 @@ export interface components {
         CreateQuestionDraftRequest: {
             content: components["schemas"]["QuestionContent"];
         } | {
-            edit?: boolean;
             /** Format: uuid */
             problemVersionId: string;
         };
@@ -2924,11 +2923,10 @@ export interface operations {
                 topic?: string;
                 companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
+                /** @description Recommended requires page 1, ascending order, and a limit of at most 20. */
                 sort?: "title" | "difficulty" | "recommended";
                 order?: "asc" | "desc";
                 page?: number;
-                /** @description Opaque continuation returned by the preceding page; use with page 1 or omit page. */
-                cursor?: string;
                 limit?: number;
                 library?: "global" | "private";
                 type?: "classic" | "odyssey";
@@ -2955,8 +2953,6 @@ export interface operations {
                         recommendationImpressions?: {
                             [key: string]: string;
                         };
-                        /** @description Opaque continuation for the same filters and ordering. */
-                        nextCursor?: string;
                         topics: string[];
                         foundationalTopics?: {
                             value: string;
@@ -3120,7 +3116,6 @@ export interface operations {
                             id: string;
                             title: string;
                             slug: string;
-                            version: string;
                             isPrivate: boolean;
                             difficulty: string;
                             isOdyssey: boolean;
@@ -3128,7 +3123,6 @@ export interface operations {
                             companies: string[];
                             isSql: boolean;
                             fromLeetCode: boolean;
-                            current: boolean;
                         }[];
                         total: number;
                         page: number;
@@ -3438,13 +3432,6 @@ export interface operations {
                         workspaces: number;
                         matches: number;
                         submissions: number;
-                        current: boolean;
-                        replacements: {
-                            /** Format: uuid */
-                            id: string;
-                            title: string;
-                            version: string;
-                        }[];
                     };
                 };
             };
@@ -3472,8 +3459,6 @@ export interface operations {
             content: {
                 "application/json": {
                     revision: string;
-                    /** Format: uuid */
-                    replacementVersionId?: string | null;
                 };
             };
         };
@@ -4699,7 +4684,6 @@ export interface operations {
                     items: {
                         /** Format: uuid */
                         id: string;
-                        current: boolean;
                     }[];
                 };
             };

@@ -3109,9 +3109,6 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "edit": {
-              "type": "boolean"
-            },
             "problemVersionId": {
               "type": "string",
               "format": "uuid"

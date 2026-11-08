@@ -1,5 +1,6 @@
 /** @file routes.ts @description Question authoring HTTP transport. @module problems */
 import { parseListQuery } from "../../../application/list-query.ts";
+import { boundedUtf8Body } from "../../../application/json-body.ts";
 import { parseCatalogFilter } from "../queries.ts";
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -55,35 +56,9 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, message?: string): T {
   return result.data;
 }
 async function body(request: Request, limit: number): Promise<{ [key: string]: JsonValue }> {
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  const reader = request.body?.getReader();
-  if (reader)
-    try {
-      while (true) {
-        const next = await reader.read();
-        if (next.done) break;
-        size += next.value.length;
-        if (size > limit) {
-          await reader.cancel();
-          throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-        }
-        chunks.push(next.value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const part of chunks) {
-    bytes.set(part, offset);
-    offset += part.length;
-  }
+  const text = await boundedUtf8Body(request, limit);
   try {
-    return parse(
-      content,
-      parseLosslessJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)),
-    );
+    return parse(content, parseLosslessJson(text));
   } catch (error) {
     if (error instanceof ApplicationError) throw error;
     return invalid();
