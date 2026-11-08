@@ -11,6 +11,7 @@ import { assembleStageConfig, createStageSecrets } from "./hono-stage-bootstrap-
 import { terraformInitArgs } from "./hono-stage-deploy.mjs";
 import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import { stageDatabaseURL } from "./hono-stage-deploy-database.mjs";
+import { verifyFoundationalTopics } from "./hono-stage-seed.mjs";
 import {
   assertStageRuntimeFenced,
   stageFenceOptions,
@@ -136,6 +137,10 @@ async function fixtureTables(client) {
     `NOT EXISTS (SELECT 1 FROM runner_job_inputs x LEFT JOIN execution_jobs j ON j.id=x.job_id LEFT JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE w.id IS NULL OR x.version_id IS DISTINCT FROM w.problem_version_id OR x.session_id IS NOT NULL)`,
   );
   checks.set(
+    "public.question_exposure",
+    `NOT EXISTS (SELECT 1 FROM question_exposure x LEFT JOIN users u ON u.id=x.owner_id LEFT JOIN problem_versions v ON v.id=x.version_id WHERE u.id IS NULL OR v.id IS NULL)`,
+  );
+  checks.set(
     "public.execution_verification_output_chunks",
     `NOT EXISTS (SELECT 1 FROM public.execution_verification_output_chunks x LEFT JOIN execution_verification_challenges c ON c.id=x.challenge_id WHERE c.id IS NULL)`,
   );
@@ -219,6 +224,10 @@ export async function lockEmptyStage(
     );
     const fixtureChecks = allowFixtures ? await fixtureTables(client) : new Map();
     for (const table of expected.filter((r) => r.kind === "r" && r.name !== "schema_migrations")) {
+      if (table.namespace === "public" && table.name === "foundational_topics") {
+        if (!(await verifyFoundationalTopics(client))) throw new Error("Stage seed differs");
+        continue;
+      }
       const target = `${quote(table.namespace)}.${quote(table.name)}`;
       let query = `SELECT NOT EXISTS(SELECT 1 FROM ${target} LIMIT 1) AS valid`,
         args = [];

@@ -2409,16 +2409,22 @@ export const match_private_result_cases = pgTable(
 export const question_exposure = pgTable(
   "question_exposure",
   {
-    owner_id: text()
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    version_id: uuid()
-      .notNull()
-      .references(() => problem_versions.id),
+    owner_id: text().notNull(),
+    version_id: uuid().notNull(),
     assisted_at: timestamp({ withTimezone: true, mode: "string" }),
     last_seen_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
   (t) => [
+    foreignKey({
+      name: "question_exposure_owner_id_fkey",
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "question_exposure_version_id_fkey",
+      columns: [t.version_id],
+      foreignColumns: [problem_versions.id],
+    }),
     primaryKey({ columns: [t.owner_id, t.version_id] }),
     index("question_exposure_version").on(t.version_id),
   ],
@@ -2427,12 +2433,8 @@ export const question_learning_events = pgTable(
   "question_learning_events",
   {
     submission_id: uuid().primaryKey(),
-    owner_id: text()
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    version_id: uuid()
-      .notNull()
-      .references(() => problem_versions.id),
+    owner_id: text().notNull(),
+    version_id: uuid().notNull(),
     difficulty: text().notNull(),
     tags: text().array().notNull(),
     assisted: boolean().notNull().default(false),
@@ -2444,6 +2446,16 @@ export const question_learning_events = pgTable(
       .default(sql`clock_timestamp()`),
   },
   (t) => [
+    foreignKey({
+      name: "question_learning_events_owner_id_fkey",
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "question_learning_events_version_id_fkey",
+      columns: [t.version_id],
+      foreignColumns: [problem_versions.id],
+    }),
     index("learning_events_owner_time").on(t.owner_id, t.observed_at, t.submission_id),
     index("learning_events_retention").on(t.observed_at, t.submission_id),
     index("question_learning_events_version").on(t.version_id),
@@ -2454,6 +2466,19 @@ export const question_learning_events = pgTable(
     check("question_learning_events_context_check", sql`${t.context} IN ('practice','match')`),
   ],
 );
+export const question_learning_observations = pgView("question_learning_observations", {
+  submission_id: uuid(),
+  owner_id: text(),
+  version_id: uuid(),
+  difficulty: text(),
+  tags: text().array(),
+  accepted: boolean(),
+  context: text(),
+  attempted_at: timestamp({ withTimezone: true, mode: "string" }),
+  observed_at: timestamp({ withTimezone: true, mode: "string" }),
+  assisted: boolean(),
+  session_end: timestamp({ withTimezone: true, mode: "string" }),
+}).existing();
 export const recommendation_models = pgTable(
   "recommendation_models",
   {
@@ -2481,12 +2506,8 @@ export const recommendation_impressions = pgTable(
   "recommendation_impressions",
   {
     id: uuid().primaryKey().defaultRandom(),
-    owner_id: text()
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    version_id: uuid()
-      .notNull()
-      .references(() => problem_versions.id),
+    owner_id: text().notNull(),
+    version_id: uuid().notNull(),
     model_id: uuid(),
     variant: text().notNull(),
     position: integer().notNull(),
@@ -2501,7 +2522,19 @@ export const recommendation_impressions = pgTable(
     followup_solved: boolean(),
   },
   (t) => [
-    unique().on(t.owner_id, t.version_id, t.variant, t.model_id, t.served_at).nullsNotDistinct(),
+    foreignKey({
+      name: "recommendation_impressions_owner_id_fkey",
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "recommendation_impressions_version_id_fkey",
+      columns: [t.version_id],
+      foreignColumns: [problem_versions.id],
+    }),
+    unique("recommendation_impressions_owner_id_version_id_variant_mode_key")
+      .on(t.owner_id, t.version_id, t.variant, t.model_id, t.served_at)
+      .nullsNotDistinct(),
     index("recommendation_impressions_owner_question").on(
       t.owner_id,
       t.version_id,
@@ -2516,9 +2549,7 @@ export const recommendation_impressions = pgTable(
 export const recommendation_match_selections = pgTable(
   "recommendation_match_selections",
   {
-    match_id: uuid()
-      .primaryKey()
-      .references(() => matches.id, { onDelete: "cascade" }),
+    match_id: uuid().primaryKey(),
     model_id: uuid(),
     mean_success: real().notNull(),
     success_spread: real().notNull(),
@@ -2527,5 +2558,12 @@ export const recommendation_match_selections = pgTable(
       .notNull()
       .default(sql`clock_timestamp()`),
   },
-  (t) => [index("recommendation_match_retention").on(t.selected_at)],
+  (t) => [
+    foreignKey({
+      name: "recommendation_match_selections_match_id_fkey",
+      columns: [t.match_id],
+      foreignColumns: [matches.id],
+    }).onDelete("cascade"),
+    index("recommendation_match_retention").on(t.selected_at),
+  ],
 );
