@@ -53,7 +53,7 @@ export function interviewMonitoring(run: Run): InterviewMonitoring {
         await tx.execute(
           sql`UPDATE interviews SET monitoring=${JSON.stringify(policy)}::jsonb,version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
         );
-        await saveOperation(tx, actor.userId, key, hash, id);
+        await saveOperation(tx, actor.userId, key, hash, id, undefined, true);
         return JSON.stringify({ id });
       });
     },
@@ -88,7 +88,7 @@ export function interviewMonitoring(run: Run): InterviewMonitoring {
             sql`UPDATE interviews SET version=version+1,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
           );
         }
-        await saveOperation(tx, actor.userId, key, hash, id);
+        await saveOperation(tx, actor.userId, key, hash, id, undefined, true);
       });
     },
   };

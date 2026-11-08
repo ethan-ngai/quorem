@@ -312,43 +312,51 @@ it("claims and fences a real attempt through workerd", async () => {
       field: "diagnostics" | "actual",
       value: string,
     ) =>
-      claims.writeCompletionChunk(next!, {
-        channel,
-        ordinal: 0,
-        field,
-        chunkOrdinal: 0,
-        bytes: new TextEncoder().encode(value),
-      });
+      claims.writeCompletionChunks(next!, [
+        {
+          channel,
+          ordinal: 0,
+          field,
+          chunkOrdinal: 0,
+          bytes: new TextEncoder().encode(value),
+        },
+      ]);
     const diagnosticBytes = new TextEncoder().encode(
       '[{"message":"n\\u0000l' + "x".repeat(2 * 1024 * 1024) + '"}]',
     );
     for (let offset = 0, part = 0; offset < diagnosticBytes.length; offset += 65536, part++)
-      await claims.writeCompletionChunk(next!, {
-        channel: "header",
-        ordinal: 0,
-        field: "diagnostics",
-        chunkOrdinal: part,
-        bytes: diagnosticBytes.subarray(offset, offset + 65536),
-      });
+      await claims.writeCompletionChunks(next!, [
+        {
+          channel: "header",
+          ordinal: 0,
+          field: "diagnostics",
+          chunkOrdinal: part,
+          bytes: diagnosticBytes.subarray(offset, offset + 65536),
+        },
+      ]);
     await claims.sealCompletionDiagnostics(next!);
     await chunk("public", "actual", "123");
     await expect(
-      claims.writeCompletionChunk(next!, {
-        channel: "public",
-        ordinal: 0,
-        field: "expected",
-        chunkOrdinal: 0,
-        bytes: new TextEncoder().encode("987655"),
-      } as never),
+      claims.writeCompletionChunks(next!, [
+        {
+          channel: "public",
+          ordinal: 0,
+          field: "expected",
+          chunkOrdinal: 0,
+          bytes: new TextEncoder().encode("987655"),
+        } as never,
+      ]),
     ).rejects.toThrow();
     for (let offset = 0, part = 0; offset < diagnosticBytes.length; offset += 65536, part++)
-      await claims.writeCompletionChunk(next!, {
-        channel: "public",
-        ordinal: 0,
-        field: "diagnostics",
-        chunkOrdinal: part,
-        bytes: diagnosticBytes.subarray(offset, offset + 65536),
-      });
+      await claims.writeCompletionChunks(next!, [
+        {
+          channel: "public",
+          ordinal: 0,
+          field: "diagnostics",
+          chunkOrdinal: part,
+          bytes: diagnosticBytes.subarray(offset, offset + 65536),
+        },
+      ]);
     const challenge = await postgresVerificationPrepare(run)(next!, "public", 0, "accepted");
     await expect(
       httpResultVerifier({

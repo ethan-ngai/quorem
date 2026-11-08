@@ -35,6 +35,8 @@ export function boundaryViolations(root: string, sources: ReadonlyMap<string, st
         name === "@quorem/contracts/factions" ||
         name === "@quorem/contracts/auth-policy" ||
         name === "@quorem/contracts/pagination" ||
+        (relative(root, file).split(sep).join("/") === "application/json-body.ts" &&
+          name === "zod") ||
         (relative(root, file).split(sep).join("/") === "application/document-changes.ts" &&
           name === "@codemirror/state");
       const relativeBusiness =

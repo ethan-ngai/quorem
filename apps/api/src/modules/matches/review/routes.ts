@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import { ApplicationError } from "../../../application/error.ts";
 import type { Principal } from "../../identity/model.ts";
 import { identifyRequest } from "../../identity/routes.ts";
-import { body, languages } from "../../workspace/routes.ts";
+import { languages } from "../../workspace/routes.ts";
+import { jsonObjectBody } from "../../../application/json-body.ts";
 import type { WorkspaceLanguage } from "../../workspace/model.ts";
 import type { MatchReview } from "./model.ts";
 
@@ -15,7 +16,7 @@ export function matchReviewRoutes(deps: {
   app.post("/v1/matches/:id/review/workspaces", async (c) => {
     const principal = await identifyRequest((request) => deps.identify(request), c.req.raw);
     if (!principal) throw new ApplicationError("unauthenticated", "Sign in required", 401);
-    const value = await body(c.req.raw);
+    const value = await jsonObjectBody(c.req.raw, 4096);
     if (
       Object.keys(value).some((key) => key !== "participantUserId" && key !== "language") ||
       typeof value.participantUserId !== "string" ||

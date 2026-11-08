@@ -136,6 +136,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         bigint: "int8",
         bigserial: "int8",
         "double precision": "float8",
+        real: "float4",
         jsonb: "jsonb",
         bytea: "bytea",
         "text[]": "_text",
@@ -221,7 +222,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
         }
         for (const check of config.checks) {
           await pool.query(
-            `ALTER TABLE parity_probe ADD CONSTRAINT parity_check CHECK (${render(check.value)})`,
+            `ALTER TABLE parity_probe ADD CONSTRAINT parity_check CHECK (${render(check.value).replaceAll(`${quote(config.name)}.`, '"parity_probe".')})`,
           );
           const expr = await pool.query(
             `SELECT pg_get_expr(c.conbin,c.conrelid) expr FROM pg_constraint c WHERE c.conname='parity_check' AND c.conrelid='pg_temp.parity_probe'::regclass`,
@@ -256,7 +257,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
           );
           if (index.config.where) {
             await pool.query(
-              `CREATE INDEX parity_index ON parity_probe (${quote(config.columns[0].name)}) WHERE ${render(index.config.where)}`,
+              `CREATE INDEX parity_index ON parity_probe (${quote(config.columns[0].name)}) WHERE ${render(index.config.where).replaceAll(`${quote(config.name)}.`, '"parity_probe".')}`,
             );
             const probe = await pool.query(
               `SELECT pg_get_expr(x.indpred,x.indrelid) expr FROM pg_index x WHERE x.indexrelid='pg_temp.parity_index'::regclass`,
@@ -302,6 +303,9 @@ await test("migration and catalog parity on disposable database", { skip: !url }
             "question_drafts_published_version_id_fkey",
             "question_drafts_edit_version_fkey",
             "runner_job_inputs_version_id_fkey",
+            "question_exposure_version_id_fkey",
+            "question_learning_events_version_id_fkey",
+            "recommendation_impressions_version_id_fkey",
           ].includes(fk.name);
           assert.deepEqual(
             { deferrable: fk.condeferrable, deferred: fk.condeferred, setColumns: fk.set_columns },

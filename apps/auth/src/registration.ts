@@ -4,6 +4,7 @@ import { accountSetupSchema, emailSchema } from '@quorem/contracts/auth';
 import { digest, opaque } from './mail-crypto.ts';
 import { MailRateLimited, type MailRepository } from './mail-repository.ts';
 import type { MailIntentService } from './mail-intent.ts';
+import { validPeer } from './peer.ts';
 
 const cookieName = 'quorem_registration';
 const json = (status: number, body: object, headers: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...headers } });
@@ -13,14 +14,17 @@ export function createRegistrationHandler(options: { repository: MailRepository;
   return async (request: Request): Promise<Response | undefined> => {
     const path = new URL(request.url).pathname;
     if (!path.startsWith('/api/auth/registration/')) return;
+    const action = path.slice('/api/auth/registration/'.length);
+    if (!['status', 'start', 'verify', 'complete'].includes(action)) return json(404, { message: 'Not found' });
     const grant = request.headers.get('cookie')?.split(';').map((value) => value.trim()).find((value) => value.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) ?? '';
-    if (path.endsWith('/status') && request.method === 'GET') {
+    if (action === 'status' && request.method === 'GET') {
       const found = await repository.status(await digest(grant));
       return found ? json(200, found) : json(401, { message: 'This setup link expired. Request a new email.' });
     }
-    if (request.method !== 'POST') return json(405, { message: 'Method not allowed' });
+    if (action === 'status' || request.method !== 'POST') return json(405, { message: 'Method not allowed' });
     if (request.headers.get('origin') !== origin) return json(403, { message: 'Invalid origin' });
-    const limit = await repository.rateLimit('registration:requests', 'global', 60, 60);
+    const peer = validPeer(request.headers.get('x-quorem-peer-ip')) ?? 'missing';
+    const limit = await repository.rateLimit(`registration:requests:${action}`, peer, 60, 60);
     if (!limit.allowed) return json(429, { message: 'Too many attempts. Try again shortly.' }, { 'Retry-After': String(limit.retryAfter) });
     if (Number(request.headers.get('content-length')) > 4096) return json(413, { message: 'Request too large' });
     const reader = request.body?.getReader();
@@ -37,7 +41,7 @@ export function createRegistrationHandler(options: { repository: MailRepository;
     let body: Record<string, unknown>;
     try { body = JSON.parse(raw); if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(); }
     catch { return json(400, { message: 'Invalid request' }); }
-    if (path.endsWith('/start')) {
+    if (action === 'start') {
       const parsed = emailSchema.safeParse(body.email);
       if (!parsed.success) return json(400, { message: 'Enter a valid email address.' });
       const token = opaque();
@@ -56,16 +60,18 @@ export function createRegistrationHandler(options: { repository: MailRepository;
         return json(503, { message: 'Could not send your email. Please try again.' });
       }
     }
-    if (path.endsWith('/verify')) {
+    if (action === 'verify') {
       if (typeof body.token !== 'string' || body.token.length !== 43) return json(400, { message: 'This link is invalid. Request a new email.' });
       const next = opaque();
       return await repository.verify(await digest(body.token), await digest(next)) ? json(200, {}, { 'Set-Cookie': cookie(next) }) : json(400, { message: 'This link expired or was already used. Request a new email.' });
     }
-    if (path.endsWith('/complete')) {
+    if (action === 'complete') {
       const parsed = accountSetupSchema.safeParse(body);
       if (!parsed.success) return json(400, { message: parsed.error.issues[0].message });
       try {
-        const result = await repository.complete({ ...parsed.data, grantHash: await digest(grant), passwordHash: await hashPassword(parsed.data.password) });
+        const grantHash = await digest(grant);
+        if (!grant || !(await repository.status(grantHash))) return json(401, { message: 'Your setup session expired. Request a new email.' });
+        const result = await repository.complete({ ...parsed.data, grantHash, passwordHash: await hashPassword(parsed.data.password) });
         if (result === 'ok') return json(200, {}, { 'Set-Cookie': cookie('', 0) });
         if (result === 'expired') return json(401, { message: 'Your setup session expired. Request a new email.' });
         if (result === 'mismatch') return json(409, { message: 'Account setup changed in another tab. Open your email link again.' });

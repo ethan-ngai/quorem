@@ -1,37 +1,12 @@
 /** @file routes.ts @description Unmounted match lifecycle transport. @module matches */
+import { jsonObjectBody } from "../../../application/json-body.ts";
 import { Hono } from "hono";
 import { ApplicationError } from "../../../application/error.ts";
 import { identifyRequest } from "../../identity/routes.ts";
 import { guestSetCookie } from "../../identity/guest/cookie.ts";
 import type { Principal } from "../../identity/model.ts";
 import type { Lifecycle } from "./model.ts";
-async function body(request: Request, limit: number): Promise<Record<string, unknown>> {
-  if (Number(request.headers.get("content-length") ?? 0) > limit)
-    throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-  const reader = request.body?.getReader(),
-    decoder = new TextDecoder();
-  let text = "",
-    size = 0;
-  if (reader)
-    while (true) {
-      const p = await reader.read();
-      if (p.done) break;
-      size += p.value.byteLength;
-      if (size > limit) {
-        await reader.cancel();
-        throw new ApplicationError("payload_too_large", "Invalid request body", 413);
-      }
-      text += decoder.decode(p.value, { stream: true });
-    }
-  text += decoder.decode();
-  try {
-    const result: unknown = JSON.parse(text || "{}");
-    if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error();
-    return result as Record<string, unknown>;
-  } catch {
-    throw new ApplicationError("invalid_input", "Invalid request body", 400);
-  }
-}
+
 export function matchLifecycleRoutes(deps: {
   lifecycle: Lifecycle;
   identify(request: Request): Promise<Principal | undefined>;
@@ -57,7 +32,7 @@ export function matchLifecycleRoutes(deps: {
   app.post("/v1/matches/:id/rule-actions", async (c) => {
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
-      input = await body(c.req.raw, 2048);
+      input = await jsonObjectBody(c.req.raw, 2048, { emptyObject: true });
     if (
       Object.keys(input).some(
         (k) => !["kind", "submissionId", "caseIndex", "approval"].includes(k),
@@ -103,7 +78,7 @@ export function matchLifecycleRoutes(deps: {
   app.post("/v1/matches/:id/rule-events", async (c) => {
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
-      input = await body(c.req.raw, 1024);
+      input = await jsonObjectBody(c.req.raw, 1024, { emptyObject: true });
     if (
       Object.keys(input).some((k) => k !== "kind") ||
       (input.kind !== "clipboard" && input.kind !== "copy" && input.kind !== "focus")
@@ -117,7 +92,7 @@ export function matchLifecycleRoutes(deps: {
     app.post(`/v1/matches/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         operation = key(c.req.raw),
-        input = await body(c.req.raw, 1024);
+        input = await jsonObjectBody(c.req.raw, 1024, { emptyObject: true });
       if (Object.keys(input).length)
         throw new ApplicationError("invalid_input", "Invalid request body", 400);
       const result = await deps.lifecycle.mutate(who, c.req.param("id"), operation, action, null);

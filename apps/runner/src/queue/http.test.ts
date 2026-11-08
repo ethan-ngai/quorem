@@ -249,3 +249,28 @@ void test("invalid manifest is unavailable at the private transport boundary", a
     diagnostic: { operation: "manifest", status: 200, failure: "decode" },
   });
 });
+
+void test("control JSON is bounded and preserves uncertain command outcomes", async () => {
+  let cancelled = 0;
+  const client = privateRunnerCommands({
+    origin: "https://private.invalid",
+    secret,
+    scope: "s",
+    resumable: true,
+    timeoutMs: 500,
+    fetch: async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(1024 * 1024 + 1));
+          },
+          cancel() {
+            cancelled++;
+          },
+        }),
+      ),
+  });
+  await assert.rejects(client.queueState(), { outcome: "unavailable" });
+  await assert.rejects(client.claimAfterTeardown(true, "s", null), { outcome: "unknown" });
+  assert.equal(cancelled, 2);
+});

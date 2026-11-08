@@ -47,6 +47,15 @@ it.skipIf(!database)(
     const shards = [crypto.randomUUID(), crypto.randomUUID()],
       sockets: WebSocket[] = [],
       frames: { id?: string }[] = [];
+    const namespaceForAlarms = (
+      env as unknown as {
+        SOCKET: {
+          idFromName(name: string): unknown;
+          get(id: unknown): Parameters<typeof runInDurableObject>[0];
+        };
+      }
+    ).SOCKET;
+    let initialAlarm: number | null = null;
     for (let i = 0; i < 5; i++) {
       const response = await SELF.fetch(
         `https://worker.test/v1/interviews/${id}/events?shard=${shards[i % 2]}`,
@@ -71,6 +80,15 @@ it.skipIf(!database)(
         socket.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
       });
       sockets.push(socket);
+      if (i === 0 || i === 2) {
+        const scheduled = await runInDurableObject(
+          namespaceForAlarms.get(namespaceForAlarms.idFromName(shards[0])),
+          async (_instance, state) => state.storage.getAlarm(),
+        );
+        if (i === 0) initialAlarm = scheduled;
+        else expect(scheduled).toBe(initialAlarm);
+        expect(scheduled).not.toBeNull();
+      }
     }
     const count = await run((scope) =>
       scope.transaction(

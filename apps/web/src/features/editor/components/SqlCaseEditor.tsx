@@ -168,18 +168,27 @@ export function SqlCaseEditor({
     const schema = sqlTables(problem, setup);
     const output = expected === undefined ? undefined : parseSqlResult(expected);
     const names = new Set(schema.map(({ name }) => name));
+    const resize = (rows: unknown[][], columns: SqlDraftColumn[]) =>
+      rows.map((row) =>
+        columns.map((column, index) => (index < row.length ? row[index] : sqlDefault(column.type))),
+      );
+    const outputColumns = output ? sqlOutputColumns(problem, setup, output) : [];
+    const outputNeedsSync = output?.rows.some((row) => row.length !== outputColumns.length);
     const needsSync =
       !!problem.sql?.tables?.length &&
       (setup.tables.some(({ name }) => !names.has(name)) ||
-        schema.some(({ name }) => !setup.tables.some((table) => table.name === name)));
+        schema.some(({ name, columns }) => {
+          const table = setup.tables.find((item) => item.name === name);
+          return !table || table.rows.some((row) => row.length !== columns.length);
+        }));
     return (
       <>
         <div className="sql-editor-label">Input tables</div>
         {needsSync && (
           <div className="typed-case-field">
             <p>
-              Table names changed. Sync to add missing tables and remove data for tables outside the
-              schema.
+              Table schema changed. Sync preserves cells by position, adds default values, and
+              removes extra cells and tables. Check column values after syncing.
             </p>
             <button
               type="button"
@@ -187,10 +196,13 @@ export function SqlCaseEditor({
               onClick={() =>
                 onInputChange(
                   JSON.stringify({
-                    tables: schema.map(
-                      ({ name }) =>
-                        setup.tables.find((table) => table.name === name) ?? { name, rows: [] },
-                    ),
+                    tables: schema.map(({ name, columns }) => ({
+                      name,
+                      rows: resize(
+                        setup.tables.find((table) => table.name === name)?.rows ?? [],
+                        columns,
+                      ),
+                    })),
                   }),
                 )
               }
@@ -223,10 +235,29 @@ export function SqlCaseEditor({
             );
           })}
         </div>
+        {output && outputNeedsSync && (
+          <div className="typed-case-field">
+            <p>
+              Output columns changed. Sync preserves cells by position, adds defaults, and removes
+              extra cells. Check values after syncing.
+            </p>
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() =>
+                onExpectedChange(
+                  JSON.stringify({ ...output, rows: resize(output.rows, outputColumns) }),
+                )
+              }
+            >
+              Sync expected output
+            </button>
+          </div>
+        )}
         {output && (
           <EditableTable
             name="Expected output"
-            columns={sqlOutputColumns(problem, setup, output)}
+            columns={outputColumns}
             rows={output.rows}
             maxRows={10000}
             onChange={(rows) => onExpectedChange(JSON.stringify({ ...output, rows }))}
