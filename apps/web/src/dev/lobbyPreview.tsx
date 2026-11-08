@@ -1,13 +1,15 @@
 import { organizeFactionFixture, saveFixtureSettings } from "./factionLobbyFixture";
 /** Local fixture: real lobby components, simulated membership and settings. */
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import {
   createRouter,
   createRootRoute,
   createMemoryHistory,
   RouterProvider,
 } from "@tanstack/react-router";
+import { useState } from "react";
+import { InvitePage } from "../features/matches/InvitePage";
 import { PartyPage } from "../features/matches/PartyPage";
 import { savePartyInvitation } from "../features/matches/party";
 import { Notifications } from "../ui/Notifications";
@@ -46,6 +48,13 @@ const party: PartySnapshot = {
   },
 };
 const preview = new URLSearchParams(location.search);
+const guestJoin = preview.has("guest-join");
+let guest: PartySnapshot["members"][number] | undefined;
+if (guestJoin) {
+  party.settings.mode = "showdown";
+  party.settings.accessMode = "guests_allowed";
+  party.members = party.members.slice(0, 1);
+}
 if (preview.has("invite")) savePartyInvitation(party.id, "/invite/lobby-preview");
 if (preview.has("factions") || preview.has("locked")) party.settings.mode = "factions";
 if (preview.has("locked")) {
@@ -81,6 +90,36 @@ window.fetch = async (url, options) => {
   const reply = (value: unknown) =>
     new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
   if (path === "/api/auth/token") return new Response("", { status: 401 });
+  if (guestJoin) {
+    if (path === `/v1/parties/invitations/${party.id}`)
+      return reply({
+        id: party.id,
+        participantCount: party.members.length,
+        capacity: 2,
+        guestAllowed: true,
+      });
+    if (path === "/v1/guest-sessions") return new Response(null, { status: 204 });
+    if (path === `/v1/parties/invitations/${party.id}/guest`) {
+      const { name } = await request.json();
+      guest = {
+        userId: "guest",
+        displayName: name,
+        joinedAt: new Date().toISOString(),
+        ready: false,
+        online: true,
+      };
+      party.members.push(guest);
+      return reply(party);
+    }
+    if (path === "/v1/session")
+      return guest
+        ? reply({
+            mode: "development",
+            kind: "guest",
+            user: { id: guest.userId, displayName: guest.displayName, role: "user" },
+          })
+        : new Response(null, { status: 401 });
+  }
   if (path === "/v1/session")
     return reply({
       mode: "development",
@@ -132,10 +171,20 @@ window.fetch = async (url, options) => {
   return reply({ party: preview.has("create") ? null : party });
 };
 function Preview() {
+  const client = useQueryClient();
+  const [joined, setJoined] = useState(false);
   return (
     <>
       <Notifications />
-      {preview.has("create") ? (
+      {guestJoin && !joined ? (
+        <InvitePage
+          token={party.id}
+          onJoined={() => {
+            void client.resetQueries({ queryKey: ["auth-session"] });
+            setJoined(true);
+          }}
+        />
+      ) : preview.has("create") ? (
         <CreateMatchDialog identity={identity as DevelopmentIdentity} onClose={() => {}} />
       ) : (
         <PartyPage />
@@ -147,7 +196,7 @@ function Preview() {
 const route = createRootRoute({ component: Preview });
 const router = createRouter({
   routeTree: route,
-  history: createMemoryHistory({ initialEntries: ["/party"] }),
+  history: createMemoryHistory({ initialEntries: [guestJoin ? `/invite/${party.id}` : "/party"] }),
 });
 createRoot(document.getElementById("root")!).render(
   <QueryClientProvider client={new QueryClient()}>

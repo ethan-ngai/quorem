@@ -15,7 +15,13 @@ import { InvitationLayout } from "../../ui/InvitationLayout";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { TextInput } from "../../ui/TextControl";
 
-export function InvitePage({ token }: { token: string }) {
+export function InvitePage({
+  token,
+  onJoined = () => window.location.assign("/party"),
+}: {
+  token: string;
+  onJoined?: () => void;
+}) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
   const current = useParty(identity, !!account.data);
@@ -53,7 +59,7 @@ export function InvitePage({ token }: { token: string }) {
           },
         );
       }
-      window.location.assign("/party");
+      onJoined();
     } catch {
       setError("Could not join this lobby. Check the invitation and leave any other lobby first.");
       setPending(false);
