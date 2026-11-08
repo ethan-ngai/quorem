@@ -12,6 +12,7 @@ import { elapsedRoundSeconds } from "./matchTime";
 import { MatchSummaryMetadata } from "./MatchSummaryMetadata";
 import { CompletionDialog } from "../completion/CompletionDialog";
 import { PersistentNotice } from "../../ui/PersistentNotice";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { useQueryClient } from "@tanstack/react-query";
 import { readPendingCommand } from "./commandRecovery";
 import { PartyReadyStatus, MatchLobbyReadiness, PartyReadinessIndicator } from "./PartyReadyStatus";
@@ -164,7 +165,7 @@ export function MatchEndView({
   const highScore = snapshot.rules?.victory === "high_score";
   const partyStatus = (
     <div className="match-party-status" hidden={!checkingParty && !partyQuery.isError}>
-      {checkingParty && <span role="status">Checking lobby…</span>}
+      {checkingParty && <LoadingIndicator label="Checking lobby…" />}
       <PersistentNotice
         message={partyQuery.isError ? "Could not check your lobby. Try again." : undefined}
         label="Lobby unavailable"

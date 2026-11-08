@@ -11,6 +11,7 @@ import type { EditorLanguage } from "../editor/editorLanguages";
 import { Link, useBlocker, useNavigate, useSearch } from "@tanstack/react-router";
 import { QuestionDashboard } from "./QuestionDashboard";
 import { LoadingScreen } from "../../ui/LoadingScreen";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { SelectField } from "../../ui/SelectField";
 import { useChangeMotion } from "../../ui/useChangeMotion";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -146,17 +147,22 @@ function AuthoringWorkspace({
   const search = useSearch({ from: "/questions" });
   const navigate = useNavigate({ from: "/questions" });
   const { section, readiness, draft: draftId, publication, ...filters } = search;
+  const draftScope = ["admin-drafts", userId, admin] as const;
+  const publicationScope = ["admin-problems", userId, admin] as const;
   const drafts = useQuery({
-    queryKey: ["admin-drafts", admin, filters, readiness],
+    queryKey: [...draftScope, filters, readiness],
+    placeholderData: scopedPlaceholder(draftScope),
     enabled: !initialDraft && section !== "publications",
     queryFn: ({ signal }) => listDrafts({ ...filters, readiness }, signal),
   });
   const draftItems = drafts.data?.items ?? [];
   const problems = useQuery({
-    queryKey: ["admin-problems", admin, filters],
+    queryKey: [...publicationScope, filters],
+    placeholderData: scopedPlaceholder(publicationScope),
     enabled: !initialDraft && section === "publications",
     queryFn: ({ signal }) => listPublications(filters, signal),
   });
+  const questionList = section === "publications" ? problems : drafts;
   const [draft, setDraft] = useState<QuestionDraft | undefined>(initialDraft);
   const questionTitle = draft?.content.problem.title || "Untitled question";
   usePageTitle(
@@ -410,13 +416,13 @@ function AuthoringWorkspace({
               replace,
             })
           }
-          draftLoading={drafts.isPending}
-          publicationLoading={problems.isPending}
-          draftFailed={drafts.isError}
-          publicationFailed={problems.isError}
+          loading={questionList.isPending}
+          refreshing={questionList.isFetching && !!questionList.data}
+          failed={questionList.isError}
+          snapshot={questionList.isPlaceholderData ? questionList.data : undefined}
           busy={busy}
           onRunning={setBulkRunning}
-          total={section === "drafts" ? drafts.data?.total : problems.data?.total}
+          total={questionList.data?.total}
           onOpen={(row) =>
             void navigate({
               search: (previous) => ({

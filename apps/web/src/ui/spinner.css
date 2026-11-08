@@ -10,6 +10,19 @@
   margin-inline: auto;
 }
 
+.delayed-spinner {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--color-text-secondary);
+}
+
+.delayed-spinner > [role="status"] {
+  display: flex;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .ui-spinner {
     animation: ui-spinner-turn 800ms linear infinite paused;

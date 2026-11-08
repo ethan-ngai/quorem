@@ -24,7 +24,4 @@
   .competitive-clock-actions {
     gap: 6px;
   }
-  .competitive-clock-actions .sync-label {
-    display: none;
-  }
 }

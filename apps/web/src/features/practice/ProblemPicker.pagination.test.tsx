@@ -93,6 +93,7 @@ it("prefetches for fast scrolling, retains results after a failure, retries and 
   });
   expect(document.body.textContent).not.toContain("Load more questions");
   const search = document.querySelector<HTMLInputElement>('[aria-label="Search problems"]')!;
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
       search,
@@ -100,6 +101,12 @@ it("prefetches for fast scrolling, retains results after a failure, retries and 
     );
     search.dispatchEvent(new Event("input", { bubbles: true }));
   });
+  expect(get.mock.calls.some(([, options]) => options?.params?.query?.q)).toBe(false);
+  expect(document.querySelector(".problem-picker-results")).toBe(list);
+  expect(document.body.textContent).toContain("Question 29");
+  await act(async () => vi.advanceTimersByTimeAsync(250));
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  vi.useRealTimers();
   await act(async () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain("Searched question"));
   });

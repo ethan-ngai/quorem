@@ -1,4 +1,4 @@
-import { useServerTable } from "../../ui/useServerTable";
+import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { Link } from "@tanstack/react-router";
@@ -11,6 +11,7 @@ import { QuestionIndicators } from "../practice/QuestionIndicators";
 import { QuestionDifficulty, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { TableRow, Table } from "../../ui/Table";
 import { SearchField } from "../../ui/SearchField";
+import { useServerSearch } from "../../ui/useServerSearch";
 import { SelectField } from "../../ui/SelectField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Icon } from "../../ui/Icon";
@@ -41,10 +42,10 @@ export function QuestionDashboard({
   onSearch,
   drafts,
   publications,
-  draftLoading,
-  publicationLoading,
-  draftFailed,
-  publicationFailed,
+  loading,
+  refreshing,
+  failed,
+  snapshot,
   onRunning,
   busy,
   total,
@@ -57,10 +58,10 @@ export function QuestionDashboard({
   onSearch: (change: Partial<QuestionSearch>, replace?: boolean) => void;
   drafts: QuestionDraftSummary[];
   publications: Publication[];
-  draftLoading: boolean;
-  publicationLoading: boolean;
-  draftFailed: boolean;
-  publicationFailed: boolean;
+  loading: boolean;
+  refreshing: boolean;
+  failed: boolean;
+  snapshot?: Pick<ListState, "page" | "limit">;
   onRunning: (running: boolean) => void;
   busy: boolean;
   total?: number;
@@ -68,12 +69,17 @@ export function QuestionDashboard({
   onChanged: () => Promise<unknown>;
 }) {
   const tab = search.section;
-  const query = search.q ?? "";
+  const query = useServerSearch(
+    search.q ?? "",
+    (q) => onSearch({ q: q || undefined }, true),
+    search,
+  );
   const source = search.source ?? "all";
   const readiness = search.readiness ?? "all";
   const selectionScope = JSON.stringify(search);
   const [selection, setSelection] = useState<{ scope: string; ids: Set<string> }>();
-  const selected = selection?.scope === selectionScope ? selection.ids : new Set<string>();
+  const selected =
+    !snapshot && selection?.scope === selectionScope ? selection.ids : new Set<string>();
   const [confirmation, setConfirmation] = useState<{ action: Action; rows: Row[] }>();
   const action = confirmation?.action;
   const confirmed = confirmation?.rows ?? [];
@@ -89,8 +95,6 @@ export function QuestionDashboard({
   const chosen = rows.filter((row) => selected.has(row.id));
   const allVisible = rows.length > 0 && rows.every((row) => selected.has(row.id));
   const disabled = busy || running;
-  const loading = tab === "drafts" ? draftLoading : publicationLoading;
-  const failed = tab === "drafts" ? draftFailed : publicationFailed;
 
   const page = search.page ?? 1;
   const limit = search.limit ?? 50;
@@ -98,7 +102,7 @@ export function QuestionDashboard({
     data: rows,
     columns: dashboardColumns,
     total,
-    loading: loading || failed,
+    loading: loading || refreshing || !!snapshot || failed,
     state: {
       page,
       limit,
@@ -259,9 +263,10 @@ export function QuestionDashboard({
           className="admin-question-search"
           aria-label="Search questions"
           placeholder="Search questions"
-          value={query}
+          value={query.text}
           maxLength={120}
-          onChange={(event) => onSearch({ q: event.target.value || undefined }, true)}
+          onChange={(event) => query.change(event.target.value)}
+          refreshing={refreshing}
           disabled={disabled}
         />
       </div>
@@ -371,7 +376,7 @@ export function QuestionDashboard({
       ) : failed ? (
         <p role="alert">Questions could not be loaded. Refresh to try again.</p>
       ) : (
-        <div className="admin-table-scroll">
+        <div className="admin-table-scroll" aria-busy={refreshing}>
           <Table
             className="admin-question-table"
             label={tab === "drafts" ? "Draft questions" : "Question publications"}
@@ -387,7 +392,7 @@ export function QuestionDashboard({
                         input.indeterminate =
                           !allVisible && rows.some((row) => selected.has(row.id));
                     }}
-                    disabled={disabled || !rows.length}
+                    disabled={disabled || !!snapshot || !rows.length}
                     onChange={(event) =>
                       toggle(
                         rows.map((row) => row.id),
@@ -423,7 +428,7 @@ export function QuestionDashboard({
                     type="checkbox"
                     aria-label={`Select ${row.title || "untitled question"}`}
                     checked={selected.has(row.id)}
-                    disabled={disabled}
+                    disabled={disabled || !!snapshot}
                     onChange={(event) => toggle([row.id], event.target.checked)}
                   />
                 </td>
@@ -502,7 +507,9 @@ export function QuestionDashboard({
           </Table>
         </div>
       )}
-      {!loading && !failed && <TablePagination table={table} disabled={disabled} />}
+      {!loading && !failed && (
+        <TablePagination table={table} disabled={disabled} snapshot={snapshot} />
+      )}
       <BulkQuestionConfirmation
         action={action}
         questions={confirmed}

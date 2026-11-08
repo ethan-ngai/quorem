@@ -7,6 +7,7 @@ import type { TeamSnapshot, TeamAction } from "@quorem/contracts/factions";
 import type { CollaborationStatus } from "../collaboration/documentSync";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { TeamVoteToast } from "./TeamVoteToast";
 import { createTeamCollaboration } from "./collaboration";
@@ -133,15 +134,11 @@ function TeamWorkspace({
           <div className="faction-toolbar">
             <strong>{factionName(snapshot.team, match.factionNames)}</strong>
             <span>{snapshot.members.map((m) => m.name).join(", ")}</span>
-            {status !== "connected" && (
-              <span role="status">
-                {status === "replaced"
-                  ? "Document replaced"
-                  : status === "offline"
-                    ? "Reconnecting…"
-                    : "Syncing…"}
-              </span>
-            )}
+            {status === "replaced" ? (
+              <span role="status">Document replaced</span>
+            ) : status !== "connected" ? (
+              <LoadingIndicator label={status === "offline" ? "Reconnecting…" : "Syncing…"} />
+            ) : null}
             <button
               className="quiet-button"
               disabled={match.state !== "active"}

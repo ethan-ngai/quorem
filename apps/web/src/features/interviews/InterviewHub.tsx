@@ -5,6 +5,8 @@ import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { randomUUID } from "../../randomUUID";
 import { LoadingScreen } from "../../ui/LoadingScreen";
+import { DelayedSpinner } from "../../ui/Spinner";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -59,8 +61,10 @@ export function InterviewHub() {
     sort: "updatedAt",
     order: "desc",
   });
+  const scope = ["interviews", account.data?.user.id] as const;
   const sessions = useQuery({
-    queryKey: ["interviews", account.data?.user.id, list],
+    queryKey: [...scope, list],
+    placeholderData: scopedPlaceholder(scope),
     queryFn: ({ signal }) =>
       interviewRequest<InterviewPage>(
         `/v1/interviews?${new URLSearchParams({ ...list, page: String(list.page), limit: String(list.limit) })}`,
@@ -99,7 +103,7 @@ export function InterviewHub() {
     data: sessions.data?.items ?? [],
     columns: interviewColumns,
     total: sessions.data?.total,
-    loading: sessions.isFetching,
+    loading: sessions.isFetching || sessions.isPlaceholderData,
     state: list,
     onChange: setList,
   });
@@ -135,19 +139,25 @@ export function InterviewHub() {
         title="Interviews"
         description="Collaborate in a shared coding workspace."
         actions={
-          account.data?.capabilities?.interviews && (
-            <button
-              className="button button-primary"
-              disabled={sessions.isPending || sessions.isError || atLimit}
-              title={atLimit ? "End your active interview before hosting another" : undefined}
-              onClick={() => {
-                setCreated(undefined);
-                setCreating(true);
-              }}
-            >
-              New interview
-            </button>
-          )
+          <div className="practice-heading-actions">
+            <DelayedSpinner
+              active={sessions.isFetching && !!sessions.data}
+              label="Updating interviews"
+            />
+            {account.data?.capabilities?.interviews && (
+              <button
+                className="button button-primary"
+                disabled={sessions.isPending || sessions.isError || atLimit}
+                title={atLimit ? "End your active interview before hosting another" : undefined}
+                onClick={() => {
+                  setCreated(undefined);
+                  setCreating(true);
+                }}
+              >
+                New interview
+              </button>
+            )}
+          </div>
         }
       >
         <section
@@ -262,7 +272,11 @@ export function InterviewHub() {
                   </TableRow>
                 ))}
               </Table>
-              <TablePagination table={table} disabled={busy} />
+              <TablePagination
+                table={table}
+                disabled={busy}
+                snapshot={sessions.isPlaceholderData ? sessions.data : undefined}
+              />
               {!sessions.data?.items.length && (
                 <div className="practice-state">
                   <h2>No interviews yet</h2>

@@ -81,10 +81,10 @@
   background: var(--color-surface);
   transition: background var(--motion-fast);
 }
-.table-page-button:not(:disabled):hover {
+.table-page-button:not(:disabled, [aria-disabled="true"]):hover {
   background: var(--color-overlay);
 }
-.table-page-button:disabled {
+.table-page-button:is(:disabled, [aria-disabled="true"]) {
   opacity: 0.4;
   cursor: default;
 }

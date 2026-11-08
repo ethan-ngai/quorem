@@ -1,7 +1,7 @@
 /** @file ProblemPicker.tsx @description Shared searchable question picker for session setup. @module practice */
 import { Disclosure } from "../../ui/Disclosure";
 import * as Popover from "../../ui/Popover";
-import { useId, useRef, useState, type UIEvent } from "react";
+import { useId, useLayoutEffect, useRef, useState, type UIEvent } from "react";
 import { AlertCircle, Dices } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
@@ -11,6 +11,8 @@ import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
+import { useServerSearch } from "../../ui/useServerSearch";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { Icon } from "../../ui/Icon";
 import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
@@ -50,6 +52,7 @@ export function ProblemPicker({
   const warningId = useId();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const inputSearch = useServerSearch(search, setSearch);
   const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
   const filters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
   const allowed = difficulties?.join(",");
@@ -57,8 +60,12 @@ export function ProblemPicker({
     ?.split(",")
     .filter((value) => !difficulties || difficulties.includes(value));
   const noAllowedDifficulty = !!filters.difficulty && selectedDifficulties?.length === 0;
+  const scope = ["picker-catalog-infinite", identity, library, allowed] as const;
+  const queryKey = [...scope, search, filters] as const;
+  const resultsKey = JSON.stringify(queryKey);
   const catalog = useInfiniteQuery({
-    queryKey: ["picker-catalog-infinite", identity, library, search, filters, allowed],
+    queryKey,
+    placeholderData: scopedPlaceholder(scope),
     initialPageParam: 1,
     enabled: open && !noAllowedDifficulty,
     queryFn: async ({ pageParam, signal }) => {
@@ -68,7 +75,7 @@ export function ProblemPicker({
           query: {
             ...filters,
             sql: filters.sql ?? "false",
-            q: search.trim() || undefined,
+            q: search || undefined,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
             page: pageParam,
@@ -128,14 +135,21 @@ export function ProblemPicker({
   const [chosen, setChosen] = useState<{ id: string; title: string }>();
   const popover = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
+  const results = useRef<HTMLDivElement>(null);
   const lastScroll = useRef<{ list: HTMLDivElement; top: number; time: number }>(null);
   const selected =
     items.find((item) => item.id === value) ?? (chosen?.id === value ? chosen : undefined);
   const filtered = noAllowedDifficulty
     ? []
     : (catalog.data?.pages.flatMap((page) => page.items) ?? []);
+  const replacingRows = catalog.isPlaceholderData || inputSearch.text.trim() !== search;
+  const settledKey = catalog.data && !catalog.isPlaceholderData ? resultsKey : undefined;
+  useLayoutEffect(() => {
+    if (settledKey && results.current) results.current.scrollTop = 0;
+  }, [settledKey, open]);
+  const canLoadMore = !replacingRows && !catalog.isFetching;
   const loadMore = () => {
-    if (catalog.hasNextPage && !catalog.isFetching && !catalog.isFetchNextPageError)
+    if (catalog.hasNextPage && canLoadMore && !catalog.isFetchNextPageError)
       void catalog.fetchNextPage({ cancelRefetch: false });
   };
   function prefetchOnScroll({ currentTarget: list, timeStamp }: UIEvent<HTMLDivElement>) {
@@ -152,6 +166,8 @@ export function ProblemPicker({
     if (scrollHeight - top - height <= lead) loadMore();
   }
   function choose(id: string | undefined) {
+    if (id && replacingRows) return;
+    inputSearch.reset();
     setOpen(false);
     if (id === value) return;
     setChosen(filtered.find((item) => item.id === id) ?? items.find((item) => item.id === id));
@@ -180,6 +196,7 @@ export function ProblemPicker({
       open={open}
       onOpenChange={(value) => {
         setOpen(value);
+        inputSearch.reset();
         if (value) {
           setSearch("");
         }
@@ -236,17 +253,17 @@ export function ProblemPicker({
             shortcutTarget={popover}
             aria-label="Search problems"
             placeholder="Search problems"
-            value={search}
+            value={inputSearch.text}
             maxLength={120}
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
+            onChange={(event) => inputSearch.change(event.target.value)}
+            refreshing={!noAllowedDifficulty && catalog.isFetching && !!catalog.data}
           />
           <div
-            key={JSON.stringify([search, filters, allowed])}
+            ref={results}
             className="problem-picker-results"
             role="group"
             aria-label="Matching problems"
+            aria-busy={!noAllowedDifficulty && catalog.isFetching}
             onScroll={prefetchOnScroll}
           >
             {allowRandom && (
@@ -267,6 +284,7 @@ export function ProblemPicker({
                 key={item.id}
                 className="problem-picker-item"
                 aria-pressed={value === item.id}
+                aria-disabled={replacingRows || undefined}
                 onClick={() => choose(item.id)}
               >
                 {value === item.id && <Icon name="submit" />}
@@ -292,17 +310,15 @@ export function ProblemPicker({
                   Retry
                 </button>
               </div>
-            ) : !noAllowedDifficulty && (catalog.isLoading || catalog.isFetchingNextPage) ? (
-              <LoadingIndicator
-                label={filtered.length ? "Loading more questions…" : "Loading questions…"}
-              />
+            ) : !noAllowedDifficulty && catalog.isLoading ? (
+              <LoadingIndicator label="Loading questions…" />
             ) : !filtered.length ? (
               <p role="status">No matching problems</p>
             ) : catalog.hasNextPage ? (
               <button
                 type="button"
                 className="quiet-button"
-                aria-disabled={catalog.isFetching || undefined}
+                aria-disabled={!canLoadMore || undefined}
                 onClick={loadMore}
               >
                 Load more questions

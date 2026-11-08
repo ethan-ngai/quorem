@@ -9,13 +9,14 @@ import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { X, Layers, Globe, LockKeyhole } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
+import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { addFilter } from "./catalogSearch";
 import type { CatalogSearch } from "./catalogSearch";
@@ -34,24 +35,10 @@ export function PracticeBrowser() {
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
   const library = search.library;
   const navigate = useNavigate({ from: "/practice" });
-  const [query, setQuery] = useState(search.q ?? "");
-  const [editing, setEditing] = useState(false);
   const update = (change: Partial<CatalogSearch>, replace = false) => {
     void navigate({ search: (previous) => ({ ...previous, page: undefined, ...change }), replace });
   };
-  // Back/forward replaces input state; pending input must never overwrite a restored URL.
-  useEffect(() => {
-    setQuery(search.q ?? "");
-    setEditing(false);
-  }, [search]);
-  useEffect(() => {
-    if (!editing) return;
-    const timer = window.setTimeout(() => {
-      update({ q: query.trim() || undefined }, true);
-      setEditing(false);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [query, editing, search]);
+  const query = useServerSearch(search.q ?? "", (q) => update({ q: q || undefined }, true), search);
   const catalog = useQuery(catalogQueryOptions(queryClient, actor, search));
   useEffect(() => {
     if (!catalog.data) return;
@@ -76,8 +63,7 @@ export function PracticeBrowser() {
     search.sql,
   );
   const clear = () => {
-    setQuery("");
-    setEditing(false);
+    query.reset();
     update({
       q: undefined,
       difficulty: undefined,
@@ -96,7 +82,10 @@ export function PracticeBrowser() {
     data: catalog.data?.items ?? [],
     columns: practiceColumns,
     total: catalog.data?.total,
-    loading: catalog.isFetching || (actor === undefined && library !== "global"),
+    loading:
+      catalog.isFetching ||
+      catalog.isPlaceholderData ||
+      (actor === undefined && library !== "global"),
     state: { page, limit: pageSize, sort: search.sort ?? "title", order: search.order ?? "asc" },
     onChange: (next) =>
       update({
@@ -114,9 +103,11 @@ export function PracticeBrowser() {
         title="Practice"
         description="Browse questions by topic, company and difficulty."
         actions={
-          <span className="practice-total">
-            {total} {total === 1 ? "question" : "questions"}
-          </span>
+          catalog.data && (
+            <span className="practice-total">
+              {total} {total === 1 ? "question" : "questions"}
+            </span>
+          )
         }
       >
         <div className="practice-toolbar">
@@ -124,11 +115,9 @@ export function PracticeBrowser() {
             className="practice-search"
             aria-label="Search questions"
             placeholder="Search questions or topics"
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setEditing(true);
-            }}
+            value={query.text}
+            onChange={(event) => query.change(event.target.value)}
+            refreshing={catalog.isFetching && !!catalog.data}
           />
         </div>
         <div className="practice-filters">
@@ -261,7 +250,10 @@ export function PracticeBrowser() {
                   )}
                 </div>
               )}
-              <TablePagination table={table} />
+              <TablePagination
+                table={table}
+                snapshot={catalog.isPlaceholderData ? catalog.data : undefined}
+              />
             </>
           )}
         </section>

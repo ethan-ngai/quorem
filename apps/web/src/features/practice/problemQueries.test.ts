@@ -208,6 +208,30 @@ it("never uses another user's rows as a personalization or private-library place
   expect(privateLibrary.getCurrentResult().data).toBeUndefined();
 });
 
+it("keeps rows for filter changes within a private library and drops them at scope boundaries", async () => {
+  const cache = client();
+  const account = actor("account-a");
+  const initial = catalogQueryOptions(cache, account, { library: "private" });
+  await cache.fetchQuery(initial);
+  const observer = new QueryObserver(cache, initial);
+  const stop = observer.subscribe(() => {});
+  try {
+    observer.setOptions(catalogQueryOptions(cache, account, { library: "private", q: "tree" }));
+    expect(observer.getCurrentResult().isPlaceholderData).toBe(true);
+    expect(observer.getCurrentResult().data?.items).toContainEqual(privateProblem);
+
+    observer.setOptions(catalogQueryOptions(cache, account, { q: "tree" }));
+    expect(observer.getCurrentResult().data).toBeUndefined();
+
+    observer.setOptions(
+      catalogQueryOptions(cache, actor("account-b"), { library: "private", q: "tree" }),
+    );
+    expect(observer.getCurrentResult().data).toBeUndefined();
+  } finally {
+    stop();
+  }
+});
+
 it("does not initialize a newly resolved account from expired public details", async () => {
   const cache = client();
   const clock = vi.spyOn(Date, "now").mockReturnValue(1000);

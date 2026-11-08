@@ -11,7 +11,12 @@ import { QuestionBasics, questionTitleConstraint } from "../../ui/QuestionBasics
 import { useId, useRef, useState, type FormEvent } from "react";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { useSession } from "../auth/session";
-import type { InterviewQuestionInput, Signature, ProblemVersion } from "@quorem/contracts";
+import type {
+  DevelopmentIdentity,
+  InterviewQuestionInput,
+  Signature,
+  ProblemVersion,
+} from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { SelectField } from "../../ui/SelectField";
 import { languageLabels, type EditorLanguage } from "../editor/editorLanguages";
@@ -267,6 +272,7 @@ export function QuestionSetup({
           <div className="admin-field">
             <span>Problem</span>
             <ProblemPicker
+              identity={session.data?.user.id as DevelopmentIdentity | undefined}
               items={selectedProblem ? [selectedProblem] : []}
               value={selected}
               onChange={(value, problem) => {

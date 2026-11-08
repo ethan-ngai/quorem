@@ -8,6 +8,7 @@ import { canAccess } from "../auth/adminAccess";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
 import { LoadingScreen } from "../../ui/LoadingScreen";
+import { DelayedSpinner } from "../../ui/Spinner";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { Table, TableRow } from "../../ui/Table";
 import { getAdminOverview } from "./api";
@@ -50,8 +51,12 @@ export function AdminDashboard() {
               disabled={overview.isFetching}
               onClick={() => void overview.refetch()}
             >
-              <RefreshCw size={14} aria-hidden="true" />
-              {overview.isFetching && overview.data ? "Refreshing…" : "Refresh"}
+              <DelayedSpinner
+                active={overview.isFetching && !!overview.data}
+                label="Refreshing overview"
+                fallback={<RefreshCw size={14} aria-hidden="true" />}
+              />
+              Refresh
             </button>
             <Link className="button" to="/questions" search={{ section: "publications" }}>
               Question Editor <ArrowUpRight size={14} aria-hidden="true" />
@@ -62,11 +67,7 @@ export function AdminDashboard() {
           <>
             <AdminOverviewContent data={overview.data} />
             <p className="admin-overview-updated" role="status">
-              {overview.isFetching
-                ? "Refreshing overview…"
-                : overview.isError
-                  ? "Showing the last loaded overview."
-                  : "Updated"}{" "}
+              {overview.isError ? "Showing the last loaded overview." : "Updated"}{" "}
               <DateTime value={overview.data.generatedAt} />
             </p>
           </>

@@ -3,6 +3,7 @@ import type { DevelopmentIdentity, paths, ProblemVersion } from "@quorem/contrac
 import { api, publicApi, requireData } from "../../api/client";
 import { fetchProblem, fetchProblemVersion } from "../editor/api";
 import type { CatalogSearch } from "./catalogSearch";
+import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
 type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
@@ -37,6 +38,8 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
 
 const facetsKey = (scope: string, library: CatalogSearch["library"]) =>
   ["public-problem-facets", scope, library] as const;
+const catalogScope = (scope: string, library: CatalogSearch["library"]) =>
+  ["public-problems", scope, library] as const;
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();
@@ -62,19 +65,20 @@ export function catalogQueryOptions(
     page: search.page ?? 1,
     limit: search.limit ?? catalogPageSize,
   };
+  const scope = catalogScope(context.scope, context.library);
+  const retain = scopedPlaceholder(scope);
   return queryOptions<CatalogPage>({
-    queryKey: ["public-problems", context.scope, filters] as const,
+    queryKey: [...scope, filters] as const,
     enabled: context.scope !== pendingScope,
     staleTime,
-    placeholderData:
-      context.scope !== publicScope && search.library !== "private"
-        ? () =>
-            freshState<CatalogPage>(client, [
-              "public-problems",
-              publicScope,
-              { ...filters, library: "global" },
-            ])?.data
-        : undefined,
+    placeholderData: (previous, query) =>
+      retain(previous, query) ??
+      (context.scope !== publicScope && search.library !== "private"
+        ? freshState<CatalogPage>(client, [
+            ...catalogScope(publicScope, "global"),
+            { ...filters, library: "global" },
+          ])?.data
+        : undefined),
     queryFn: async ({ signal }) => {
       if (context.scope === pendingScope) throw new Error("Account still loading");
       // A local development server may assign an owner even without browser credentials.
