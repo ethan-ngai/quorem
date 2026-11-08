@@ -11,6 +11,7 @@ import { QuestionIndicators } from "./QuestionIndicators";
 import { catalogKind, catalogKindChange, type CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
+import { ScrollViewport } from "../../ui/ScrollViewport";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { Icon } from "../../ui/Icon";
@@ -270,7 +271,7 @@ export function ProblemPicker({
             onChange={(event) => inputSearch.change(event.target.value)}
             refreshing={!noAllowedDifficulty && catalog.isFetching && !!catalog.data}
           />
-          <div
+          <ScrollViewport
             ref={results}
             className="problem-picker-results"
             role="group"
@@ -349,7 +350,7 @@ export function ProblemPicker({
                 Load more questions
               </button>
             ) : null}
-          </div>
+          </ScrollViewport>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

@@ -580,8 +580,6 @@
   margin-bottom: var(--space-1);
 }
 .problem-picker-results {
-  overflow-y: auto;
-  min-height: 0;
   max-height: 260px;
 }
 .problem-picker-item {

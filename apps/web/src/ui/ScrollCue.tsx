@@ -8,6 +8,7 @@ import {
   type UIEvent,
 } from "react";
 import { Icon } from "./Icon";
+import { ScrollViewport } from "./ScrollViewport";
 import "./scroll-cue.css";
 
 /** Marks overflow at the end of either scroll axis. Use className to size the wrapper. */
@@ -56,8 +57,9 @@ export function ScrollCue({
       data-axis={axis}
       dir={dir}
     >
-      <div
+      <ScrollViewport
         ref={viewport}
+        axis={axis}
         className={viewportClassName}
         {...viewportProps}
         data-slot="scroll-cue-viewport"
@@ -67,7 +69,7 @@ export function ScrollCue({
           {children}
           <span ref={end} className="scroll-cue-end" aria-hidden="true" />
         </div>
-      </div>
+      </ScrollViewport>
       <div
         className="scroll-cue-indicator"
         data-visible={hasMore}
