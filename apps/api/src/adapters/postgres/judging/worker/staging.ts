@@ -78,6 +78,7 @@ async function locked(tx: Transaction, job: Job): Promise<boolean> {
 export function postgresCompletionStaging(
   run: Run,
   verification?: { verifier: ResultVerifier; verificationPublicKey: CryptoKey },
+  wakeMatchDeadline?: (match: string) => Promise<void>,
 ) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
@@ -122,9 +123,16 @@ export function postgresCompletionStaging(
       const commit = postgresVerificationCommit(run, verification.verificationPublicKey);
       const challenge = await retryVerificationLock(() => prepare(job, channel, ordinal, status));
       const signed = await verification.verifier.verify(challenge.id);
-      await retryVerificationLock(() =>
+      const pendingMatch = await retryVerificationLock(() =>
         commit(challenge, signed.receipt, signed.signature, signed.fields),
       );
+      if (pendingMatch && wakeMatchDeadline) {
+        try {
+          await wakeMatchDeadline(pendingMatch);
+        } catch {
+          /* Scheduled repair can see the committed intent. */
+        }
+      }
     },
     async chunks(job: Job, items: readonly CompletionFieldChunk[]): Promise<void> {
       if (!items.length || items.length > 16) throw new Error("Invalid completion batch");

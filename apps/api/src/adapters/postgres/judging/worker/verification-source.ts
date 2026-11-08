@@ -14,10 +14,11 @@ export async function lockVerificationChallenge(tx: Transaction, id: string) {
     frame_hash: string;
     raw_status: string;
     job_id: string;
+    match_id: string | null;
     result_channel: string;
     result_ordinal: number;
   }>(
-    sql`SELECT c.job_data,c.sandbox_scope,c.ordinal,encode(c.frame_hash,'hex') AS frame_hash,c.raw_status,c.job_id::text,c.result_channel,c.result_ordinal FROM execution_verification_challenges c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN execution_completion_staging st ON st.job_id=c.job_id WHERE c.id=${id}::uuid AND c.attempt_id=j.attempt_id AND c.sandbox_scope=j.sandbox_scope AND st.attempt_id=c.attempt_id AND st.sandbox_scope=c.sandbox_scope AND NOT st.eof FOR SHARE OF j,s,st FOR UPDATE OF c`,
+    sql`SELECT c.job_data,c.sandbox_scope,c.ordinal,encode(c.frame_hash,'hex') AS frame_hash,c.raw_status,c.job_id::text,s.match_id::text,c.result_channel,c.result_ordinal FROM execution_verification_challenges c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN execution_completion_staging st ON st.job_id=c.job_id WHERE c.id=${id}::uuid AND c.attempt_id=j.attempt_id AND c.sandbox_scope=j.sandbox_scope AND st.attempt_id=c.attempt_id AND st.sandbox_scope=c.sandbox_scope AND NOT st.eof FOR SHARE OF j,s,st FOR UPDATE OF c`,
   );
   const row = rows.rows[0];
   if (!row) throw new Error("Verification unavailable");

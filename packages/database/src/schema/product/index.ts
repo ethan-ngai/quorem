@@ -695,20 +695,11 @@ export const submission_outbox = pgTable(
   ],
 );
 
-export const match_reconciliation_pending = pgTable(
-  "match_reconciliation_pending",
-  {
-    match_id: uuid().primaryKey().notNull(),
-    generation: bigint({ mode: "bigint" }).default(1n).notNull(),
-  },
-  (table): PgTableExtraConfigValue[] => [
-    foreignKey({
-      columns: [table.match_id],
-      foreignColumns: [matches.id],
-      name: "match_reconciliation_pending_match_id_fkey",
-    }).onDelete("cascade"),
-  ],
-);
+export const match_reconciliation_pending = pgTable("match_reconciliation_pending", {
+  match_id: uuid().primaryKey().notNull(),
+  generation: bigint({ mode: "bigint" }).default(1n).notNull(),
+  publish_update: boolean().default(true).notNull(),
+});
 
 export const matches = pgTable(
   "matches",
