@@ -114,17 +114,10 @@
   font-size: var(--text-label);
 }
 
-.graph-value-types > summary,
 .graph-node-values > summary {
   cursor: pointer;
   color: var(--color-text-secondary);
   font-size: var(--text-label);
-}
-
-.graph-value-type {
-  display: flex;
-  gap: var(--space-2);
-  align-items: end;
 }
 
 .graph-signature-choice {

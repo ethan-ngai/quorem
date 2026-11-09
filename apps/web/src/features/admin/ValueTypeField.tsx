@@ -11,10 +11,11 @@ import {
 } from "../editor/typedValues";
 
 const graphChoice = "Graph";
-type Choice = ValueType["kind"] | "void" | typeof graphChoice;
+const noneChoice = "None";
+type Choice = ValueType["kind"] | "void" | typeof graphChoice | typeof noneChoice;
 type GraphChoice = { selected: boolean; onSelect: () => void };
 type AuthoringType = ValueType | { kind: "void" };
-const searchAliases: Record<Exclude<Choice, typeof graphChoice>, string> = {
+const searchAliases: Partial<Record<Choice, string>> = {
   int: "Integer",
   long: "64-bit integer",
   float: "Floating-point number",
@@ -38,6 +39,7 @@ function TypeBlock({
   depth = 0,
   payloadOnly = false,
   graph,
+  clear,
   onChange,
 }: {
   label: string;
@@ -47,6 +49,7 @@ function TypeBlock({
   depth?: number;
   payloadOnly?: boolean;
   graph?: GraphChoice;
+  clear?: { selected: boolean; onSelect: () => void };
   onChange: (type: AuthoringType) => void;
 }) {
   const nodeKind = nodeKinds.find((kind) => kind === type?.kind);
@@ -57,11 +60,16 @@ function TypeBlock({
       <span className="authoring-type-token">
         <SearchableTypeSelect<Choice>
           label={label}
-          value={graph?.selected ? graphChoice : type?.kind}
+          value={
+            graph?.selected
+              ? graphChoice
+              : (type?.kind ?? (clear?.selected ? noneChoice : undefined))
+          }
           choices={
             payloadOnly
               ? nodePayloadTypes
               : [
+                  ...(clear ? ([noneChoice] as const) : []),
                   ...(depth < 100 ? valueAtoms : nodePayloadTypes),
                   ...(depth < 100 ? valueWrappers : []),
                   ...(allowVoid ? ["void" as const] : []),
@@ -71,7 +79,9 @@ function TypeBlock({
           searchAliases={searchAliases}
           disabled={disabled}
           onChange={(kind) => {
-            if (kind === graphChoice) {
+            if (kind === noneChoice) {
+              clear?.onSelect();
+            } else if (kind === graphChoice) {
               graph?.onSelect();
             } else if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
               if (type?.kind === kind && !graph?.selected) return;
@@ -128,23 +138,30 @@ export function ValueTypeField({
   allowVoid = false,
   disabled,
   graph,
+  onClear,
   onChange,
   onValidityChange,
 }: {
   label: string;
   hideLabel?: boolean;
-  value: string;
+  value?: string;
   allowVoid?: boolean;
   disabled: boolean;
   graph?: GraphChoice;
+  onClear?: () => void;
   onChange: (value: string) => void;
   onValidityChange?: (id: string, invalid: boolean) => void;
 }) {
   const id = useId();
-  const type = allowVoid && value === "void" ? { kind: "void" as const } : parseValueType(value);
+  const type =
+    allowVoid && value === "void"
+      ? { kind: "void" as const }
+      : value === undefined
+        ? undefined
+        : parseValueType(value);
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
-  const invalid = !type && !graph?.selected;
+  const invalid = !type && !graph?.selected && (value !== undefined || !onClear);
   useEffect(() => {
     validity.current?.(id, invalid);
   }, [id, invalid]);
@@ -157,6 +174,7 @@ export function ValueTypeField({
         allowVoid={allowVoid}
         disabled={disabled}
         graph={graph}
+        clear={onClear ? { selected: value === undefined, onSelect: onClear } : undefined}
         onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
       />
     </div>

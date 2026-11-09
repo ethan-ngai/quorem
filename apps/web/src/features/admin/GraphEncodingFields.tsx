@@ -246,44 +246,18 @@ export function GraphEncodingFields({
         )}
       </div>
       {encoding.kind === "custom" && (
-        <details className="graph-value-types">
-          <summary>Value types</summary>
-          {(["nodeValueType", "edgeValueType"] as const).map((field) => {
-            const label = field === "nodeValueType" ? "Node value" : "Edge value";
-            return (
-              <div className="graph-value-type" key={field}>
-                {encoding[field] ? (
-                  <>
-                    <ValueTypeField
-                      label={label}
-                      value={encoding[field]}
-                      disabled={disabled}
-                      onChange={(value) => onChange({ ...encoding, [field]: value })}
-                    />
-                    <button
-                      type="button"
-                      className="icon-button"
-                      disabled={disabled}
-                      aria-label={`Clear ${label.toLowerCase()} type`}
-                      onClick={() => onChange({ ...encoding, [field]: undefined })}
-                    >
-                      <X size={14} aria-hidden="true" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className="quiet-button"
-                    disabled={disabled}
-                    onClick={() => onChange({ ...encoding, [field]: "str" })}
-                  >
-                    <Plus size={14} aria-hidden="true" /> Set {label.toLowerCase()} type
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </details>
+        <div className="graph-binding-options">
+          {(["nodeValueType", "edgeValueType"] as const).map((field) => (
+            <ValueTypeField
+              key={field}
+              label={field === "nodeValueType" ? "Node value type" : "Edge value type"}
+              value={encoding[field]}
+              disabled={disabled}
+              onClear={() => onChange({ ...encoding, [field]: undefined })}
+              onChange={(value) => onChange({ ...encoding, [field]: value })}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
