@@ -1,14 +1,20 @@
 /** @file graphFixtures.ts @description Editable local fixtures for graph authoring and solver previews. @module dev */
 import type { QuestionContent, Signature } from "@quorem/contracts";
-import { normalizeQuestionDraft, type QuestionGraph } from "@quorem/questions";
+import {
+  GRAPH_RETURN,
+  graphPresetType,
+  graphReturnSlot,
+  normalizeQuestionDraft,
+  type QuestionGraph,
+} from "@quorem/questions";
 
 type Case = QuestionContent["problem"]["examples"][number];
 type Fixture = {
   id: string;
   title: string;
   hint: string;
-  parameters: Signature["parameters"];
-  returnType: string;
+  parameters: (Omit<Signature["parameters"][number], "type"> & { type?: string })[];
+  returnType?: string;
   graphEncodings?: Signature["graphEncodings"];
   examples: Case[];
   hiddenCases?: Case[];
@@ -24,6 +30,22 @@ const path = {
   ],
 } satisfies QuestionGraph;
 const sparse = { ...path, edges: [{ from: 0, to: 2 }] } satisfies QuestionGraph;
+const directedExamples: Case[] = [
+  { args: [null, null], expected: true, graphs: { edges: path } },
+  { args: [null, null], expected: true, graphs: { edges: sparse } },
+  {
+    args: [null, null],
+    expected: false,
+    graphs: { edges: { directed: true, nodes: [], edges: [] } },
+  },
+];
+const directedHiddenCases: Case[] = [
+  {
+    args: [null, null],
+    expected: false,
+    graphs: { edges: { ...path, edges: [{ from: 2, to: 1 }] } },
+  },
+];
 const roadCase: Case = {
   args: [
     [
@@ -42,11 +64,7 @@ export const graphFixtures: readonly Fixture[] = [
     id: "weighted",
     title: "Weighted edge list",
     hint: "Opens directly from the saved array. Focus a weight to highlight its edge. Node 5 is isolated. Add a row and paste two tab-separated edge rows, or clear a weight to see validation and the last valid solver input.",
-    parameters: [
-      { name: "times", type: pairs },
-      { name: "n", type: "int" },
-      { name: "start", type: "int" },
-    ],
+    parameters: [{ name: "times" }, { name: "n", type: "int" }, { name: "start", type: "int" }],
     returnType: "int",
     graphEncodings: {
       times: {
@@ -78,11 +96,7 @@ export const graphFixtures: readonly Fixture[] = [
     id: "two-inputs",
     title: "Two graphs with a shared node count",
     hint: "One undirected edge list and one directed adjacency list both generate n. Change the node count in both graphs to resolve the conflict. Solver preview displays both diagrams.",
-    parameters: [
-      { name: "roads", type: pairs },
-      { name: "neighbors", type: pairs },
-      { name: "n", type: "int" },
-    ],
+    parameters: [{ name: "roads" }, { name: "neighbors" }, { name: "n", type: "int" }],
     returnType: "bool",
     graphEncodings: {
       roads: { kind: "edgeList", directed: false, countParameter: "n" },
@@ -90,14 +104,19 @@ export const graphFixtures: readonly Fixture[] = [
     },
     examples: [
       {
-        args: [
-          [
-            [0, 1],
-            [1, 2],
-          ],
-          [[2, 1], [], [1], []],
-          4,
-        ],
+        args: [null, null, null],
+        graphs: {
+          roads: { ...path, directed: false, nodes: [0, 1, 2, 3] },
+          neighbors: {
+            directed: true,
+            nodes: [0, 1, 2, 3],
+            edges: [
+              { from: 0, to: 2 },
+              { from: 0, to: 1 },
+              { from: 2, to: 1 },
+            ],
+          },
+        },
         expected: true,
       },
     ],
@@ -106,7 +125,7 @@ export const graphFixtures: readonly Fixture[] = [
     id: "matrix",
     title: "Adjacency matrix and native fallback",
     hint: "Case 1 converts an undirected matrix with ones on the diagonal. Case 2 stays editable as a native matrix because its asymmetric entries cannot round-trip through that preset.",
-    parameters: [{ name: "connected", type: pairs }],
+    parameters: [{ name: "connected" }],
     returnType: "int",
     graphEncodings: { connected: { kind: "adjacencyMatrix", directed: false, matrixDiagonal: 1 } },
     examples: [
@@ -136,18 +155,23 @@ export const graphFixtures: readonly Fixture[] = [
     id: "indexed",
     title: "Successor and parent arrays",
     hint: "Compare the directed next-node array and child-to-parent array. The solver preview keeps -1 for entries with no next node or parent.",
-    parameters: [
-      { name: "next", type: "list<int>" },
-      { name: "parent", type: "list<int>" },
-    ],
+    parameters: [{ name: "next" }, { name: "parent" }],
     returnType: "int",
     graphEncodings: { next: { kind: "successor" }, parent: { kind: "parent" } },
     examples: [
       {
-        args: [
-          [1, 2, -1],
-          [-1, 0, 0],
-        ],
+        args: [null, null],
+        graphs: {
+          next: path,
+          parent: {
+            directed: false,
+            nodes: [0, 1, 2],
+            edges: [
+              { from: 1, to: 0 },
+              { from: 2, to: 0 },
+            ],
+          },
+        },
         expected: 3,
       },
     ],
@@ -157,7 +181,6 @@ export const graphFixtures: readonly Fixture[] = [
     title: "Graph as the whole return value",
     hint: "The expected graph generates the entire solver output. Edit the return graph while keeping the source edges as an ordinary native input.",
     parameters: [{ name: "edges", type: pairs }],
-    returnType: pairs,
     graphEncodings: { $return: { kind: "adjacencyList", directed: true } },
     examples: [
       {
@@ -167,7 +190,8 @@ export const graphFixtures: readonly Fixture[] = [
             [1, 2],
           ],
         ],
-        expected: [[1], [2], []],
+        expected: null,
+        graphs: { $return: path },
       },
     ],
   },
@@ -175,11 +199,7 @@ export const graphFixtures: readonly Fixture[] = [
     id: "return-slots",
     title: "Multiple graph output slots",
     hint: "One return slot generates a matrix and the other an edge list. In Solver preview, both expected graphs appear below the output while the input graph stays alongside.",
-    parameters: [
-      { name: "roads", type: pairs },
-      { name: "n", type: "int" },
-    ],
-    returnType: "list<list<list<int>>>",
+    parameters: [{ name: "roads" }, { name: "n", type: "int" }],
     graphEncodings: {
       roads: { kind: "edgeList", directed: true, countParameter: "n", edgeValue: "Weight" },
       "$return[0]": { kind: "adjacencyMatrix", directed: true },
@@ -187,32 +207,40 @@ export const graphFixtures: readonly Fixture[] = [
     },
     examples: [
       {
-        args: [
-          [
-            [0, 1, 7],
-            [0, 2, 4],
-            [2, 1, 2],
-          ],
-          3,
-        ],
-        expected: [
-          [
-            [0, 1, 1],
-            [0, 0, 0],
-            [0, 1, 0],
-          ],
-          [
-            [0, 2],
-            [2, 1],
-          ],
-        ],
+        args: [null, null],
+        expected: null,
+        graphs: {
+          roads: {
+            ...path,
+            edges: [
+              { from: 0, to: 1, value: 7 },
+              { from: 0, to: 2, value: 4 },
+              { from: 2, to: 1, value: 2 },
+            ],
+          },
+          "$return[0]": {
+            ...path,
+            edges: [
+              { from: 0, to: 1 },
+              { from: 0, to: 2 },
+              { from: 2, to: 1 },
+            ],
+          },
+          "$return[1]": {
+            ...path,
+            edges: [
+              { from: 0, to: 2 },
+              { from: 2, to: 1 },
+            ],
+          },
+        },
       },
     ],
   },
   {
     id: "custom",
     title: "Custom graph with typed values",
-    hint: "Open Node values to edit station coordinates. The edge value is boolean, independent of the node value type. The concrete route text stays editable. Try an invalid edge value to see type feedback.",
+    hint: "In Signature, open the route gear to set Node value type and Edge value type directly. In Tests, edit station coordinates and boolean edge values. The solver gets the manually authored route text.",
     parameters: [{ name: "route", type: "str" }],
     returnType: "str",
     graphEncodings: {
@@ -248,22 +276,22 @@ export const graphFixtures: readonly Fixture[] = [
   {
     id: "direction",
     title: "Signature direction and empty graph",
-    hint: "In Signature, open Graph settings for edges and change Direction. All cases follow that setting. The second case starts from native values, and the third shows the empty graph state.",
-    parameters: [
-      { name: "edges", type: pairs },
-      { name: "n", type: "int" },
-    ],
+    hint: "These cases generate an edge list from the saved graphs. Compare Signature and Tests with the Successor array fixture, which uses the same graphs. Change Direction in Graph settings to update the diagrams.",
+    parameters: [{ name: "edges" }, { name: "n", type: "int" }],
     returnType: "bool",
     graphEncodings: { edges: { kind: "edgeList", directed: true, countParameter: "n" } },
-    examples: [
-      { args: [null, null], expected: true, graphs: { edges: path } },
-      { args: [[[0, 2]], 3], expected: true },
-      {
-        args: [null, null],
-        expected: false,
-        graphs: { edges: { ...sparse, nodes: [], edges: [] } },
-      },
-    ],
+    examples: directedExamples,
+    hiddenCases: directedHiddenCases,
+  },
+  {
+    id: "successor-comparison",
+    title: "Same graph as a successor array",
+    hint: "The graphs from Signature direction and empty graph now generate list<int> inputs. Compare the public and private cases. An entry of -1 means a node has no successor.",
+    parameters: [{ name: "edges" }, { name: "n", type: "int" }],
+    returnType: "bool",
+    graphEncodings: { edges: { kind: "successor", countParameter: "n" } },
+    examples: directedExamples,
+    hiddenCases: directedHiddenCases,
   },
   {
     id: "add-binding",
@@ -280,17 +308,41 @@ export const graphFixtures: readonly Fixture[] = [
     id: "large",
     title: "Large edge table and bounded diagram",
     hint: "Use the edge page controls. The graph exceeds the diagram limit, so the preview shows a node and edge count while the generated solver array remains available.",
-    parameters: [
-      { name: "edges", type: pairs },
-      { name: "n", type: "int" },
-    ],
+    parameters: [{ name: "edges" }, { name: "n", type: "int" }],
     returnType: "int",
     graphEncodings: { edges: { kind: "edgeList", directed: true, countParameter: "n" } },
-    examples: [{ args: [Array.from({ length: 39 }, (_, i) => [i, i + 1]), 40], expected: 40 }],
+    examples: [
+      {
+        args: [null, null],
+        expected: 40,
+        graphs: {
+          edges: {
+            directed: true,
+            nodes: Array.from({ length: 40 }, (_, i) => i),
+            edges: Array.from({ length: 39 }, (_, i) => ({ from: i, to: i + 1 })),
+          },
+        },
+      },
+    ],
   },
 ];
 
 export function fixtureQuestion(fixture: Fixture): QuestionContent {
+  const encodings = fixture.graphEncodings ?? {};
+  function presetType(target: string) {
+    const encoding = encodings[target];
+    return encoding && graphPresetType(encoding.kind);
+  }
+  function requireType(type: string | undefined, target: string) {
+    if (!type) throw new Error(`Fixture ${fixture.id} needs a solver type for ${target}.`);
+    return type;
+  }
+  const slotType = Object.keys(encodings)
+    .filter((target) => graphReturnSlot(target) !== undefined)
+    .map(presetType)
+    .find(Boolean);
+  const returnType =
+    presetType(GRAPH_RETURN) ?? (slotType ? `list<${slotType}>` : fixture.returnType);
   return JSON.parse(
     normalizeQuestionDraft(
       JSON.stringify({
@@ -301,8 +353,12 @@ export function fixtureQuestion(fixture: Fixture): QuestionContent {
           signature: {
             className: "Solution",
             methodName: "solve",
-            parameters: fixture.parameters,
-            returnType: fixture.returnType,
+            parameters: fixture.parameters.map(({ name, type, ...parameter }) => ({
+              ...parameter,
+              name,
+              type: requireType(presetType(name) ?? type, name),
+            })),
+            returnType: requireType(returnType, GRAPH_RETURN),
             graphEncodings: fixture.graphEncodings,
           },
           examples: fixture.examples,

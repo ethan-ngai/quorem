@@ -117,10 +117,7 @@ function GraphDemo() {
           label="Scenario"
           value={selected}
           options={graphFixtures.map(({ id, title }) => ({ value: id, label: title }))}
-          onChange={(id) => {
-            setSelected(id);
-            setView("tests");
-          }}
+          onChange={setSelected}
         />
         <button
           type="button"
