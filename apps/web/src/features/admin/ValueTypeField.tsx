@@ -150,22 +150,29 @@ export function ValueTypeField({
     validity.current?.(id, invalid);
   }, [id, invalid]);
   useEffect(() => () => validity.current?.(id, false), [id]);
+  const control = (
+    <TypeBlock
+      label={label}
+      type={type}
+      allowVoid={allowVoid}
+      disabled={disabled}
+      graph={graph}
+      onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
+    />
+  );
   return (
     <div className="admin-field">
       {!hideLabel && <span>{label}</span>}
-      <NoticeRegion
-        message={invalid ? `Replace unsupported type ${value}.` : undefined}
-        label="Check type"
-      >
-        <TypeBlock
-          label={label}
-          type={type}
-          allowVoid={allowVoid}
-          disabled={disabled}
-          graph={graph}
-          onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
-        />
-      </NoticeRegion>
+      {graph?.selected ? (
+        control
+      ) : (
+        <NoticeRegion
+          message={invalid ? `Replace unsupported type ${value}.` : undefined}
+          label="Check type"
+        >
+          {control}
+        </NoticeRegion>
+      )}
     </div>
   );
 }
