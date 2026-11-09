@@ -80,9 +80,15 @@
   flex: 0 1 155px;
 }
 
-.data-table.graph-edge-table td,
-.data-table.graph-edge-table th {
+.data-table.graph-edge-table td {
   padding: var(--space-1);
+}
+
+.data-table.graph-edge-table th {
+  padding: 0 var(--space-3);
+  background: transparent;
+  border-bottom: 0;
+  font-size: var(--text-label);
 }
 
 .graph-edge-table td:last-child {
