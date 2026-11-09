@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   mounts: 0,
   status: "live" as MatchSyncStatus,
   notify: vi.fn(),
+  saveDraft: vi.fn<() => Promise<void>>(),
+  forfeit: vi.fn(),
 }));
 vi.mock("./MatchControls", () => ({
   useAccountIdentity: () => ({
@@ -36,7 +38,9 @@ vi.mock("../editor/WorkspacePage", async () => {
     WorkspacePage: ({
       matchHeader,
     }: {
-      matchHeader: React.ReactNode | ((problem: ProblemVersion) => React.ReactNode);
+      matchHeader:
+        | React.ReactNode
+        | ((problem: ProblemVersion, saveDraft: () => Promise<void>) => React.ReactNode);
     }) => {
       React.useEffect(() => {
         state.mounts++;
@@ -44,7 +48,7 @@ vi.mock("../editor/WorkspacePage", async () => {
       return (
         <div data-workspace="true">
           {typeof matchHeader === "function"
-            ? matchHeader({ title: "Two Sum" } as ProblemVersion)
+            ? matchHeader({ title: "Two Sum" } as ProblemVersion, state.saveDraft)
             : matchHeader}
         </div>
       );
@@ -59,7 +63,14 @@ vi.mock("../rooms/RoomAlerts", () => ({ RoomAlerts: () => null }));
 vi.mock("../navigation/GlobalNav", () => ({ GlobalNav: () => null }));
 
 vi.mock("../../ui/Notifications", () => ({ useErrorNotification: state.notify }));
-vi.mock("./ConcessionDialog", () => ({ ConcessionDialog: () => null }));
+vi.mock("./api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./api")>()),
+  forfeitMatch: state.forfeit,
+}));
+vi.mock("./ConcessionDialog", () => ({
+  ConcessionDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) =>
+    open ? <button onClick={onConfirm}>Confirm forfeit</button> : null,
+}));
 import { MatchPage } from "./MatchPage";
 
 const activeMatch: MatchSnapshot = {
@@ -156,6 +167,40 @@ it("opens a finished match directly into results and loads the workspace only fo
     await act(async () => root.unmount());
     container.remove();
     state.error = undefined;
+    vi.unstubAllGlobals();
+  }
+});
+
+it("flushes the shared draft before forfeiting a Race", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  state.snapshot = { ...activeMatch, shareFinalCode: true };
+  let finishSave!: () => void;
+  state.saveDraft.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finishSave = resolve;
+      }),
+  );
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(<MatchPage matchId="match" />));
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Forfeit match"]')!.click(),
+    );
+    await act(async () =>
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Confirm forfeit")!
+        .click(),
+    );
+    expect(state.saveDraft).toHaveBeenCalledOnce();
+    expect(state.forfeit).not.toHaveBeenCalled();
+    await act(async () => finishSave());
+    expect(state.forfeit).toHaveBeenCalledWith("alice", "match");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
     vi.unstubAllGlobals();
   }
 });
