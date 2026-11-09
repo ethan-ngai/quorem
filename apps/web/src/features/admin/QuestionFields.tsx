@@ -9,6 +9,7 @@ import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
 import { TopicField } from "./AuthoringInputs";
+import { GraphEncodingFields } from "./GraphEncodingFields";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -93,7 +94,11 @@ type AuthoringSection = "question" | "interface" | "tests" | "solutions";
 const languages = [...questionLanguages(false), ...questionLanguages(true)];
 
 function testShape(signature: Signature) {
-  return JSON.stringify([signature.parameters.map(({ type }) => type), signature.returnType]);
+  return JSON.stringify([
+    signature.parameters.map(({ name, type }) => (signature.graphEncodings ? [name, type] : type)),
+    signature.returnType,
+    signature.graphEncodings,
+  ]);
 }
 
 export function QuestionFields({
@@ -418,6 +423,18 @@ export function QuestionFields({
                     else onChange(adaptSignature(content, signature));
                   }}
                   onValidityChange={onValidityChange}
+                />
+                <GraphEncodingFields
+                  signature={primarySignature(problem)}
+                  disabled={disabled}
+                  onChange={(signature) => {
+                    if (
+                      invalidCases &&
+                      testShape(signature) !== testShape(primarySignature(problem))
+                    )
+                      setPendingSignature(signature);
+                    else onChange(adaptSignature(content, signature));
+                  }}
                 />
               </QuestionLanguage.Provider>
             )}

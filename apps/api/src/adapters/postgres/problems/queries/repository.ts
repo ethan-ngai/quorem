@@ -1,4 +1,5 @@
 /** @file repository.ts @description Explicit authorized PostgreSQL catalog projections. @module problems */
+import { publicExampleJson } from "./public-projection.ts";
 import { impressionIds, recordFeedback } from "../recommendations/feedback.ts";
 import { rankPractice } from "../../../../modules/problems/recommendations/ranking.ts";
 import { recommendationContext, learningQuestions } from "../recommendations/repository.ts";
@@ -50,7 +51,7 @@ const projection = sql`jsonb_build_object(
 'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',${topicProjection(sql`v.id`)},
-'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`;
+'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`;
 const from = sql.raw(` FROM problem_versions v JOIN problems p ON p.id=v.problem_id `);
 const detailProjection = sql`(${projection} || jsonb_build_object(
   'hiddenCaseCounts', COALESCE((

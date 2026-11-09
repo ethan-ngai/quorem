@@ -1,4 +1,5 @@
 /** @file published-sidecars.ts @description Lossless public example and private case projection. @module interviews */
+import { publicExampleJson } from "../../problems/queries/public-projection.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { StreamingJsonReader, decodeUtf8Chunks } from "@quorem/questions";
@@ -6,7 +7,7 @@ import { StreamingJsonReader, decodeUtf8Chunks } from "@quorem/questions";
 type Range = { start: number; length: number };
 type Field = { name: string; range?: Range; calls?: Field[][] | null };
 type Example = Field[];
-const exampleKeys = new Set(["args", "expected", "calls", "explanation"]);
+const exampleKeys = new Set(["args", "expected", "calls", "explanation", "graphs"]);
 const callKeys = new Set(["methodName", "args", "expected"]);
 
 async function skip(reader: StreamingJsonReader): Promise<Range> {
@@ -198,7 +199,7 @@ export async function savePublishedInterviewSidecars(
       );
     } else if (level === 0) {
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM problem_versions v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE version_id=v.id) e WHERE v.id=${versionId}::uuid${conflict}`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM problem_versions v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(${publicExampleJson} ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE version_id=v.id) e WHERE v.id=${versionId}::uuid${conflict}`,
       );
     } else {
       const projection = safeExample(sql`entry`);

@@ -1609,6 +1609,7 @@ export const problem_test_cases = pgTable(
     ordinal: integer().notNull(),
     args: jsonb().notNull(),
     expected: jsonb().notNull(),
+    graphs: jsonb(),
     calls: jsonb().default([]).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
@@ -1657,6 +1658,7 @@ export const problem_examples = pgTable(
     args: jsonb().notNull(),
     expected: jsonb().notNull(),
     explanation: text().default("").notNull(),
+    graphs: jsonb(),
     calls: jsonb().default([]).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [

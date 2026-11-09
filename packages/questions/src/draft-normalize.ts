@@ -3,6 +3,7 @@ import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } 
 import { blankApproach } from "./editorial.ts";
 import { validateQuestionDraft } from "./draft.ts";
 import type { QuestionContent } from "./model.ts";
+import { compileGraphCase } from "./graph.ts";
 import validateDraft from "./draft-validator.mjs";
 
 type Obj = { [key: string]: JsonValue };
@@ -171,6 +172,21 @@ export function normalizeQuestionDraft(rawJson: string): string {
     );
     return item;
   });
+  if (!p.sql && !p.odyssey && p.signature) {
+    const sig = JSON.parse(stringifyLosslessJson(p.signature)) as NonNullable<
+      QuestionContent["problem"]["signature"]
+    >;
+    const limit = Number(stringifyLosslessJson(object(p.limits).maxCollectionElements));
+    let graphCaseBytes = 0;
+    for (const group of [p.examples, content.hiddenCases])
+      for (const test of array(group)) {
+        if (object(test).graphs === undefined) continue;
+        compileGraphCase(sig, object(test), limit);
+        graphCaseBytes += new TextEncoder().encode(stringifyLosslessJson(test)).length;
+        if (graphCaseBytes > 2 * 1024 * 1024)
+          throw new Error("Generated graph cases exceed the question size limit");
+      }
+  }
   const result = stringifyLosslessJson(content);
   const ordinary = JSON.parse(result) as QuestionContent;
   if (!validateDraft(ordinary)) throw new Error("invalid question draft shape");

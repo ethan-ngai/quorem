@@ -1,3 +1,4 @@
+import { projectCaseGraphs } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
@@ -212,6 +213,19 @@ export function TestCases({
       : !customMode && !submission.customRun)
       ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
       : undefined;
+  const graphs = customMode ? draft?.graphs : example?.graphs;
+  let generated: ReturnType<typeof projectCaseGraphs> | undefined;
+  if (customMode && graphs && !problem.sql) {
+    try {
+      generated = projectCaseGraphs(
+        primarySignature(problem),
+        graphs,
+        problem.limits.maxCollectionElements,
+      );
+    } catch {
+      // Draft authoring reports errors beside the source and keeps native fields editable.
+    }
+  }
   const combinedPreview = !problem.sql && !problem.odyssey;
   const previewContext = problem.sql
     ? undefined
@@ -416,6 +430,7 @@ export function TestCases({
           enabled={combinedPreview}
           editable={customMode}
           context={previewContext}
+          graphs={graphs}
           expected={result?.expected ?? currentValue?.expected}
           actual={result?.actual}
           expectedSource={customMode && draft?.expectedEnabled ? draft.expected : undefined}
@@ -457,6 +472,7 @@ export function TestCases({
                   signature={primarySignature(problem)}
                   inputErrors={inputErrors}
                   args={draft.args}
+                  generated={generated}
                   expected={draft.expectedEnabled ? draft.expected : undefined}
                   onChange={updateDraft}
                   preview={!combinedPreview && !result}

@@ -1,6 +1,6 @@
 /** @file seed-fingerprint.ts @description Canonical seed operation lock identity. @module cli */
 import { createHash } from "node:crypto";
-import { markRawCases } from "../adapters/postgres/problems/case-literals.ts";
+import { canonicalCaseValue, markRawCases } from "../adapters/postgres/problems/case-literals.ts";
 import {
   JsonNumber,
   normalizeQuestionDraft,
@@ -52,6 +52,7 @@ function signature(v: JsonValue): Obj {
     });
   optional(out, "outputOrder", x.outputOrder);
   optional(out, "nodeReferences", x.nodeReferences);
+  if (x.graphEncodings !== undefined) out.graphEncodings = canonicalCaseValue(x.graphEncodings);
   out.className = str(x.className);
   out.methodName = str(x.methodName);
   out.parameters = arr(x.parameters).map((p) => {
@@ -83,6 +84,7 @@ function testcase(v: JsonValue, example = false): Obj {
       return o;
     });
   out.args = x.args ?? [];
+  if (x.graphs !== undefined) out.graphs = canonicalCaseValue(x.graphs);
   if (x.expected !== undefined) out.expected = x.expected;
   if (example) optional(out, "explanation", x.explanation);
   return out;

@@ -68,3 +68,15 @@ export {
 export { questionSlugFits, questionPublicationSlug } from "./identity.ts";
 
 export { publicQuestionProblem } from "./projection.ts";
+export {
+  graphParameters,
+  projectCaseGraphs,
+  GRAPH_RETURN,
+  graphReturnSlot,
+  isGraphReturn,
+  mergeGraphOutput,
+  type CaseGraphs,
+  validateGraph,
+  type GraphEncoding,
+  type QuestionGraph,
+} from "./graph.ts";

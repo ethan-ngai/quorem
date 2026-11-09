@@ -170,3 +170,29 @@
   color: var(--color-text);
   font: var(--text-label)/1.5 var(--font-code);
 }
+
+.case-graph-preview {
+  display: grid;
+  gap: var(--space-2);
+  width: min(100%, 180px);
+}
+
+.case-graph-preview > .select-field {
+  min-width: 0;
+}
+
+.case-graph {
+  margin: 0;
+  width: 100%;
+}
+
+.case-graph svg {
+  display: block;
+  width: 100%;
+}
+
+.case-graph text {
+  fill: var(--color-text);
+  font: 9px var(--font-code);
+  text-anchor: middle;
+}

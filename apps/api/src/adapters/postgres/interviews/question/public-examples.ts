@@ -18,7 +18,7 @@ function publicCases(value: JsonValue | undefined): JsonValue[] {
   return list(value).map((item) => {
     const source = jsonObject(item),
       out: Obj = {};
-    for (const key of ["args", "expected", "calls", "explanation"])
+    for (const key of ["args", "expected", "calls", "explanation", "graphs"])
       if (source[key] !== undefined) out[key] = source[key];
     if (out.calls !== undefined)
       out.calls = list(out.calls).map((call) => {

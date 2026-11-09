@@ -988,9 +988,144 @@
       ],
       "additionalProperties": false
     },
+    "QuestionGraph": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directed": {
+          "type": "boolean"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -2147483648,
+                "maximum": 2147483647
+              },
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            ]
+          },
+          "maxItems": 100000
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -2147483648,
+                    "maximum": 2147483647
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                ]
+              },
+              "to": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -2147483648,
+                    "maximum": 2147483647
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                ]
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ]
+          },
+          "maxItems": 100000
+        }
+      },
+      "required": [
+        "directed",
+        "nodes",
+        "edges"
+      ]
+    },
+    "GraphEncoding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "edgeList",
+            "adjacencyList",
+            "adjacencyMatrix",
+            "successor",
+            "parent",
+            "custom"
+          ]
+        },
+        "countParameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "firstNode": {
+          "type": "integer",
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "edgeValue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "matrixDiagonal": {
+          "type": "integer",
+          "enum": [
+            0,
+            1
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
     "Signature": {
       "type": "object",
       "properties": {
+        "graphEncodings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/GraphEncoding"
+          }
+        },
         "className": {
           "type": "string",
           "enum": [
@@ -1100,6 +1235,12 @@
     "CustomCase": {
       "type": "object",
       "properties": {
+        "graphs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/QuestionGraph"
+          }
+        },
         "args": {
           "type": "array",
           "items": {
@@ -1124,6 +1265,12 @@
     "ProblemExample": {
       "type": "object",
       "properties": {
+        "graphs": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/QuestionGraph"
+          }
+        },
         "args": {
           "type": "array",
           "items": {

@@ -75,6 +75,61 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       await pool.end();
     }
   });
+  it("publishes generated graph inputs and keeps private graph metadata private", async () => {
+    assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
+    const pool = createNodePool({
+      connectionString: url!,
+      max: 2,
+      connectionTimeoutMs: 2000,
+      idleTimeoutMs: 5000,
+      onIdleError: () => {},
+    });
+    const owner = `graph-author-${crypto.randomUUID()}`;
+    const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
+      withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
+    const repository = questionAuthoring(run, runtime);
+    try {
+      await pool.query(
+        "INSERT INTO users(id,display_name,role) VALUES($1,'Graph author','admin')",
+        [owner],
+      );
+      const content = JSON.parse(
+        readFileSync(
+          new URL("../../../../../../../fixtures/problems/run-widths.json", import.meta.url),
+          "utf8",
+        ),
+      );
+      const graph = { directed: true, nodes: [0, 1], edges: [{ from: 0, to: 1 }] };
+      const privateGraph = { directed: true, nodes: [0, 1], edges: [{ from: 1, to: 0 }] };
+      content.problem.slug = `graph-fixture-${crypto.randomUUID().slice(0, 8)}`;
+      content.problem.signature.graphEncodings = { values: { kind: "successor" } };
+      content.problem.examples = [{ args: [], expected: [1, 1], graphs: { values: graph } }];
+      content.hiddenCases = [{ args: [], expected: [1, 1], graphs: { values: privateGraph } }];
+      const actor = { userId: owner, admin: true, globalAllowed: true };
+      const draft = JSON.parse(await repository.create(actor, JSON.stringify(content), undefined));
+      const published = JSON.parse(await repository.publish(actor, draft.id, "1", "global"));
+      const version = published.publishedVersionId;
+      const publicProblem = JSON.parse((await problemQueries(run).byVersion(undefined, version))!);
+      expect(publicProblem.examples).toEqual([
+        { args: [[1, -1]], expected: [1, 1], graphs: { values: graph } },
+      ]);
+      expect(publicProblem.hiddenCases).toBeUndefined();
+      const rows = await pool.query(
+        "SELECT args,graphs FROM problem_test_cases WHERE version_id=$1",
+        [version],
+      );
+      expect(rows.rows).toEqual([{ args: [[-1, 0]], graphs: { values: privateGraph } }]);
+      const runner = await pool.query(
+        `SELECT convert_from(b.data,'UTF8')::jsonb AS data
+        FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash
+        WHERE c.version_id=$1 AND c.channel='hidden'`,
+        [version],
+      );
+      expect(runner.rows).toEqual([{ data: { args: [[-1, 0]], expected: [1, 1] } }]);
+    } finally {
+      await pool.end();
+    }
+  });
   it("publishes atomically, fences revisions and protects owner content", async () => {
     assertRunnerFixture(url!, ["/quorem_hono_authoring_test"]);
     const pool = createNodePool({

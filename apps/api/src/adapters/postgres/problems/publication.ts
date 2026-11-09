@@ -105,10 +105,10 @@ export async function persistQuestionVersion(
   const hidden = stringifyLosslessJson(safe.hiddenCases ?? []),
     staged = stringifyLosslessJson(safe.odysseyHiddenCases ?? []);
   await tx.execute(
-    sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->>'explanation',''),COALESCE(value->'calls','[]') FROM jsonb_array_elements(${publicJSON}::jsonb->'examples') WITH ORDINALITY`,
+    sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls,graphs) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->>'explanation',''),COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${publicJSON}::jsonb->'examples') WITH ORDINALITY`,
   );
   await tx.execute(
-    sql`INSERT INTO problem_test_cases(version_id,ordinal,args,expected,calls) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->'calls','[]') FROM jsonb_array_elements(${hidden}::jsonb) WITH ORDINALITY`,
+    sql`INSERT INTO problem_test_cases(version_id,ordinal,args,expected,calls,graphs) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${hidden}::jsonb) WITH ORDINALITY`,
   );
   await tx.execute(
     sql`INSERT INTO problem_odyssey_cases(version_id,level,ordinal,case_data) SELECT ${versionId}::uuid,stage.ordinality-1,c.ordinality-1,c.value FROM jsonb_array_elements(${staged}::jsonb) WITH ORDINALITY stage(value,ordinality),LATERAL jsonb_array_elements(stage.value) WITH ORDINALITY c(value,ordinality)`,

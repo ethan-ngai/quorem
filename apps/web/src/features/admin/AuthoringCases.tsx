@@ -1,4 +1,11 @@
-import { primarySignature } from "@quorem/questions";
+import {
+  GRAPH_RETURN,
+  graphReturnSlot,
+  mergeGraphOutput,
+  primarySignature,
+  projectCaseGraphs,
+  type CaseGraphs,
+} from "@quorem/questions";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
 import { caseFieldConfig } from "../editor/inputPresets";
@@ -16,7 +23,12 @@ import {
   type CustomCaseDraft,
 } from "../editor/customCases";
 import "../editor/components/customCases.css";
-type AuthoringDraft = CustomCaseDraft & { unformatted?: string[] };
+import type { WireValue } from "../editor/typedValues";
+type AuthoringDraft = CustomCaseDraft & {
+  unformatted?: string[];
+  graphSources?: Record<string, string>;
+  graphError?: string;
+};
 
 export function AuthoringCases({
   content,
@@ -33,6 +45,78 @@ export function AuthoringCases({
   const [selected, setSelected] = useState<Record<string, string | undefined>>({});
   const id = useId();
   const p = content.problem;
+  const sig = !p.sql && !p.odyssey ? primarySignature(p) : undefined;
+  const encodings = sig?.graphEncodings ?? {};
+  const graphTargets = Object.keys(encodings);
+  const graphLabel = (target: string) =>
+    target === GRAPH_RETURN
+      ? "Expected graph"
+      : graphReturnSlot(target) !== undefined
+        ? `Expected graph [${graphReturnSlot(target)}]`
+        : `Graph for ${target}`;
+  function compile(test: AuthoringDraft, preserveOutput = false): AuthoringDraft {
+    if (!sig || !test.graphSources) return test;
+    try {
+      const graphs = Object.fromEntries(
+        Object.entries(test.graphSources).flatMap(([target, source]) =>
+          source.trim() ? [[target, JSON.parse(source)]] : [],
+        ),
+      ) as CaseGraphs;
+      const generated = projectCaseGraphs(sig, graphs, p.limits.maxCollectionElements);
+      const args = sig.parameters.map(({ type, input }, index) =>
+        generated.args.has(index)
+          ? formatTypedField(
+              type,
+              generated.args.get(index)!,
+              caseFieldConfig(sig, type, input, false),
+            )
+          : (test.args[index] ?? ""),
+      );
+      let expected: WireValue | undefined;
+      if (generated.outputSlots.size) {
+        try {
+          expected = parseTypedField(sig.returnType, test.expected);
+        } catch {
+          // Keep incomplete concrete output editable, while the graph fields remain available.
+        }
+      }
+      const output = mergeGraphOutput<WireValue>(generated, expected, (_, value) => value);
+      return {
+        ...test,
+        args,
+        expected:
+          output === undefined ||
+          (preserveOutput && generated.outputSlots.size && expected === undefined)
+            ? test.expected
+            : formatTypedField(sig.returnType, output),
+        graphs: Object.keys(graphs).length ? graphs : undefined,
+        graphError: undefined,
+        unformatted: test.unformatted?.filter((field) =>
+          field === "expected"
+            ? generated.expected === undefined
+            : !generated.args.has(Number(field.slice(4))),
+        ),
+      };
+    } catch (error) {
+      return {
+        ...test,
+        graphs: undefined,
+        graphError: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  function graphIssue(test: AuthoringDraft) {
+    return (
+      test.graphError ??
+      graphTargets
+        .filter(
+          (target) =>
+            encodings[target]?.kind === "custom" && !Object.hasOwn(test.graphs ?? {}, target),
+        )
+        .map((target) => `${graphLabel(target)} is required for a custom encoding.`)
+        .join(" ")
+    );
+  }
   const stage = stageIndex === undefined ? undefined : p.odyssey?.levels[stageIndex];
   const examples = stage?.examples ?? p.examples;
   const hiddenCases = stageIndex === undefined ? content.hiddenCases : (stage?.hiddenCases ?? []);
@@ -68,6 +152,11 @@ export function AuthoringCases({
     const unformatted: string[] = [];
     const result: AuthoringDraft = {
       id: randomUUID(),
+      graphSources:
+        test.graphs &&
+        Object.fromEntries(
+          Object.entries(test.graphs).map(([target, graph]) => [target, JSON.stringify(graph)]),
+        ),
       args: p.sql
         ? [JSON.stringify(test.args[0] ?? { tables: [] })]
         : primarySignature(p).parameters.map((parameter, index) =>
@@ -95,7 +184,7 @@ export function AuthoringCases({
           ),
     };
     if (unformatted.length) result.unformatted = unformatted;
-    return result;
+    return compile(result);
   };
   const [values, setValues] = useState(() => ({
     public: examples.map(draft),
@@ -106,6 +195,10 @@ export function AuthoringCases({
       const label = `${stageIndex === undefined ? "" : `Step ${stageIndex + 1}, `}${tab === "public" ? "Example" : "Private test"}`;
       const issues = [
         ...caseValidationIssues(values[tab], p, label),
+        ...values[tab].flatMap((test, index) => {
+          const error = graphIssue(test);
+          return error ? [{ message: `${label} ${index + 1}: ${error}` }] : [];
+        }),
         ...values[tab].flatMap((test, index) =>
           (test.unformatted ?? []).map((field) => ({
             message: `${label} ${index + 1}: replace the incompatible ${field === "expected" ? "expected output" : `input ${Number(field.slice(4)) + 1}`}.`,
@@ -122,21 +215,22 @@ export function AuthoringCases({
   );
   function change(next: CustomCaseDraft[], descriptions = explanations) {
     const previous = new Map(values[collection].map((item) => [item.id, item]));
-    const updated: AuthoringDraft[] = next.map((item) => {
+    const updated: AuthoringDraft[] = (next as AuthoringDraft[]).map((item) => {
       const before = previous.get(item.id);
       const unformatted = before?.unformatted?.filter((field) =>
         field === "expected"
           ? item.expected === before.expected
           : item.args[Number(field.slice(4))] === before.args[Number(field.slice(4))],
       );
-      return { ...item, unformatted };
+      return compile({ ...item, unformatted }, !!before && item.expected !== before.expected);
     });
     setValues((current) => ({ ...current, [collection]: updated }));
     try {
-      if (updated.some((item) => item.unformatted?.length)) return;
-      const tests = updated.map((test) =>
-        p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p)),
-      );
+      if (updated.some((item) => item.unformatted?.length || item.graphError)) return;
+      const tests = updated.map((test) => ({
+        ...(p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p))),
+        ...(test.graphs ? { graphs: test.graphs } : {}),
+      }));
       if (collection === "public") {
         const examples = tests.map((test, index) => ({
           ...test,
@@ -207,31 +301,67 @@ export function AuthoringCases({
           requiredExpected
           minimumCases={0}
           maximumCases={collection === "hidden" ? 100 : 20}
-          customCaseDetails={
-            collection === "public"
-              ? (index) => {
-                  const example = values.public[index];
-                  if (!example) return null;
-                  return (
-                    <label className="typed-case-field admin-example-explanation">
-                      <span>
-                        <Icon name="samples" /> Example explanation <small>Optional</small>
-                      </span>
-                      <textarea
-                        rows={2}
-                        placeholder="Explain why this example produces the expected output."
-                        value={explanations[example.id] ?? ""}
-                        onChange={(event) => {
-                          const next = { ...explanations, [example.id]: event.target.value };
-                          setExplanations(next);
-                          change(values.public, next);
-                        }}
-                      />
-                    </label>
-                  );
-                }
-              : undefined
-          }
+          customCaseDetails={(index) => {
+            const test = values[collection][index];
+            if (!test) return null;
+            return (
+              <>
+                {graphTargets.map((target) => (
+                  <label key={target} className="typed-case-field admin-example-explanation">
+                    <span>
+                      {graphLabel(target)}{" "}
+                      <small>
+                        {encodings[target]?.kind === "custom" ? "Required" : "Optional"}
+                      </small>
+                    </span>
+                    <textarea
+                      rows={3}
+                      placeholder={'{"directed":false,"nodes":[0,1],"edges":[{"from":0,"to":1}]}'}
+                      value={test.graphSources?.[target] ?? ""}
+                      aria-invalid={!!test.graphError}
+                      onChange={(event) =>
+                        change(
+                          values[collection].map((item) =>
+                            item.id === test.id
+                              ? {
+                                  ...item,
+                                  graphSources: {
+                                    ...item.graphSources,
+                                    [target]: event.target.value,
+                                  },
+                                }
+                              : item,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                ))}
+                {test.graphError && (
+                  <p className="typed-case-error" role="status">
+                    {test.graphError}
+                  </p>
+                )}
+                {collection === "public" && (
+                  <label className="typed-case-field admin-example-explanation">
+                    <span>
+                      <Icon name="samples" /> Example explanation <small>Optional</small>
+                    </span>
+                    <textarea
+                      rows={2}
+                      placeholder="Explain why this example produces the expected output."
+                      value={explanations[test.id] ?? ""}
+                      onChange={(event) => {
+                        const next = { ...explanations, [test.id]: event.target.value };
+                        setExplanations(next);
+                        change(values.public, next);
+                      }}
+                    />
+                  </label>
+                )}
+              </>
+            );
+          }}
           selectedCustomId={selected[collection]}
           onSelectCustomCase={(value) =>
             setSelected((current) => ({ ...current, [collection]: value }))

@@ -1,4 +1,5 @@
 /** @file private-content.ts @description Authorized transaction-bound private question snapshots. @module problems */
+import { publicExampleJson } from "./queries/public-projection.ts";
 import { languageRuntime } from "@quorem/execution";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -35,8 +36,8 @@ async function readPrivateQuestionContent(
  'problem',jsonb_build_object('id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
  'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
  'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
- 'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb)),
- 'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
+ 'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb)),
+ 'hiddenCases',COALESCE((SELECT jsonb_agg((jsonb_build_object('args',args,'expected',expected,'calls',calls) || CASE WHEN graphs IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('graphs',graphs) END) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
  'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
  'attribution',v.attribution,
  'canonicalApproachId',${canonicalApproachProjection(sql`v.id`)},

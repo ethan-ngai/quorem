@@ -15,6 +15,7 @@ export function CaseFields({
   children,
   preview = true,
   inputErrors,
+  generated,
 }: {
   id: string;
   signature: Signature;
@@ -24,6 +25,7 @@ export function CaseFields({
   onChange: (patch: { args?: string[]; expected?: string }) => void;
   children?: ReactNode;
   preview?: boolean;
+  generated?: { args: ReadonlyMap<number, unknown>; expected?: unknown };
   inputErrors?: Readonly<Record<string, string>>;
 }) {
   return (
@@ -41,6 +43,7 @@ export function CaseFields({
           type={type}
           input={caseFieldConfig(signature, type, input, false, { sources: args })}
           value={args[index] ?? ""}
+          readOnly={generated?.args.has(index)}
           validationError={inputErrors?.[name]}
           onChange={(value) =>
             onChange({
@@ -62,6 +65,7 @@ export function CaseFields({
               sources: args,
             })}
             value={expected}
+            readOnly={generated?.expected !== undefined}
             validationError={inputErrors?.["Expected output"]}
             action={expectedAction}
             onChange={(expected) => onChange({ expected })}

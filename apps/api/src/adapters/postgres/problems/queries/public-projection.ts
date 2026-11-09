@@ -27,6 +27,9 @@ export function jsonObject(value: JsonValue | undefined): { [key: string]: JsonV
     throw new Error("invalid public question");
   return value;
 }
+/** Project public case columns without reading any private fixture. */
+export const publicExampleJson = sql`(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) || CASE WHEN graphs IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('graphs',graphs) END)`;
+
 /** Restores only examples belonging to stages already selected by the caller. */
 export function restorePublicExamples(
   value: { [key: string]: JsonValue },
@@ -54,7 +57,7 @@ export function restorePublicExamples(
     if (!Array.isArray(examples)) return;
     for (const example of examples) {
       const item = jsonObject(example);
-      retain(item, ["args", "expected", "calls", "explanation"]);
+      retain(item, ["args", "expected", "calls", "explanation", "graphs"]);
       if (Array.isArray(item.calls))
         for (const call of item.calls) retain(jsonObject(call), ["methodName", "args", "expected"]);
       if (item.explanation === "") delete item.explanation;

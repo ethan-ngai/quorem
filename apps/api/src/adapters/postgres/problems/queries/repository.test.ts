@@ -167,7 +167,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         problems: "id,slug,current_version_id,owner_id,leetcode_id",
         problem_versions:
           "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
-        problem_examples: "version_id,ordinal,args,expected,explanation,calls",
+        problem_examples: "version_id,ordinal,args,expected,explanation,calls,graphs",
         runner_version_input_cases: "version_id,channel,stage",
         problem_tags: "version_id,tag,ordinal",
         foundational_topics: "slug,label,aliases,is_foundational",

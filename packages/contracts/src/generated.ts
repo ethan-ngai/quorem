@@ -1541,7 +1541,29 @@ export interface components {
             input?: components["schemas"]["InputPresetConfig"];
             description?: string;
         };
+        QuestionGraph: {
+            directed: boolean;
+            nodes: (number | string)[];
+            edges: {
+                from: number | string;
+                to: number | string;
+                value?: number | string;
+            }[];
+        };
+        GraphEncoding: {
+            /** @enum {string} */
+            kind: "edgeList" | "adjacencyList" | "adjacencyMatrix" | "successor" | "parent" | "custom";
+            countParameter?: string;
+            /** @enum {integer} */
+            firstNode?: 0 | 1;
+            edgeValue?: string;
+            /** @enum {integer} */
+            matrixDiagonal?: 0 | 1;
+        };
         Signature: {
+            graphEncodings?: {
+                [key: string]: components["schemas"]["GraphEncoding"];
+            };
             /** @enum {string} */
             className: "Solution";
             methodName: string;
@@ -1573,11 +1595,17 @@ export interface components {
             maxNestingDepth: number;
         };
         CustomCase: {
+            graphs?: {
+                [key: string]: components["schemas"]["QuestionGraph"];
+            };
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
             calls?: components["schemas"]["MethodCall"][];
         };
         ProblemExample: {
+            graphs?: {
+                [key: string]: components["schemas"]["QuestionGraph"];
+            };
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
             explanation?: string;
