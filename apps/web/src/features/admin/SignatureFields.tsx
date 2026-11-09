@@ -23,6 +23,7 @@ import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
+import { TypeSyntaxText } from "../editor/components/TypeSyntax";
 import { ValueTypeField } from "./ValueTypeField";
 import {
   defaultGraphEncoding,
@@ -163,8 +164,9 @@ export function SignatureFields({
     return (
       <div className="graph-signature-choice">
         {selector}
-        <span>of</span>
-        <code className="graph-signature-native">{type}</code>
+        <code className="code-literal graph-signature-native">
+          <TypeSyntaxText text={type} />
+        </code>
       </div>
     );
   }
@@ -518,7 +520,9 @@ export function SignatureFields({
 function PresetType({ type, note }: { type: string; note: string }) {
   return (
     <div className="authoring-derived-type">
-      <code>{type}</code>
+      <code className="code-literal">
+        <TypeSyntaxText text={type} />
+      </code>
       <span>{note}</span>
     </div>
   );

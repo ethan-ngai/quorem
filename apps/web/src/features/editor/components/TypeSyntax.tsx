@@ -25,6 +25,7 @@ export function TypeSyntax({ type }: { type: string }) {
 export function TypeSyntaxText({ text }: { text: string }) {
   const language = useQuestionLanguage();
   const primitives = new Set([
+    ...atoms,
     ...[...atoms].map((atom) => questionTypeName(atom, language)),
     // Java boxes scalar values inside generic types.
     "Integer",

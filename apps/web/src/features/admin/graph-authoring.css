@@ -129,15 +129,18 @@
 
 .graph-signature-choice {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1);
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
+.graph-signature-choice > .admin-field {
+  flex: none;
+}
+
 .graph-signature-native {
-  color: var(--color-text-secondary);
   font-size: var(--text-small);
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
