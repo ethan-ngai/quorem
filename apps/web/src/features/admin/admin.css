@@ -537,6 +537,20 @@
   max-width: 32rem;
 }
 
+.authoring-derived-type {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-height: var(--control-height);
+  overflow-wrap: anywhere;
+}
+
+.authoring-derived-type > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+
 .authoring-method-section-heading {
   display: flex;
   align-items: center;

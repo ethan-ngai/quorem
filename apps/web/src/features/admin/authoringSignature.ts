@@ -1,4 +1,6 @@
 import {
+  graphPresetType,
+  inferCaseGraph,
   isGraphReturn,
   mergeGraphOutput,
   primarySignature,
@@ -48,21 +50,37 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
     },
     signature,
   );
+  const limit = content.problem.limits.maxCollectionElements;
+  const encodings = signature.graphEncodings ?? {};
+  const presetReturn = Object.entries(encodings).some(
+    ([name, { kind }]) => isGraphReturn(name) && graphPresetType(kind),
+  );
   function adapt<T extends QuestionContent["hiddenCases"][number]>(test: T): T {
     const graphs = Object.fromEntries(
-      Object.entries(test.graphs ?? {}).flatMap(([name, graph]) => {
+      Object.entries(previous.graphEncodings ?? {}).flatMap(([name, oldEncoding]) => {
         const target = targetName(name);
-        if (target === undefined || !Object.hasOwn(signature.graphEncodings ?? {}, target))
-          return [];
-        const encoding = signature.graphEncodings![target]!;
+        const encoding = target === undefined ? undefined : encodings[target];
+        if (target === undefined || !encoding) return [];
+        const changedRepresentation = oldEncoding.kind !== encoding.kind;
+        const graph =
+          test.graphs?.[name] ??
+          (changedRepresentation
+            ? inferCaseGraph(previous, name, test.args, test.expected, limit)
+            : undefined);
+        if (!graph) return [];
         const direction = encoding.kind === "successor" ? true : encoding.directed;
-        // Re-infer direction changes from the concrete case to preserve matrix and neighbor values.
         if (
           direction !== undefined &&
-          direction !== previous.graphEncodings?.[name]?.directed &&
+          direction !== oldEncoding.directed &&
           direction !== graph.directed
         ) {
-          if (encoding.kind === "adjacencyList" || encoding.kind === "adjacencyMatrix") return [];
+          // Re-infer unchanged adjacency presets to preserve their concrete ordering.
+          if (
+            !changedRepresentation &&
+            (encoding.kind === "adjacencyList" || encoding.kind === "adjacencyMatrix") &&
+            graph.nodes.every((node) => typeof node !== "object")
+          )
+            return [];
           return [[target, { ...graph, directed: direction }]];
         }
         return [[target, graph]];
@@ -75,19 +93,20 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
           previous.graphEncodings || signature.graphEncodings
             ? (oldPositions.get(parameter.name) ?? -1)
             : index;
-        return parameter.type === previous.parameters[prior]?.type
+        const encoding = encodings[parameter.name];
+        return parameter.type === previous.parameters[prior]?.type ||
+          (encoding && graphPresetType(encoding.kind))
           ? (test.args[prior] ?? defaults.args[index]!)
           : defaults.args[index]!;
       }),
-      expected: signature.returnType === previous.returnType ? test.expected : defaults.expected,
+      expected:
+        signature.returnType === previous.returnType || presetReturn
+          ? test.expected
+          : defaults.expected,
       graphs: Object.keys(graphs).length ? graphs : undefined,
     };
     try {
-      const generated = projectCaseGraphs(
-        signature,
-        graphs,
-        content.problem.limits.maxCollectionElements,
-      );
+      const generated = projectCaseGraphs(signature, graphs, limit);
       for (const [index, value] of generated.args) next.args[index] = value;
       next.expected = mergeGraphOutput(generated, next.expected, (_, value) => value);
     } catch {

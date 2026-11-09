@@ -17,12 +17,14 @@ import {
 } from "lucide-react";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
+import { graphPresetType, graphReturnSlot, isGraphReturn } from "@quorem/questions";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ValueTypeField } from "./ValueTypeField";
+import { GraphEncodingFields } from "./GraphEncodingFields";
 export function SignatureFields({
   value,
   onChange: onSignatureChange,
@@ -30,12 +32,14 @@ export function SignatureFields({
   disabled = false,
   onValidityChange,
   previewControl,
+  graphAuthoring = false,
 }: {
   value: Signature;
   onChange: (value: Signature) => void;
   allowVoid?: boolean;
   disabled?: boolean;
   previewControl?: ReactNode;
+  graphAuthoring?: boolean;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
   const nodeParameters = value.parameters.filter(({ type }) => nodeType(type));
@@ -49,6 +53,12 @@ export function SignatureFields({
         : next.nodeReferences;
     onSignatureChange({ ...next, nodeReferences: mode });
   };
+  const encodings = value.graphEncodings ?? {};
+  const graphBindings = Object.entries(encodings);
+  const presetReturn = graphBindings.some(
+    ([name, { kind }]) => isGraphReturn(name) && graphPresetType(kind),
+  );
+  const hasReturnSlots = graphBindings.some(([name]) => graphReturnSlot(name) !== undefined);
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
@@ -108,28 +118,36 @@ export function SignatureFields({
             pattern="[a-zA-Z_][a-zA-Z0-9_]*"
           />
         </label>
-        <ValueTypeField
-          disabled={disabled}
-          label="Return type"
-          value={value.returnType}
-          allowVoid={allowVoid}
-          onValidityChange={onValidityChange}
-          onChange={(returnType) =>
-            onChange({
-              ...value,
-              returnType,
-              outputOrder:
-                returnType.startsWith("list<") || returnType.startsWith("array<")
-                  ? value.outputOrder
-                  : undefined,
-            })
-          }
-        />
+        {presetReturn ? (
+          <div className="admin-field">
+            <span>Return type</span>
+            <PresetType type={value.returnType} />
+          </div>
+        ) : (
+          <ValueTypeField
+            disabled={disabled}
+            label="Return type"
+            value={value.returnType}
+            allowVoid={allowVoid}
+            onValidityChange={onValidityChange}
+            onChange={(returnType) =>
+              onChange({
+                ...value,
+                returnType,
+                outputOrder:
+                  returnType.startsWith("list<") || returnType.startsWith("array<")
+                    ? value.outputOrder
+                    : undefined,
+              })
+            }
+          />
+        )}
         {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
           <div className="admin-field authoring-return-order">
             <span>Return order</span>
             <SegmentedControl<NonNullable<Signature["outputOrder"]>>
               label="Return order"
+              disabled={disabled}
               value={value.outputOrder ?? "ordered"}
               onChange={(outputOrder) => onChange({ ...value, outputOrder })}
               options={[
@@ -141,6 +159,8 @@ export function SignatureFields({
                 {
                   value: "unordered",
                   label: "Any order",
+                  disabled: hasReturnSlots,
+                  hint: hasReturnSlots ? "Graph return slots require ordered results." : undefined,
                   icon: <Shuffle size={15} aria-hidden="true" />,
                 },
               ]}
@@ -232,14 +252,22 @@ export function SignatureFields({
                 onChange={(event) => updateParameter(index, { name: event.target.value })}
               />
             </div>
-            <ValueTypeField
-              hideLabel
-              disabled={disabled}
-              label={`Parameter ${index + 1} type`}
-              value={parameter.type}
-              onValidityChange={onValidityChange}
-              onChange={(type) => updateParameter(index, { type })}
-            />
+            {graphBindings.some(
+              ([name, { kind, countParameter }]) =>
+                (name === parameter.name && graphPresetType(kind)) ||
+                countParameter === parameter.name,
+            ) ? (
+              <PresetType type={parameter.type} />
+            ) : (
+              <ValueTypeField
+                hideLabel
+                disabled={disabled}
+                label={`Parameter ${index + 1} type`}
+                value={parameter.type}
+                onValidityChange={onValidityChange}
+                onChange={(type) => updateParameter(index, { type })}
+              />
+            )}
             <div className="admin-field authoring-parameter-description">
               <input
                 aria-label={`Parameter ${index + 1} description`}
@@ -267,6 +295,9 @@ export function SignatureFields({
           </div>
         )}
       />
+      {graphAuthoring && (
+        <GraphEncodingFields signature={value} disabled={disabled} onChange={onChange} />
+      )}
       <details className="disclosure authoring-method-docs">
         <summary>
           <FileText size={16} aria-hidden="true" />
@@ -363,5 +394,14 @@ export function SignatureFields({
         />
       </details>
     </fieldset>
+  );
+}
+
+function PresetType({ type }: { type: string }) {
+  return (
+    <div className="authoring-derived-type">
+      <code>{type}</code>
+      <span>Set by graph</span>
+    </div>
   );
 }

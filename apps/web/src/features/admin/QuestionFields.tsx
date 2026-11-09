@@ -9,7 +9,6 @@ import { QuestionBasics } from "../../ui/QuestionBasics";
 import { useId, useState } from "react";
 import { adaptSignature } from "./authoringSignature";
 import { TopicField } from "./AuthoringInputs";
-import { GraphEncodingFields } from "./GraphEncodingFields";
 import { SignatureFields } from "./SignatureFields";
 import { SelectField } from "../../ui/SelectField";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -411,6 +410,7 @@ export function QuestionFields({
             ) : (
               <QuestionLanguage.Provider value={previewLanguage}>
                 <SignatureFields
+                  graphAuthoring
                   previewControl={previewLanguagePicker}
                   disabled={disabled}
                   value={primarySignature(problem)}
@@ -423,18 +423,6 @@ export function QuestionFields({
                     else onChange(adaptSignature(content, signature));
                   }}
                   onValidityChange={onValidityChange}
-                />
-                <GraphEncodingFields
-                  signature={primarySignature(problem)}
-                  disabled={disabled}
-                  onChange={(signature) => {
-                    if (
-                      invalidCases &&
-                      testShape(signature) !== testShape(primarySignature(problem))
-                    )
-                      setPendingSignature(signature);
-                    else onChange(adaptSignature(content, signature));
-                  }}
                 />
               </QuestionLanguage.Provider>
             )}

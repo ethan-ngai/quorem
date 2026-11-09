@@ -5,7 +5,6 @@ import { Braces, Eye, FlaskConical, Moon, RotateCcw, Sun } from "lucide-react";
 import type { Signature } from "@quorem/contracts";
 import { primarySignature, publicQuestionProblem } from "@quorem/questions";
 import { AuthoringCases } from "../features/admin/AuthoringCases";
-import { GraphEncodingFields } from "../features/admin/GraphEncodingFields";
 import { SignatureFields } from "../features/admin/SignatureFields";
 import { adaptSignature } from "../features/admin/authoringSignature";
 import {
@@ -72,8 +71,7 @@ function GraphFixture({ fixture, view }: { fixture: (typeof graphFixtures)[numbe
         aria-labelledby="graph-demo-signature"
         hidden={view !== "signature"}
       >
-        <SignatureFields value={signature} onChange={changeSignature} />
-        <GraphEncodingFields signature={signature} onChange={changeSignature} disabled={false} />
+        <SignatureFields graphAuthoring value={signature} onChange={changeSignature} />
       </div>
       {view === "solver" && (
         <div id="graph-demo-solver-panel" role="tabpanel" aria-labelledby="graph-demo-solver">

@@ -39,7 +39,8 @@ export function GraphCaseField({
   const start = page * pageSize;
   const add = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLDivElement>(null);
-  const weight = encoding.edgeValue ?? (encoding.kind === "custom" ? "Value" : undefined);
+  const hasEdgeValues = encoding.kind === "custom" || form.edges.some(({ value }) => value !== "");
+  const weight = encoding.edgeValue ?? (hasEdgeValues ? "Value" : undefined);
   const numbered = numberedGraph(encoding);
   const fields = weight ? (["from", "to", "value"] as const) : (["from", "to"] as const);
   const headings = ["From", "To", weight];

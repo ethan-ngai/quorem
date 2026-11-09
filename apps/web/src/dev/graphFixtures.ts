@@ -268,7 +268,7 @@ export const graphFixtures: readonly Fixture[] = [
   {
     id: "add-binding",
     title: "Start with a native case",
-    hint: "In Signature, open Graphs and use Add graph to bind edges. Set n as the node count, then return to Tests. The graph editor opens from the original values and preserves the isolated node.",
+    hint: "In Signature, open Graphs and use Add graph to bind edges. Set n as the node count, then return to Tests. The graph editor opens from the original values and preserves the isolated node. Switch to Successor array in Signature to see the parameter type and solver input update.",
     parameters: [
       { name: "edges", type: pairs },
       { name: "n", type: "int" },

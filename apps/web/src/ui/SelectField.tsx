@@ -30,7 +30,6 @@ type SelectFieldProps = {
   label: string;
   value: string;
   options: readonly SelectOption[];
-  placeholder?: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   iconOnly?: boolean;
@@ -46,7 +45,6 @@ export function SelectField({
   label,
   value,
   options,
-  placeholder,
   onChange,
   disabled,
   iconOnly = false,
@@ -88,9 +86,7 @@ export function SelectField({
         {selected?.leading}
         {!iconOnly && (
           <span className="select-field-label">
-            <Select.Value placeholder={placeholder ?? selected?.label}>
-              {optionContent(selected)}
-            </Select.Value>
+            <Select.Value placeholder={selected?.label}>{optionContent(selected)}</Select.Value>
             {selected?.trailing}
           </span>
         )}

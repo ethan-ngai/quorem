@@ -1,11 +1,13 @@
 /** @file GraphEncodingFields.tsx @description Optional per-value graph encoding controls. @module admin */
 import {
   GRAPH_RETURN,
+  graphPresetType,
   graphReturnSlot,
   isGraphReturn,
   type GraphEncoding,
 } from "@quorem/questions";
 import type { Signature } from "@quorem/contracts";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import { SelectField } from "../../ui/SelectField";
 import { TextInput } from "../../ui/TextControl";
 import { Plus, X } from "lucide-react";
@@ -20,7 +22,7 @@ const options = [
   { value: "successor", label: "Successor array" },
   { value: "parent", label: "Parent array" },
   { value: "custom", label: "Custom" },
-];
+] satisfies { value: GraphEncoding["kind"]; label: string }[];
 
 export function GraphEncodingFields({
   signature,
@@ -68,7 +70,28 @@ export function GraphEncodingFields({
   function change(name: string, encoding?: GraphEncoding) {
     const next = { ...encodings, ...(encoding ? { [name]: encoding } : {}) };
     if (!encoding) delete next[name];
-    onChange({ ...signature, graphEncodings: Object.keys(next).length ? next : undefined });
+    const type = encoding && graphPresetType(encoding.kind);
+    const withEncodings = {
+      ...signature,
+      graphEncodings: Object.keys(next).length ? next : undefined,
+    };
+    if (!type) return onChange(withEncodings);
+    if (isGraphReturn(name)) {
+      // Return slots share the declared element type of their enclosing list.
+      return onChange(
+        name !== GRAPH_RETURN || returnType === type
+          ? withEncodings
+          : { ...withEncodings, returnType: type },
+      );
+    }
+    onChange({
+      ...withEncodings,
+      parameters: signature.parameters.map((parameter) =>
+        parameter.name !== name || parameter.type.replaceAll("array<", "list<") === type
+          ? parameter
+          : { ...parameter, type, input: undefined },
+      ),
+    });
   }
   return (
     <details className="disclosure authoring-options">
@@ -83,17 +106,17 @@ export function GraphEncodingFields({
             const title = targetLabel(name);
             const encoding = encodings[name]!;
             const collection = type.replaceAll("array<", "list<");
-            const choices = options.filter(
-              ({ value }) =>
-                value === "custom" ||
+            const choices = options.filter(({ value }) => {
+              const solverType = graphPresetType(value);
+              return (
                 value === encoding.kind ||
+                !solverType ||
                 ((!output || signature.nodeReferences !== "return") &&
-                  (value === "successor" || value === "parent"
-                    ? collection === "list<int>"
-                    : collection === "list<list<int>>")),
-            );
+                  (graphReturnSlot(name) === undefined || solverType === collection))
+              );
+            });
             return (
-              <section key={name} className="graph-binding">
+              <div key={name} className="graph-binding">
                 <div className="graph-binding-heading">
                   <strong>{title}</strong>
                   <button
@@ -107,29 +130,37 @@ export function GraphEncodingFields({
                   </button>
                 </div>
                 <div className="graph-binding-options">
-                  <Field label="Encoding">
+                  <Field label="Representation">
                     <SelectField
-                      label={`Graph encoding for ${title}`}
+                      label={`Graph representation for ${title}`}
                       value={encoding.kind}
                       options={choices}
                       disabled={disabled}
-                      onChange={(kind) =>
+                      onChange={(value) => {
+                        const kind = value as GraphEncoding["kind"];
                         change(name, {
                           ...defaultEncoding(
-                            kind as GraphEncoding["kind"],
+                            kind,
                             encoding.kind === "successor" ? true : encoding.directed,
                           ),
                           nodeValueType: encoding.nodeValueType,
-                        })
-                      }
+                          ...(kind === "custom"
+                            ? {}
+                            : {
+                                countParameter: encoding.countParameter,
+                                firstNode: encoding.firstNode,
+                              }),
+                        });
+                      }}
                     />
                   </Field>
                   {encoding.kind !== "successor" && (
-                    <Field label="Direction">
-                      <SelectField
+                    <div className="admin-field">
+                      <span>Direction</span>
+                      <SegmentedControl
+                        compact
                         label={`Direction for ${title}`}
                         value={encoding.directed === undefined ? "" : String(encoding.directed)}
-                        placeholder="Select direction"
                         disabled={disabled}
                         options={[
                           { value: "true", label: "Directed" },
@@ -139,7 +170,7 @@ export function GraphEncodingFields({
                           change(name, { ...encoding, directed: value === "true" })
                         }
                       />
-                    </Field>
+                    </div>
                   )}
                   {encoding.kind !== "custom" && (
                     <>
@@ -167,8 +198,10 @@ export function GraphEncodingFields({
                         </Field>
                       )}
                       {(encoding.kind !== "edgeList" || encoding.countParameter) && (
-                        <Field label="First node">
-                          <SelectField
+                        <div className="admin-field">
+                          <span>First node</span>
+                          <SegmentedControl
+                            compact
                             label={`First node for ${title}`}
                             value={String(encoding.firstNode ?? 0)}
                             disabled={disabled}
@@ -180,7 +213,7 @@ export function GraphEncodingFields({
                               change(name, { ...encoding, firstNode: value === "1" ? 1 : 0 })
                             }
                           />
-                        </Field>
+                        </div>
                       )}
                       {encoding.kind === "edgeList" && (
                         <Field label="Third column" hint="Leave empty for edge pairs">
@@ -200,8 +233,10 @@ export function GraphEncodingFields({
                         </Field>
                       )}
                       {encoding.kind === "adjacencyMatrix" && (
-                        <Field label="Diagonal default">
-                          <SelectField
+                        <div className="admin-field">
+                          <span>Diagonal default</span>
+                          <SegmentedControl
+                            compact
                             label={`Diagonal for ${title}`}
                             value={String(encoding.matrixDiagonal ?? 0)}
                             disabled={disabled}
@@ -213,7 +248,7 @@ export function GraphEncodingFields({
                               change(name, { ...encoding, matrixDiagonal: value === "1" ? 1 : 0 })
                             }
                           />
-                        </Field>
+                        </div>
                       )}
                     </>
                   )}
@@ -262,7 +297,7 @@ export function GraphEncodingFields({
                     );
                   })}
                 </details>
-              </section>
+              </div>
             );
           })}
         {available.length > 0 && (
@@ -282,11 +317,13 @@ export function GraphEncodingFields({
                 change(
                   name,
                   defaultEncoding(
-                    type === "list<list<int>>"
-                      ? "edgeList"
-                      : type === "list<int>"
-                        ? "successor"
-                        : "custom",
+                    isGraphReturn(name) && signature.nodeReferences === "return"
+                      ? "custom"
+                      : graphPresetType("edgeList") === type
+                        ? "edgeList"
+                        : graphPresetType("successor") === type
+                          ? "successor"
+                          : "custom",
                   ),
                 );
             }}
