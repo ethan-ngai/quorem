@@ -131,7 +131,9 @@ export function graphParameters(
       throw new Error("Graph value types must be supported question types");
   if (encoding.kind === "custom") {
     if (
-      Object.keys(encoding).some((key) => !["kind", "nodeValueType", "edgeValueType"].includes(key))
+      Object.keys(encoding).some(
+        (key) => !["kind", "directed", "nodeValueType", "edgeValueType"].includes(key),
+      )
     )
       throw new Error("Custom graphs supply their own arguments");
     return;

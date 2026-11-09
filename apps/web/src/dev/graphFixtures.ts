@@ -216,8 +216,8 @@ export const graphFixtures: readonly Fixture[] = [
     parameters: [{ name: "route", type: "str" }],
     returnType: "str",
     graphEncodings: {
-      route: { kind: "custom", nodeValueType: "list<int>", edgeValueType: "bool" },
-      $return: { kind: "custom", edgeValueType: "str" },
+      route: { kind: "custom", directed: true, nodeValueType: "list<int>", edgeValueType: "bool" },
+      $return: { kind: "custom", directed: true, edgeValueType: "str" },
     },
     examples: [
       {
@@ -246,15 +246,15 @@ export const graphFixtures: readonly Fixture[] = [
     ],
   },
   {
-    id: "per-case",
-    title: "Per-test direction and empty graph",
-    hint: "Direction is set per test. Toggle it on the first case. The second case starts from native values and offers Edit edges as graph. The third case shows the empty graph state.",
+    id: "direction",
+    title: "Signature direction and empty graph",
+    hint: "In Signature, change Direction under Graphs. All cases follow that setting. The second case starts from native values, and the third shows the empty graph state.",
     parameters: [
       { name: "edges", type: pairs },
       { name: "n", type: "int" },
     ],
     returnType: "bool",
-    graphEncodings: { edges: { kind: "edgeList", countParameter: "n" } },
+    graphEncodings: { edges: { kind: "edgeList", directed: true, countParameter: "n" } },
     examples: [
       { args: [null, null], expected: true, graphs: { edges: path } },
       { args: [[[0, 2]], 3], expected: true },

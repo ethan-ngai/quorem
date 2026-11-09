@@ -3,7 +3,6 @@ import { useRef, useState, type ClipboardEvent } from "react";
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import type { GraphEncoding, QuestionGraph } from "@quorem/questions";
 import { TextInput } from "../../ui/TextControl";
-import { ToggleSwitch } from "../../ui/ToggleSwitch";
 import { Table } from "../../ui/Table";
 import { Tooltip } from "../../ui/Tooltip";
 import { CodeLiteral } from "../editor/components/CodeLiteral";
@@ -44,8 +43,6 @@ export function GraphCaseField({
   const numbered = numberedGraph(encoding);
   const fields = weight ? (["from", "to", "value"] as const) : (["from", "to"] as const);
   const headings = ["From", "To", weight];
-  const fixedDirection =
-    encoding.kind === "successor" || encoding.kind === "parent" || encoding.directed !== undefined;
   const canAdd = form.edges.length < limit;
   function replaceRows(edges: GraphRow[]) {
     onChange({ ...form, edges });
@@ -92,37 +89,25 @@ export function GraphCaseField({
       </div>
       <div className="graph-case-layout">
         <div ref={root} className="graph-case-controls">
-          <div className="graph-case-nodes">
-            <label className="admin-field">
-              <span>{numbered ? "Nodes" : "Node IDs"}</span>
-              <TextInput
-                mono
-                aria-label={`${label} ${numbered ? "node count" : "node labels"}`}
-                inputMode={numbered ? "numeric" : undefined}
-                value={form.nodes}
-                placeholder={numbered ? "0" : "A, B, C"}
-                onChange={(event) => onChange({ ...form, nodes: event.target.value })}
-              />
-            </label>
-            {fixedDirection ? (
-              <span className="graph-direction">{form.directed ? "Directed" : "Undirected"}</span>
-            ) : (
-              <label className="graph-direction">
-                Directed{" "}
-                <ToggleSwitch
-                  label={`${label} directed`}
-                  checked={form.directed}
-                  onChange={(directed) => onChange({ ...form, directed })}
-                />
-              </label>
-            )}
-          </div>
-          <GraphNodeValues
-            label={label}
-            rows={form.nodeValues}
-            type={encoding.nodeValueType}
-            onChange={(nodeValues) => onChange({ ...form, nodeValues })}
-          />
+          <label className="admin-field graph-case-nodes">
+            <span>{numbered ? "Nodes" : "Node IDs"}</span>
+            <TextInput
+              mono
+              aria-label={`${label} ${numbered ? "node count" : "node labels"}`}
+              inputMode={numbered ? "numeric" : undefined}
+              value={form.nodes}
+              placeholder={numbered ? "0" : "A, B, C"}
+              onChange={(event) => onChange({ ...form, nodes: event.target.value })}
+            />
+          </label>
+          {encoding.nodeValueType && (
+            <GraphNodeValues
+              label={label}
+              rows={form.nodeValues}
+              type={encoding.nodeValueType}
+              onChange={(nodeValues) => onChange({ ...form, nodeValues })}
+            />
+          )}
           <Table
             label={`${label} edges`}
             className="graph-edge-table"

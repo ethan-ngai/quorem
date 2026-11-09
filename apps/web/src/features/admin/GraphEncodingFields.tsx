@@ -62,10 +62,8 @@ export function GraphEncodingFields({
   );
   if (canAddSlot)
     available.push({ name: `${GRAPH_RETURN}[${nextSlot}]`, type: returnType.slice(5, -1) });
-  function defaultEncoding(kind: GraphEncoding["kind"]): GraphEncoding {
-    return kind === "edgeList" || kind === "adjacencyList" || kind === "adjacencyMatrix"
-      ? { kind, directed: false }
-      : { kind };
+  function defaultEncoding(kind: GraphEncoding["kind"], directed = false): GraphEncoding {
+    return kind === "successor" ? { kind } : { kind, directed };
   }
   function change(name: string, encoding?: GraphEncoding) {
     const next = { ...encodings, ...(encoding ? { [name]: encoding } : {}) };
@@ -117,34 +115,34 @@ export function GraphEncodingFields({
                       disabled={disabled}
                       onChange={(kind) =>
                         change(name, {
-                          ...defaultEncoding(kind as GraphEncoding["kind"]),
+                          ...defaultEncoding(
+                            kind as GraphEncoding["kind"],
+                            encoding.kind === "successor" ? true : encoding.directed,
+                          ),
                           nodeValueType: encoding.nodeValueType,
                         })
                       }
                     />
                   </Field>
+                  {encoding.kind !== "successor" && (
+                    <Field label="Direction">
+                      <SelectField
+                        label={`Direction for ${title}`}
+                        value={encoding.directed === undefined ? "" : String(encoding.directed)}
+                        placeholder="Select direction"
+                        disabled={disabled}
+                        options={[
+                          { value: "true", label: "Directed" },
+                          { value: "false", label: "Undirected" },
+                        ]}
+                        onChange={(value) =>
+                          change(name, { ...encoding, directed: value === "true" })
+                        }
+                      />
+                    </Field>
+                  )}
                   {encoding.kind !== "custom" && (
                     <>
-                      {encoding.kind !== "successor" && encoding.kind !== "parent" && (
-                        <Field label="Default direction">
-                          <SelectField
-                            label={`Direction for ${title}`}
-                            value={String(encoding.directed)}
-                            disabled={disabled}
-                            options={[
-                              { value: "undefined", label: "Set per test" },
-                              { value: "true", label: "Directed" },
-                              { value: "false", label: "Undirected" },
-                            ]}
-                            onChange={(value) =>
-                              change(name, {
-                                ...encoding,
-                                directed: value === "undefined" ? undefined : value === "true",
-                              })
-                            }
-                          />
-                        </Field>
-                      )}
                       {!output && (
                         <Field label="Node count argument">
                           <SelectField

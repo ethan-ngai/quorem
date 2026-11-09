@@ -114,7 +114,11 @@ export function graphFromForm(
   const payloads = new Map<string | number, WireValue>();
   for (const { node, value } of form.nodeValues) {
     const id = readLabel(node);
-    if (!ids.has(id)) throw new Error("Node values must refer to an existing node ID.");
+    if (!ids.has(id)) {
+      // Untyped payloads have no editor. Drop them when their node is removed.
+      if (!encoding.nodeValueType) continue;
+      throw new Error("Node values must refer to an existing node ID.");
+    }
     if (payloads.has(id)) throw new Error("A node can have only one value.");
     payloads.set(id, readValue(value, encoding.nodeValueType));
   }
@@ -131,7 +135,7 @@ export function graphFromForm(
       : edge;
   });
   return {
-    directed: form.directed,
+    directed: encoding.kind === "successor" || (encoding.directed ?? form.directed),
     nodes: nodes.map((node) => {
       const id = graphNodeId(node);
       const value = payloads.get(id);

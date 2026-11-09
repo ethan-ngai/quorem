@@ -341,35 +341,7 @@ export function AuthoringCases({
     const sections = targets.map((target, targetIndex) => {
       const encoding = encodings[target]!;
       const form = test.graphForms?.[target];
-      if (!form && encoding.kind !== "custom") {
-        if (encoding.directed !== undefined) return null;
-        try {
-          const { args, expected } = parseCustomDraft(test, sig);
-          const inferred = [false, true]
-            .map((directed) =>
-              inferCaseGraph(
-                { ...sig, graphEncodings: { ...encodings, [target]: { ...encoding, directed } } },
-                target,
-                args,
-                expected,
-                p.limits.maxCollectionElements,
-              ),
-            )
-            .find(Boolean);
-          return inferred ? (
-            <button
-              key={target}
-              type="button"
-              className="quiet-button"
-              onClick={() => applyForm(target, graphToForm(inferred, encoding))}
-            >
-              Edit {graphLabel(target)} as graph
-            </button>
-          ) : null;
-        } catch {
-          return null;
-        }
-      }
+      if (!form && encoding.kind !== "custom") return null;
       const arg = sig.parameters.findIndex(({ name }) => name === target);
       const count = sig.parameters.findIndex(({ name }) => name === encoding.countParameter);
       const graph: QuestionGraph = { directed: false, nodes: [], edges: [] };

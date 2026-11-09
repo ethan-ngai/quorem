@@ -16,7 +16,7 @@ export function GraphNodeValues({
 }: {
   label: string;
   rows: NodeValueRow[];
-  type?: string;
+  type: string;
   onChange: (rows: NodeValueRow[]) => void;
 }) {
   const [pageIndex, setPageIndex] = useState(0);
@@ -26,7 +26,7 @@ export function GraphNodeValues({
   return (
     <details className="graph-node-values">
       <summary>
-        Node values{type ? ` · ${type}` : ""}
+        Node values · {type}
         {rows.length ? ` (${rows.length})` : ""}
       </summary>
       {rows.length > 0 && (
@@ -51,7 +51,7 @@ export function GraphNodeValues({
                     mono
                     aria-label={`${field === "node" ? "Node ID" : "Node value"}, row ${start + offset + 1}`}
                     value={row[field]}
-                    placeholder={field === "value" ? (type ?? "Text or JSON") : undefined}
+                    placeholder={field === "value" ? type : undefined}
                     onChange={(event) =>
                       onChange(
                         rows.map((entry) =>

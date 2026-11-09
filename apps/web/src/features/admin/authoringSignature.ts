@@ -54,16 +54,16 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
         const target = targetName(name);
         if (target === undefined || !Object.hasOwn(signature.graphEncodings ?? {}, target))
           return [];
-        const direction = signature.graphEncodings![target]!.directed;
+        const encoding = signature.graphEncodings![target]!;
+        const direction = encoding.kind === "successor" ? true : encoding.directed;
         // Re-infer direction changes from the concrete case to preserve matrix and neighbor values.
         if (
           direction !== undefined &&
           direction !== previous.graphEncodings?.[name]?.directed &&
           direction !== graph.directed
         ) {
-          if (signature.graphEncodings![target]!.kind === "edgeList")
-            return [[target, { ...graph, directed: direction }]];
-          return [];
+          if (encoding.kind === "adjacencyList" || encoding.kind === "adjacencyMatrix") return [];
+          return [[target, { ...graph, directed: direction }]];
         }
         return [[target, graph]];
       }),

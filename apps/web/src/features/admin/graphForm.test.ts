@@ -15,3 +15,20 @@ it("round-trips named IDs, duplicate node values and structured edge values", ()
   };
   expect(graphFromForm(graphToForm(graph, encoding), encoding, 100)).toEqual(graph);
 });
+
+it("keeps untyped node values until their node is removed", () => {
+  const encoding: GraphEncoding = { kind: "custom" };
+  const graph: QuestionGraph = {
+    directed: true,
+    nodes: [
+      { id: "A", value: 1 },
+      { id: "B", value: 2 },
+    ],
+    edges: [],
+  };
+  const form = graphToForm(graph, encoding);
+  expect(graphFromForm({ ...form, nodes: "A" }, encoding, 100)).toEqual({
+    ...graph,
+    nodes: [{ id: "A", value: 1 }],
+  });
+});
