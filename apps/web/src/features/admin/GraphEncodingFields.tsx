@@ -10,8 +10,8 @@ import type { ReactNode } from "react";
 import type { Signature } from "@quorem/contracts";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { SelectField } from "../../ui/SelectField";
-import { TextInput } from "../../ui/TextControl";
-import { Plus, X } from "lucide-react";
+import { ArrowRightLeft, Hash, ListOrdered, Network, Plus, Weight, X } from "lucide-react";
+import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import { ValueTypeField } from "./ValueTypeField";
 import { Field } from "./AuthoringFields";
 import "./graph-authoring.css";
@@ -126,7 +126,9 @@ export function GraphEncodingFields({
   return (
     <div className="graph-binding-list">
       <div className="admin-field">
-        <span>Representation</span>
+        <span className="admin-icon-label">
+          <Network size={14} aria-hidden="true" /> Representation
+        </span>
         <GraphRepresentationField
           title={title}
           encoding={encoding}
@@ -144,7 +146,9 @@ export function GraphEncodingFields({
       <div className="graph-binding-options">
         {encoding.kind !== "successor" && (
           <div className="admin-field">
-            <span>Direction</span>
+            <span className="admin-icon-label">
+              <ArrowRightLeft size={14} aria-hidden="true" /> Direction
+            </span>
             <SegmentedControl
               compact
               label={`Direction for ${title}`}
@@ -161,7 +165,7 @@ export function GraphEncodingFields({
         {encoding.kind !== "custom" && (
           <>
             {!output && (
-              <Field label="Node count argument">
+              <Field label="Node count argument" icon={<Hash size={14} aria-hidden="true" />}>
                 <SelectField
                   label={`Node count for ${title}`}
                   value={encoding.countParameter ?? "$none"}
@@ -183,7 +187,9 @@ export function GraphEncodingFields({
             )}
             {(encoding.kind !== "edgeList" || encoding.countParameter) && (
               <div className="admin-field">
-                <span>First node</span>
+                <span className="admin-icon-label">
+                  <ListOrdered size={14} aria-hidden="true" /> First node
+                </span>
                 <SegmentedControl
                   compact
                   label={`First node for ${title}`}
@@ -198,17 +204,21 @@ export function GraphEncodingFields({
               </div>
             )}
             {encoding.kind === "edgeList" && (
-              <Field label="Third column" hint="Leave empty for edge pairs">
-                <TextInput
-                  aria-label={`Third column for ${title}`}
-                  value={encoding.edgeValue ?? ""}
+              <Field
+                label="Weight type"
+                icon={<Weight size={14} aria-hidden="true" />}
+                hint="Choosing None removes weights from test cases."
+              >
+                <SearchableTypeSelect
+                  label={`Weight type for ${title}`}
+                  value={encoding.edgeValue ? "int" : "None"}
+                  choices={["None", "int"]}
+                  names={{ int: "Integer" }}
                   disabled={disabled}
-                  maxLength={80}
-                  placeholder="Weight"
-                  onChange={(event) =>
+                  onChange={(type) =>
                     onChange({
                       ...encoding,
-                      edgeValue: event.target.value || undefined,
+                      edgeValue: type === "int" ? (encoding.edgeValue ?? "Weight") : undefined,
                     })
                   }
                 />

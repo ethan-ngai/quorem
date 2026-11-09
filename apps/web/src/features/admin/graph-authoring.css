@@ -134,14 +134,13 @@
   min-width: 0;
 }
 
-.graph-signature-choice > .admin-field {
-  flex: none;
-}
-
 .graph-signature-native {
   font-size: var(--text-small);
   min-width: 0;
-  overflow-wrap: anywhere;
+}
+
+.graph-signature-native > span {
+  display: inline-block;
 }
 
 .graph-signature-settings {
@@ -156,4 +155,51 @@
 
 .graph-signature-settings > .graph-binding-list {
   margin-top: var(--space-2);
+}
+
+.graph-signature-picker {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-field);
+}
+
+.graph-signature-picker > .admin-field {
+  margin: 0;
+}
+
+.graph-signature-picker > .admin-field input.authoring-type-input {
+  border: 0;
+  min-height: calc(var(--control-height) - 2px);
+  background: transparent;
+}
+
+.graph-settings-trigger.icon-button {
+  width: calc(var(--control-height) - var(--space-1));
+  height: calc(var(--control-height) - 2px);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--color-text-secondary);
+}
+
+.graph-settings-trigger[aria-expanded="true"] {
+  background: var(--color-control-selected);
+  color: var(--color-text);
+}
+
+.graph-settings-popover {
+  width: min(26rem, var(--radix-popover-content-available-width));
+  max-height: var(--radix-popover-content-available-height);
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.graph-settings-popover .admin-field {
+  margin: 0;
+}
+
+.graph-count-icon {
+  display: inline-flex;
+  align-items: center;
 }

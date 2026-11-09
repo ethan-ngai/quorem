@@ -6,9 +6,11 @@ import {
   ArrowDownToLine,
   ChevronRight,
   FileText,
+  Hash,
   ListOrdered,
   Plus,
   Shuffle,
+  Settings,
   Trash2,
   TriangleAlert,
   Unlink,
@@ -21,6 +23,7 @@ import { GRAPH_RETURN, graphReturnSlot, type GraphEncoding } from "@quorem/quest
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { TypeSyntaxText } from "../editor/components/TypeSyntax";
@@ -65,9 +68,8 @@ export function SignatureFields({
   const hasReturnSlots = returnSlots.length > 0;
   const hasPresetSlot = returnSlots.some(([, { kind }]) => kind !== "custom");
   const listReturn = /^(list|array)</.test(value.returnType);
-  const returnGraph = encodings[GRAPH_RETURN];
   const canAddSlot =
-    graphAuthoring && listReturn && !returnGraph && value.outputOrder !== "unordered";
+    graphAuthoring && listReturn && !encodings[GRAPH_RETURN] && value.outputOrder !== "unordered";
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
@@ -99,27 +101,6 @@ export function SignatureFields({
     });
   function changeEncoding(name: string, encoding?: GraphEncoding) {
     onChange(withGraphEncoding(value, name, encoding));
-  }
-  function graphSettings(
-    name: string,
-    title: string,
-    encoding: GraphEncoding,
-    customType: ReactNode,
-  ) {
-    return (
-      <details className="graph-signature-settings">
-        <summary aria-label={`Graph settings for ${title}`}>Graph settings</summary>
-        <GraphEncodingFields
-          signature={value}
-          name={name}
-          title={title}
-          encoding={encoding}
-          disabled={disabled}
-          customType={customType}
-          onChange={(next) => changeEncoding(name, next)}
-        />
-      </details>
-    );
   }
   function typeField(
     name: string,
@@ -163,7 +144,50 @@ export function SignatureFields({
     if (!encoding || !graphAuthoring) return selector;
     return (
       <div className="graph-signature-choice">
-        {selector}
+        <div className="graph-signature-picker">
+          {selector}
+          <Popover.Root>
+            <Tooltip content="Graph settings">
+              <Popover.Trigger asChild>
+                <button
+                  type="button"
+                  className="icon-button graph-settings-trigger"
+                  aria-label={`Graph settings for ${isReturn ? "Return value" : name}`}
+                  disabled={disabled}
+                >
+                  <Settings size={14} aria-hidden="true" />
+                </button>
+              </Popover.Trigger>
+            </Tooltip>
+            <Popover.Portal>
+              <Popover.Content
+                className="graph-settings-popover"
+                aria-label="Graph settings"
+                align="start"
+              >
+                <GraphEncodingFields
+                  signature={value}
+                  name={name}
+                  title={isReturn ? "Return value" : name}
+                  encoding={encoding}
+                  disabled={disabled}
+                  customType={
+                    encoding.kind === "custom" && (
+                      <ValueTypeField
+                        label="Solver type"
+                        value={type}
+                        disabled={disabled}
+                        onValidityChange={onValidityChange}
+                        onChange={(next) => onChange(updateType(next, value))}
+                      />
+                    )
+                  }
+                  onChange={(next) => changeEncoding(name, next)}
+                />
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        </div>
         <code className="code-literal graph-signature-native">
           <TypeSyntaxText text={type} />
         </code>
@@ -259,20 +283,6 @@ export function SignatureFields({
             />
           </div>
         )}
-        {returnGraph &&
-          graphAuthoring &&
-          graphSettings(
-            GRAPH_RETURN,
-            "Return value",
-            returnGraph,
-            <ValueTypeField
-              label="Solver return type"
-              value={value.returnType}
-              disabled={disabled}
-              onValidityChange={onValidityChange}
-              onChange={(type) => onChange(updateReturnType(type, value))}
-            />,
-          )}
         {graphAuthoring && (canAddSlot || hasReturnSlots) && (
           <ReturnGraphSlots
             signature={value}
@@ -368,7 +378,11 @@ export function SignatureFields({
               />
             </div>
             {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
-              <PresetType type={parameter.type} note="Graph node count" />
+              <PresetType
+                type={parameter.type}
+                note="Graph node count"
+                icon={<Hash size={14} aria-hidden="true" />}
+              />
             ) : (
               typeField(
                 parameter.name,
@@ -401,20 +415,6 @@ export function SignatureFields({
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </Tooltip>
-            {graphAuthoring &&
-              encodings[parameter.name] &&
-              graphSettings(
-                parameter.name,
-                parameter.name,
-                encodings[parameter.name]!,
-                <ValueTypeField
-                  label={`Solver type for ${parameter.name}`}
-                  value={parameter.type}
-                  disabled={disabled}
-                  onValidityChange={onValidityChange}
-                  onChange={(type) => onChange(updateParameterType(index, type, value))}
-                />,
-              )}
           </div>
         )}
       />
@@ -517,13 +517,21 @@ export function SignatureFields({
   );
 }
 
-function PresetType({ type, note }: { type: string; note: string }) {
+function PresetType({ type, note, icon }: { type: string; note: string; icon?: ReactNode }) {
   return (
     <div className="authoring-derived-type">
       <code className="code-literal">
         <TypeSyntaxText text={type} />
       </code>
-      <span>{note}</span>
+      {icon ? (
+        <Tooltip content={note}>
+          <span className="graph-count-icon" tabIndex={0} aria-label={note}>
+            {icon}
+          </span>
+        </Tooltip>
+      ) : (
+        <span>{note}</span>
+      )}
     </div>
   );
 }

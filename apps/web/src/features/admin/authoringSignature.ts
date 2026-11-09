@@ -62,12 +62,20 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
         const encoding = target === undefined ? undefined : encodings[target];
         if (target === undefined || !encoding) return [];
         const changedRepresentation = oldEncoding.kind !== encoding.kind;
-        const graph =
+        const changedWeight =
+          oldEncoding.kind === "edgeList" &&
+          encoding.kind === "edgeList" &&
+          !!oldEncoding.edgeValue !== !!encoding.edgeValue;
+        const original =
           test.graphs?.[name] ??
-          (changedRepresentation
+          (changedRepresentation || changedWeight
             ? inferCaseGraph(previous, name, test.args, test.expected, limit)
             : undefined);
-        if (!graph) return [];
+        if (!original) return [];
+        const graph =
+          changedWeight && !encoding.edgeValue
+            ? { ...original, edges: original.edges.map(({ from, to }) => ({ from, to })) }
+            : original;
         const direction = encoding.kind === "successor" ? true : encoding.directed;
         if (
           direction !== undefined &&

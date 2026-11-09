@@ -54,3 +54,43 @@ it("reprojects public and private native graph cases when their preset changes t
   expect(updated.problem.examples[0]).toMatchObject(expected);
   expect(updated.hiddenCases[0]).toMatchObject(expected);
 });
+
+it("removes edge weights from native public and private cases", () => {
+  const content = blankQuestion();
+  const encoding = { kind: "edgeList", directed: true, edgeValue: "Weight" } as const;
+  const signature = {
+    ...primarySignature(content.problem),
+    parameters: [{ name: "roads", type: "list<list<int>>" }],
+    graphEncodings: { roads: encoding },
+  };
+  const test = {
+    args: [
+      [
+        [0, 1, 5],
+        [0, 1, 7],
+      ],
+    ],
+    expected: 1,
+  };
+  content.problem.signature = signature;
+  content.problem.examples = [test];
+  content.hiddenCases = [test];
+
+  const updated = adaptSignature(content, {
+    ...signature,
+    graphEncodings: { roads: { ...encoding, edgeValue: undefined } },
+  });
+
+  for (const entry of [updated.problem.examples[0], updated.hiddenCases[0]]) {
+    expect(entry?.args).toEqual([
+      [
+        [0, 1],
+        [0, 1],
+      ],
+    ]);
+    expect(entry?.graphs?.roads?.edges).toEqual([
+      { from: 0, to: 1 },
+      { from: 0, to: 1 },
+    ]);
+  }
+});
