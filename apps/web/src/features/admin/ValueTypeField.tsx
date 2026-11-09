@@ -53,72 +53,71 @@ function TypeBlock({
   const element =
     type && "element" in type ? type.element : nodeKind ? { kind: "int" as const } : undefined;
   return (
-    <div className="authoring-type-block">
-      <SearchableTypeSelect<Choice>
-        label={label}
-        value={graph?.selected ? graphChoice : type?.kind}
-        choices={
-          payloadOnly
-            ? nodePayloadTypes
-            : [
-                ...(depth < 100 ? valueAtoms : nodePayloadTypes),
-                ...(depth < 100 ? valueWrappers : []),
-                ...(allowVoid ? ["void" as const] : []),
-                ...(graph ? ([graphChoice] as const) : []),
-              ]
-        }
-        searchAliases={searchAliases}
-        disabled={disabled}
-        onChange={(kind) => {
-          if (kind === graphChoice) {
-            graph?.onSelect();
-          } else if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
-            if (type?.kind === kind && !graph?.selected) return;
-            const payload =
-              nodePayloadTypes.find((atom) => atom === (element ?? type)?.kind) ?? "int";
-            onChange({ kind, element: { kind: payload } });
-          } else if (kind === "list" || kind === "optional" || kind === "array") {
-            const element =
-              type && type.kind !== "void"
-                ? "element" in type
-                  ? type.element
-                  : type
-                : { kind: "int" as const };
-            onChange({ kind, element });
-          } else {
-            onChange({ kind });
+    <>
+      <span className="authoring-type-token">
+        <SearchableTypeSelect<Choice>
+          label={label}
+          value={graph?.selected ? graphChoice : type?.kind}
+          choices={
+            payloadOnly
+              ? nodePayloadTypes
+              : [
+                  ...(depth < 100 ? valueAtoms : nodePayloadTypes),
+                  ...(depth < 100 ? valueWrappers : []),
+                  ...(allowVoid ? ["void" as const] : []),
+                  ...(graph ? ([graphChoice] as const) : []),
+                ]
           }
-        }}
-      />
+          searchAliases={searchAliases}
+          disabled={disabled}
+          onChange={(kind) => {
+            if (kind === graphChoice) {
+              graph?.onSelect();
+            } else if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
+              if (type?.kind === kind && !graph?.selected) return;
+              const payload =
+                nodePayloadTypes.find((atom) => atom === (element ?? type)?.kind) ?? "int";
+              onChange({ kind, element: { kind: payload } });
+            } else if (kind === "list" || kind === "optional" || kind === "array") {
+              const element =
+                type && type.kind !== "void"
+                  ? "element" in type
+                    ? type.element
+                    : type
+                  : { kind: "int" as const };
+              onChange({ kind, element });
+            } else {
+              onChange({ kind });
+            }
+          }}
+        />
+        {!graph?.selected && (element || depth > 0) && (
+          <span className="code-operator" aria-hidden="true">
+            {element ? "<" : ">".repeat(depth)}
+          </span>
+        )}
+      </span>
       {!graph?.selected && type && element && (
-        <>
-          <span className="code-operator" aria-hidden="true">
-            &lt;
-          </span>
-          <TypeBlock
-            label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
-            type={element}
-            payloadOnly={!!nodeKind}
-            disabled={disabled}
-            depth={depth + 1}
-            onChange={(element) => {
-              if (nodeKind) {
-                const payload = nodePayloadTypes.find((atom) => atom === element.kind);
-                if (payload) onChange({ kind: nodeKind, element: { kind: payload } });
-              } else if (
-                (type.kind === "list" || type.kind === "array" || type.kind === "optional") &&
-                element.kind !== "void"
-              ) {
-                onChange({ kind: type.kind, element });
-              }
-            }}
-          />
-          <span className="code-operator" aria-hidden="true">
-            &gt;
-          </span>
-        </>
+        <TypeBlock
+          label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
+          type={element}
+          payloadOnly={!!nodeKind}
+          disabled={disabled}
+          depth={depth + 1}
+          onChange={(element) => {
+            if (nodeKind) {
+              const payload = nodePayloadTypes.find((atom) => atom === element.kind);
+              if (payload) onChange({ kind: nodeKind, element: { kind: payload } });
+            } else if (
+              (type.kind === "list" || type.kind === "array" || type.kind === "optional") &&
+              element.kind !== "void"
+            ) {
+              onChange({ kind: type.kind, element });
+            }
+          }}
+        />
       )}
-    </div>
+    </>
   );
 }
 
@@ -151,14 +150,16 @@ export function ValueTypeField({
   }, [id, invalid]);
   useEffect(() => () => validity.current?.(id, false), [id]);
   const control = (
-    <TypeBlock
-      label={label}
-      type={type}
-      allowVoid={allowVoid}
-      disabled={disabled}
-      graph={graph}
-      onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
-    />
+    <div className="authoring-type-block">
+      <TypeBlock
+        label={label}
+        type={type}
+        allowVoid={allowVoid}
+        disabled={disabled}
+        graph={graph}
+        onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
+      />
+    </div>
   );
   return (
     <div className="admin-field">

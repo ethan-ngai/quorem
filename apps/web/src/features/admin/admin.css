@@ -802,13 +802,22 @@
   }
 }
 
-.authoring-type-block {
+.authoring-type-block,
+.authoring-type-token {
   display: flex;
   min-width: 0;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-1);
   font-family: var(--font-code);
+}
+
+.authoring-type-block {
+  flex-wrap: wrap;
+}
+
+.authoring-type-token > .code-operator {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-field input.authoring-type-input,
