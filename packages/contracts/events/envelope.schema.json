@@ -988,6 +988,20 @@
       ],
       "additionalProperties": false
     },
+    "GraphNodeId": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      ]
+    },
     "QuestionGraph": {
       "type": "object",
       "additionalProperties": false,
@@ -1000,14 +1014,23 @@
           "items": {
             "anyOf": [
               {
-                "type": "integer",
-                "minimum": -2147483648,
-                "maximum": 2147483647
+                "$ref": "#/$defs/GraphNodeId"
               },
               {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 120
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "$ref": "#/$defs/GraphNodeId"
+                  },
+                  "value": {
+                    "$ref": "#/$defs/WireValue"
+                  }
+                },
+                "required": [
+                  "id",
+                  "value"
+                ]
               }
             ]
           },
@@ -1020,44 +1043,13 @@
             "additionalProperties": false,
             "properties": {
               "from": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -2147483648,
-                    "maximum": 2147483647
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  }
-                ]
+                "$ref": "#/$defs/GraphNodeId"
               },
               "to": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": -2147483648,
-                    "maximum": 2147483647
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  }
-                ]
+                "$ref": "#/$defs/GraphNodeId"
               },
               "value": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  }
-                ]
+                "$ref": "#/$defs/WireValue"
               }
             },
             "required": [
@@ -1088,6 +1080,19 @@
             "parent",
             "custom"
           ]
+        },
+        "directed": {
+          "type": "boolean"
+        },
+        "nodeValueType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "edgeValueType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
         },
         "countParameter": {
           "type": "string",

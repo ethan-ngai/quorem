@@ -52,9 +52,20 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
     const graphs = Object.fromEntries(
       Object.entries(test.graphs ?? {}).flatMap(([name, graph]) => {
         const target = targetName(name);
-        return target !== undefined && Object.hasOwn(signature.graphEncodings ?? {}, target)
-          ? [[target, graph]]
-          : [];
+        if (target === undefined || !Object.hasOwn(signature.graphEncodings ?? {}, target))
+          return [];
+        const direction = signature.graphEncodings![target]!.directed;
+        // Re-infer direction changes from the concrete case to preserve matrix and neighbor values.
+        if (
+          direction !== undefined &&
+          direction !== previous.graphEncodings?.[name]?.directed &&
+          direction !== graph.directed
+        ) {
+          if (signature.graphEncodings![target]!.kind === "edgeList")
+            return [[target, { ...graph, directed: direction }]];
+          return [];
+        }
+        return [[target, graph]];
       }),
     );
     const next: QuestionContent["hiddenCases"][number] = {

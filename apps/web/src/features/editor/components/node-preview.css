@@ -237,3 +237,12 @@
   stroke-width: 3px;
   stroke-linejoin: round;
 }
+
+.case-graph [data-active] > path {
+  stroke: var(--color-primary);
+  stroke-width: 2px;
+}
+
+.case-graph [data-active] > .case-graph-weight {
+  fill: var(--color-primary);
+}

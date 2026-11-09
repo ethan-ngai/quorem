@@ -1541,18 +1541,25 @@ export interface components {
             input?: components["schemas"]["InputPresetConfig"];
             description?: string;
         };
+        GraphNodeId: number | string;
         QuestionGraph: {
             directed: boolean;
-            nodes: (number | string)[];
+            nodes: (components["schemas"]["GraphNodeId"] | {
+                id: components["schemas"]["GraphNodeId"];
+                value: components["schemas"]["WireValue"];
+            })[];
             edges: {
-                from: number | string;
-                to: number | string;
-                value?: number | string;
+                from: components["schemas"]["GraphNodeId"];
+                to: components["schemas"]["GraphNodeId"];
+                value?: components["schemas"]["WireValue"];
             }[];
         };
         GraphEncoding: {
             /** @enum {string} */
             kind: "edgeList" | "adjacencyList" | "adjacencyMatrix" | "successor" | "parent" | "custom";
+            directed?: boolean;
+            nodeValueType?: string;
+            edgeValueType?: string;
             countParameter?: string;
             /** @enum {integer} */
             firstNode?: 0 | 1;

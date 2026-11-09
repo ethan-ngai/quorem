@@ -22,7 +22,6 @@ export function TypedCaseInput({
   value,
   onChange,
   validationError,
-  readOnly = false,
 }: {
   id: string;
   name: string;
@@ -31,7 +30,6 @@ export function TypedCaseInput({
   purpose?: "input" | "expected";
   action?: ReactNode;
   value: string;
-  readOnly?: boolean;
   validationError?: string;
   onChange: (value: string) => void;
 }) {
@@ -75,14 +73,13 @@ export function TypedCaseInput({
   const errorId = `${id}-error`;
   const props = {
     id,
-    readOnly,
     value: preset.toEditorSource(value),
     placeholder: input?.placeholder,
     "aria-invalid": !!error,
     "aria-describedby": error ? errorId : undefined,
     onBlur: () => {
       setTouched(true);
-      if (!readOnly && preset.autoformat) {
+      if (preset.autoformat) {
         try {
           onChange(preset.format(preset.parse(value)));
         } catch {
@@ -123,7 +120,7 @@ export function TypedCaseInput({
           </code>
         </label>
         {action}
-        {optional && !readOnly && (
+        {optional && (
           <button
             type="button"
             className="quiet-button"
@@ -161,7 +158,6 @@ export function TypedCaseInput({
           ) : control.kind === "boolean" ? (
             <SelectField
               label={name}
-              disabled={readOnly}
               value={props.value}
               options={[
                 { value: "false", label: questionValue(false, language) },

@@ -109,6 +109,8 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Start with system theme; persist explicit choices and separate light/dark editor schemes. Default to JetBrains Light/Dark.
 - Use identity colors for participant avatars, remote carets and selections; photo rings and initial backgrounds. Keep the local caret in its editor scheme.
 
+Preset graph bindings replace their concrete case fields with a node and edge editor beside the preview. Show the generated solver values as a read-only preview. Keep custom concrete values editable.
+
 ## Completion gate
 
 Before calling UI work complete:

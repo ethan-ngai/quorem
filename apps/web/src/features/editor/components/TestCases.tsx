@@ -1,4 +1,4 @@
-import { projectCaseGraphs } from "@quorem/questions";
+import { inferCaseGraph } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
@@ -44,6 +44,7 @@ export function TestCases({
   requiredExpected = false,
   caseActions,
   customCaseDetails,
+  renderCaseField,
   caseResults,
   caseStatuses,
   hiddenCaseDetails,
@@ -66,6 +67,7 @@ export function TestCases({
   maximumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
+  renderCaseField?: (index: number, name: string, field: ReactNode) => ReactNode;
   customCaseDetails?: (index: number) => ReactNode;
   caseGroups?: readonly (string | undefined)[];
   currentCaseGroup?: string;
@@ -213,17 +215,19 @@ export function TestCases({
       : !customMode && !submission.customRun)
       ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
       : undefined;
-  const graphs = customMode ? draft?.graphs : example?.graphs;
-  let generated: ReturnType<typeof projectCaseGraphs> | undefined;
-  if (customMode && graphs && !problem.sql) {
-    try {
-      generated = projectCaseGraphs(
-        primarySignature(problem),
-        graphs,
+  let graphs = customMode ? undefined : example?.graphs;
+  if (!customMode && currentValue && !problem.sql && !problem.odyssey) {
+    const signature = primarySignature(problem);
+    for (const target of Object.keys(signature.graphEncodings ?? {})) {
+      if (Object.hasOwn(graphs ?? {}, target)) continue;
+      const graph = inferCaseGraph(
+        signature,
+        target,
+        currentValue.args,
+        currentValue.expected,
         problem.limits.maxCollectionElements,
       );
-    } catch {
-      // Draft authoring reports errors beside the source and keeps native fields editable.
+      if (graph) graphs = { ...graphs, [target]: graph };
     }
   }
   const combinedPreview = !problem.sql && !problem.odyssey;
@@ -472,7 +476,9 @@ export function TestCases({
                   signature={primarySignature(problem)}
                   inputErrors={inputErrors}
                   args={draft.args}
-                  generated={generated}
+                  renderField={
+                    renderCaseField && ((name, field) => renderCaseField(customIndex, name, field))
+                  }
                   expected={draft.expectedEnabled ? draft.expected : undefined}
                   onChange={updateDraft}
                   preview={!combinedPreview && !result}

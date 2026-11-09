@@ -99,10 +99,20 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           "utf8",
         ),
       );
-      const graph = { directed: true, nodes: [0, 1], edges: [{ from: 0, to: 1 }] };
-      const privateGraph = { directed: true, nodes: [0, 1], edges: [{ from: 1, to: 0 }] };
+      const graph = {
+        directed: true,
+        nodes: [{ id: 0, value: "start" }, 1],
+        edges: [{ from: 0, to: 1 }],
+      };
+      const privateGraph = {
+        directed: true,
+        nodes: [0, { id: 1, value: "private" }],
+        edges: [{ from: 1, to: 0 }],
+      };
       content.problem.slug = `graph-fixture-${crypto.randomUUID().slice(0, 8)}`;
-      content.problem.signature.graphEncodings = { values: { kind: "successor" } };
+      content.problem.signature.graphEncodings = {
+        values: { kind: "successor", nodeValueType: "str" },
+      };
       content.problem.examples = [{ args: [], expected: [1, 1], graphs: { values: graph } }];
       content.hiddenCases = [{ args: [], expected: [1, 1], graphs: { values: privateGraph } }];
       const actor = { userId: owner, admin: true, globalAllowed: true };

@@ -70,6 +70,8 @@ export { questionSlugFits, questionPublicationSlug } from "./identity.ts";
 export { publicQuestionProblem } from "./projection.ts";
 export {
   graphParameters,
+  graphNodeId,
+  inferCaseGraph,
   projectCaseGraphs,
   GRAPH_RETURN,
   graphReturnSlot,
@@ -79,4 +81,6 @@ export {
   validateGraph,
   type GraphEncoding,
   type QuestionGraph,
+  type GraphNode,
+  type GraphNodeId,
 } from "./graph.ts";

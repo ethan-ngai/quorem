@@ -1,6 +1,6 @@
 /** @file GraphDiagram.tsx @description Bounded previews of authored case graphs. @module editor */
 import { useId } from "react";
-import type { QuestionGraph } from "@quorem/questions";
+import { graphNodeId, type QuestionGraph } from "@quorem/questions";
 
 const maxNodes = 24;
 const maxEdges = 48;
@@ -16,7 +16,17 @@ function inset(from: Point, toward: Point, amount: number): Point {
 
 const coords = ({ x, y }: Point) => `${x.toFixed(1)} ${y.toFixed(1)}`;
 
-export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; label: string }) {
+export default function GraphDiagram({
+  graph,
+  label,
+  activeEdge,
+  hideCaption,
+}: {
+  graph: QuestionGraph;
+  label: string;
+  activeEdge?: number;
+  hideCaption?: boolean;
+}) {
   const marker = useId();
   const count = graph.nodes.length;
   if (count > maxNodes || graph.edges.length > maxEdges)
@@ -32,7 +42,15 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
   const points = new Map(
     graph.nodes.map((node, index) => {
       const angle = (2 * Math.PI * index) / count - (count === 2 ? Math.PI : Math.PI / 2);
-      return [node, { x: radius * Math.cos(angle), y: radius * Math.sin(angle), index }] as const;
+      return [
+        graphNodeId(node),
+        {
+          x: radius * Math.cos(angle),
+          y: radius * Math.sin(angle),
+          index,
+          value: typeof node === "object" ? node.value : undefined,
+        },
+      ] as const;
     }),
   );
   let left = Infinity,
@@ -53,7 +71,9 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
     const key = [Math.min(a.index, b.index), Math.max(a.index, b.index)].join("/");
     const occurrence = routes.get(key) ?? 0;
     routes.set(key, occurrence + 1);
-    const weight = value === undefined ? undefined : String(value).slice(0, 12);
+    const fullValue =
+      value === undefined ? undefined : typeof value === "string" ? value : JSON.stringify(value);
+    const weight = fullValue && fullValue.length > 12 ? `${fullValue.slice(0, 11)}…` : fullValue;
     let path: string;
     let weightPosition: Point;
     if (from === to) {
@@ -90,13 +110,13 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
       };
     }
     if (weight !== undefined) include(weightPosition, weight.length * 3.5 + 4, 8);
-    return { from, to, value, weight, weightPosition, path };
+    return { from, to, fullValue, weight, weightPosition, path };
   });
   const width = Math.ceil(right - left);
   const height = Math.ceil(bottom - top);
   return (
     <figure className="case-graph">
-      <figcaption className="node-preview-hint">{label}</figcaption>
+      {!hideCaption && <figcaption className="node-preview-hint">{label}</figcaption>}
       <svg
         width={width}
         height={height}
@@ -117,8 +137,8 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
             <path d="M 0 0 L 8 4 L 0 8 Z" fill="var(--color-text-secondary)" />
           </marker>
         </defs>
-        {edges.map(({ from, to, value, weight, weightPosition, path }, index) => (
-          <g key={index}>
+        {edges.map(({ from, to, fullValue, weight, weightPosition, path }, index) => (
+          <g key={index} data-active={index === activeEdge || undefined}>
             <path
               d={path}
               fill="none"
@@ -137,11 +157,11 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
             )}
             <title>
               {String(from)} {graph.directed ? "→" : "—"} {String(to)}
-              {value === undefined ? "" : ` (${value})`}
+              {fullValue === undefined ? "" : ` (${fullValue})`}
             </title>
           </g>
         ))}
-        {[...points].map(([node, { x, y, index }]) => (
+        {[...points].map(([node, { x, y, index, value }]) => (
           <g key={index}>
             <circle
               cx={x}
@@ -153,7 +173,9 @@ export default function GraphDiagram({ graph, label }: { graph: QuestionGraph; l
             <text x={x} y={y} dominantBaseline="central">
               {String(node).length <= 3 ? node : `${String(node).slice(0, 2)}…`}
             </text>
-            <title>{String(node)}</title>
+            <title>
+              {value === undefined ? String(node) : `${node}: ${JSON.stringify(value)}`}
+            </title>
           </g>
         ))}
       </svg>

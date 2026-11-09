@@ -1,0 +1,135 @@
+.graph-binding-list,
+.graph-binding,
+.graph-case-field,
+.graph-case-controls {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.graph-binding-list > .select-field,
+.graph-case-controls > .quiet-button {
+  justify-self: start;
+}
+
+.graph-binding {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.graph-binding-heading,
+.graph-case-nodes {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.graph-binding-heading {
+  justify-content: space-between;
+}
+
+.graph-binding-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: var(--space-3);
+}
+
+.graph-case-field {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.graph-case-layout {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.graph-case-controls {
+  flex: 1 1 230px;
+}
+
+.graph-case-nodes > .admin-field {
+  flex: 1;
+}
+
+.graph-case-nodes input[inputmode="numeric"] {
+  max-width: 80px;
+}
+
+.graph-direction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+
+.graph-solver-preview {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+
+.graph-solver-literal {
+  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  max-height: 9em;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.graph-case-layout > .case-graph {
+  flex: 0 1 155px;
+}
+
+.data-table.graph-edge-table td,
+.data-table.graph-edge-table th {
+  padding: var(--space-1);
+}
+
+.graph-edge-table td:last-child {
+  width: 1%;
+}
+
+.graph-field-group {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.graph-case-field > .graph-binding-heading {
+  justify-content: flex-start;
+  padding-inline-end: var(--space-4);
+}
+
+.graph-edge-pages {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+
+.graph-value-types > summary,
+.graph-node-values > summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+
+.graph-value-type {
+  display: flex;
+  gap: var(--space-2);
+  align-items: end;
+}

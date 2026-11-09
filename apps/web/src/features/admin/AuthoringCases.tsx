@@ -1,10 +1,12 @@
 import {
   GRAPH_RETURN,
   graphReturnSlot,
+  inferCaseGraph,
   mergeGraphOutput,
   primarySignature,
   projectCaseGraphs,
   type CaseGraphs,
+  type QuestionGraph,
 } from "@quorem/questions";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
@@ -12,7 +14,7 @@ import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import { Icon } from "../../ui/Icon";
 import "../../ui/result-tabs.css";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
 import {
@@ -23,10 +25,13 @@ import {
   type CustomCaseDraft,
 } from "../editor/customCases";
 import "../editor/components/customCases.css";
+import { GraphCaseField } from "./GraphCaseField";
+import { graphFromForm, graphToForm, type GraphForm } from "./graphForm";
 import type { WireValue } from "../editor/typedValues";
 type AuthoringDraft = CustomCaseDraft & {
   unformatted?: string[];
-  graphSources?: Record<string, string>;
+  graphs?: CaseGraphs;
+  graphForms?: Record<string, GraphForm>;
   graphError?: string;
 };
 
@@ -53,14 +58,32 @@ export function AuthoringCases({
       ? "Expected graph"
       : graphReturnSlot(target) !== undefined
         ? `Expected graph [${graphReturnSlot(target)}]`
-        : `Graph for ${target}`;
+        : target;
+  function infer(
+    args: readonly (WireValue | undefined)[],
+    expected?: WireValue,
+    explicit?: CaseGraphs,
+    skip?: Record<string, GraphForm>,
+  ) {
+    if (!sig) return;
+    const entries = graphTargets.flatMap((target) => {
+      if (Object.hasOwn(skip ?? {}, target)) return [];
+      const graph =
+        explicit?.[target] ??
+        inferCaseGraph(sig, target, args, expected, p.limits.maxCollectionElements);
+      return graph ? ([[target, graphToForm(graph, encodings[target]!)]] as const) : [];
+    });
+    if (entries.length) return Object.fromEntries(entries);
+  }
+
   function compile(test: AuthoringDraft, preserveOutput = false): AuthoringDraft {
-    if (!sig || !test.graphSources) return test;
+    if (!sig || !test.graphForms) return test;
     try {
       const graphs = Object.fromEntries(
-        Object.entries(test.graphSources).flatMap(([target, source]) =>
-          source.trim() ? [[target, JSON.parse(source)]] : [],
-        ),
+        Object.entries(test.graphForms).map(([target, form]) => [
+          target,
+          graphFromForm(form, encodings[target]!, p.limits.maxCollectionElements),
+        ]),
       ) as CaseGraphs;
       const generated = projectCaseGraphs(sig, graphs, p.limits.maxCollectionElements);
       const args = sig.parameters.map(({ type, input }, index) =>
@@ -100,7 +123,6 @@ export function AuthoringCases({
     } catch (error) {
       return {
         ...test,
-        graphs: undefined,
         graphError: error instanceof Error ? error.message : String(error),
       };
     }
@@ -152,11 +174,8 @@ export function AuthoringCases({
     const unformatted: string[] = [];
     const result: AuthoringDraft = {
       id: randomUUID(),
-      graphSources:
-        test.graphs &&
-        Object.fromEntries(
-          Object.entries(test.graphs).map(([target, graph]) => [target, JSON.stringify(graph)]),
-        ),
+      graphForms: infer(test.args, test.expected, test.graphs),
+      graphs: test.graphs,
       args: p.sql
         ? [JSON.stringify(test.args[0] ?? { tables: [] })]
         : primarySignature(p).parameters.map((parameter, index) =>
@@ -222,7 +241,33 @@ export function AuthoringCases({
           ? item.expected === before.expected
           : item.args[Number(field.slice(4))] === before.args[Number(field.slice(4))],
       );
-      return compile({ ...item, unformatted }, !!before && item.expected !== before.expected);
+      let graphForms = item.graphForms;
+      if (sig && graphTargets.some((target) => !Object.hasOwn(graphForms ?? {}, target))) {
+        const read = (
+          type: string,
+          source: string,
+          config?: Parameters<typeof parseTypedField>[2],
+        ) => {
+          try {
+            return parseTypedField(type, source, config);
+          } catch {
+            return undefined;
+          }
+        };
+        const args = sig.parameters.map(({ type, input }, i) =>
+          read(
+            type,
+            item.args[i] ?? "",
+            caseFieldConfig(sig, type, input, false, { sources: item.args }),
+          ),
+        );
+        const inferred = infer(args, read(sig.returnType, item.expected), undefined, graphForms);
+        if (inferred) graphForms = { ...inferred, ...graphForms };
+      }
+      return compile(
+        { ...item, graphForms, unformatted },
+        !!before && item.expected !== before.expected,
+      );
     });
     setValues((current) => ({ ...current, [collection]: updated }));
     try {
@@ -271,6 +316,102 @@ export function AuthoringCases({
       // Preserve incomplete local edits; the validation effect reports their exact origin.
     }
   }
+  function renderGraphField(index: number, name: string, native: ReactNode): ReactNode {
+    const test = values[collection][index];
+    if (!sig || !test) return native;
+    if (
+      graphTargets.some(
+        (target) => test.graphForms?.[target] && encodings[target]?.countParameter === name,
+      )
+    )
+      return null;
+    const targets =
+      name === GRAPH_RETURN
+        ? graphTargets.filter((target) => target === name || graphReturnSlot(target) !== undefined)
+        : graphTargets.filter((target) => target === name);
+    if (!targets.length) return native;
+    const applyForm = (target: string, form: GraphForm) =>
+      change(
+        values[collection].map((item) =>
+          item.id === test.id
+            ? { ...item, graphForms: { ...item.graphForms, [target]: form } }
+            : item,
+        ),
+      );
+    const sections = targets.map((target, targetIndex) => {
+      const encoding = encodings[target]!;
+      const form = test.graphForms?.[target];
+      if (!form && encoding.kind !== "custom") {
+        if (encoding.directed !== undefined) return null;
+        try {
+          const { args, expected } = parseCustomDraft(test, sig);
+          const inferred = [false, true]
+            .map((directed) =>
+              inferCaseGraph(
+                { ...sig, graphEncodings: { ...encodings, [target]: { ...encoding, directed } } },
+                target,
+                args,
+                expected,
+                p.limits.maxCollectionElements,
+              ),
+            )
+            .find(Boolean);
+          return inferred ? (
+            <button
+              key={target}
+              type="button"
+              className="quiet-button"
+              onClick={() => applyForm(target, graphToForm(inferred, encoding))}
+            >
+              Edit {graphLabel(target)} as graph
+            </button>
+          ) : null;
+        } catch {
+          return null;
+        }
+      }
+      const arg = sig.parameters.findIndex(({ name }) => name === target);
+      const count = sig.parameters.findIndex(({ name }) => name === encoding.countParameter);
+      const graph: QuestionGraph = { directed: false, nodes: [], edges: [] };
+      const slot = graphReturnSlot(target);
+      let source = target === GRAPH_RETURN ? test.expected : undefined;
+      if (arg >= 0)
+        source = `${target} = ${test.args[arg]}${count >= 0 ? `\n${encoding.countParameter} = ${test.args[count]}` : ""}`;
+      else if (slot !== undefined) {
+        try {
+          const values = parseTypedField(sig.returnType, test.expected);
+          if (Array.isArray(values) && values[slot] !== undefined)
+            source = JSON.stringify(values[slot]);
+        } catch {
+          /* The concrete field reports incomplete output. */
+        }
+      }
+      return (
+        <GraphCaseField
+          key={target}
+          label={graphLabel(target)}
+          encoding={encoding}
+          form={form ?? graphToForm(graph, encoding)}
+          graph={test.graphs?.[target]}
+          error={targetIndex === 0 ? test.graphError : undefined}
+          limit={p.limits.maxCollectionElements}
+          solverPreview={
+            encoding.kind === "custom" || source === undefined
+              ? undefined
+              : { kind: arg >= 0 ? "input" : "output", source }
+          }
+          onChange={(form) => applyForm(target, form)}
+        />
+      );
+    });
+    const needsNative = !test.graphForms?.[name] || encodings[name]?.kind === "custom";
+    return (
+      <div key={name} className="graph-field-group">
+        {sections}
+        {needsNative && native}
+      </div>
+    );
+  }
   return (
     <div className="authoring-test-collections">
       <AuthoringTabs
@@ -301,47 +442,12 @@ export function AuthoringCases({
           requiredExpected
           minimumCases={0}
           maximumCases={collection === "hidden" ? 100 : 20}
+          renderCaseField={graphTargets.length ? renderGraphField : undefined}
           customCaseDetails={(index) => {
             const test = values[collection][index];
             if (!test) return null;
             return (
               <>
-                {graphTargets.map((target) => (
-                  <label key={target} className="typed-case-field admin-example-explanation">
-                    <span>
-                      {graphLabel(target)}{" "}
-                      <small>
-                        {encodings[target]?.kind === "custom" ? "Required" : "Optional"}
-                      </small>
-                    </span>
-                    <textarea
-                      rows={3}
-                      placeholder={'{"directed":false,"nodes":[0,1],"edges":[{"from":0,"to":1}]}'}
-                      value={test.graphSources?.[target] ?? ""}
-                      aria-invalid={!!test.graphError}
-                      onChange={(event) =>
-                        change(
-                          values[collection].map((item) =>
-                            item.id === test.id
-                              ? {
-                                  ...item,
-                                  graphSources: {
-                                    ...item.graphSources,
-                                    [target]: event.target.value,
-                                  },
-                                }
-                              : item,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                ))}
-                {test.graphError && (
-                  <p className="typed-case-error" role="status">
-                    {test.graphError}
-                  </p>
-                )}
                 {collection === "public" && (
                   <label className="typed-case-field admin-example-explanation">
                     <span>

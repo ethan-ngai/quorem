@@ -1,4 +1,4 @@
-import { primarySignature, validateSqlCase, type CaseGraphs } from "@quorem/questions";
+import { primarySignature, validateSqlCase } from "@quorem/questions";
 import { validateCodingCase, validateCodingSequence } from "@quorem/questions/coding-case";
 import { nodeType } from "@quorem/contracts/node-type";
 import { randomUUID } from "../../randomUUID";
@@ -17,7 +17,6 @@ export type CustomCaseDraft = {
   args: string[];
   expectedEnabled: boolean;
   expected: string;
-  graphs?: CaseGraphs;
 };
 export type RunSnapshot = {
   problemVersionId: string;

@@ -1,4 +1,5 @@
 /** @file CaseFields.tsx @description Shared typed case editing and one contextual structure preview. @module editor */
+import { GRAPH_RETURN } from "@quorem/questions";
 import type { Signature } from "@quorem/contracts";
 import type { ReactNode } from "react";
 import { caseFieldConfig } from "../inputPresets";
@@ -15,7 +16,7 @@ export function CaseFields({
   children,
   preview = true,
   inputErrors,
-  generated,
+  renderField,
 }: {
   id: string;
   signature: Signature;
@@ -25,9 +26,10 @@ export function CaseFields({
   onChange: (patch: { args?: string[]; expected?: string }) => void;
   children?: ReactNode;
   preview?: boolean;
-  generated?: { args: ReadonlyMap<number, unknown>; expected?: unknown };
+  renderField?: (name: string, field: ReactNode) => ReactNode;
   inputErrors?: Readonly<Record<string, string>>;
 }) {
+  const render = renderField ?? ((_: string, field: ReactNode) => field);
   return (
     <CasePreviewLayout
       editable
@@ -35,43 +37,47 @@ export function CaseFields({
       context={{ signature, sources: args }}
       expectedSource={expected}
     >
-      {signature.parameters.map(({ name, type, input }, index) => (
-        <TypedCaseInput
-          key={name}
-          id={`${id}-${index}`}
-          name={name}
-          type={type}
-          input={caseFieldConfig(signature, type, input, false, { sources: args })}
-          value={args[index] ?? ""}
-          readOnly={generated?.args.has(index)}
-          validationError={inputErrors?.[name]}
-          onChange={(value) =>
-            onChange({
-              args: signature.parameters.map((_, position) =>
-                position === index ? value : (args[position] ?? ""),
-              ),
-            })
-          }
-        />
-      ))}
-      {expected !== undefined && signature.returnType !== "void" && (
-        <div className="expected-field">
+      {signature.parameters.map(({ name, type, input }, index) =>
+        render(
+          name,
           <TypedCaseInput
-            id={`${id}-expected`}
-            name="Expected output"
-            purpose="expected"
-            type={signature.returnType}
-            input={caseFieldConfig(signature, signature.returnType, undefined, true, {
-              sources: args,
-            })}
-            value={expected}
-            readOnly={generated?.expected !== undefined}
-            validationError={inputErrors?.["Expected output"]}
-            action={expectedAction}
-            onChange={(expected) => onChange({ expected })}
-          />
-        </div>
+            key={name}
+            id={`${id}-${index}`}
+            name={name}
+            type={type}
+            input={caseFieldConfig(signature, type, input, false, { sources: args })}
+            value={args[index] ?? ""}
+            validationError={inputErrors?.[name]}
+            onChange={(value) =>
+              onChange({
+                args: signature.parameters.map((_, position) =>
+                  position === index ? value : (args[position] ?? ""),
+                ),
+              })
+            }
+          />,
+        ),
       )}
+      {expected !== undefined &&
+        signature.returnType !== "void" &&
+        render(
+          GRAPH_RETURN,
+          <div className="expected-field">
+            <TypedCaseInput
+              id={`${id}-expected`}
+              name="Expected output"
+              purpose="expected"
+              type={signature.returnType}
+              input={caseFieldConfig(signature, signature.returnType, undefined, true, {
+                sources: args,
+              })}
+              value={expected}
+              validationError={inputErrors?.["Expected output"]}
+              action={expectedAction}
+              onChange={(expected) => onChange({ expected })}
+            />
+          </div>,
+        )}
       {children}
     </CasePreviewLayout>
   );

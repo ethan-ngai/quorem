@@ -1,9 +1,26 @@
 /** @file graph.ts @description Graph authoring model and native argument projection. @module questions */
 import type { components, WireValue } from "@quorem/contracts/schema";
 import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
+import { validQuestionType } from "./signature.ts";
+import { normalizeQuestionValue } from "./value-codec.ts";
 import type { Signature } from "./model.ts";
 
-export type QuestionGraph = components["schemas"]["QuestionGraph"];
+export type GraphNodeId = components["schemas"]["GraphNodeId"];
+export type GraphNode<Value extends WireValue = WireValue> =
+  | GraphNodeId
+  | { id: GraphNodeId; value: Value };
+export type QuestionGraph<
+  NodeValue extends WireValue = WireValue,
+  EdgeValue extends WireValue = WireValue,
+> = {
+  directed: boolean;
+  nodes: GraphNode<NodeValue>[];
+  edges: { from: GraphNodeId; to: GraphNodeId; value?: EdgeValue }[];
+};
+
+export function graphNodeId(node: GraphNode): GraphNodeId {
+  return typeof node === "object" && node !== null ? node.id : node;
+}
 export type GraphEncoding = components["schemas"]["GraphEncoding"];
 export const GRAPH_RETURN = "$return";
 export function graphReturnSlot(target: string): number | undefined {
@@ -18,31 +35,72 @@ const label = (v: unknown) =>
 const int = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
 
-/** Check topology before it can be projected or rendered. */
-export function validateGraph(graph: QuestionGraph, limit: number): void {
+/** Validate IDs, endpoint references and independent node and edge values. */
+export function validateGraph(
+  graph: QuestionGraph,
+  limit: number,
+  encoding?: GraphEncoding,
+): number {
   if (
     !graph ||
     typeof graph.directed !== "boolean" ||
     Object.keys(graph).some((key) => !["directed", "nodes", "edges"].includes(key)) ||
     !Array.isArray(graph.nodes) ||
-    !Array.isArray(graph.edges) ||
-    graph.nodes.length + graph.edges.length > limit
+    !Array.isArray(graph.edges)
   )
-    throw new Error("Graph requires direction, nodes and edges within the collection limit");
-  const nodes = new Set(graph.nodes);
-  if (nodes.size !== graph.nodes.length || !graph.nodes.every(label))
-    throw new Error("Graph node labels must be unique integer or text labels");
-  for (const edge of graph.edges)
+    throw new Error("Graph requires direction, nodes and edges");
+  let used = graph.nodes.length + graph.edges.length;
+  if (used > limit) throw new Error("Graph exceeds the collection limit");
+  function checkValue(value: WireValue, depth = 0): void {
+    if (++used > limit || depth > 100) throw new Error("Graph values exceed the collection limit");
+    if (value === null || typeof value === "boolean" || Number.isFinite(value)) return;
+    if (typeof value === "string" && !value.includes("\0")) return;
+    if (Array.isArray(value)) {
+      for (const child of value) checkValue(child, depth + 1);
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key.includes("\0")) throw new Error("Graph value keys cannot contain NUL");
+        checkValue(child, depth + 1);
+      }
+      return;
+    }
+    throw new Error("Graph values must be valid JSON");
+  }
+  function checkTyped(value: WireValue, kind: "Node" | "Edge", type?: string) {
+    checkValue(value);
+    if (type) {
+      try {
+        normalizeQuestionValue(type, parseLosslessJson(JSON.stringify(value)), limit);
+      } catch (error) {
+        throw new Error(`${kind} value (${type}): ${(error as Error).message}`);
+      }
+    }
+  }
+  const nodes = new Set<GraphNodeId>();
+  for (const node of graph.nodes) {
+    const id = graphNodeId(node);
+    if (!label(id) || nodes.has(id))
+      throw new Error("Graph node IDs must be unique integers or text");
+    nodes.add(id);
+    if (typeof node === "object") {
+      if (Object.keys(node).some((key) => key !== "id" && key !== "value"))
+        throw new Error("Graph nodes accept an ID and value");
+      checkTyped(node.value, "Node", encoding?.nodeValueType);
+    }
+  }
+  for (const edge of graph.edges) {
     if (
       !edge ||
       Object.keys(edge).some((key) => !["from", "to", "value"].includes(key)) ||
       !nodes.has(edge.from) ||
-      !nodes.has(edge.to) ||
-      (edge.value !== undefined && !label(edge.value) && !Number.isFinite(edge.value))
+      !nodes.has(edge.to)
     )
-      throw new Error(
-        "Graph edges require existing endpoints and an optional number or text value",
-      );
+      throw new Error("Graph edges require existing endpoints");
+    if (edge.value !== undefined) checkTyped(edge.value, "Edge", encoding?.edgeValueType);
+  }
+  return used;
 }
 
 /** Map the graph and optional node count onto typed solver parameters. */
@@ -68,8 +126,13 @@ export function graphParameters(
   if (!output && arg < 0) throw new Error(`Unknown graph argument ${target}`);
   if (output && signature.nodeReferences === "return" && encoding.kind !== "custom")
     throw new Error("Graph reference returns require a custom encoding");
+  for (const type of [encoding.nodeValueType, encoding.edgeValueType])
+    if (type !== undefined && (typeof type !== "string" || !validQuestionType(type)))
+      throw new Error("Graph value types must be supported question types");
   if (encoding.kind === "custom") {
-    if (Object.keys(encoding).length !== 1)
+    if (
+      Object.keys(encoding).some((key) => !["kind", "nodeValueType", "edgeValueType"].includes(key))
+    )
       throw new Error("Custom graphs supply their own arguments");
     return;
   }
@@ -77,6 +140,7 @@ export function graphParameters(
     !["edgeList", "adjacencyList", "adjacencyMatrix", "successor", "parent"].includes(
       encoding.kind,
     ) ||
+    encoding.edgeValueType !== undefined ||
     (encoding.edgeValue !== undefined &&
       (encoding.kind !== "edgeList" || !encoding.edgeValue.trim())) ||
     (encoding.firstNode !== undefined && encoding.firstNode !== 0 && encoding.firstNode !== 1) ||
@@ -108,8 +172,8 @@ export function graphParameters(
 
 /** Compile only the graph-owned arguments. Other parameters keep their original values. */
 function encodeGraph(encoding: GraphEncoding, graph: QuestionGraph, limit: number): WireValue {
-  if (!graph.nodes.every(int)) throw new Error("Presets require integer node labels");
-  const nodes = graph.nodes as number[];
+  const nodes = graph.nodes.map(graphNodeId);
+  if (!nodes.every(int)) throw new Error("Presets require integer node IDs");
   const edges = graph.edges as { from: number; to: number; value?: number }[];
   const n = graph.nodes.length;
   const first = encoding.firstNode ?? 0;
@@ -167,6 +231,89 @@ function encodeGraph(encoding: GraphEncoding, graph: QuestionGraph, limit: numbe
   return rows;
 }
 
+/** Recover a preset only if compiling it reproduces the native value exactly. */
+export function inferCaseGraph(
+  signature: Signature,
+  target: string,
+  args: readonly (WireValue | undefined)[],
+  expected: WireValue | undefined,
+  limit: number,
+): QuestionGraph | undefined {
+  const encoding = signature.graphEncodings?.[target];
+  if (!encoding || encoding.kind === "custom") return;
+  const indexed = encoding.kind === "successor" || encoding.kind === "parent";
+  const directed =
+    encoding.kind === "successor"
+      ? true
+      : encoding.kind === "parent"
+        ? (encoding.directed ?? false)
+        : encoding.directed;
+  if (directed === undefined) return;
+  try {
+    const { arg, count } = graphParameters(signature, target, encoding)!;
+    const slot = graphReturnSlot(target);
+    const native =
+      arg >= 0
+        ? args[arg]
+        : slot === undefined
+          ? expected
+          : Array.isArray(expected)
+            ? expected[slot]
+            : undefined;
+    if (!Array.isArray(native) || native.length > limit) return;
+    const first = encoding.firstNode ?? 0;
+    const size =
+      count >= 0 ? args[count] : encoding.kind === "edgeList" ? undefined : native.length;
+    if (size !== undefined && (!int(size) || size < 0 || size > limit)) return;
+    if (
+      count >= 0 &&
+      (size === undefined || (encoding.kind !== "edgeList" && size !== native.length))
+    )
+      return;
+    const graph: QuestionGraph = {
+      directed,
+      nodes: size === undefined ? [] : Array.from({ length: size }, (_, i) => i + first),
+      edges: [],
+    };
+    if (encoding.kind === "edgeList") {
+      const endpoints = new Set<number>();
+      for (const row of native) {
+        if (!Array.isArray(row) || row.length !== (encoding.edgeValue ? 3 : 2)) return;
+        const [from, to, value] = row;
+        if (!int(from) || !int(to) || (value !== undefined && !int(value))) return;
+        graph.edges.push(value === undefined ? { from, to } : { from, to, value });
+        endpoints.add(from);
+        endpoints.add(to);
+      }
+      if (size === undefined) graph.nodes = [...endpoints].sort((a, b) => a - b);
+    } else {
+      let entries = 0;
+      for (const [i, row] of native.entries()) {
+        const from = i + first;
+        if (indexed) {
+          if (!int(row)) return;
+          if (row !== -1) graph.edges.push({ from, to: row });
+          continue;
+        }
+        if (!Array.isArray(row) || (entries += row.length) > limit) return;
+        for (const [j, item] of row.entries()) {
+          if (!int(item)) return;
+          const matrix = encoding.kind === "adjacencyMatrix";
+          if (matrix && item !== 1) continue;
+          if (matrix && i === j && encoding.matrixDiagonal === 1) continue;
+          const to = matrix ? j + first : item;
+          if (directed || from <= to) graph.edges.push({ from, to });
+        }
+      }
+    }
+    validateGraph(graph, limit);
+    if (JSON.stringify(encodeGraph(encoding, graph, limit)) === JSON.stringify(native))
+      return graph;
+  } catch {
+    // Keep the exact solver fields editable when the preset cannot express their value.
+  }
+}
+
 /** Compile each graph independently, permitting a shared count when the graphs agree. */
 export function projectCaseGraphs(
   signature: Signature,
@@ -181,9 +328,8 @@ export function projectCaseGraphs(
     if (!encodings || !Object.hasOwn(encodings, target))
       throw new Error(`Choose a graph encoding for ${target}`);
     const encoding = encodings[target]!;
-    validateGraph(graph, remaining);
-    remaining -= graph.nodes.length + graph.edges.length;
     const indices = graphParameters(signature, target, encoding);
+    remaining -= validateGraph(graph, remaining, encoding);
     if (!indices) continue;
     // Charge the native layout before allocating it, especially for dense matrices.
     const n = graph.nodes.length;
