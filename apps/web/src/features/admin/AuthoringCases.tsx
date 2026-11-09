@@ -76,7 +76,7 @@ export function AuthoringCases({
     if (entries.length) return Object.fromEntries(entries);
   }
 
-  function compile(test: AuthoringDraft, preserveOutput = false): AuthoringDraft {
+  function compile(test: AuthoringDraft): AuthoringDraft {
     if (!sig || !test.graphForms) return test;
     try {
       const graphs = Object.fromEntries(
@@ -103,15 +103,14 @@ export function AuthoringCases({
           // Keep incomplete concrete output editable, while the graph fields remain available.
         }
       }
-      const output = mergeGraphOutput<WireValue>(generated, expected, (_, value) => value);
+      const output =
+        generated.outputSlots.size && expected === undefined
+          ? undefined
+          : mergeGraphOutput<WireValue>(generated, expected, (_, value) => value);
       return {
         ...test,
         args,
-        expected:
-          output === undefined ||
-          (preserveOutput && generated.outputSlots.size && expected === undefined)
-            ? test.expected
-            : formatTypedField(sig.returnType, output),
+        expected: output === undefined ? test.expected : formatTypedField(sig.returnType, output),
         graphs: Object.keys(graphs).length ? graphs : undefined,
         graphError: undefined,
         unformatted: test.unformatted?.filter((field) =>
@@ -264,10 +263,7 @@ export function AuthoringCases({
         const inferred = infer(args, read(sig.returnType, item.expected), undefined, graphForms);
         if (inferred) graphForms = { ...inferred, ...graphForms };
       }
-      return compile(
-        { ...item, graphForms, unformatted },
-        !!before && item.expected !== before.expected,
-      );
+      return compile({ ...item, graphForms, unformatted });
     });
     setValues((current) => ({ ...current, [collection]: updated }));
     try {

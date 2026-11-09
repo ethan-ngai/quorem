@@ -126,3 +126,28 @@ it("keeps graph bindings and case values at their original positions when names 
   expect(updated.problem.examples).toEqual([renamed]);
   expect(updated.hiddenCases).toEqual([renamed]);
 });
+
+it("preserves expected values when a custom graph slot's solver type changes", () => {
+  const content = blankQuestion();
+  const signature = {
+    ...primarySignature(content.problem),
+    parameters: [],
+    returnType: "list<str>",
+    graphEncodings: { "$return[0]": { kind: "custom" as const } },
+  };
+  const test = {
+    args: [],
+    expected: ["A>B", "label"],
+    graphs: {
+      "$return[0]": { directed: true, nodes: ["A", "B"], edges: [{ from: "A", to: "B" }] },
+    },
+  };
+  content.problem.signature = signature;
+  content.problem.examples = [test];
+  content.hiddenCases = [test];
+
+  const updated = adaptSignature(content, { ...signature, returnType: "list<int>" });
+
+  expect(updated.problem.examples).toEqual([test]);
+  expect(updated.hiddenCases).toEqual([test]);
+});

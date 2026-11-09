@@ -1,5 +1,6 @@
 import {
   graphPresetType,
+  graphReturnSlot,
   inferCaseGraph,
   isGraphReturn,
   mergeGraphOutput,
@@ -49,8 +50,9 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
   );
   const limit = content.problem.limits.maxCollectionElements;
   const encodings = signature.graphEncodings ?? {};
-  const presetReturn = Object.entries(encodings).some(
-    ([name, { kind }]) => isGraphReturn(name) && graphPresetType(kind),
+  const preserveReturn = Object.entries(encodings).some(
+    ([name, { kind }]) =>
+      graphReturnSlot(name) !== undefined || (isGraphReturn(name) && graphPresetType(kind)),
   );
   function adapt<T extends QuestionContent["hiddenCases"][number]>(test: T): T {
     const graphs = Object.fromEntries(
@@ -105,7 +107,7 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
           : defaults.args[index]!;
       }),
       expected:
-        signature.returnType === previous.returnType || presetReturn
+        signature.returnType === previous.returnType || preserveReturn
           ? test.expected
           : defaults.expected,
       graphs: Object.keys(graphs).length ? graphs : undefined,
