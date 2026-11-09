@@ -9,8 +9,19 @@ import {
 import type { ReactNode } from "react";
 import type { Signature } from "@quorem/contracts";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import * as Popover from "../../ui/Popover";
+import { Tooltip } from "../../ui/Tooltip";
 import { SelectField } from "../../ui/SelectField";
-import { ArrowRightLeft, Hash, ListOrdered, Network, Plus, Weight, X } from "lucide-react";
+import {
+  ArrowRightLeft,
+  Hash,
+  ListOrdered,
+  Network,
+  Plus,
+  Settings,
+  Weight,
+  X,
+} from "lucide-react";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import { ValueTypeField } from "./ValueTypeField";
 import { Field } from "./AuthoringFields";
@@ -263,6 +274,42 @@ export function GraphEncodingFields({
   );
 }
 
+export function GraphSettingsMenu({
+  title,
+  disabled,
+  children,
+}: {
+  title: string;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Popover.Root>
+      <Tooltip content="Graph settings">
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="icon-button graph-settings-trigger"
+            aria-label={`Graph settings for ${title}`}
+            disabled={disabled}
+          >
+            <Settings size={14} aria-hidden="true" />
+          </button>
+        </Popover.Trigger>
+      </Tooltip>
+      <Popover.Portal>
+        <Popover.Content
+          className="graph-settings-popover"
+          aria-label="Graph settings"
+          align="start"
+        >
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
 export function ReturnGraphSlots({
   signature,
   slots,
@@ -280,48 +327,48 @@ export function ReturnGraphSlots({
   let nextSlot = 0;
   while (signature.graphEncodings?.[`${GRAPH_RETURN}[${nextSlot}]`]) nextSlot++;
   return (
-    <details className="graph-signature-settings">
-      <summary>Return graph slots</summary>
-      <div className="graph-binding-list">
-        {slots.map(([name, encoding]) => {
-          const title = `Return value [${graphReturnSlot(name)}]`;
-          const change = (next: GraphEncoding) => onChange(name, next);
+    <div className="graph-return-slots" role="group" aria-label="Return graph slots">
+      {[...slots]
+        .sort(([left], [right]) => graphReturnSlot(left)! - graphReturnSlot(right)!)
+        .map(([name, encoding]) => {
+          const index = graphReturnSlot(name);
+          const title = `Return value [${index}]`;
           return (
-            <div className="graph-binding" key={name}>
-              <div className="graph-binding-heading">
-                <strong>{title}</strong>
+            <div className="graph-return-slot" key={name}>
+              <code>[{index}]</code>
+              <span>{options.find(({ value }) => value === encoding.kind)?.label}</span>
+              <GraphSettingsMenu title={title} disabled={disabled}>
+                <GraphEncodingFields
+                  signature={signature}
+                  name={name}
+                  title={title}
+                  encoding={encoding}
+                  disabled={disabled}
+                  onChange={(next) => onChange(name, next)}
+                />
                 <button
                   type="button"
-                  className="icon-button"
+                  className="quiet-button graph-return-slot-remove"
                   disabled={disabled}
                   aria-label={`Remove graph for ${title}`}
                   onClick={() => onChange(name)}
                 >
-                  <X size={14} aria-hidden="true" />
+                  <X size={14} aria-hidden="true" /> Remove graph slot
                 </button>
-              </div>
-              <GraphEncodingFields
-                signature={signature}
-                name={name}
-                title={title}
-                encoding={encoding}
-                disabled={disabled}
-                onChange={change}
-              />
+              </GraphSettingsMenu>
             </div>
           );
         })}
-        {canAdd && (
-          <button
-            type="button"
-            className="quiet-button"
-            disabled={disabled}
-            onClick={() => onChange(`${GRAPH_RETURN}[${nextSlot}]`, defaultGraphEncoding(type))}
-          >
-            <Plus size={15} aria-hidden="true" /> Add return graph slot
-          </button>
-        )}
-      </div>
-    </details>
+      {canAdd && (
+        <button
+          type="button"
+          className="quiet-button"
+          disabled={disabled}
+          onClick={() => onChange(`${GRAPH_RETURN}[${nextSlot}]`, defaultGraphEncoding(type))}
+        >
+          <Plus size={14} aria-hidden="true" /> Add graph slot
+        </button>
+      )}
+    </div>
   );
 }

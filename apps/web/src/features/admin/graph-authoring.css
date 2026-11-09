@@ -1,5 +1,4 @@
 .graph-binding-list,
-.graph-binding,
 .graph-case-field,
 .graph-case-controls {
   display: grid;
@@ -12,21 +11,11 @@
   justify-self: start;
 }
 
-.graph-binding {
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
 .graph-binding-heading {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
-}
-
-.graph-binding-heading {
-  justify-content: space-between;
 }
 
 .graph-binding-options {
@@ -102,7 +91,6 @@
 }
 
 .graph-case-field > .graph-binding-heading {
-  justify-content: flex-start;
   padding-inline-end: var(--space-4);
 }
 
@@ -136,18 +124,25 @@
   display: inline-block;
 }
 
-.graph-signature-settings {
-  grid-column: 1 / -1;
+.graph-return-slots {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
 }
 
-.graph-signature-settings > summary {
-  cursor: pointer;
+.graph-return-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+}
+
+.graph-return-slot > code {
   color: var(--color-text-secondary);
-  font-size: var(--text-label);
 }
 
-.graph-signature-settings > .graph-binding-list {
-  margin-top: var(--space-2);
+.graph-return-slot-remove {
+  margin-top: var(--space-3);
 }
 
 .graph-signature-picker {

@@ -10,7 +10,6 @@ import {
   ListOrdered,
   Plus,
   Shuffle,
-  Settings,
   Trash2,
   TriangleAlert,
   Unlink,
@@ -23,7 +22,6 @@ import { GRAPH_RETURN, graphReturnSlot, type GraphEncoding } from "@quorem/quest
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
-import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { TypeSyntaxText } from "../editor/components/TypeSyntax";
@@ -31,6 +29,7 @@ import { ValueTypeField } from "./ValueTypeField";
 import {
   defaultGraphEncoding,
   GraphEncodingFields,
+  GraphSettingsMenu,
   ReturnGraphSlots,
   withGraphEncoding,
 } from "./GraphEncodingFields";
@@ -163,47 +162,27 @@ export function SignatureFields({
       <div className="graph-signature-choice">
         <div className="graph-signature-picker">
           {selector}
-          <Popover.Root>
-            <Tooltip content="Graph settings">
-              <Popover.Trigger asChild>
-                <button
-                  type="button"
-                  className="icon-button graph-settings-trigger"
-                  aria-label={`Graph settings for ${isReturn ? "Return value" : name}`}
-                  disabled={disabled}
-                >
-                  <Settings size={14} aria-hidden="true" />
-                </button>
-              </Popover.Trigger>
-            </Tooltip>
-            <Popover.Portal>
-              <Popover.Content
-                className="graph-settings-popover"
-                aria-label="Graph settings"
-                align="start"
-              >
-                <GraphEncodingFields
-                  signature={value}
-                  name={name}
-                  title={isReturn ? "Return value" : name}
-                  encoding={encoding}
-                  disabled={disabled}
-                  customType={
-                    encoding.kind === "custom" && (
-                      <ValueTypeField
-                        label="Solver type"
-                        value={type}
-                        disabled={disabled}
-                        onValidityChange={onValidityChange}
-                        onChange={(next) => onChange(updateType(next, value))}
-                      />
-                    )
-                  }
-                  onChange={(next) => changeEncoding(name, next)}
-                />
-              </Popover.Content>
-            </Popover.Portal>
-          </Popover.Root>
+          <GraphSettingsMenu title={isReturn ? "Return value" : name} disabled={disabled}>
+            <GraphEncodingFields
+              signature={value}
+              name={name}
+              title={isReturn ? "Return value" : name}
+              encoding={encoding}
+              disabled={disabled}
+              customType={
+                encoding.kind === "custom" && (
+                  <ValueTypeField
+                    label="Solver type"
+                    value={type}
+                    disabled={disabled}
+                    onValidityChange={onValidityChange}
+                    onChange={(next) => onChange(updateType(next, value))}
+                  />
+                )
+              }
+              onChange={(next) => changeEncoding(name, next)}
+            />
+          </GraphSettingsMenu>
         </div>
         <code className="code-literal graph-signature-native">
           <TypeSyntaxText text={type} />
@@ -258,12 +237,18 @@ export function SignatureFields({
         </label>
         <div className="admin-field">
           <span>Return type</span>
-          {hasPresetSlot ? (
-            <PresetType type={value.returnType} note="Shared by return slots" />
-          ) : hasReturnSlots && listReturn ? (
+          {hasReturnSlots ? (
+            <div className="authoring-derived-type">
+              <code className="code-literal">
+                <TypeSyntaxText text={value.returnType} />
+              </code>
+            </div>
+          ) : (
+            typeField(GRAPH_RETURN, "Return type", value.returnType, updateReturnType)
+          )}
+          {hasReturnSlots && !hasPresetSlot && listReturn && (
             <ValueTypeField
-              hideLabel
-              label="Return slot type"
+              label="Slot element type"
               value={value.returnType.slice(value.returnType.indexOf("<") + 1, -1)}
               disabled={disabled}
               onValidityChange={onValidityChange}
@@ -271,8 +256,15 @@ export function SignatureFields({
                 onChange({ ...value, returnType: `${value.returnType.split("<")[0]}<${type}>` })
               }
             />
-          ) : (
-            typeField(GRAPH_RETURN, "Return type", value.returnType, updateReturnType)
+          )}
+          {graphAuthoring && (canAddSlot || hasReturnSlots) && (
+            <ReturnGraphSlots
+              signature={value}
+              slots={returnSlots}
+              canAdd={canAddSlot}
+              disabled={disabled}
+              onChange={changeEncoding}
+            />
           )}
         </div>
         {listReturn && (
@@ -299,15 +291,6 @@ export function SignatureFields({
               ]}
             />
           </div>
-        )}
-        {graphAuthoring && (canAddSlot || hasReturnSlots) && (
-          <ReturnGraphSlots
-            signature={value}
-            slots={returnSlots}
-            canAdd={canAddSlot}
-            disabled={disabled}
-            onChange={changeEncoding}
-          />
         )}
         {nodeParameters.length > 0 && (
           <div className="admin-field authoring-node-identity">
