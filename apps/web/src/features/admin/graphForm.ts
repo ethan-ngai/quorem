@@ -115,8 +115,8 @@ export function graphFromForm(
   for (const { node, value } of form.nodeValues) {
     const id = readLabel(node);
     if (!ids.has(id)) {
-      // Untyped payloads have no editor. Drop them when their node is removed.
-      if (!encoding.nodeValueType) continue;
+      // Preset and untyped payloads have no editor. Drop them when their node is removed.
+      if (encoding.kind !== "custom" || !encoding.nodeValueType) continue;
       throw new Error("Node values must refer to an existing node ID.");
     }
     if (payloads.has(id)) throw new Error("A node can have only one value.");

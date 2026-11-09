@@ -94,9 +94,8 @@ function GraphRepresentationField({
             kind === "successor"
               ? undefined
               : encoding.kind === "successor" || (encoding.directed ?? false),
-          nodeValueType: encoding.nodeValueType,
           ...(kind === "custom"
-            ? {}
+            ? { nodeValueType: encoding.nodeValueType }
             : { countParameter: encoding.countParameter, firstNode: encoding.firstNode }),
         });
       }}
@@ -245,11 +244,10 @@ export function GraphEncodingFields({
           </>
         )}
       </div>
-      <details className="graph-value-types">
-        <summary>Value types</summary>
-        {(["nodeValueType", ...(encoding.kind === "custom" ? ["edgeValueType"] : [])] as const).map(
-          (key) => {
-            const field = key as "nodeValueType" | "edgeValueType";
+      {encoding.kind === "custom" && (
+        <details className="graph-value-types">
+          <summary>Value types</summary>
+          {(["nodeValueType", "edgeValueType"] as const).map((field) => {
             const label = field === "nodeValueType" ? "Node value" : "Edge value";
             return (
               <div className="graph-value-type" key={field}>
@@ -283,9 +281,9 @@ export function GraphEncodingFields({
                 )}
               </div>
             );
-          },
-        )}
-      </details>
+          })}
+        </details>
+      )}
     </div>
   );
 }

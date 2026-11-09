@@ -101,7 +101,7 @@ export function GraphCaseField({
               onChange={(event) => onChange({ ...form, nodes: event.target.value })}
             />
           </label>
-          {encoding.nodeValueType && (
+          {encoding.kind === "custom" && encoding.nodeValueType && (
             <GraphNodeValues
               label={label}
               rows={form.nodeValues}
