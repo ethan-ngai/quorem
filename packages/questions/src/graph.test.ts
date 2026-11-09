@@ -1,6 +1,15 @@
 /** @file graph.test.ts @description Mixed graph encodings and native case fidelity. @module questions */
 import { describe, expect, it } from "vitest";
-import { GRAPH_RETURN, inferCaseGraph, projectCaseGraphs, type QuestionGraph } from "./graph.ts";
+import {
+  GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
+  caseGraphTargets,
+  compileGraphCase,
+  inferCaseGraph,
+  projectCaseGraphs,
+  type QuestionGraph,
+} from "./graph.ts";
+import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
 import { normalizeQuestionDraft } from "./draft-normalize.ts";
 import { validateQuestionDefinition } from "./publication.ts";
 import { validateQuestionSchema } from "./schema-validation.ts";
@@ -264,4 +273,32 @@ it("keeps typed node payloads separate from preset solver IDs", () => {
     edges: [{ from: 1, to: 2, value: 4 }],
   };
   expect(projectCaseGraphs(sig, { times: graph }).args.get(0)).toEqual([[1, 2, 4]]);
+});
+
+it("compiles return lists of different lengths with one representation", () => {
+  const sig: Signature = {
+    ...signature,
+    parameters: [],
+    graphEncodings: {
+      [GRAPH_RETURN_LIST]: { kind: "edgeList", directed: false },
+    },
+  };
+  expect(caseGraphTargets(sig, [])).toEqual([]);
+  const test = parseLosslessJson(
+    JSON.stringify({
+      args: [],
+      graphs: { "$return[0]": line, "$return[1]": line, "$return[2]": line },
+    }),
+  ) as Record<string, JsonValue>;
+  compileGraphCase(sig, test, 100, true);
+  const expected = [[[0, 1]], [[0, 1]], [[0, 1]]];
+  expect(JSON.parse(stringifyLosslessJson(test.expected!))).toEqual(expected);
+  expect(caseGraphTargets(sig, expected)).toEqual(["$return[0]", "$return[1]", "$return[2]"]);
+  expect(inferCaseGraph(sig, "$return[1]", [], expected, 100)?.edges).toEqual(line.edges);
+  expect(() => compileGraphCase(sig, { args: [], expected: [] }, 100, true)).not.toThrow();
+  const mixed: Signature = {
+    ...sig,
+    graphEncodings: { ...sig.graphEncodings, "$return[1]": { kind: "adjacencyList" } },
+  };
+  expect(() => projectCaseGraphs(mixed, { "$return[0]": line })).toThrow("one representation");
 });

@@ -1,5 +1,8 @@
 import {
+  caseGraphTargets,
+  graphEncodingForTarget,
   GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
   graphReturnSlot,
   inferCaseGraph,
   mergeGraphOutput,
@@ -18,6 +21,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
 import {
+  defaultCaseValue,
   formatTypedField,
   parseCustomDraft,
   parseTypedField,
@@ -53,6 +57,15 @@ export function AuthoringCases({
   const sig = !p.sql && !p.odyssey ? primarySignature(p) : undefined;
   const encodings = sig?.graphEncodings ?? {};
   const graphTargets = Object.keys(encodings);
+  const returnList = encodings[GRAPH_RETURN_LIST];
+  function readOutput(source: string) {
+    if (!sig) return undefined;
+    try {
+      return parseTypedField(sig.returnType, source);
+    } catch {
+      return undefined;
+    }
+  }
   const graphLabel = (target: string) =>
     target === GRAPH_RETURN
       ? "Expected graph"
@@ -66,12 +79,14 @@ export function AuthoringCases({
     skip?: Record<string, GraphForm>,
   ) {
     if (!sig) return;
-    const entries = graphTargets.flatMap((target) => {
+    const entries = caseGraphTargets(sig, expected, explicit).flatMap((target) => {
       if (Object.hasOwn(skip ?? {}, target)) return [];
       const graph =
         explicit?.[target] ??
         inferCaseGraph(sig, target, args, expected, p.limits.maxCollectionElements);
-      return graph ? ([[target, graphToForm(graph, encodings[target]!)]] as const) : [];
+      return graph
+        ? ([[target, graphToForm(graph, graphEncodingForTarget(sig, target)!)]] as const)
+        : [];
     });
     if (entries.length) return Object.fromEntries(entries);
   }
@@ -82,7 +97,7 @@ export function AuthoringCases({
       const graphs = Object.fromEntries(
         Object.entries(test.graphForms).map(([target, form]) => [
           target,
-          graphFromForm(form, encodings[target]!, p.limits.maxCollectionElements),
+          graphFromForm(form, graphEncodingForTarget(sig, target)!, p.limits.maxCollectionElements),
         ]),
       ) as CaseGraphs;
       const generated = projectCaseGraphs(sig, graphs, p.limits.maxCollectionElements);
@@ -95,14 +110,8 @@ export function AuthoringCases({
             )
           : (test.args[index] ?? ""),
       );
-      let expected: WireValue | undefined;
-      if (generated.outputSlots.size) {
-        try {
-          expected = parseTypedField(sig.returnType, test.expected);
-        } catch {
-          // Keep incomplete concrete output editable, while the graph fields remain available.
-        }
-      }
+      // Leave incomplete concrete output available while graph fields are edited.
+      const expected = generated.outputSlots.size ? readOutput(test.expected) : undefined;
       const output =
         generated.outputSlots.size && expected === undefined
           ? undefined
@@ -129,10 +138,14 @@ export function AuthoringCases({
   function graphIssue(test: AuthoringDraft) {
     return (
       test.graphError ??
-      graphTargets
+      (sig
+        ? caseGraphTargets(sig, returnList ? readOutput(test.expected) : undefined, test.graphs)
+        : []
+      )
         .filter(
           (target) =>
-            encodings[target]?.kind === "custom" && !Object.hasOwn(test.graphs ?? {}, target),
+            graphEncodingForTarget(sig!, target)?.kind === "custom" &&
+            !Object.hasOwn(test.graphs ?? {}, target),
         )
         .map((target) => `${graphLabel(target)} is required for a custom encoding.`)
         .join(" ")
@@ -321,11 +334,15 @@ export function AuthoringCases({
       )
     )
       return null;
-    const targets =
-      name === GRAPH_RETURN
-        ? graphTargets.filter((target) => target === name || graphReturnSlot(target) !== undefined)
-        : graphTargets.filter((target) => target === name);
-    if (!targets.length) return native;
+    const output = name === GRAPH_RETURN;
+    const list = output && returnList;
+    const expected = list ? readOutput(test.expected) : undefined;
+    const targets = output
+      ? caseGraphTargets(sig, expected, test.graphs).filter(
+          (target) => target === name || graphReturnSlot(target) !== undefined,
+        )
+      : graphTargets.filter((target) => target === name);
+    if (!targets.length && !list) return native;
     const applyForm = (target: string, form: GraphForm) =>
       change(
         values[collection].map((item) =>
@@ -335,7 +352,7 @@ export function AuthoringCases({
         ),
       );
     const sections = targets.map((target, targetIndex) => {
-      const encoding = encodings[target]!;
+      const encoding = graphEncodingForTarget(sig, target)!;
       const form = test.graphForms?.[target];
       if (!form && encoding.kind !== "custom") return null;
       const arg = sig.parameters.findIndex(({ name }) => name === target);
@@ -372,10 +389,63 @@ export function AuthoringCases({
         />
       );
     });
+    function resizeGraphList(append: boolean) {
+      if (!sig || !test || !Array.isArray(expected)) return;
+      const index = append ? expected.length : expected.length - 1;
+      const target = `${GRAPH_RETURN}[${index}]`;
+      const encoding = graphEncodingForTarget(sig, target)!;
+      const graphForms = { ...test.graphForms };
+      const graphs = { ...test.graphs };
+      const next = [...expected];
+      if (append) {
+        next.push(defaultCaseValue(sig.returnType.slice(sig.returnType.indexOf("<") + 1, -1)));
+        graphForms[target] = graphToForm(
+          { directed: encoding.directed ?? false, nodes: [], edges: [] },
+          encoding,
+        );
+      } else {
+        next.pop();
+        delete graphForms[target];
+        delete graphs[target];
+      }
+      change(
+        values[collection].map((item) =>
+          item.id === test.id
+            ? { ...test, graphForms, graphs, expected: formatTypedField(sig.returnType, next) }
+            : item,
+        ),
+      );
+    }
     const needsNative = !test.graphForms?.[name] || encodings[name]?.kind === "custom";
     return (
       <div key={name} className="graph-field-group">
         {sections}
+        {list && (
+          <div className="graph-list-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={
+                !Array.isArray(expected) ||
+                expected.length >= p.limits.maxCollectionElements ||
+                !!test.graphError
+              }
+              onClick={() => resizeGraphList(true)}
+            >
+              Add expected graph
+            </button>
+            {Array.isArray(expected) && expected.length > 0 && (
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={!!test.graphError}
+                onClick={() => resizeGraphList(false)}
+              >
+                Remove last graph
+              </button>
+            )}
+          </div>
+        )}
         {needsNative && native}
       </div>
     );

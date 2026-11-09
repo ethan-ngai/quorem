@@ -1,6 +1,7 @@
 /** @file GraphEncodingFields.tsx @description Optional per-value graph encoding controls. @module admin */
 import {
   GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
   graphPresetType,
   graphReturnSlot,
   isGraphReturn,
@@ -12,16 +13,7 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { SelectField } from "../../ui/SelectField";
-import {
-  ArrowRightLeft,
-  Hash,
-  ListOrdered,
-  Network,
-  Plus,
-  Settings,
-  Weight,
-  X,
-} from "lucide-react";
+import { ArrowRightLeft, Hash, ListOrdered, Network, Settings, Weight } from "lucide-react";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
 import { ValueTypeField } from "./ValueTypeField";
 import { Field } from "./AuthoringFields";
@@ -54,6 +46,14 @@ export function withGraphEncoding(
   else delete next[name];
   const updated = { ...signature, graphEncodings: Object.keys(next).length ? next : undefined };
   const type = encoding && graphPresetType(encoding.kind);
+  if (name === GRAPH_RETURN_LIST && encoding) {
+    const wrapper = signature.returnType.startsWith("array<") ? "array" : "list";
+    return {
+      ...updated,
+      returnType: type ? `${wrapper}<${type}>` : signature.returnType,
+      outputOrder: "ordered",
+    };
+  }
   if (!type) return updated;
   if (name === GRAPH_RETURN) {
     return signature.returnType.replaceAll("array<", "list<") === type
@@ -75,14 +75,12 @@ function GraphRepresentationField({
   title,
   encoding,
   disabled,
-  slotType,
   customOnly,
   onChange,
 }: {
   title: string;
   encoding: GraphEncoding;
   disabled: boolean;
-  slotType?: string;
   customOnly?: boolean;
   onChange: (encoding: GraphEncoding) => void;
 }) {
@@ -93,9 +91,7 @@ function GraphRepresentationField({
       value={encoding.kind}
       options={options.filter(({ value }) => {
         const type = graphPresetType(value);
-        return (
-          value === encoding.kind || !type || (!customOnly && (!slotType || type === slotType))
-        );
+        return value === encoding.kind || !type || !customOnly;
       })}
       disabled={disabled}
       onChange={(value) => {
@@ -144,11 +140,6 @@ export function GraphEncodingFields({
           title={title}
           encoding={encoding}
           disabled={disabled}
-          slotType={
-            graphReturnSlot(name) === undefined
-              ? undefined
-              : signature.returnType.replaceAll("array<", "list<").slice(5, -1)
-          }
           customOnly={output && signature.nodeReferences === "return"}
           onChange={onChange}
         />
@@ -310,65 +301,17 @@ export function GraphSettingsMenu({
   );
 }
 
-export function ReturnGraphSlots({
-  signature,
-  slots,
-  canAdd,
-  disabled,
-  onChange,
-}: {
-  signature: Signature;
-  slots: [string, GraphEncoding][];
-  canAdd: boolean;
-  disabled: boolean;
-  onChange: (name: string, encoding?: GraphEncoding) => void;
-}) {
-  const type = signature.returnType.replaceAll("array<", "list<").slice(5, -1);
-  let nextSlot = 0;
-  while (signature.graphEncodings?.[`${GRAPH_RETURN}[${nextSlot}]`]) nextSlot++;
+export function LegacyReturnGraphSlots({ slots }: { slots: [string, GraphEncoding][] }) {
   return (
-    <div className="graph-return-slots" role="group" aria-label="Return graph slots">
+    <div className="graph-return-slots" role="group" aria-label="Legacy return graph formats">
       {[...slots]
         .sort(([left], [right]) => graphReturnSlot(left)! - graphReturnSlot(right)!)
-        .map(([name, encoding]) => {
-          const index = graphReturnSlot(name);
-          const title = `Return value [${index}]`;
-          return (
-            <div className="graph-return-slot" key={name}>
-              <code>[{index}]</code>
-              <span>{options.find(({ value }) => value === encoding.kind)?.label}</span>
-              <GraphSettingsMenu title={title} disabled={disabled}>
-                <GraphEncodingFields
-                  signature={signature}
-                  name={name}
-                  title={title}
-                  encoding={encoding}
-                  disabled={disabled}
-                  onChange={(next) => onChange(name, next)}
-                />
-                <button
-                  type="button"
-                  className="quiet-button graph-return-slot-remove"
-                  disabled={disabled}
-                  aria-label={`Remove graph for ${title}`}
-                  onClick={() => onChange(name)}
-                >
-                  <X size={14} aria-hidden="true" /> Remove graph slot
-                </button>
-              </GraphSettingsMenu>
-            </div>
-          );
-        })}
-      {canAdd && (
-        <button
-          type="button"
-          className="quiet-button"
-          disabled={disabled}
-          onClick={() => onChange(`${GRAPH_RETURN}[${nextSlot}]`, defaultGraphEncoding(type))}
-        >
-          <Plus size={14} aria-hidden="true" /> Add graph slot
-        </button>
-      )}
+        .map(([name, encoding]) => (
+          <div className="graph-return-slot" key={name}>
+            <code>[{graphReturnSlot(name)}]</code>
+            <span>{options.find(({ value }) => value === encoding.kind)?.label}</span>
+          </div>
+        ))}
     </div>
   );
 }

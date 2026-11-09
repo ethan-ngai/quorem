@@ -18,7 +18,12 @@ import {
 } from "lucide-react";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
-import { GRAPH_RETURN, graphReturnSlot, type GraphEncoding } from "@quorem/questions";
+import {
+  GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
+  graphReturnSlot,
+  type GraphEncoding,
+} from "@quorem/questions";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -30,7 +35,7 @@ import {
   defaultGraphEncoding,
   GraphEncodingFields,
   GraphSettingsMenu,
-  ReturnGraphSlots,
+  LegacyReturnGraphSlots,
   withGraphEncoding,
 } from "./GraphEncodingFields";
 export function SignatureFields({
@@ -67,8 +72,9 @@ export function SignatureFields({
   const hasReturnSlots = returnSlots.length > 0;
   const hasPresetSlot = returnSlots.some(([, { kind }]) => kind !== "custom");
   const listReturn = /^(list|array)</.test(value.returnType);
-  const canAddSlot =
-    graphAuthoring && listReturn && !encodings[GRAPH_RETURN] && value.outputOrder !== "unordered";
+  const returnList = encodings[GRAPH_RETURN_LIST];
+  const returnElement = value.returnType.slice(value.returnType.indexOf("<") + 1, -1);
+  const legacySlots = hasReturnSlots && !returnList;
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
@@ -118,6 +124,12 @@ export function SignatureFields({
   function changeEncoding(name: string, encoding?: GraphEncoding) {
     onChange(withGraphEncoding(value, name, encoding));
   }
+  function withoutReturnGraphs() {
+    const next = graphBindings.filter(
+      ([key]) => key !== GRAPH_RETURN_LIST && graphReturnSlot(key) === undefined,
+    );
+    return { ...value, graphEncodings: next.length ? Object.fromEntries(next) : undefined };
+  }
   function typeField(
     name: string,
     label: string,
@@ -125,7 +137,15 @@ export function SignatureFields({
     updateType: (type: string, signature: Signature) => Signature,
   ) {
     const isReturn = name === GRAPH_RETURN;
-    const encoding = encodings[name];
+    const listEncoding = isReturn ? returnList : undefined;
+    const target = listEncoding ? GRAPH_RETURN_LIST : name;
+    const title = isReturn ? "Return value" : name;
+    const encoding = encodings[target];
+    function withoutGraph() {
+      if (!encoding) return value;
+      if (!listEncoding) return withGraphEncoding(value, target);
+      return withoutReturnGraphs();
+    }
     if (!graphAuthoring && encoding && encoding.kind !== "custom")
       return <PresetType type={type} note="Set by graph" />;
     const selector = (
@@ -136,7 +156,7 @@ export function SignatureFields({
         allowVoid={isReturn && allowVoid}
         disabled={disabled}
         graph={
-          graphAuthoring
+          graphAuthoring && !listEncoding
             ? {
                 selected: !!encoding,
                 onSelect: () => {
@@ -149,38 +169,49 @@ export function SignatureFields({
               }
             : undefined
         }
-        onValidityChange={onValidityChange}
-        onChange={(next) =>
-          onChange(
-            updateType(next, graphAuthoring && encoding ? withGraphEncoding(value, name) : value),
-          )
+        elementGraph={
+          graphAuthoring && isReturn && listReturn && !encodings[GRAPH_RETURN]
+            ? {
+                selected: !!listEncoding,
+                onSelect: () => {
+                  if (!listEncoding)
+                    changeEncoding(GRAPH_RETURN_LIST, defaultGraphEncoding(returnElement));
+                },
+              }
+            : undefined
         }
+        onValidityChange={onValidityChange}
+        onChange={(next) => onChange(updateType(next, graphAuthoring ? withoutGraph() : value))}
       />
     );
     if (!encoding || !graphAuthoring) return selector;
     return (
-      <div className="graph-signature-choice">
+      <div className="graph-signature-choice" data-graph-list={!!listEncoding || undefined}>
         <div className="graph-signature-picker">
           {selector}
-          <GraphSettingsMenu title={isReturn ? "Return value" : name} disabled={disabled}>
+          <GraphSettingsMenu title={title} disabled={disabled}>
             <GraphEncodingFields
               signature={value}
-              name={name}
-              title={isReturn ? "Return value" : name}
+              name={target}
+              title={title}
               encoding={encoding}
               disabled={disabled}
               customType={
                 encoding.kind === "custom" && (
                   <ValueTypeField
-                    label="Solver type"
-                    value={type}
-                    disabled={disabled}
+                    label={listEncoding ? "Solver element type" : "Solver type"}
+                    value={listEncoding ? returnElement : type}
+                    disabled={disabled || (!!listEncoding && hasPresetSlot)}
                     onValidityChange={onValidityChange}
-                    onChange={(next) => onChange(updateType(next, value))}
+                    onChange={(next) =>
+                      onChange(
+                        updateType(listEncoding ? `${type.split("<")[0]}<${next}>` : next, value),
+                      )
+                    }
                   />
                 )
               }
-              onChange={(next) => changeEncoding(name, next)}
+              onChange={(next) => changeEncoding(target, next)}
             />
           </GraphSettingsMenu>
         </div>
@@ -237,7 +268,7 @@ export function SignatureFields({
         </label>
         <div className="admin-field">
           <span>Return type</span>
-          {hasReturnSlots ? (
+          {legacySlots ? (
             <div className="authoring-derived-type">
               <code className="code-literal">
                 <TypeSyntaxText text={value.returnType} />
@@ -246,7 +277,7 @@ export function SignatureFields({
           ) : (
             typeField(GRAPH_RETURN, "Return type", value.returnType, updateReturnType)
           )}
-          {hasReturnSlots && !hasPresetSlot && listReturn && (
+          {legacySlots && !hasPresetSlot && listReturn && (
             <ValueTypeField
               label="Slot element type"
               value={value.returnType.slice(value.returnType.indexOf("<") + 1, -1)}
@@ -257,14 +288,22 @@ export function SignatureFields({
               }
             />
           )}
-          {graphAuthoring && (canAddSlot || hasReturnSlots) && (
-            <ReturnGraphSlots
-              signature={value}
-              slots={returnSlots}
-              canAdd={canAddSlot}
-              disabled={disabled}
-              onChange={changeEncoding}
-            />
+          {graphAuthoring && legacySlots && listReturn && (
+            <>
+              <LegacyReturnGraphSlots slots={returnSlots} />
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={disabled}
+                onClick={() =>
+                  onChange(
+                    withGraphEncoding(withoutReturnGraphs(), GRAPH_RETURN_LIST, returnSlots[0]![1]),
+                  )
+                }
+              >
+                Use one graph format
+              </button>
+            </>
           )}
         </div>
         {listReturn && (
@@ -284,8 +323,11 @@ export function SignatureFields({
                 {
                   value: "unordered",
                   label: "Any order",
-                  disabled: hasReturnSlots,
-                  hint: hasReturnSlots ? "Graph return slots require ordered results." : undefined,
+                  disabled: hasReturnSlots || !!returnList,
+                  hint:
+                    hasReturnSlots || returnList
+                      ? "Graph return slots require ordered results."
+                      : undefined,
                   icon: <Shuffle size={15} aria-hidden="true" />,
                 },
               ]}

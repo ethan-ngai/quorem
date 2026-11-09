@@ -1,4 +1,4 @@
-import { inferCaseGraph } from "@quorem/questions";
+import { caseGraphTargets, inferCaseGraph } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
@@ -218,7 +218,7 @@ export function TestCases({
   let graphs = customMode ? undefined : example?.graphs;
   if (!customMode && currentValue && !problem.sql && !problem.odyssey) {
     const signature = primarySignature(problem);
-    for (const target of Object.keys(signature.graphEncodings ?? {})) {
+    for (const target of caseGraphTargets(signature, currentValue.expected, graphs)) {
       if (Object.hasOwn(graphs ?? {}, target)) continue;
       const graph = inferCaseGraph(
         signature,

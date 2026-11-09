@@ -2,6 +2,7 @@
 import type { QuestionContent, Signature } from "@quorem/contracts";
 import {
   GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
   graphPresetType,
   graphReturnSlot,
   normalizeQuestionDraft,
@@ -197,13 +198,12 @@ export const graphFixtures: readonly Fixture[] = [
   },
   {
     id: "return-slots",
-    title: "Multiple graph output slots",
-    hint: "One return slot generates a matrix and the other an edge list. In Solver preview, both expected graphs appear below the output while the input graph stays alongside.",
+    title: "List of graph outputs",
+    hint: "The return type is list<Graph>. Every graph uses the same adjacency matrix format. In Tests, add or remove graphs to change the return list for the selected case.",
     parameters: [{ name: "roads" }, { name: "n", type: "int" }],
     graphEncodings: {
       roads: { kind: "edgeList", directed: true, countParameter: "n", edgeValue: "Weight" },
-      "$return[0]": { kind: "adjacencyMatrix", directed: true },
-      "$return[1]": { kind: "edgeList", directed: true },
+      [GRAPH_RETURN_LIST]: { kind: "adjacencyMatrix", directed: true },
     },
     examples: [
       {
@@ -235,6 +235,7 @@ export const graphFixtures: readonly Fixture[] = [
           },
         },
       },
+      { args: [[], 0], expected: [] },
     ],
   },
   {
@@ -337,10 +338,12 @@ export function fixtureQuestion(fixture: Fixture): QuestionContent {
     if (!type) throw new Error(`Fixture ${fixture.id} needs a solver type for ${target}.`);
     return type;
   }
-  const slotType = Object.keys(encodings)
-    .filter((target) => graphReturnSlot(target) !== undefined)
-    .map(presetType)
-    .find(Boolean);
+  const slotType =
+    presetType(GRAPH_RETURN_LIST) ??
+    Object.keys(encodings)
+      .filter((target) => graphReturnSlot(target) !== undefined)
+      .map(presetType)
+      .find(Boolean);
   const returnType =
     presetType(GRAPH_RETURN) ?? (slotType ? `list<${slotType}>` : fixture.returnType);
   return JSON.parse(

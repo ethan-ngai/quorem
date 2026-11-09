@@ -39,6 +39,7 @@ function TypeBlock({
   depth = 0,
   payloadOnly = false,
   graph,
+  elementGraph,
   clear,
   onChange,
 }: {
@@ -49,6 +50,7 @@ function TypeBlock({
   depth?: number;
   payloadOnly?: boolean;
   graph?: GraphChoice;
+  elementGraph?: GraphChoice;
   clear?: { selected: boolean; onSelect: () => void };
   onChange: (type: AuthoringType) => void;
 }) {
@@ -112,6 +114,7 @@ function TypeBlock({
           label={`${label} · ${type.kind === "optional" ? "wrapped" : "element"} type`}
           type={element}
           payloadOnly={!!nodeKind}
+          graph={type.kind === "list" || type.kind === "array" ? elementGraph : undefined}
           disabled={disabled}
           depth={depth + 1}
           onChange={(element) => {
@@ -138,6 +141,7 @@ export function ValueTypeField({
   allowVoid = false,
   disabled,
   graph,
+  elementGraph,
   onClear,
   onChange,
   onValidityChange,
@@ -148,6 +152,7 @@ export function ValueTypeField({
   allowVoid?: boolean;
   disabled: boolean;
   graph?: GraphChoice;
+  elementGraph?: GraphChoice;
   onClear?: () => void;
   onChange: (value: string) => void;
   onValidityChange?: (id: string, invalid: boolean) => void;
@@ -174,6 +179,7 @@ export function ValueTypeField({
         allowVoid={allowVoid}
         disabled={disabled}
         graph={graph}
+        elementGraph={elementGraph}
         clear={onClear ? { selected: value === undefined, onSelect: onClear } : undefined}
         onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
       />

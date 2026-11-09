@@ -1,5 +1,8 @@
 import {
+  caseGraphTargets,
+  graphEncodingForTarget,
   graphPresetType,
+  GRAPH_RETURN_LIST,
   graphReturnSlot,
   inferCaseGraph,
   isGraphReturn,
@@ -52,14 +55,18 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
   const encodings = signature.graphEncodings ?? {};
   const preserveReturn = Object.entries(encodings).some(
     ([name, { kind }]) =>
-      graphReturnSlot(name) !== undefined || (isGraphReturn(name) && graphPresetType(kind)),
+      name === GRAPH_RETURN_LIST ||
+      graphReturnSlot(name) !== undefined ||
+      (isGraphReturn(name) && graphPresetType(kind)),
   );
   function adapt<T extends QuestionContent["hiddenCases"][number]>(test: T): T {
     const graphs = Object.fromEntries(
-      Object.entries(previous.graphEncodings ?? {}).flatMap(([name, oldEncoding]) => {
+      caseGraphTargets(previous, test.expected, test.graphs).flatMap((name) => {
+        const oldEncoding = graphEncodingForTarget(previous, name);
         const target = targetName(name);
-        const encoding = target === undefined ? undefined : encodings[target];
-        if (target === undefined || !encoding) return [];
+        const encoding =
+          target === undefined ? undefined : graphEncodingForTarget(signature, target);
+        if (target === undefined || !encoding || !oldEncoding) return [];
         const changedRepresentation = oldEncoding.kind !== encoding.kind;
         const changedWeight =
           oldEncoding.kind === "edgeList" &&

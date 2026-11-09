@@ -23,12 +23,44 @@ export function graphNodeId(node: GraphNode): GraphNodeId {
 }
 export type GraphEncoding = components["schemas"]["GraphEncoding"];
 export const GRAPH_RETURN = "$return";
+export const GRAPH_RETURN_LIST = "$return[*]";
 export function graphReturnSlot(target: string): number | undefined {
   const match = /^\$return\[(0|[1-9][0-9]{0,4})\]$/.exec(target);
   return match ? Number(match[1]) : undefined;
 }
 export const isGraphReturn = (target: string) =>
-  target === GRAPH_RETURN || graphReturnSlot(target) !== undefined;
+  target === GRAPH_RETURN || target === GRAPH_RETURN_LIST || graphReturnSlot(target) !== undefined;
+
+/** Resolve an explicit binding before falling back to the return-list format. */
+export function graphEncodingForTarget(
+  signature: Signature,
+  target: string,
+): GraphEncoding | undefined {
+  const encodings = signature.graphEncodings;
+  if (Object.hasOwn(encodings ?? {}, target)) return encodings![target];
+  if (graphReturnSlot(target) !== undefined) return encodings?.[GRAPH_RETURN_LIST];
+}
+
+/** A return list can have a different number of graphs in each case. */
+export function caseGraphTargets(
+  signature: Signature,
+  expected?: unknown,
+  graphs?: CaseGraphs,
+): string[] {
+  const targets = Object.keys(signature.graphEncodings ?? {});
+  if (!signature.graphEncodings?.[GRAPH_RETURN_LIST]) return targets;
+  const indexed = Array.isArray(expected)
+    ? expected.map((_, index) => `${GRAPH_RETURN}[${index}]`)
+    : [];
+  return [
+    ...new Set([
+      ...targets.filter((target) => !isGraphReturn(target)),
+      ...indexed,
+      ...Object.keys(graphs ?? {}).filter((target) => graphReturnSlot(target) !== undefined),
+    ]),
+  ];
+}
+
 export type CaseGraphs = Record<string, QuestionGraph>;
 const label = (v: unknown) =>
   int(v) || (typeof v === "string" && v.length > 0 && v.length <= 120 && !v.includes("\0"));
@@ -115,11 +147,11 @@ export function graphParameters(
   target: string,
   encoding: GraphEncoding,
 ): { arg: number; count: number } | undefined {
-  const slot = graphReturnSlot(target);
+  const element = target === GRAPH_RETURN_LIST || graphReturnSlot(target) !== undefined;
   const output = isGraphReturn(target);
   const returnType = signature.returnType.replaceAll("array<", "list<");
   if (
-    slot !== undefined &&
+    element &&
     (!returnType.startsWith("list<") ||
       signature.outputOrder === "unordered" ||
       Object.hasOwn(signature.graphEncodings ?? {}, GRAPH_RETURN))
@@ -127,6 +159,11 @@ export function graphParameters(
     throw new Error(
       "Graph return slots require an ordered collection and no whole-return encoding",
     );
+  if (
+    target === GRAPH_RETURN_LIST &&
+    Object.keys(signature.graphEncodings ?? {}).some((key) => graphReturnSlot(key) !== undefined)
+  )
+    throw new Error("A graph return list uses one representation for every element");
   const arg = signature.parameters.findIndex(({ name }) => name === target);
   if (!encoding || typeof encoding !== "object") throw new Error("Invalid graph encoding");
   if (!output && arg < 0) throw new Error(`Unknown graph argument ${target}`);
@@ -160,9 +197,9 @@ export function graphParameters(
   const expected = graphPresetType(encoding.kind);
   if (
     (output
-      ? slot === undefined
-        ? returnType
-        : returnType.slice(5, -1)
+      ? element
+        ? returnType.slice(5, -1)
+        : returnType
       : signature.parameters[arg]?.type
     )?.replaceAll("array<", "list<") !== expected
   )
@@ -246,8 +283,8 @@ export function inferCaseGraph(
   expected: WireValue | undefined,
   limit: number,
 ): QuestionGraph | undefined {
-  const encoding = signature.graphEncodings?.[target];
-  if (!encoding || encoding.kind === "custom") return;
+  const encoding = graphEncodingForTarget(signature, target);
+  if (!encoding || encoding.kind === "custom" || target === GRAPH_RETURN_LIST) return;
   const indexed = encoding.kind === "successor" || encoding.kind === "parent";
   const directed =
     encoding.kind === "successor"
@@ -328,13 +365,14 @@ export function projectCaseGraphs(
   limit = 100000,
 ): { args: Map<number, WireValue>; expected?: WireValue; outputSlots: Map<number, WireValue> } {
   const result: ReturnType<typeof projectCaseGraphs> = { args: new Map(), outputSlots: new Map() };
+  const list = signature.graphEncodings?.[GRAPH_RETURN_LIST];
+  if (list) graphParameters(signature, GRAPH_RETURN_LIST, list);
   let remaining = limit;
   let encodedBudget = limit;
   for (const [target, graph] of Object.entries(graphs)) {
-    const encodings = signature.graphEncodings;
-    if (!encodings || !Object.hasOwn(encodings, target))
+    const encoding = graphEncodingForTarget(signature, target);
+    if (!encoding || target === GRAPH_RETURN_LIST)
       throw new Error(`Choose a graph encoding for ${target}`);
-    const encoding = encodings[target]!;
     const indices = graphParameters(signature, target, encoding);
     remaining -= validateGraph(graph, remaining, encoding);
     if (!indices) continue;
@@ -397,8 +435,11 @@ export function compileGraphCase(
   if (!graphs || typeof graphs !== "object" || Array.isArray(graphs))
     throw new Error("Case graphs must be keyed by parameter name or $return");
   if (complete)
-    for (const [target, encoding] of Object.entries(signature.graphEncodings ?? {}))
-      if (encoding.kind === "custom" && !Object.hasOwn(graphs, target))
+    for (const target of caseGraphTargets(signature, test.expected))
+      if (
+        graphEncodingForTarget(signature, target)?.kind === "custom" &&
+        !Object.hasOwn(graphs, target)
+      )
         throw new Error(`Custom graph ${target} requires both a graph and a concrete value`);
   if (!Object.keys(graphs).length) return;
   const generated = projectCaseGraphs(signature, graphs, limit);

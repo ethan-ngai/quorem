@@ -141,10 +141,6 @@
   color: var(--color-text-secondary);
 }
 
-.graph-return-slot-remove {
-  margin-top: var(--space-3);
-}
-
 .graph-signature-picker {
   display: inline-flex;
   align-items: center;
@@ -185,4 +181,18 @@
 .graph-count-icon {
   display: inline-flex;
   align-items: center;
+}
+
+.graph-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.graph-signature-choice[data-graph-list] {
+  flex-wrap: wrap;
+}
+
+.graph-signature-choice[data-graph-list] > .graph-signature-picker {
+  max-width: 100%;
 }
