@@ -9,6 +9,7 @@ import type {
   ProblemVersion,
   Workspace,
 } from "@quorem/contracts";
+import { matchPreset } from "@quorem/contracts/match-rules";
 import { startBrowserFixture } from "./browser-fixture.ts";
 
 void test(
@@ -103,14 +104,14 @@ void test(
       );
       assert.ok(started.currentMatchId);
       const firstId = started.currentMatchId;
-      async function submit(actor: Actor, source: string) {
+      async function submit(matchId: string, actor: Actor, source: string) {
         const session = await json<{ user: { id: string } }>(
           "/v1/session",
           actor,
           undefined,
           "GET",
         );
-        const match = await json<MatchSnapshot>(`/v1/matches/${firstId}`, actor, undefined, "GET");
+        const match = await json<MatchSnapshot>(`/v1/matches/${matchId}`, actor, undefined, "GET");
         const own = match.participants.find((person) => person.userId === session.user.id);
         assert.ok(own?.workspaceId);
         const admitted = await json<{ id: string }>("/v1/submissions", actor, {
@@ -130,7 +131,7 @@ void test(
         );
       }
       assert.equal(
-        (await submit(bob, "SELECT id FROM items WHERE false;")).verdict,
+        (await submit(firstId, bob, "SELECT id FROM items WHERE false;")).verdict,
         "wrong_answer",
       );
       async function saveDraft(matchId: string, actor: Actor, source: string) {
@@ -149,7 +150,7 @@ void test(
       const guestDraft = "SELECT id FROM items; -- unsubmitted";
       await saveDraft(firstId, guest, guestDraft);
       assert.equal(
-        (await submit(alice, "SELECT id FROM items WHERE id > 0 ORDER BY id;")).verdict,
+        (await submit(firstId, alice, "SELECT id FROM items WHERE id > 0 ORDER BY id;")).verdict,
         "accepted",
       );
       const first = await waitFor(
@@ -319,47 +320,68 @@ void test(
         ).status,
         404,
       );
-      await json(`/v1/parties/${id}/settings`, alice, settings, "PUT");
-      await readyAll();
-      const third = await waitFor(
-        () => json<PartySnapshot>(`/v1/parties/${id}`, alice, undefined, "GET"),
-        (value) => !!value.currentMatchId && value.currentMatchId !== secondId,
-      );
-      const thirdId = third.currentMatchId!;
-      const drafts = new Map<string, string>();
-      for (const [index, actor] of actors.entries()) {
-        const source = `SELECT id FROM items; -- player ${index}'s unsubmitted code`;
-        drafts.set(await saveDraft(thirdId, actor, source), source);
+      let lastRoundId = secondId;
+      for (const victory of ["race", "high_score"] as const) {
+        await json(
+          `/v1/parties/${id}/settings`,
+          alice,
+          { ...settings, rules: { ...matchPreset("casual"), victory } },
+          "PUT",
+        );
+        await readyAll();
+        const next = await waitFor(
+          () => json<PartySnapshot>(`/v1/parties/${id}`, alice, undefined, "GET"),
+          (value) => !!value.currentMatchId && value.currentMatchId !== lastRoundId,
+        );
+        const matchId = next.currentMatchId!;
+        lastRoundId = matchId;
+        if (victory === "high_score") {
+          const scored = await submit(
+            matchId,
+            bob,
+            "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+          );
+          assert.equal(scored.verdict, "accepted");
+        }
+        const drafts = new Map<string, string>();
+        for (const [index, actor] of actors.entries()) {
+          const source = `SELECT id FROM items; -- player ${index}'s unsubmitted code`;
+          drafts.set(await saveDraft(matchId, actor, source), source);
+        }
+        await json(`/v1/matches/${matchId}/forfeit`, bob, {});
+        await json(`/v1/matches/${matchId}/forfeit`, guest, {});
+        const forfeitedMatch = await waitFor(
+          () => json<MatchSnapshot>(`/v1/matches/${matchId}`, alice, undefined, "GET"),
+          (value) => value.state === "completed" && !value.reviewPending,
+        );
+        assert.equal(forfeitedMatch.rules.victory, victory);
+        assert.equal(forfeitedMatch.outcome?.reason, "forfeit");
+        const forfeitReview = await json<MatchReview>(
+          `/v1/matches/${matchId}/review`,
+          alice,
+          undefined,
+          "GET",
+        );
+        assert.equal(forfeitReview.participants.length, drafts.size);
+        for (const participant of forfeitReview.participants) {
+          assert.equal(participant.submission, null);
+          assert.deepEqual(participant.finalCode, {
+            language: "postgresql",
+            source: drafts.get(participant.userId),
+          });
+        }
+        const forfeitedPlayer = forfeitedMatch.participants.find((player) => player.forfeited);
+        assert.ok(forfeitedPlayer);
+        const comparison = await json<Workspace>(
+          `/v1/matches/${matchId}/review/workspaces`,
+          alice,
+          {
+            participantUserId: forfeitedPlayer.userId,
+            language: "postgresql",
+          },
+        );
+        assert.equal(comparison.kind, "review");
       }
-      await json(`/v1/matches/${thirdId}/forfeit`, bob, {});
-      await json(`/v1/matches/${thirdId}/forfeit`, guest, {});
-      const forfeitedRace = await waitFor(
-        () => json<MatchSnapshot>(`/v1/matches/${thirdId}`, alice, undefined, "GET"),
-        (value) => value.state === "completed" && !value.reviewPending,
-      );
-      assert.equal(forfeitedRace.rules.victory, "race");
-      assert.equal(forfeitedRace.outcome?.reason, "forfeit");
-      const forfeitReview = await json<MatchReview>(
-        `/v1/matches/${thirdId}/review`,
-        alice,
-        undefined,
-        "GET",
-      );
-      assert.equal(forfeitReview.participants.length, drafts.size);
-      for (const participant of forfeitReview.participants) {
-        assert.equal(participant.submission, null);
-        assert.deepEqual(participant.finalCode, {
-          language: "postgresql",
-          source: drafts.get(participant.userId),
-        });
-      }
-      const forfeitedPlayer = forfeitedRace.participants.find((player) => player.forfeited);
-      assert.ok(forfeitedPlayer);
-      const comparison = await json<Workspace>(`/v1/matches/${thirdId}/review/workspaces`, alice, {
-        participantUserId: forfeitedPlayer.userId,
-        language: "postgresql",
-      });
-      assert.equal(comparison.kind, "review");
 
       const guestSession = await json<{ kind: string }>("/v1/session", guest, undefined, "GET");
       assert.equal(guestSession.kind, "guest");
@@ -380,9 +402,9 @@ void test(
         null,
       );
       assert.equal(
-        (await json<MatchReview>(`/v1/matches/${thirdId}/review`, guest, undefined, "GET"))
+        (await json<MatchReview>(`/v1/matches/${lastRoundId}/review`, guest, undefined, "GET"))
           .participants.length,
-        drafts.size,
+        actors.length,
       );
     } finally {
       await fixture.close();
