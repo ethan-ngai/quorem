@@ -171,28 +171,69 @@
   font: var(--text-label)/1.5 var(--font-code);
 }
 
-.case-graph-preview {
-  display: grid;
-  gap: var(--space-2);
-  width: min(100%, 180px);
+.case-graph-layout {
+  container-type: inline-size;
 }
 
-.case-graph-preview > .select-field {
+.case-with-graphs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 35%);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "values main"
+    "extras main";
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.case-with-graphs > .case-preview-values {
+  grid-area: values;
+  width: auto;
+}
+
+.case-graph-main {
+  grid-area: main;
+  display: grid;
+  gap: var(--space-3);
   min-width: 0;
+}
+
+.case-graph-extras {
+  grid-area: extras;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
+  gap: var(--space-4);
+}
+
+@container (width < 380px) {
+  .case-with-graphs {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "values" "main" "extras";
+  }
 }
 
 .case-graph {
   margin: 0;
-  width: 100%;
+  min-width: 0;
 }
 
 .case-graph svg {
   display: block;
-  width: 100%;
+  max-width: 100%;
+  height: auto;
 }
 
 .case-graph text {
   fill: var(--color-text);
-  font: 9px var(--font-code);
+  font: 11px var(--font-code);
   text-anchor: middle;
+}
+
+.case-graph .case-graph-weight {
+  fill: var(--color-text-secondary);
+  paint-order: stroke;
+  stroke: var(--color-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }

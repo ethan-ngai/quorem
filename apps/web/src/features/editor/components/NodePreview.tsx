@@ -1,4 +1,4 @@
-/** @file NodePreview.tsx @description One lazy diagram per case and scoped reference picking. @module editor */
+/** @file NodePreview.tsx @description Case diagrams and scoped node reference picking. @module editor */
 import {
   createContext,
   lazy,
@@ -13,7 +13,6 @@ import { nodeValueType } from "../nodeDiagram";
 import type { NodeContext } from "../nodeLiterals";
 import type { WireValue } from "../typedValues";
 import "./node-preview.css";
-import { SelectField } from "../../../ui/SelectField";
 import { LoadingIndicator } from "../../../ui/Spinner";
 
 const GraphDiagram = lazy(() => import("./GraphDiagram"));
@@ -60,48 +59,44 @@ export function CasePreviewLayout({
   graphs?: CaseGraphs;
 }) {
   const nodes = hasNodes(preview.context);
-  const hasGraphs = !!graphs && Object.keys(graphs).length > 0;
-  if (!enabled || (!nodes && !hasGraphs)) return <>{children}</>;
+  if (!enabled) return <>{children}</>;
+  const graphKeys = Object.keys(graphs ?? {});
+  if (graphs && graphKeys.length) {
+    const parameters = preview.context?.signature.parameters.map(({ name }) => name) ?? [];
+    const inputs = parameters.filter((name) => Object.hasOwn(graphs, name));
+    const remaining = graphKeys.filter((name) => !inputs.includes(name));
+    remaining.sort((a, b) => (graphReturnSlot(a) ?? -1) - (graphReturnSlot(b) ?? -1));
+    const [first, ...rest] = [...inputs, ...remaining];
+    const diagram = (name: string) => {
+      const slot = graphReturnSlot(name);
+      const label =
+        name === GRAPH_RETURN
+          ? "Expected graph"
+          : slot === undefined
+            ? name
+            : `Expected graph [${slot}]`;
+      return <GraphDiagram key={name} graph={graphs[name]!} label={label} />;
+    };
+    return (
+      <div className="case-graph-layout">
+        <div className="case-with-graphs">
+          <div className="case-preview-values">{children}</div>
+          <Suspense fallback={<LoadingIndicator label="Loading graph previews…" />}>
+            <div className="case-graph-main">
+              {nodes && <NodeCasePreview {...preview} />}
+              {diagram(first!)}
+            </div>
+            {rest.length > 0 && <div className="case-graph-extras">{rest.map(diagram)}</div>}
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
+  if (!nodes) return <>{children}</>;
   return (
     <div className="case-with-preview" data-editable={editable}>
       <div className="case-preview-values">{children}</div>
-      {hasGraphs ? (
-        <div className="node-preview">
-          {nodes && <NodeCasePreview {...preview} />}
-          <CaseGraphsPreview graphs={graphs} context={preview.context} />
-        </div>
-      ) : (
-        <NodeCasePreview {...preview} />
-      )}
-    </div>
-  );
-}
-
-/** One diagram at a time keeps cases with multiple graphs compact. */
-function CaseGraphsPreview({ graphs, context }: { graphs: CaseGraphs; context?: NodeContext }) {
-  const [selected, setSelected] = useState<string>();
-  const keys = Object.keys(graphs);
-  const first =
-    context?.signature.parameters.find(({ name }) => Object.hasOwn(graphs, name))?.name ?? keys[0]!;
-  const target = selected !== undefined && Object.hasOwn(graphs, selected) ? selected : first;
-  const label = (name: string) => {
-    if (name === GRAPH_RETURN) return "Expected graph";
-    const slot = graphReturnSlot(name);
-    return slot === undefined ? name : `Expected graph [${slot}]`;
-  };
-  return (
-    <div className="case-graph-preview">
-      {keys.length > 1 && (
-        <SelectField
-          label="Graph preview"
-          value={target}
-          onChange={setSelected}
-          options={keys.map((name) => ({ value: name, label: label(name) }))}
-        />
-      )}
-      <Suspense fallback={<LoadingIndicator label="Loading graph preview…" />}>
-        <GraphDiagram graph={graphs[target]!} label={label(target)} caption={keys.length === 1} />
-      </Suspense>
+      <NodeCasePreview {...preview} />
     </div>
   );
 }
