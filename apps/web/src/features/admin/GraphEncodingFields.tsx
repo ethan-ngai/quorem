@@ -213,7 +213,7 @@ export function GraphEncodingFields({
                   label={`Weight type for ${title}`}
                   value={encoding.edgeValue ? "int" : "None"}
                   choices={["None", "int"]}
-                  names={{ int: "Integer" }}
+                  searchAliases={{ int: "Integer" }}
                   disabled={disabled}
                   onChange={(type) =>
                     onChange({

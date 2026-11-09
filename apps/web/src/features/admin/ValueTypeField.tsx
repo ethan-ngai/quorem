@@ -14,7 +14,7 @@ const graphChoice = "Graph";
 type Choice = ValueType["kind"] | "void" | typeof graphChoice;
 type GraphChoice = { selected: boolean; onSelect: () => void };
 type AuthoringType = ValueType | { kind: "void" };
-const names: Record<Exclude<Choice, typeof graphChoice>, string> = {
+const searchAliases: Record<Exclude<Choice, typeof graphChoice>, string> = {
   int: "Integer",
   long: "64-bit integer",
   float: "Floating-point number",
@@ -67,7 +67,7 @@ function TypeBlock({
                 ...(graph ? ([graphChoice] as const) : []),
               ]
         }
-        names={names}
+        searchAliases={searchAliases}
         disabled={disabled}
         onChange={(kind) => {
           if (kind === graphChoice) {
