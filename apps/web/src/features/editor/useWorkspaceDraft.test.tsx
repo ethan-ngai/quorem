@@ -34,10 +34,12 @@ function Subject({
   active = workspace,
   editable = true,
   authoritative = false,
+  saveMatchSource,
 }: {
   active?: Workspace;
   editable?: boolean;
   authoritative?: boolean;
+  saveMatchSource?: (workspaceId: string, source: string) => Promise<void>;
 }) {
   state = useWorkspaceDraft({
     identity: "alice",
@@ -49,6 +51,7 @@ function Subject({
     loadedWorkspace: active,
     editorRef: editor,
     onError,
+    saveMatchSource,
   });
   return null;
 }
@@ -243,4 +246,19 @@ it("keeps an anonymous draft ahead of delayed account history", async () => {
     finish({ scope: "old", source: "old account history", savedAt: "2026-01-01" }),
   );
   expect(state.sourceRef.current).toBe("anonymous work");
+});
+
+it("saves the newest match code even while the player keeps typing", async () => {
+  vi.useFakeTimers();
+  const saveMatchSource = vi.fn(async () => {});
+  const match = { ...workspace, id: "match-workspace", kind: "match" } as Workspace;
+  await act(async () => root.render(<Subject active={match} saveMatchSource={saveMatchSource} />));
+  await act(async () => state.updateSource("first edit"));
+  await act(async () => vi.advanceTimersByTimeAsync(500));
+  await act(async () => state.updateSource("unsubmitted latest edit"));
+  await act(async () => vi.advanceTimersByTimeAsync(250));
+  expect(saveMatchSource).toHaveBeenCalledExactlyOnceWith(
+    "match-workspace",
+    "unsubmitted latest edit",
+  );
 });

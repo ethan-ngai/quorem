@@ -4180,6 +4180,45 @@
         }
       }
     },
+    "/v1/matches/{id}/review/code": {
+      "put": {
+        "operationId": "saveMatchReviewCode",
+        "summary": "Save the current editor source for post-match sharing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": { "type": "string", "format": "uuid" },
+                  "source": { "type": "string" }
+                },
+                "required": ["workspaceId", "source"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Saved" },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+            }
+          }
+        }
+      }
+    },
     "/v1/matches/{id}/review/workspaces": {
       "post": {
         "operationId": "createMatchReviewWorkspace",
@@ -6584,6 +6623,7 @@
             "type": "string",
             "format": "uuid"
           },
+          "shareFinalCode": { "type": "boolean" },
           "reviewPending": {
             "type": "boolean"
           },
@@ -8785,6 +8825,7 @@
       "MatchReviewSubmission": {
         "type": "object",
         "properties": {
+          "winning": { "type": "boolean" },
           "language": {
             "type": "string"
           },
@@ -8837,6 +8878,20 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "finalCode": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "language": { "type": "string" },
+                  "source": { "type": "string" }
+                },
+                "required": ["language", "source"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
             ]
           },
           "submission": {

@@ -1856,6 +1856,9 @@
           "type": "string",
           "format": "uuid"
         },
+        "shareFinalCode": {
+          "type": "boolean"
+        },
         "reviewPending": {
           "type": "boolean"
         },
@@ -4502,6 +4505,9 @@
     "MatchReviewSubmission": {
       "type": "object",
       "properties": {
+        "winning": {
+          "type": "boolean"
+        },
         "language": {
           "type": "string"
         },
@@ -4555,6 +4561,29 @@
           "anyOf": [
             {
               "$ref": "#/$defs/MatchReviewWorkspace"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finalCode": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "language": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "language",
+                "source"
+              ],
+              "additionalProperties": false
             },
             {
               "type": "null"

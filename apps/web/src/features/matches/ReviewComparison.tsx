@@ -7,7 +7,7 @@ import { readBrowserDraft } from "../editor/recovery";
 import { languageFileNames, type EditorLanguage } from "../editor/editorLanguages";
 import type { EditorScheme } from "../editor/editorSchemes";
 import { ReviewPaneHeader } from "./ReviewToolbar";
-import { createReviewWorkspace } from "./useMatchReview";
+import { createReviewWorkspace, reviewCodeLanguage, initialReviewSource } from "./useMatchReview";
 import { LoadingIndicator } from "../../ui/Spinner";
 
 export function ReviewComparison({
@@ -39,9 +39,7 @@ export function ReviewComparison({
   onSelect: () => void;
   disabled: boolean;
 }) {
-  const language = (
-    participant.own ? participant.workspace?.language : participant.submission?.language
-  ) as EditorLanguage | undefined;
+  const language = reviewCodeLanguage(participant);
   const selectedLanguage = problem.languages?.some((item) => item.language === language)
     ? language!
     : (problem.languages?.[0]?.language ?? "python");
@@ -51,13 +49,9 @@ export function ReviewComparison({
   });
   const editorRef = useRef<PythonEditorHandle>(null);
   const [saveError, setSaveError] = useState(false);
-  const initialSource =
-    participant.own && participant.workspace?.language === selectedLanguage
-      ? (readBrowserDraft(identity, participant.workspace.id, problem.id) ??
-        participant.submission?.source)
-      : participant.submission?.language === selectedLanguage
-        ? participant.submission.source
-        : undefined;
+  const initialSource = initialReviewSource(participant, selectedLanguage, () =>
+    readBrowserDraft(identity, participant.workspace!.id, problem.id),
+  );
   const draft = useWorkspaceDraft({
     identity,
     accountPresent: true,

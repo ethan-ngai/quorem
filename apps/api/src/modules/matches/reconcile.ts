@@ -25,7 +25,7 @@ export function reconcile(
   const submissionDeadline = rules.submissionDeadline ?? deadline;
   const submissionsClosed = now >= submissionDeadline;
   let candidateTime: bigint | null = null;
-  const candidates = new Set<string>();
+  const candidates = new Map<string, string | undefined>();
   for (const s of eligible) {
     const p = progress.get(s.owner)!;
     p.state = s.state;
@@ -48,7 +48,7 @@ export function reconcile(
       candidateTime = time;
       candidates.clear();
     }
-    if (time === candidateTime) candidates.add(s.owner);
+    if (time === candidateTime && !candidates.has(s.owner)) candidates.set(s.owner, s.id);
   }
   let winner = "",
     high = -Infinity,
@@ -88,7 +88,7 @@ export function reconcile(
   if (candidateTime !== null && !blocked) {
     outcome =
       candidates.size === 1
-        ? { kind: "win", winnerUserId: [...candidates][0], reason: "first_correct" }
+        ? { kind: "win", winnerUserId: candidates.keys().next().value, reason: "first_correct" }
         : { kind: "draw", reason: "first_correct" };
   } else if (submissionsClosed || candidateTime !== null || finalizingAt !== null) {
     finalizingAt ??= now >= deadline ? deadline : now;
@@ -100,5 +100,9 @@ export function reconcile(
         ? { kind: "draw", reason: "deadline_score" }
         : { kind: "win", ...(winner ? { winnerUserId: winner } : {}), reason: "deadline_score" };
   }
-  return { progress, finalizingAt, outcome };
+  const raceWinnerSubmissionId =
+    outcome?.reason === "first_correct" && outcome.winnerUserId
+      ? candidates.get(outcome.winnerUserId)
+      : undefined;
+  return { progress, finalizingAt, outcome, raceWinnerSubmissionId };
 }

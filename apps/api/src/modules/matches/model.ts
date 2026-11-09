@@ -5,6 +5,7 @@ export interface Progress {
   bestPassed: number;
 }
 export interface SubmissionProgress {
+  id?: string;
   admittedAt: bigint;
   owner: string;
   state: string;
@@ -22,5 +23,6 @@ export interface Outcome {
 export interface Reconciliation {
   progress: Map<string, Progress>;
   finalizingAt: bigint | null;
+  raceWinnerSubmissionId?: string;
   outcome: Outcome | null;
 }

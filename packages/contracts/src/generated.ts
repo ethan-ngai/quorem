@@ -1096,6 +1096,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/review/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save the current editor source for post-match sharing */
+        put: operations["saveMatchReviewCode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/matches/{id}/review/workspaces": {
         parameters: {
             query?: never;
@@ -1764,6 +1781,7 @@ export interface components {
             admissionLocked?: boolean;
             /** Format: uuid */
             partyId?: string;
+            shareFinalCode?: boolean;
             reviewPending?: boolean;
             factionNames?: string[];
         };
@@ -2390,6 +2408,7 @@ export interface components {
             language: string;
         };
         MatchReviewSubmission: {
+            winning?: boolean;
             language: string;
             source: string;
             verdict: string | null;
@@ -2403,6 +2422,10 @@ export interface components {
             color?: number;
             own: boolean;
             workspace: components["schemas"]["MatchReviewWorkspace"] | null;
+            finalCode?: {
+                language: string;
+                source: string;
+            } | null;
             submission: components["schemas"]["MatchReviewSubmission"] | null;
         };
         MatchReview: {
@@ -5155,6 +5178,43 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ProblemVersion"];
                 };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    saveMatchReviewCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    workspaceId: string;
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Safe application error */
             default: {

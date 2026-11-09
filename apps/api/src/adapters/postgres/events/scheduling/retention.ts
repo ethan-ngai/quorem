@@ -6,7 +6,7 @@ const outboxes = ["interview_outbox", "match_outbox", "submission_outbox"] as co
 // A late settlement can outlive ordinary admission-based retention.
 const reviewHold = sql`EXISTS (
   SELECT 1 FROM matches m WHERE m.id=s.match_id AND s.kind='submit' AND s.match_sequence IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM submissions newer WHERE newer.match_id=s.match_id AND newer.owner_id=s.owner_id AND newer.kind='submit' AND newer.match_sequence>s.match_sequence)
+    AND (s.id=m.review_winning_submission_id OR NOT EXISTS (SELECT 1 FROM submissions newer WHERE newer.match_id=s.match_id AND newer.owner_id=s.owner_id AND newer.kind='submit' AND newer.match_sequence>s.match_sequence))
     AND (m.state IN ('active','finalizing') OR (m.state IN ('completed','cancelled') AND m.completed_at>statement_timestamp()-interval '24 hours'
       AND EXISTS (SELECT 1 FROM match_participants viewer WHERE viewer.match_id=m.id
         AND (viewer.owner_id=s.owner_id OR m.share_code_after_match)
@@ -78,6 +78,13 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
         AND NOT EXISTS (SELECT 1 FROM execution_idempotency i WHERE i.submission_id=s.id)
         AND NOT EXISTS (SELECT 1 FROM cancellation_idempotency i WHERE i.submission_id=s.id)
       ORDER BY s.admitted_at,s.id FOR UPDATE OF s SKIP LOCKED LIMIT ${limit}
+    )`,
+  );
+  statements.push(
+    sql`UPDATE workspaces SET match_review_source=NULL WHERE id IN (
+      SELECT w.id FROM workspaces w JOIN matches m ON m.id=w.match_id
+      WHERE w.match_review_source IS NOT NULL AND m.completed_at<=statement_timestamp()-interval '24 hours'
+      ORDER BY m.completed_at,w.id FOR UPDATE OF w SKIP LOCKED LIMIT ${limit}
     )`,
   );
   const expiredReview = sql`SELECT w.id FROM workspaces w JOIN matches m ON m.id=w.review_match_id

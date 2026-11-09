@@ -352,7 +352,7 @@ export function MatchPage({
         <MatchRecovery failed={!!error} onRetry={refetch} />
       </main>
     );
-  const concession = (
+  const concession = (saveDraft?: () => Promise<void>) => (
     <ConcessionDialog
       open={conceding}
       pending={pending}
@@ -365,13 +365,14 @@ export function MatchPage({
       onCancel={() => setConceding(false)}
       onConfirm={() =>
         void command(async () => {
+          await saveDraft?.();
           await forfeitMatch(identity, matchId);
           setConceding(false);
         })
       }
     />
   );
-  const ledger = (problem?: ProblemVersion) => (
+  const ledger = (problem?: ProblemVersion, saveDraft?: () => Promise<void>) => (
     <>
       <MatchLedger
         snapshot={snapshot}
@@ -395,7 +396,7 @@ export function MatchPage({
         </div>
       )}
 
-      {concession}
+      {concession(snapshot.shareFinalCode ? saveDraft : undefined)}
       {finished && (
         <MatchEndView
           snapshot={finished.snapshot}

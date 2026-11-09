@@ -133,9 +133,30 @@ void test(
         (await submit(bob, "SELECT id FROM items WHERE false;")).verdict,
         "wrong_answer",
       );
+      const guestMatch = await json<MatchSnapshot>(
+        `/v1/matches/${firstId}`,
+        guest,
+        undefined,
+        "GET",
+      );
+      const guestWorkspace = guestMatch.participants.find(
+        (person) => person.workspaceId,
+      )?.workspaceId;
+      assert.ok(guestMatch.shareFinalCode && guestWorkspace);
+      const guestDraft = "SELECT id FROM items; -- unsubmitted";
       assert.equal(
-        (await submit(guest, "SELECT id FROM items WHERE false;")).verdict,
-        "wrong_answer",
+        (
+          await response(
+            `/v1/matches/${firstId}/review/code`,
+            guest,
+            {
+              workspaceId: guestWorkspace,
+              source: guestDraft,
+            },
+            "PUT",
+          )
+        ).status,
+        204,
       );
       assert.equal(
         (await submit(alice, "SELECT id FROM items WHERE id > 0 ORDER BY id;")).verdict,
@@ -156,13 +177,18 @@ void test(
       );
       assert.equal(reviewed.shareCodeAfterMatch, true);
       assert.equal(reviewed.participants.length, 3);
-      assert.ok(reviewed.participants.every((person) => person.submission?.source));
+      assert.equal(
+        reviewed.participants.find((person) => person.submission?.winning)?.submission?.source,
+        "SELECT id FROM items WHERE id > 0 ORDER BY id;",
+      );
       assert.ok(
         reviewed.participants
           .filter((person) => !person.own)
           .every((person) => person.workspace === null),
       );
       const guestOriginal = reviewed.participants.find((person) => person.own)!;
+      assert.deepEqual(guestOriginal.finalCode, { language: "postgresql", source: guestDraft });
+      assert.equal(guestOriginal.submission, null);
       const opponent = reviewed.participants.find(
         (person) => !person.own && person.submission?.verdict === "wrong_answer",
       )!;

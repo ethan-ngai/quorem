@@ -26,7 +26,9 @@ export function ReviewToolbar({
   disabled,
   compare,
   diff,
+  canCompare,
   canDiff,
+  originalLabel = "Original submission",
   original,
   onSelect,
   onCompare,
@@ -40,7 +42,9 @@ export function ReviewToolbar({
   disabled: boolean;
   compare: boolean;
   diff: boolean;
+  canCompare: boolean;
   canDiff: boolean;
+  originalLabel?: string;
   original: boolean;
   onSelect: (value: string) => void;
   onCompare: () => void;
@@ -49,9 +53,6 @@ export function ReviewToolbar({
   children?: ReactNode;
   originalContent?: ReactNode;
 }) {
-  const multiple = review.participants.some(
-    (person) => person.userId !== participantId && person.submission,
-  );
   return (
     <div className="code-toolbar review-toolbar">
       <SelectField
@@ -61,7 +62,10 @@ export function ReviewToolbar({
         disabled={disabled}
         options={review.participants.map((person) => ({
           value: person.userId,
-          label: person.displayName,
+          label:
+            person.own || person.finalCode || person.submission
+              ? person.displayName
+              : `${person.displayName} · No saved code`,
           display: person.own ? (
             <Tooltip content="You">
               <span aria-hidden="true">{person.displayName}</span>
@@ -80,7 +84,7 @@ export function ReviewToolbar({
       />
       {children}
       <div className="review-view-controls">
-        {multiple && (
+        {canCompare && (
           <SegmentedControl
             label="Code view"
             compact
@@ -99,30 +103,22 @@ export function ReviewToolbar({
             }}
           />
         )}
-        {review.participants.find((person) => person.userId === participantId)?.submission && (
+        {originalContent && (
           <Popover.Root
             open={original}
             onOpenChange={(next) => {
               if (next !== original) onOriginal();
             }}
           >
-            <Tooltip content="Original submission">
+            <Tooltip content={originalLabel}>
               <Popover.Trigger asChild>
-                <button
-                  className="icon-button"
-                  aria-label="Original submission"
-                  aria-pressed={original}
-                >
+                <button className="icon-button" aria-label={originalLabel} aria-pressed={original}>
                   <History size={16} />
                 </button>
               </Popover.Trigger>
             </Tooltip>
             <Popover.Portal>
-              <Popover.Content
-                className="review-original"
-                align="end"
-                aria-label="Original submission"
-              >
+              <Popover.Content className="review-original" align="end" aria-label={originalLabel}>
                 {originalContent}
               </Popover.Content>
             </Popover.Portal>
@@ -165,7 +161,7 @@ export function ReviewPaneHeader({
   disabled?: boolean;
 }) {
   const status = original
-    ? "Original submission"
+    ? name
     : active
       ? "Editable copy · Run and Submit use this editor"
       : "Comparison reference";

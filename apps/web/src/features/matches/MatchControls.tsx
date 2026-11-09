@@ -208,10 +208,10 @@ export function MatchSettings({
       <div className="match-option">
         <span>
           <Code2 size={16} aria-hidden="true" />
-          Share code after match
+          Share final code after match
         </span>
         <ToggleSwitch
-          label="Share code after match"
+          label="Share final code after match"
           checked={value.shareCodeAfterMatch}
           disabled={disabled}
           onChange={(shareCodeAfterMatch) => onChange?.({ ...value, shareCodeAfterMatch })}

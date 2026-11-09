@@ -446,3 +446,69 @@ void test("party guest is restricted to participated rounds and live credentials
   );
   assert.equal(await allowed(guest, second), false);
 });
+
+void test("review freezes editor code and uses the exact race-winning submission", async () => {
+  await pool.query(
+    "INSERT INTO users(id,display_name,kind) VALUES ('review-final-a','A','account'),('review-final-b','B','account')",
+  );
+  const match = crypto.randomUUID();
+  const a = crypto.randomUUID();
+  const b = crypto.randomUUID();
+  const win = crypto.randomUUID();
+  const later = crypto.randomUUID();
+  await pool.query(
+    `INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,
+      problem_version_id,started_at,deadline,share_code_after_match,review_final_code)
+      VALUES($1,'review-final-a',$1::uuid::text,now()+interval '1 hour',30,'active',ARRAY['easy'],$2,
+      now(),now()+interval '30 minutes',true,true)`,
+    [match, ids.version],
+  );
+  await pool.query(
+    `INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id)
+      VALUES($1,'review-final-a',$3,'python','match',$4),($2,'review-final-b',$3,'java','match',$4)`,
+    [a, b, ids.version, match],
+  );
+  await pool.query(
+    `INSERT INTO match_participants(match_id,owner_id,seat,workspace_id)
+      VALUES($1,'review-final-a',1,$2),($1,'review-final-b',2,$3)`,
+    [match, a, b],
+  );
+  await assert.rejects(repo.saveFinalCode(actor("review-c"), match, a, "outsider"), {
+    status: 404,
+  });
+  await assert.rejects(repo.saveFinalCode(actor("review-final-a"), match, b, "wrong owner"), {
+    status: 409,
+  });
+  await repo.saveFinalCode(actor("review-final-a"), match, a, "earlier draft");
+  await repo.saveFinalCode(actor("review-final-a"), match, a, "never submitted");
+  await repo.saveFinalCode(actor("review-final-b"), match, b, "newest draft");
+  await assert.rejects(repo.read(actor("review-final-a"), match), { status: 404 });
+  await pool.query(
+    `INSERT INTO submissions(id,owner_id,workspace_id,match_id,match_sequence,kind,source,source_hash,state,cases,result)
+      VALUES($1,'review-final-b',$3,$4,1,'submit','winning code','hash','completed','[]','{"verdict":"accepted"}'),
+      ($2,'review-final-b',$3,$4,2,'submit','later submission','hash','completed','[]','{"verdict":"wrong_answer"}')`,
+    [win, later, b, match],
+  );
+  await pool.query(
+    `UPDATE matches SET state='completed',completed_at=now(),outcome='{}',
+      rules=jsonb_set(rules,'{victory}','"high_score"') WHERE id=$1`,
+    [match],
+  );
+  await assert.rejects(repo.saveFinalCode(actor("review-final-b"), match, b, "after close"), {
+    status: 409,
+  });
+  const read = async () => JSON.parse(await repo.read(actor("review-final-a"), match)).participants;
+  let participants = await read();
+  assert.deepEqual(participants[0].finalCode, { language: "python", source: "never submitted" });
+  assert.deepEqual(participants[1].finalCode, { language: "java", source: "newest draft" });
+  assert.equal(participants[1].submission, null);
+
+  await pool.query(
+    `UPDATE matches SET review_winning_submission_id=$2,rules=jsonb_set(rules,'{victory}','"race"') WHERE id=$1`,
+    [match, win],
+  );
+  participants = await read();
+  assert.equal(participants[1].finalCode, null);
+  assert.equal(participants[1].submission.source, "winning code");
+  assert.equal(participants[1].submission.winning, true);
+});

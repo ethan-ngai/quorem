@@ -600,6 +600,7 @@ export const workspaces = pgTable(
       .default(sql`clock_timestamp()`)
       .notNull(),
     match_id: uuid(),
+    match_review_source: text(),
     review_match_id: uuid(),
     review_source_owner_id: text(),
   },
@@ -720,6 +721,8 @@ export const matches = pgTable(
     host_owner_id: text().notNull(),
     party_id: uuid(),
     share_code_after_match: boolean().default(false).notNull(),
+    review_final_code: boolean().default(false).notNull(),
+    review_winning_submission_id: uuid(),
     invite_hash: text().notNull(),
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
     duration_minutes: integer().notNull(),
@@ -787,6 +790,11 @@ export const matches = pgTable(
       foreignColumns: [parties.id],
       name: "matches_party_id_fkey",
     }),
+    foreignKey({
+      columns: [table.review_winning_submission_id],
+      foreignColumns: [submissions.id],
+      name: "matches_review_winning_submission_id_fkey",
+    }).onDelete("set null"),
     unique("matches_invite_hash_key").on(table.invite_hash),
     check(
       "matches_access_mode_check",
