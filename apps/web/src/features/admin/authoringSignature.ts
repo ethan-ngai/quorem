@@ -12,14 +12,11 @@ export function adaptSignature(content: QuestionContent, signature: Signature): 
   const previous = primarySignature(content.problem);
   // Renaming a parameter keeps its graph binding at the same position.
   const newNames = new Set(signature.parameters.map(({ name }) => name));
+  const sameArity = previous.parameters.length === signature.parameters.length;
   const names = new Map(
     previous.parameters.map(({ name }, index) => [
       name,
-      newNames.has(name)
-        ? name
-        : previous.parameters.length === signature.parameters.length
-          ? signature.parameters[index]?.name
-          : undefined,
+      sameArity ? signature.parameters[index]?.name : newNames.has(name) ? name : undefined,
     ]),
   );
   const oldPositions = new Map(

@@ -130,7 +130,7 @@
 .graph-signature-choice {
   display: flex;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -160,27 +160,23 @@
 .graph-signature-picker {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
   flex: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-field);
 }
 
 .graph-signature-picker > .admin-field {
   margin: 0;
 }
 
-.graph-signature-picker > .admin-field input.authoring-type-input {
-  border: 0;
-  min-height: calc(var(--control-height) - 2px);
-  background: transparent;
+.graph-settings-trigger.icon-button {
+  width: calc(var(--control-height) - var(--space-2));
+  height: var(--control-height);
+  color: var(--color-text-secondary);
 }
 
-.graph-settings-trigger.icon-button {
-  width: calc(var(--control-height) - var(--space-1));
-  height: calc(var(--control-height) - 2px);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--color-text-secondary);
+.graph-representation-select {
+  justify-self: start;
+  max-width: 100%;
 }
 
 .graph-settings-trigger[aria-expanded="true"] {

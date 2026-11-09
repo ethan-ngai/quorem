@@ -78,6 +78,7 @@ function GraphRepresentationField({
   return (
     <SelectField
       label={`Graph representation for ${title}`}
+      className="graph-representation-select"
       value={encoding.kind}
       options={options.filter(({ value }) => {
         const type = graphPresetType(value);

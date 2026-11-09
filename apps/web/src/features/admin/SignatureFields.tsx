@@ -20,7 +20,7 @@ import {
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
 import { GRAPH_RETURN, graphReturnSlot, type GraphEncoding } from "@quorem/questions";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import * as Popover from "../../ui/Popover";
@@ -74,17 +74,34 @@ export function SignatureFields({
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
   const addException = useRef<HTMLButtonElement>(null);
+  const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
+  const parameterNames = value.parameters.map(({ name }, index) => nameDrafts[index] ?? name);
   const invalidMethod = !validateInput(value.methodName, inputConstraints.identifier).success;
-  const invalidParameter = (name: string) =>
+  const invalidParameter = (name: string, names = parameterNames) =>
     !validateInput(name, inputConstraints.identifier).success ||
-    value.parameters.filter((parameter) => parameter.name === name).length > 1;
-  const invalidNames = invalidMethod || value.parameters.some(({ name }) => invalidParameter(name));
+    names.filter((parameter) => parameter === name).length > 1;
+  const invalidNames = invalidMethod || parameterNames.some((name) => invalidParameter(name));
+  const editingInvalidNames = Object.keys(nameDrafts).length > 0;
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => {
     validity.current?.(namesId, invalidNames);
   }, [namesId, invalidNames]);
   useEffect(() => () => validity.current?.(namesId, false), [namesId]);
+  function renameParameter(index: number, name: string) {
+    const drafts = { ...nameDrafts, [index]: name };
+    const parameters = value.parameters.map((parameter, position) => ({
+      ...parameter,
+      name: drafts[position] ?? parameter.name,
+    }));
+    const names = parameters.map(({ name }) => name);
+    if (names.some((name) => invalidParameter(name, names))) {
+      setNameDrafts(drafts);
+      return;
+    }
+    setNameDrafts({});
+    onChange({ ...value, parameters });
+  }
   const updateParameter = (index: number, patch: Partial<Signature["parameters"][number]>) =>
     onChange({
       ...value,
@@ -337,7 +354,7 @@ export function SignatureFields({
           type="button"
           className="quiet-button"
           ref={addParameter}
-          disabled={value.parameters.length >= 16}
+          disabled={disabled || editingInvalidNames || value.parameters.length >= 16}
           onClick={() => {
             let next = value.parameters.length + 1;
             while (value.parameters.some(({ name }) => name === `arg${next}`)) next++;
@@ -369,12 +386,14 @@ export function SignatureFields({
                 maxLength={80}
                 aria-label={`Parameter ${index + 1} name`}
                 className="admin-code"
-                value={parameter.name}
-                aria-invalid={invalidParameter(parameter.name)}
-                aria-describedby={invalidParameter(parameter.name) ? `${namesId}-error` : undefined}
+                value={parameterNames[index]}
+                aria-invalid={invalidParameter(parameterNames[index]!)}
+                aria-describedby={
+                  invalidParameter(parameterNames[index]!) ? `${namesId}-error` : undefined
+                }
                 required
                 pattern="[a-zA-Z_][a-zA-Z0-9_]*"
-                onChange={(event) => updateParameter(index, { name: event.target.value })}
+                onChange={(event) => renameParameter(index, event.target.value)}
               />
             </div>
             {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
@@ -405,6 +424,7 @@ export function SignatureFields({
                 type="button"
                 className="icon-button destructive-icon authoring-parameter-remove"
                 aria-label={`Remove parameter ${parameter.name}`}
+                disabled={disabled || editingInvalidNames}
                 onClick={() =>
                   onChange({
                     ...value,

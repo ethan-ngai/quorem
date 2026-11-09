@@ -94,3 +94,35 @@ it("removes edge weights from native public and private cases", () => {
     ]);
   }
 });
+
+it("keeps graph bindings and case values at their original positions when names are swapped", () => {
+  const content = blankQuestion();
+  const signature = {
+    ...primarySignature(content.problem),
+    parameters: [
+      { name: "edges", type: "list<list<int>>" },
+      { name: "n", type: "int" },
+    ],
+    graphEncodings: { edges: { kind: "edgeList" as const, countParameter: "n" } },
+  };
+  content.problem.signature = signature;
+  const graph = { directed: false, nodes: [0, 1, 2], edges: [{ from: 0, to: 1 }] };
+  const test = { args: [[[0, 1]], 3], expected: 1, graphs: { edges: graph } };
+  content.problem.examples = [test];
+  content.hiddenCases = [test];
+
+  const updated = adaptSignature(content, {
+    ...signature,
+    parameters: [
+      { name: "n", type: "list<list<int>>" },
+      { name: "edges", type: "int" },
+    ],
+  });
+
+  expect(updated.problem.signature?.graphEncodings).toEqual({
+    n: { kind: "edgeList", countParameter: "edges" },
+  });
+  const renamed = { ...test, graphs: { n: graph } };
+  expect(updated.problem.examples).toEqual([renamed]);
+  expect(updated.hiddenCases).toEqual([renamed]);
+});
