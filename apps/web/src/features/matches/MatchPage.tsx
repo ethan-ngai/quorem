@@ -251,7 +251,18 @@ function MatchLedger({
               <ParticipantName participant={player} self={index === 0} />
             )}
           </strong>
-          {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
+          {player?.forfeited && (
+            <Tooltip content="Forfeited">
+              <span
+                className="match-forfeit-status motion-reveal"
+                role="img"
+                aria-label="Forfeited"
+                tabIndex={0}
+              >
+                <Icon name="flag" width={14} height={14} />
+              </span>
+            </Tooltip>
+          )}
           <ScoreProgress
             score={player?.bestScore}
             color={participantColor(player?.userId ?? "opponent", player?.color)}

@@ -282,6 +282,11 @@
   font-size: 11px;
   color: var(--color-text-secondary);
 }
+.match-forfeit-status {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-error);
+}
 .score-penalty {
   display: inline-flex;
   align-items: center;
