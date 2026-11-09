@@ -10,9 +10,11 @@ import {
   type ValueType,
 } from "../editor/typedValues";
 
-type Choice = ValueType["kind"] | "void";
+const graphChoice = "Graph";
+type Choice = ValueType["kind"] | "void" | typeof graphChoice;
+type GraphChoice = { selected: boolean; onSelect: () => void };
 type AuthoringType = ValueType | { kind: "void" };
-const names: Record<Choice, string> = {
+const names: Record<Exclude<Choice, typeof graphChoice>, string> = {
   int: "Integer",
   long: "64-bit integer",
   float: "Floating-point number",
@@ -35,6 +37,7 @@ function TypeBlock({
   disabled,
   depth = 0,
   payloadOnly = false,
+  graph,
   onChange,
 }: {
   label: string;
@@ -43,6 +46,7 @@ function TypeBlock({
   disabled: boolean;
   depth?: number;
   payloadOnly?: boolean;
+  graph?: GraphChoice;
   onChange: (type: AuthoringType) => void;
 }) {
   const nodeKind = nodeKinds.find((kind) => kind === type?.kind);
@@ -52,7 +56,7 @@ function TypeBlock({
     <div className="authoring-type-block">
       <SearchableTypeSelect<Choice>
         label={label}
-        value={type?.kind}
+        value={graph?.selected ? graphChoice : type?.kind}
         choices={
           payloadOnly
             ? nodePayloadTypes
@@ -60,13 +64,16 @@ function TypeBlock({
                 ...(depth < 100 ? valueAtoms : nodePayloadTypes),
                 ...(depth < 100 ? valueWrappers : []),
                 ...(allowVoid ? ["void" as const] : []),
+                ...(graph ? ([graphChoice] as const) : []),
               ]
         }
         names={names}
         disabled={disabled}
         onChange={(kind) => {
-          if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
-            if (type?.kind === kind) return;
+          if (kind === graphChoice) {
+            graph?.onSelect();
+          } else if (kind === "ListNode" || kind === "TreeNode" || kind === "NaryTreeNode") {
+            if (type?.kind === kind && !graph?.selected) return;
             const payload =
               nodePayloadTypes.find((atom) => atom === (element ?? type)?.kind) ?? "int";
             onChange({ kind, element: { kind: payload } });
@@ -83,7 +90,7 @@ function TypeBlock({
           }
         }}
       />
-      {type && element && (
+      {!graph?.selected && type && element && (
         <>
           <span className="code-operator" aria-hidden="true">
             &lt;
@@ -121,6 +128,7 @@ export function ValueTypeField({
   value,
   allowVoid = false,
   disabled,
+  graph,
   onChange,
   onValidityChange,
 }: {
@@ -129,6 +137,7 @@ export function ValueTypeField({
   value: string;
   allowVoid?: boolean;
   disabled: boolean;
+  graph?: GraphChoice;
   onChange: (value: string) => void;
   onValidityChange?: (id: string, invalid: boolean) => void;
 }) {
@@ -136,7 +145,7 @@ export function ValueTypeField({
   const type = allowVoid && value === "void" ? { kind: "void" as const } : parseValueType(value);
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
-  const invalid = !type;
+  const invalid = !type && !graph?.selected;
   useEffect(() => {
     validity.current?.(id, invalid);
   }, [id, invalid]);
@@ -153,6 +162,7 @@ export function ValueTypeField({
           type={type}
           allowVoid={allowVoid}
           disabled={disabled}
+          graph={graph}
           onChange={(next) => onChange(next.kind === "void" ? "void" : formatValueType(next))}
         />
       </NoticeRegion>

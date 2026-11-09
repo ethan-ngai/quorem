@@ -17,14 +17,19 @@ import {
 } from "lucide-react";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
-import { graphPresetType, graphReturnSlot, isGraphReturn } from "@quorem/questions";
+import { GRAPH_RETURN, graphReturnSlot, type GraphEncoding } from "@quorem/questions";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
 import { ValueTypeField } from "./ValueTypeField";
-import { GraphEncodingFields } from "./GraphEncodingFields";
+import {
+  defaultGraphEncoding,
+  GraphEncodingFields,
+  ReturnGraphSlots,
+  withGraphEncoding,
+} from "./GraphEncodingFields";
 export function SignatureFields({
   value,
   onChange: onSignatureChange,
@@ -55,10 +60,13 @@ export function SignatureFields({
   };
   const encodings = value.graphEncodings ?? {};
   const graphBindings = Object.entries(encodings);
-  const presetReturn = graphBindings.some(
-    ([name, { kind }]) => isGraphReturn(name) && graphPresetType(kind),
-  );
-  const hasReturnSlots = graphBindings.some(([name]) => graphReturnSlot(name) !== undefined);
+  const returnSlots = graphBindings.filter(([name]) => graphReturnSlot(name) !== undefined);
+  const hasReturnSlots = returnSlots.length > 0;
+  const hasPresetSlot = returnSlots.some(([, { kind }]) => kind !== "custom");
+  const listReturn = /^(list|array)</.test(value.returnType);
+  const returnGraph = encodings[GRAPH_RETURN];
+  const canAddSlot =
+    graphAuthoring && listReturn && !returnGraph && value.outputOrder !== "unordered";
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
@@ -88,6 +96,93 @@ export function SignatureFields({
         position === index ? { ...item, ...patch } : item,
       ),
     });
+  function changeEncoding(name: string, encoding?: GraphEncoding) {
+    onChange(withGraphEncoding(value, name, encoding));
+  }
+  function graphSettings(
+    name: string,
+    title: string,
+    encoding: GraphEncoding,
+    customType: ReactNode,
+  ) {
+    return (
+      <details className="graph-signature-settings">
+        <summary aria-label={`Graph settings for ${title}`}>Graph settings</summary>
+        <GraphEncodingFields
+          signature={value}
+          name={name}
+          title={title}
+          encoding={encoding}
+          disabled={disabled}
+          customType={customType}
+          onChange={(next) => changeEncoding(name, next)}
+        />
+      </details>
+    );
+  }
+  function typeField(
+    name: string,
+    label: string,
+    type: string,
+    updateType: (type: string, signature: Signature) => Signature,
+  ) {
+    const isReturn = name === GRAPH_RETURN;
+    const encoding = encodings[name];
+    if (!graphAuthoring && encoding && encoding.kind !== "custom")
+      return <PresetType type={type} note="Set by graph" />;
+    const selector = (
+      <ValueTypeField
+        hideLabel
+        label={label}
+        value={type}
+        allowVoid={isReturn && allowVoid}
+        disabled={disabled}
+        graph={
+          graphAuthoring
+            ? {
+                selected: !!encoding,
+                onSelect: () => {
+                  if (!encoding)
+                    changeEncoding(
+                      name,
+                      defaultGraphEncoding(type, isReturn && value.nodeReferences === "return"),
+                    );
+                },
+              }
+            : undefined
+        }
+        onValidityChange={onValidityChange}
+        onChange={(next) =>
+          onChange(
+            updateType(next, graphAuthoring && encoding ? withGraphEncoding(value, name) : value),
+          )
+        }
+      />
+    );
+    if (!encoding || !graphAuthoring) return selector;
+    return (
+      <div className="graph-signature-choice">
+        {selector}
+        <span>of</span>
+        <code className="graph-signature-native">{type}</code>
+      </div>
+    );
+  }
+  const updateReturnType = (returnType: string, signature: Signature) => ({
+    ...signature,
+    returnType,
+    outputOrder: /^(list|array)</.test(returnType) ? signature.outputOrder : undefined,
+  });
+  function updateParameterType(index: number, type: string, signature: Signature) {
+    return {
+      ...signature,
+      parameters: signature.parameters.map((item, position) =>
+        position === index
+          ? { ...item, type, input: type === item.type ? item.input : undefined }
+          : item,
+      ),
+    };
+  }
   return (
     <fieldset className="admin-fields" aria-labelledby={`${namesId}-method`}>
       <div className="admin-method-heading">
@@ -118,31 +213,26 @@ export function SignatureFields({
             pattern="[a-zA-Z_][a-zA-Z0-9_]*"
           />
         </label>
-        {presetReturn ? (
-          <div className="admin-field">
-            <span>Return type</span>
-            <PresetType type={value.returnType} />
-          </div>
-        ) : (
-          <ValueTypeField
-            disabled={disabled}
-            label="Return type"
-            value={value.returnType}
-            allowVoid={allowVoid}
-            onValidityChange={onValidityChange}
-            onChange={(returnType) =>
-              onChange({
-                ...value,
-                returnType,
-                outputOrder:
-                  returnType.startsWith("list<") || returnType.startsWith("array<")
-                    ? value.outputOrder
-                    : undefined,
-              })
-            }
-          />
-        )}
-        {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
+        <div className="admin-field">
+          <span>Return type</span>
+          {hasPresetSlot ? (
+            <PresetType type={value.returnType} note="Shared by return slots" />
+          ) : hasReturnSlots && listReturn ? (
+            <ValueTypeField
+              hideLabel
+              label="Return slot type"
+              value={value.returnType.slice(value.returnType.indexOf("<") + 1, -1)}
+              disabled={disabled}
+              onValidityChange={onValidityChange}
+              onChange={(type) =>
+                onChange({ ...value, returnType: `${value.returnType.split("<")[0]}<${type}>` })
+              }
+            />
+          ) : (
+            typeField(GRAPH_RETURN, "Return type", value.returnType, updateReturnType)
+          )}
+        </div>
+        {listReturn && (
           <div className="admin-field authoring-return-order">
             <span>Return order</span>
             <SegmentedControl<NonNullable<Signature["outputOrder"]>>
@@ -166,6 +256,29 @@ export function SignatureFields({
               ]}
             />
           </div>
+        )}
+        {returnGraph &&
+          graphAuthoring &&
+          graphSettings(
+            GRAPH_RETURN,
+            "Return value",
+            returnGraph,
+            <ValueTypeField
+              label="Solver return type"
+              value={value.returnType}
+              disabled={disabled}
+              onValidityChange={onValidityChange}
+              onChange={(type) => onChange(updateReturnType(type, value))}
+            />,
+          )}
+        {graphAuthoring && (canAddSlot || hasReturnSlots) && (
+          <ReturnGraphSlots
+            signature={value}
+            slots={returnSlots}
+            canAdd={canAddSlot}
+            disabled={disabled}
+            onChange={changeEncoding}
+          />
         )}
         {nodeParameters.length > 0 && (
           <div className="admin-field authoring-node-identity">
@@ -252,21 +365,15 @@ export function SignatureFields({
                 onChange={(event) => updateParameter(index, { name: event.target.value })}
               />
             </div>
-            {graphBindings.some(
-              ([name, { kind, countParameter }]) =>
-                (name === parameter.name && graphPresetType(kind)) ||
-                countParameter === parameter.name,
-            ) ? (
-              <PresetType type={parameter.type} />
+            {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
+              <PresetType type={parameter.type} note="Graph node count" />
             ) : (
-              <ValueTypeField
-                hideLabel
-                disabled={disabled}
-                label={`Parameter ${index + 1} type`}
-                value={parameter.type}
-                onValidityChange={onValidityChange}
-                onChange={(type) => updateParameter(index, { type })}
-              />
+              typeField(
+                parameter.name,
+                `Parameter ${index + 1} type`,
+                parameter.type,
+                (type, signature) => updateParameterType(index, type, signature),
+              )
             )}
             <div className="admin-field authoring-parameter-description">
               <input
@@ -292,12 +399,23 @@ export function SignatureFields({
                 <Trash2 size={16} aria-hidden="true" />
               </button>
             </Tooltip>
+            {graphAuthoring &&
+              encodings[parameter.name] &&
+              graphSettings(
+                parameter.name,
+                parameter.name,
+                encodings[parameter.name]!,
+                <ValueTypeField
+                  label={`Solver type for ${parameter.name}`}
+                  value={parameter.type}
+                  disabled={disabled}
+                  onValidityChange={onValidityChange}
+                  onChange={(type) => onChange(updateParameterType(index, type, value))}
+                />,
+              )}
           </div>
         )}
       />
-      {graphAuthoring && (
-        <GraphEncodingFields signature={value} disabled={disabled} onChange={onChange} />
-      )}
       <details className="disclosure authoring-method-docs">
         <summary>
           <FileText size={16} aria-hidden="true" />
@@ -397,11 +515,11 @@ export function SignatureFields({
   );
 }
 
-function PresetType({ type }: { type: string }) {
+function PresetType({ type, note }: { type: string; note: string }) {
   return (
     <div className="authoring-derived-type">
       <code>{type}</code>
-      <span>Set by graph</span>
+      <span>{note}</span>
     </div>
   );
 }

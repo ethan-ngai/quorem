@@ -248,7 +248,7 @@ export const graphFixtures: readonly Fixture[] = [
   {
     id: "direction",
     title: "Signature direction and empty graph",
-    hint: "In Signature, change Direction under Graphs. All cases follow that setting. The second case starts from native values, and the third shows the empty graph state.",
+    hint: "In Signature, open Graph settings for edges and change Direction. All cases follow that setting. The second case starts from native values, and the third shows the empty graph state.",
     parameters: [
       { name: "edges", type: pairs },
       { name: "n", type: "int" },
@@ -268,7 +268,7 @@ export const graphFixtures: readonly Fixture[] = [
   {
     id: "add-binding",
     title: "Start with a native case",
-    hint: "In Signature, open Graphs and use Add graph to bind edges. Set n as the node count, then return to Tests. The graph editor opens from the original values and preserves the isolated node. Switch to Successor array in Signature to see the parameter type and solver input update.",
+    hint: "In Signature, choose Graph as the type for edges. Open its Graph settings. Set n as the node count, then return to Tests. The graph editor opens from the original values and preserves the isolated node. In Graph settings, switch to Successor array to see the parameter type and solver input update.",
     parameters: [
       { name: "edges", type: pairs },
       { name: "n", type: "int" },
