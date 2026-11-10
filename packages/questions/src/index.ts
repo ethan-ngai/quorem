@@ -17,13 +17,27 @@ export {
   findPrimarySignature,
   blankSignature,
 } from "./signature.ts";
-export { validateConstraints, constraintTargetOptions, comparisonChoices } from "./constraints.ts";
 export {
+  validateConstraints,
+  constraintTargetOptions,
+  comparisonChoices,
+  constraintProperties,
+} from "./constraints.ts";
+export {
+  constraintMatches,
+  constraintRuleTargets,
   rangeContains,
   rangeMatches,
   comparisonMatches,
   propertyMatches,
 } from "./constraintPredicates.ts";
+export { structuredConstraintSuggestion } from "./constraintNotes.ts";
+export {
+  collectionProjection,
+  constraintProjector,
+  constraintTargetType,
+  sequenceTarget,
+} from "./constraintTargets.ts";
 export {
   generateStarter,
   generateMethodStarter,

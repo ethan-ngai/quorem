@@ -18,7 +18,31 @@ Write the statement and example explanations as Markdown. Use LaTeX between `$` 
 
 Before importing, preview the statement and each example. Check that code blocks have a distinct surface, serialized values render as code, and equations render as math.
 
-Prefer structured constraints whenever they can express the rule. Use the same Markdown convention in prose constraints. In JSON strings, escape LaTeX backslashes, for example `"$O(n \\log n)$"`.
+Use structured constraints for input facts. The statement renders them automatically. Reserve `prose` for guarantees outside the supported rules, such as promises about the answer or a problem-specific grammar. The editor offers conversions for recognizable notes. The fixture validator reports the same suggestions as warnings so older drafts can still be reviewed.
+
+| Rule         | Use it for                                                                                                                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `range`      | Numeric values, lengths, counts, sums, and arithmetic bounds                                                                                                                                   |
+| `membership` | Allowed or excluded literals. Numeric `0` and character `"0"` are different values. Use `characters` to check each Unicode code point in a string.                                             |
+| `comparison` | Relationships between measurements. Use `pairing: "corresponding"` for aligned positions, such as each interval's start and end. With pairing omitted, the relation compares all combinations. |
+| `property`   | Ordering, uniqueness, parity, matrix symmetry, and graph topology                                                                                                                              |
+| `definition` | Names used in the statement, such as `n` for an input's length. Naming the length of each row also requires those lengths to agree.                                                            |
+
+An omitted `path` targets the argument itself. Each `"each"` step selects every item at that level. An integer step selects one zero-based index. For example, this rule checks every matrix cell against the same set.
+
+```json
+{
+  "kind": "membership",
+  "target": { "parameter": "grid", "path": ["each", "each"], "projection": "value" },
+  "values": [0, 1]
+}
+```
+
+Use `["each"]` with `length` for row lengths, `["each", 0]` with `value` for a tuple's first field, and `["each"]` with `elements` for a property checked within each row. Set `total: true` to sum numeric projections. An `offset` shifts the result before `operations` apply in order. The operations are `add`, `subtract`, and `multiply`. Use an integer literal or another target as the operand. Numeric sequences combine at matching positions and scalars broadcast.
+
+Graph properties use `projection: "graph"` on a graph preset. The preset supplies direction and node count where configured. For a parent array, the binary-tree rule checks that each node has at most two children.
+
+For remaining prose constraints, use the same Markdown conventions as the statement. Escape LaTeX backslashes inside JSON strings.
 
 One UTF-8 JSON document per file, maximum 2 MiB. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
 

@@ -20,7 +20,7 @@ describe("constraint Markdown composition", () => {
         operator: "lt",
         right: { parameter: "b", projection: "sum" },
       }),
-    ).toBe("` len(a) ` $<$ ` sum(b) `");
+    ).toBe("` a.length ` $<$ ` sum(b) `");
     expect(
       constraintMarkup({
         kind: "range",
@@ -106,4 +106,38 @@ it("groups identical scalar bounds and leaves independent existential rules sepa
       { kind: "range", target: target("x"), min: 1, max: 100, quantifier: "any" },
     ]),
   ).toEqual(["$1 \\le$ ` width `, ` height ` $\\le 100$", "$\\exists\\,:\\; 1 \\le x \\le 100$"]);
+});
+
+it("renders sets and row dimensions as math around typed code accesses", () => {
+  expect(
+    constraintMarkup({
+      kind: "membership",
+      target: { parameter: "grid", projection: "value", path: ["each", "each"] },
+      values: [0, 1],
+    }),
+  ).toBe("` grid[i][j] ` $\\in \\{ 0, 1 \\}$");
+  expect(
+    constraintMarkup({
+      kind: "membership",
+      target: { parameter: "text", projection: "characters" },
+      values: ["0", "1"],
+    }),
+  ).toBe('` text[i] ` $\\in \\{$ ` "0" `, ` "1" ` $\\}$');
+  expect(
+    constraintMarkup({
+      kind: "definition",
+      name: "m",
+      target: { parameter: "grid", projection: "length", path: ["each"] },
+    }),
+  ).toBe("$m =$ ` grid[i].length `");
+});
+
+it("describes ordering separately for each matrix column", () => {
+  expect(
+    constraintMarkup({
+      kind: "property",
+      target: { parameter: "matrix", projection: "columns" },
+      property: "nondecreasing",
+    }),
+  ).toBe("Each column of ` matrix ` is in nondecreasing order");
 });

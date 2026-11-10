@@ -9,13 +9,18 @@ import {
   ListPlus,
   Text,
   Trash2,
-  ListOrdered,
-  Fingerprint,
+  CircleCheck,
   Info,
   ArrowDown01,
   ArrowDown10,
 } from "lucide-react";
-import { validateConstraints as validateDefinitions, comparisonChoices } from "@quorem/questions";
+import {
+  validateConstraints as validateDefinitions,
+  comparisonChoices,
+  constraintProperties,
+  sequenceTarget,
+  structuredConstraintSuggestion,
+} from "@quorem/questions";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Tooltip } from "../../ui/Tooltip";
 import * as Popover from "../../ui/Popover";
@@ -38,10 +43,13 @@ const ruleTypes = {
   range: { label: "Range", icon: Brackets },
   comparison: { label: "Compare", icon: ArrowLeftRight },
   property: { label: "Property", icon: ListChecks },
+  membership: { label: "Allowed values", icon: CircleCheck },
+  definition: { label: "Measurement name", icon: Text },
   prose: { label: "Note", icon: Text },
 } as const;
 const operators = {
   eq: { label: "Equal to", math: "=" },
+  ne: { label: "Different from", math: "\\ne" },
   le: { label: "Less than or equal to", math: "\\le" },
   lt: { label: "Less than", math: "<" },
   ge: { label: "Greater than or equal to", math: "\\ge" },
@@ -49,9 +57,61 @@ const operators = {
 } as const;
 
 const properties = {
-  ordered: { label: "Sorted (ties allowed)", icon: ListOrdered },
-  unique: { label: "Unique values", icon: Fingerprint },
+  nondecreasing: "Sorted",
+  strictlySorted: "Strictly sorted",
+  unique: "Unique values",
+  adjacentDistinct: "Consecutive values differ",
+  even: "Even",
+  powerOfTwo: "Power of two",
+  symmetric: "Symmetric matrix",
+  tree: "Tree",
+  binaryTree: "Binary tree",
+  star: "Star graph",
+  acyclic: "Acyclic graph",
+  noLoops: "No self-loops",
+  noParallelEdges: "No parallel edges",
 } as const;
+
+type Membership = Extract<Constraint, { kind: "membership" }>;
+
+function MembershipValues({
+  rule,
+  label,
+  disabled,
+  onChange,
+}: {
+  rule: Membership;
+  label: string;
+  disabled: boolean;
+  onChange: (rule: Membership) => void;
+}) {
+  const [source, setSource] = useState(() => JSON.stringify(rule.values));
+  return (
+    <TextInput
+      mono
+      aria-label={label}
+      placeholder="[0, 1]"
+      value={source}
+      disabled={disabled}
+      onChange={(event) => {
+        const text = event.target.value;
+        setSource(text);
+        let values: Membership["values"] = [];
+        try {
+          const parsed: unknown = JSON.parse(text);
+          if (
+            Array.isArray(parsed) &&
+            parsed.every((item) => ["number", "string", "boolean"].includes(typeof item))
+          )
+            values = parsed;
+        } catch {
+          // An incomplete array stays editable while the rule is invalid.
+        }
+        onChange({ ...rule, values });
+      }}
+    />
+  );
+}
 
 function RangeBound({
   value,
@@ -119,9 +179,11 @@ export function ConstraintFields({
   const [invalidBounds, setInvalidBounds] = useState<Record<string, boolean>>({});
   const numericTargets = constraintTargets(signature, "range");
   const comparisonTargets = constraintTargets(signature, "comparison");
+  const definitionTargets = constraintTargets(signature, "definition");
+  const membershipTargets = constraintTargets(signature, "membership");
   const sequenceTargets = constraintTargets(signature, "property");
-  function comparisonError(rule: Extract<Constraint, { kind: "comparison" }>): string | undefined {
-    if (!signature) return "A signature is required to compare inputs.";
+  function definitionError(rule: Constraint): string | undefined {
+    if (!signature) return "A signature is required for structured constraints.";
     try {
       validateDefinitions(signature, [rule]);
     } catch (error) {
@@ -131,8 +193,13 @@ export function ConstraintFields({
       );
     }
   }
+  const seenNames = new Set<string>();
   const semanticIssues = value.flatMap((rule, constraintIndex): AuthoringIssue[] => {
-    const error = rule.kind === "comparison" ? comparisonError(rule) : undefined;
+    let error = rule.kind !== "prose" ? definitionError(rule) : undefined;
+    if (rule.kind === "definition" && !error) {
+      if (seenNames.has(rule.name)) error = "A measurement name can only be defined once.";
+      seenNames.add(rule.name);
+    }
     return error
       ? [{ message: `Constraint ${constraintIndex + 1}: ${error}`, constraintIndex }]
       : [];
@@ -167,6 +234,18 @@ export function ConstraintFields({
       enabled: sequenceTargets.length > 0,
     },
     {
+      kind: "membership",
+      label: "Allowed or excluded values",
+      icon: ruleTypes.membership.icon,
+      enabled: membershipTargets.length > 0,
+    },
+    {
+      kind: "definition",
+      label: "Name a measurement",
+      icon: ruleTypes.definition.icon,
+      enabled: definitionTargets.length > 0,
+    },
+    {
       kind: "prose",
       label: "Written note",
       icon: ruleTypes.prose.icon,
@@ -178,10 +257,14 @@ export function ConstraintFields({
       range: numericTargets,
       comparison: comparisonTargets,
       property: sequenceTargets,
+      membership: membershipTargets,
+      definition: definitionTargets,
     };
     const rule: Constraint =
       kind === "prose" ? { kind, text: "" } : initialConstraint(kind, target[kind][0]!);
     if (rule.kind === "comparison") rule.right = comparisonTargets[1]!;
+    if (rule.kind === "property" && signature)
+      rule.property = constraintProperties(signature, rule.target)[0]!;
     onChange([...value, rule]);
     setOpen(false);
   }
@@ -208,6 +291,11 @@ export function ConstraintFields({
               label={label}
               value={current}
               targets={choices}
+              arithmeticTargets={
+                rule.kind === "comparison" || rule.kind === "range" || rule.kind === "definition"
+                  ? numericTargets
+                  : undefined
+              }
               disabled={disabled}
               onChange={onChange}
             />
@@ -215,6 +303,15 @@ export function ConstraintFields({
           const comparison =
             rule.kind === "comparison" ? comparisonChoices(signature, rule) : undefined;
           const RuleIcon = ruleTypes[rule.kind].icon;
+          const suggestion =
+            rule.kind === "prose" && signature
+              ? structuredConstraintSuggestion(signature, rule.text)
+              : undefined;
+          const messages = authoringMessages(
+            [...semanticIssues, ...validationIssues].filter(
+              (issue) => issue.constraintIndex === index,
+            ),
+          );
           return (
             <div className="constraint-row" role="group" aria-label={`Constraint ${index + 1}`}>
               <Tooltip content={ruleTypes[rule.kind].label}>
@@ -227,19 +324,13 @@ export function ConstraintFields({
                 data-kind={rule.kind}
                 data-quantified={
                   rule.kind === "range"
-                    ? ["elements", "nodeValues"].includes(rule.target.projection)
-                    : rule.kind === "comparison" &&
-                      [rule.left, rule.right].some((target) =>
-                        ["elements", "nodeValues"].includes(target.projection),
-                      )
+                    ? sequenceTarget(rule.target)
+                    : rule.kind === "comparison" && [rule.left, rule.right].some(sequenceTarget)
                 }
               >
-                {((rule.kind === "range" &&
-                  ["elements", "nodeValues"].includes(rule.target.projection)) ||
+                {((rule.kind === "range" && sequenceTarget(rule.target)) ||
                   (rule.kind === "comparison" &&
-                    [rule.left, rule.right].some((target) =>
-                      ["elements", "nodeValues"].includes(target.projection),
-                    ) &&
+                    [rule.left, rule.right].some(sequenceTarget) &&
                     !comparison?.reflexiveSequence)) && (
                   <Quantifier
                     label={`Constraint ${index + 1} quantifier`}
@@ -339,7 +430,12 @@ export function ConstraintFields({
                       `Constraint ${index + 1} left measurement`,
                       rule.left,
                       comparison.left,
-                      (left) => change({ ...rule, left }),
+                      (left) =>
+                        change({
+                          ...rule,
+                          left,
+                          pairing: sequenceTarget(left) ? rule.pairing : undefined,
+                        }),
                     )}
                     <SelectField
                       label={`Constraint ${index + 1} relation`}
@@ -389,108 +485,194 @@ export function ConstraintFields({
                       `Constraint ${index + 1} right measurement`,
                       rule.right,
                       comparison.right,
-                      (right) => change({ ...rule, right }),
+                      (right) =>
+                        change({
+                          ...rule,
+                          right,
+                          pairing: sequenceTarget(right) ? rule.pairing : undefined,
+                        }),
                     )}
-                    {rule.left.parameter === rule.right.parameter &&
-                      rule.left.projection === rule.right.projection &&
-                      !comparisonError(rule) && (
-                        <Tooltip
-                          content={
-                            rule.quantifier === "any"
-                              ? "∃ self: at least two distinct values."
-                              : "∀ self: all values equal; empty passes."
+                    {sequenceTarget(rule.left) &&
+                      sequenceTarget(rule.right) &&
+                      !comparison.reflexiveSequence && (
+                        <SegmentedControl
+                          label={`Constraint ${index + 1} pairing`}
+                          value={rule.pairing ?? "all"}
+                          disabled={disabled}
+                          options={[
+                            { value: "all", label: "All pairs" },
+                            { value: "corresponding", label: "Same position" },
+                          ]}
+                          onChange={(value) =>
+                            change({ ...rule, pairing: value === "all" ? undefined : value })
                           }
-                        >
-                          <span
-                            className="constraint-semantics"
-                            role="img"
-                            aria-label="Comparison meaning"
-                            tabIndex={0}
-                          >
-                            <Info size={14} aria-hidden="true" />
-                          </span>
-                        </Tooltip>
+                        />
                       )}
+                    {comparison.reflexiveSequence && !definitionError(rule) && (
+                      <Tooltip
+                        content={
+                          rule.quantifier === "any"
+                            ? "∃ self: at least two distinct values."
+                            : "∀ self: all values equal; empty passes."
+                        }
+                      >
+                        <span
+                          className="constraint-semantics"
+                          role="img"
+                          aria-label="Comparison meaning"
+                          tabIndex={0}
+                        >
+                          <Info size={14} aria-hidden="true" />
+                        </span>
+                      </Tooltip>
+                    )}
                   </>
                 )}
-                {rule.kind === "property" && (
+                {rule.kind === "property" &&
+                  signature &&
+                  (() => {
+                    const options = constraintProperties(signature, rule.target);
+                    const selected = rule.property === "sorted" ? "nondecreasing" : rule.property;
+                    const ordered = (property: string) =>
+                      property === "nondecreasing" || property === "strictlySorted";
+                    return (
+                      <>
+                        {target(
+                          `Constraint ${index + 1} measurement`,
+                          rule.target,
+                          sequenceTargets,
+                          (target) => {
+                            const available = constraintProperties(signature, target);
+                            const property = available.includes(selected)
+                              ? selected
+                              : available[0]!;
+                            change({
+                              ...rule,
+                              target,
+                              property,
+                              direction: ordered(property) ? rule.direction : undefined,
+                            });
+                          },
+                        )}
+                        <SelectField
+                          label={`Constraint ${index + 1} guarantee`}
+                          value={selected}
+                          disabled={disabled}
+                          options={options.map((value) => ({ value, label: properties[value] }))}
+                          onChange={(property) =>
+                            change({
+                              ...rule,
+                              property: property as keyof typeof properties,
+                              direction: ordered(property) ? rule.direction : undefined,
+                            })
+                          }
+                        />
+                        {ordered(selected) && (
+                          <SegmentedControl
+                            label={`Constraint ${index + 1} sort direction`}
+                            value={rule.direction ?? "asc"}
+                            disabled={disabled}
+                            iconOnly
+                            options={[
+                              {
+                                value: "asc",
+                                label: "Ascending (ASC)",
+                                icon: <ArrowDown01 size={15} aria-hidden="true" />,
+                              },
+                              {
+                                value: "desc",
+                                label: "Descending (DESC)",
+                                icon: <ArrowDown10 size={15} aria-hidden="true" />,
+                              },
+                            ]}
+                            onChange={(direction) =>
+                              change({
+                                ...rule,
+                                direction: direction === "asc" ? undefined : direction,
+                              })
+                            }
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
+                {rule.kind === "definition" && (
+                  <>
+                    <TextInput
+                      mono
+                      aria-label={`Constraint ${index + 1} name`}
+                      placeholder="Name"
+                      value={rule.name}
+                      disabled={disabled}
+                      maxLength={32}
+                      onChange={(event) => change({ ...rule, name: event.target.value })}
+                    />
+                    <MathOperator source="=" />
+                    {target(
+                      `Constraint ${index + 1} measurement`,
+                      rule.target,
+                      definitionTargets,
+                      (target) => change({ ...rule, target }),
+                    )}
+                  </>
+                )}
+                {rule.kind === "membership" && (
                   <>
                     {target(
                       `Constraint ${index + 1} measurement`,
                       rule.target,
-                      sequenceTargets,
-                      (target) =>
-                        change({
-                          ...rule,
-                          target,
-                          property: target.projection === "value" ? "unique" : rule.property,
-                          direction: target.projection === "value" ? undefined : rule.direction,
-                        }),
+                      membershipTargets,
+                      (target) => {
+                        let values = rule.values;
+                        if (signature) {
+                          try {
+                            validateDefinitions(signature, [{ ...rule, target }]);
+                          } catch {
+                            values = [];
+                          }
+                        }
+                        change({ ...rule, target, values });
+                      },
                     )}
                     <SegmentedControl
-                      label={`Constraint ${index + 1} guarantee`}
-                      value={rule.property === "unique" ? "unique" : "ordered"}
+                      label={`Constraint ${index + 1} membership`}
+                      value={rule.negated ? "exclude" : "allow"}
                       disabled={disabled}
-                      iconOnly
-                      options={Object.entries(properties)
-                        .filter(
-                          ([property]) =>
-                            rule.target.projection !== "value" || property === "unique",
-                        )
-                        .map(([value, { label, icon: Icon }]) => ({
-                          value,
-                          label,
-                          icon: <Icon size={15} aria-hidden="true" />,
-                        }))}
-                      onChange={(property) =>
-                        change({
-                          ...rule,
-                          direction: property === "unique" ? undefined : rule.direction,
-                          property:
-                            property === "unique"
-                              ? "unique"
-                              : rule.property === "sorted"
-                                ? "sorted"
-                                : "nondecreasing",
-                        })
+                      options={[
+                        { value: "allow", label: "Allow only" },
+                        { value: "exclude", label: "Exclude" },
+                      ]}
+                      onChange={(value) =>
+                        change({ ...rule, negated: value === "exclude" || undefined })
                       }
                     />
-                    {rule.property !== "unique" && (
-                      <SegmentedControl
-                        label={`Constraint ${index + 1} sort direction`}
-                        value={rule.direction ?? "asc"}
-                        disabled={disabled}
-                        iconOnly
-                        options={[
-                          {
-                            value: "asc",
-                            label: "Ascending (ASC)",
-                            icon: <ArrowDown01 size={15} aria-hidden="true" />,
-                          },
-                          {
-                            value: "desc",
-                            label: "Descending (DESC)",
-                            icon: <ArrowDown10 size={15} aria-hidden="true" />,
-                          },
-                        ]}
-                        onChange={(direction) =>
-                          change({
-                            ...rule,
-                            direction: direction === "asc" ? undefined : direction,
-                          })
-                        }
-                      />
-                    )}
+                    <MembershipValues
+                      key={`${rule.target.parameter}:${rule.target.projection}:${JSON.stringify(rule.target.path)}`}
+                      rule={rule}
+                      label={`Constraint ${index + 1} values (JSON array)`}
+                      disabled={disabled}
+                      onChange={change}
+                    />
                   </>
                 )}
               </div>
               <PersistentNotice
-                label={`Check constraint ${index + 1}`}
-                message={authoringMessages(
-                  [...semanticIssues, ...validationIssues].filter(
-                    (issue) => issue.constraintIndex === index,
-                  ),
-                )}
+                label={
+                  suggestion ? "Structured constraint available" : `Check constraint ${index + 1}`
+                }
+                severity={suggestion && !messages.length ? "warning" : "error"}
+                message={
+                  messages.length
+                    ? messages
+                    : suggestion
+                      ? "Convert this note to a rule that also checks inputs."
+                      : undefined
+                }
+                actions={
+                  suggestion && !disabled
+                    ? [{ label: "Convert to structured rule", onClick: () => change(suggestion) }]
+                    : undefined
+                }
               />
               <Tooltip content="Remove constraint">
                 <button

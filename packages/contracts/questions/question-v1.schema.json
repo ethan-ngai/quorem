@@ -449,7 +449,8 @@
                 "le",
                 "lt",
                 "ge",
-                "gt"
+                "gt",
+                "ne"
               ]
             },
             "quantifier": {
@@ -459,6 +460,13 @@
                 "any"
               ],
               "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
+            },
+            "pairing": {
+              "type": "string",
+              "enum": [
+                "corresponding"
+              ],
+              "description": "Compare matching positions and require equal projection sizes. Omitted compares all combinations."
             }
           },
           "required": [
@@ -484,7 +492,18 @@
               "enum": [
                 "sorted",
                 "nondecreasing",
-                "unique"
+                "unique",
+                "strictlySorted",
+                "adjacentDistinct",
+                "even",
+                "powerOfTwo",
+                "symmetric",
+                "tree",
+                "binaryTree",
+                "star",
+                "acyclic",
+                "noLoops",
+                "noParallelEdges"
               ]
             },
             "direction": {
@@ -493,7 +512,7 @@
                 "asc",
                 "desc"
               ],
-              "description": "Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties."
+              "description": "Ordering direction. Omitted is asc. Applies only to ordering properties."
             }
           },
           "required": [
@@ -508,12 +527,76 @@
           "properties": {
             "kind": {
               "type": "string",
+              "const": "membership"
+            },
+            "target": {
+              "$ref": "#/$defs/ConstraintTarget"
+            },
+            "values": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 128,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              }
+            },
+            "negated": {
+              "type": "boolean",
+              "description": "When true, exclude every listed value. Omitted allows only listed values."
+            }
+          },
+          "required": [
+            "kind",
+            "target",
+            "values"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "definition"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$",
+              "description": "A name used in the statement for a derived input measurement."
+            },
+            "target": {
+              "$ref": "#/$defs/ConstraintTarget"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "target"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
               "const": "prose"
             },
             "text": {
               "type": "string",
               "minLength": 1,
-              "description": "Use only for constraints the structured forms cannot express. Use Markdown with LaTeX for the math and backticks for program accesses. Examples: $1 \\le n \\le 2 \\cdot 10^{4}$ and `nums.length` $= n$."
+              "description": "Use only for rules without a structured equivalent. Use Markdown with LaTeX for math and backticks for program accesses."
             }
           },
           "required": [
@@ -539,8 +622,78 @@
             "elements",
             "sum",
             "nodeCount",
-            "nodeValues"
+            "nodeValues",
+            "characters",
+            "indices",
+            "diagonal",
+            "columns",
+            "graph"
           ]
+        },
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "each"
+              },
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99999
+              }
+            ]
+          },
+          "description": "Walk into each element or a zero-based index before measuring. For example, [\"each\"] with length measures each row; [\"each\", 0] with value selects the first column."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Add this integer to each numeric measurement, for bounds such as n - 1."
+        },
+        "total": {
+          "type": "boolean",
+          "description": "Sum all projected numeric measurements into one number, such as the total length of all rows."
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "description": "Apply numeric operations in order after measuring, totaling, and adding the offset. Sequences combine at matching positions; scalars broadcast.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "operator",
+              "operand"
+            ],
+            "properties": {
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "add",
+                  "subtract",
+                  "multiply"
+                ]
+              },
+              "operand": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "$ref": "#/$defs/ConstraintTarget"
+                  }
+                ]
+              }
+            }
+          }
         }
       },
       "required": [

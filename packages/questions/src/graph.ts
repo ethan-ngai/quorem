@@ -275,13 +275,14 @@ function encodeGraph(encoding: GraphEncoding, graph: QuestionGraph, limit: numbe
   return rows;
 }
 
-/** Recover a preset only if compiling it reproduces the native value exactly. */
+/** Recover a preset from its native value. Case authoring preserves adjacency order by default. */
 export function inferCaseGraph(
   signature: Signature,
   target: string,
   args: readonly (WireValue | undefined)[],
   expected: WireValue | undefined,
   limit: number,
+  adjacencyOrder: "exact" | "ignore" = "exact",
 ): QuestionGraph | undefined {
   const encoding = graphEncodingForTarget(signature, target);
   if (!encoding || encoding.kind === "custom" || target === GRAPH_RETURN_LIST) return;
@@ -351,8 +352,12 @@ export function inferCaseGraph(
       }
     }
     validateGraph(graph, limit);
-    if (JSON.stringify(encodeGraph(encoding, graph, limit)) === JSON.stringify(native))
-      return graph;
+    const encoded = encodeGraph(encoding, graph, limit);
+    const comparable = (value: WireValue) =>
+      adjacencyOrder === "ignore" && encoding.kind === "adjacencyList"
+        ? (value as number[][]).map((row) => [...row].sort((a, b) => a - b))
+        : value;
+    if (JSON.stringify(comparable(encoded)) === JSON.stringify(comparable(native))) return graph;
   } catch {
     // Keep the exact solver fields editable when the preset cannot express their value.
   }

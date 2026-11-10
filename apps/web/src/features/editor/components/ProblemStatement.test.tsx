@@ -52,7 +52,7 @@ it("renders structured mathematics and literal prose with named examples", () =>
     /class="parameter-name">values<.*?class="machine-value ">\[3,4\]<.*?class="parameter-name">index<.*?class="machine-value ">0</,
   );
   expect(markup.match(/aria-label="Input"/g)).toHaveLength(2);
-  expect(stripSyntaxMarkup(markup)).toContain('<code class="code-literal">len(values)</code>');
+  expect(stripSyntaxMarkup(markup)).toContain('<code class="code-literal">values.length</code>');
   expect(markup).toContain("<msup><mn>10</mn><mn>4</mn></msup>");
   expect(markup).toContain("<mo>≤</mo>");
   expect(markup).toContain("Use the supplied values.");

@@ -1,5 +1,12 @@
 import type { Constraint, ConstraintTarget } from "@quorem/contracts";
-import { formatBound, formatTarget } from "./constraintFormatter";
+import {
+  comparisonRightIndex,
+  formatBound,
+  formatOffset,
+  formatProperty,
+  formatTarget,
+  membershipValues,
+} from "./constraintFormatter";
 
 function code(value: string): string {
   const runs = value.match(/`+/g) ?? [];
@@ -9,8 +16,8 @@ function code(value: string): string {
 
 type FormulaPart = { math: string } | { code: string };
 
-function targetMarkup(target: ConstraintTarget, qualifyNodes = false): FormulaPart {
-  const literal = formatTarget(target, qualifyNodes);
+function targetMarkup(target: ConstraintTarget, qualifyNodes = false, firstIndex = 0): FormulaPart {
+  const literal = formatTarget(target, qualifyNodes, firstIndex);
   if (target.projection !== "value") return { code: literal };
   const name = /^([A-Za-z])(?:_([A-Za-z0-9]+))?$/.exec(literal);
   return name ? { math: name[2] ? `${name[1]}_{${name[2]}}` : name[1]! } : { code: literal };
@@ -42,6 +49,32 @@ function formula(parts: (string | FormulaPart)[], quantifier = "") {
   return fragments.join(" ");
 }
 
+function targetExpression(
+  target: ConstraintTarget,
+  qualify = false,
+  firstIndex = 0,
+): (string | FormulaPart)[] {
+  let parts: (string | FormulaPart)[] = [targetMarkup(target, qualify, firstIndex)];
+  if (target.total) parts.unshift("\\sum");
+  if (target.offset) parts.push(formatOffset(target.offset).replace(/\^(-?\d+)/g, "^{$1}"));
+  let compound = !!target.offset;
+  for (const { operator, operand } of target.operations ?? []) {
+    const right =
+      typeof operand === "number"
+        ? [boundMarkup(operand)]
+        : targetExpression(operand, true, firstIndex);
+    const nested =
+      typeof operand === "number" ? operand < 0 : operand.offset || operand.operations?.length;
+    if (compound) parts = ["(", ...parts, ")"];
+    parts.push(
+      { add: "+", subtract: "-", multiply: "\\cdot" }[operator],
+      ...(nested ? ["(", ...right, ")"] : right),
+    );
+    compound = true;
+  }
+  return parts;
+}
+
 /** Compose prose and inline math from constraint metadata, without rewriting source text. */
 export function constraintMarkup(constraint: Constraint | string): string {
   if (typeof constraint === "string") return constraint;
@@ -52,43 +85,71 @@ export function constraintMarkup(constraint: Constraint | string): string {
     case "prose":
       return constraint.text;
     case "range": {
-      const target = targetMarkup(constraint.target);
+      const target = targetExpression(constraint.target);
       const suffix =
         constraint.target.projection === "nodeValues"
           ? ` (nodes in ${code(constraint.target.parameter)})`
           : "";
       const lower = constraint.minInclusive === false ? "<" : "\\le";
       const upper = constraint.maxInclusive === false ? "<" : "\\le";
+      if (constraint.min !== undefined && constraint.min === constraint.max)
+        return render(...target, "=", boundMarkup(constraint.min)) + suffix;
       if (constraint.min !== undefined && constraint.max !== undefined)
         return (
-          render(boundMarkup(constraint.min), lower, target, upper, boundMarkup(constraint.max)) +
-          suffix
+          render(
+            boundMarkup(constraint.min),
+            lower,
+            ...target,
+            upper,
+            boundMarkup(constraint.max),
+          ) + suffix
         );
       return constraint.min !== undefined
         ? render(
-            target,
+            ...target,
             constraint.minInclusive === false ? ">" : "\\ge",
             boundMarkup(constraint.min),
           ) + suffix
-        : render(target, upper, boundMarkup(constraint.max!)) + suffix;
+        : render(...target, upper, boundMarkup(constraint.max!)) + suffix;
     }
     case "comparison": {
-      const operator = { eq: "=", le: "\\le", lt: "<", ge: "\\ge", gt: ">" }[constraint.operator];
-      return render(
-        targetMarkup(constraint.left, true),
-        operator,
-        targetMarkup(constraint.right, true),
+      const operator = { eq: "=", ne: "\\ne", le: "\\le", lt: "<", ge: "\\ge", gt: ">" }[
+        constraint.operator
+      ];
+      return (
+        render(
+          ...targetExpression(constraint.left, true),
+          operator,
+          ...targetExpression(constraint.right, true, comparisonRightIndex(constraint)),
+        ) + (constraint.pairing ? " at matching positions" : "")
       );
     }
-    case "property": {
-      const nodes = constraint.target.projection === "nodeValues";
-      const subject = nodes
-        ? `Node values in ${code(constraint.target.parameter)}`
-        : code(constraint.target.parameter);
-      return constraint.property === "unique"
-        ? `${subject} ${nodes ? "are unique" : "contains unique values"}`
-        : `${subject} ${nodes ? "are" : "is"} sorted in ${constraint.direction === "desc" ? "nonincreasing" : "nondecreasing"} order`;
-    }
+    case "property":
+      return formatProperty(constraint, code);
+    case "definition":
+      return render(
+        {
+          math: /^[A-Za-z](?:_[A-Za-z0-9]+)?$/.test(constraint.name)
+            ? constraint.name.replace(/_(.+)$/, "_{$1}")
+            : `\\mathrm{${constraint.name.replaceAll("_", "\\_")}}`,
+        },
+        "=",
+        ...targetExpression(constraint.target, true),
+      );
+    case "membership":
+      return render(
+        ...targetExpression(constraint.target, true),
+        constraint.negated ? "\\notin \\{" : "\\in \\{",
+        ...membershipValues(constraint).flatMap((value, index) => [
+          ...(index ? [","] : []),
+          value === null
+            ? "\\ldots"
+            : typeof value === "number"
+              ? boundMarkup(value)
+              : { code: JSON.stringify(value) },
+        ]),
+        "\\}",
+      );
   }
 }
 
@@ -102,7 +163,14 @@ export function constraintListMarkup(constraints: readonly Constraint[]): string
   const replacement = new Map<number, string>();
 
   constraints.forEach((rule, index) => {
-    if (rule.kind !== "range" || rule.target.projection !== "value" || rule.quantifier === "any")
+    if (
+      rule.kind !== "range" ||
+      rule.target.projection === "nodeValues" ||
+      rule.target.offset ||
+      rule.target.operations ||
+      rule.target.total ||
+      rule.quantifier === "any"
+    )
       return;
     if (rule.min !== undefined && rule.max !== undefined) {
       const key = JSON.stringify([
@@ -114,7 +182,7 @@ export function constraintListMarkup(constraints: readonly Constraint[]): string
       const group = shared.get(key) ?? [];
       group.push({ index, rule });
       shared.set(key, group);
-    } else {
+    } else if (rule.target.projection === "value" && !rule.target.path) {
       (rule.min !== undefined ? lower : upper).set(rule.target.parameter, { index, rule });
     }
   });
@@ -123,6 +191,16 @@ export function constraintListMarkup(constraints: readonly Constraint[]): string
     if (
       rule.kind !== "comparison" ||
       rule.operator === "eq" ||
+      rule.operator === "ne" ||
+      rule.left.path ||
+      rule.right.path ||
+      rule.left.offset ||
+      rule.right.offset ||
+      rule.left.operations ||
+      rule.right.operations ||
+      rule.left.total ||
+      rule.right.total ||
+      rule.pairing ||
       rule.quantifier === "any" ||
       rule.left.projection !== "value" ||
       rule.right.projection !== "value"
@@ -162,13 +240,17 @@ export function constraintListMarkup(constraints: readonly Constraint[]): string
     );
     replacement.set(
       first.index,
-      formula([
-        boundMarkup(min!),
-        minInclusive === false ? "<" : "\\le",
-        ...targets,
-        maxInclusive === false ? "<" : "\\le",
-        boundMarkup(max!),
-      ]),
+      formula(
+        min === max
+          ? [...targets, "=", boundMarkup(min!)]
+          : [
+              boundMarkup(min!),
+              minInclusive === false ? "<" : "\\le",
+              ...targets,
+              maxInclusive === false ? "<" : "\\le",
+              boundMarkup(max!),
+            ],
+      ),
     );
     for (const entry of group.slice(1)) hidden.add(entry.index);
   }

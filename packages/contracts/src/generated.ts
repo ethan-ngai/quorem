@@ -1889,7 +1889,19 @@ export interface components {
         ConstraintTarget: {
             parameter: string;
             /** @enum {string} */
-            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues";
+            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues" | "characters" | "indices" | "diagonal" | "columns" | "graph";
+            /** @description Walk into each element or a zero-based index before measuring. For example, ["each"] with length measures each row; ["each", 0] with value selects the first column. */
+            path?: ("each" | number)[];
+            /** @description Add this integer to each numeric measurement, for bounds such as n - 1. */
+            offset?: number;
+            /** @description Sum all projected numeric measurements into one number, such as the total length of all rows. */
+            total?: boolean;
+            /** @description Apply numeric operations in order after measuring, totaling, and adding the offset. Sequences combine at matching positions; scalars broadcast. */
+            operations?: {
+                /** @enum {string} */
+                operator: "add" | "subtract" | "multiply";
+                operand: number | components["schemas"]["ConstraintTarget"];
+            }[];
         };
         Constraint: ({
             /** @constant */
@@ -1927,27 +1939,45 @@ export interface components {
             left: components["schemas"]["ConstraintTarget"];
             right: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
-            operator: "eq" | "le" | "lt" | "ge" | "gt";
+            operator: "eq" | "le" | "lt" | "ge" | "gt" | "ne";
             /**
              * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
              * @enum {string}
              */
             quantifier?: "all" | "any";
+            /**
+             * @description Compare matching positions and require equal projection sizes. Omitted compares all combinations.
+             * @enum {string}
+             */
+            pairing?: "corresponding";
         } | {
             /** @constant */
             kind: "property";
             target: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
-            property: "sorted" | "nondecreasing" | "unique";
+            property: "sorted" | "nondecreasing" | "unique" | "strictlySorted" | "adjacentDistinct" | "even" | "powerOfTwo" | "symmetric" | "tree" | "binaryTree" | "star" | "acyclic" | "noLoops" | "noParallelEdges";
             /**
-             * @description Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties.
+             * @description Ordering direction. Omitted is asc. Applies only to ordering properties.
              * @enum {string}
              */
             direction?: "asc" | "desc";
         } | {
             /** @constant */
+            kind: "membership";
+            target: components["schemas"]["ConstraintTarget"];
+            values: (number | string | boolean)[];
+            /** @description When true, exclude every listed value. Omitted allows only listed values. */
+            negated?: boolean;
+        } | {
+            /** @constant */
+            kind: "definition";
+            /** @description A name used in the statement for a derived input measurement. */
+            name: string;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @constant */
             kind: "prose";
-            /** @description Use only for constraints the structured forms cannot express. Use Markdown with LaTeX for the math and backticks for program accesses. Examples: $1 \le n \le 2 \cdot 10^{4}$ and `nums.length` $= n$. */
+            /** @description Use only for rules without a structured equivalent. Use Markdown with LaTeX for math and backticks for program accesses. */
             text: string;
         };
         /** @enum {string} */
