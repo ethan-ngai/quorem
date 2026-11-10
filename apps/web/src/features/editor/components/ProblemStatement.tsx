@@ -108,7 +108,7 @@ export function ProblemStatement({
       <div className="problem-body">
         {navigation}
         <div className="problem-copy">
-          <StatementMarkdown source={problem.statementMarkdown} />
+          <StatementMarkdown source={problem.statementMarkdown} allowFigures />
         </div>
         {problem.sql && <SqlSchema schema={problem.sql} />}
         {beforeExamples}

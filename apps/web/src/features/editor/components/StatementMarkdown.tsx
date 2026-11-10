@@ -1,5 +1,7 @@
 /** @file StatementMarkdown.tsx @description Safe Markdown and bounded mathematics. @module editor */
+import { Fragment } from "react";
 import { CodeLiteral } from "./CodeLiteral";
+import { renderStatementFigure } from "./StatementFigure";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import type { EditorLanguage } from "../editorLanguages";
 import type { ReactNode } from "react";
@@ -56,7 +58,12 @@ const fenceLanguages: Record<string, EditorLanguage> = {
   pseudocode: "python",
 };
 
-function renderMarkdown(source: string, inline: boolean, language?: EditorLanguage): ReactNode[] {
+function renderMarkdown(
+  source: string,
+  inline: boolean,
+  language?: EditorLanguage,
+  allowFigures = false,
+): ReactNode[] {
   const tree = fromMarkdown(source, {
     extensions: [math(), gfm()],
     mdastExtensions: [mathFromMarkdown(), gfmFromMarkdown()],
@@ -70,6 +77,10 @@ function renderMarkdown(source: string, inline: boolean, language?: EditorLangua
         return <CodeLiteral key={key} source={node.value} language={language} />;
       case "code": {
         const fence = node.lang?.toLowerCase() ?? "";
+        if (allowFigures && (fence === "grid" || fence === "svg")) {
+          const figure = renderStatementFigure(fence, node.value, node.meta);
+          if (figure) return <Fragment key={key}>{figure}</Fragment>;
+        }
         return (
           <CodeLiteral
             key={key}
@@ -153,7 +164,13 @@ export function inlineStatement(source: string): ReactNode[] {
   return renderMarkdown(source, true);
 }
 
-export function StatementMarkdown({ source }: { source: string }) {
+export function StatementMarkdown({
+  source,
+  allowFigures = false,
+}: {
+  source: string;
+  allowFigures?: boolean;
+}) {
   const language = useQuestionLanguage();
-  return <>{renderMarkdown(source.trim(), false, language)}</>;
+  return <>{renderMarkdown(source.trim(), false, language, allowFigures)}</>;
 }

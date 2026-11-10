@@ -59,3 +59,32 @@ describe("restricted statement Markdown", () => {
     expect(render(`$${"x".repeat(4097)}$`)).not.toContain('class="katex"');
   });
 });
+
+describe("description figures", () => {
+  const figure = (source: string) =>
+    renderToStaticMarkup(<StatementMarkdown source={source} allowFigures />);
+
+  it("renders a labeled rectangular grid and marks highlighted cells", () => {
+    const source = '~~~grid Highlighted matrix\n{"cells":[[1,2],[3,4]],"highlights":[[1,0]]}\n~~~';
+    const markup = figure(source);
+    expect(markup).toContain('aria-label="Highlighted matrix"');
+    expect(markup).toContain('data-highlighted="true" aria-label="3, highlighted">3</td>');
+    expect(render(source)).not.toContain("<table");
+  });
+
+  it("shows malformed grid configuration as code", () => {
+    const source = '~~~grid\n{"cells":[[1],[2,3]],"highlights":[[5,0]]}\n~~~';
+    expect(figure(source)).toContain("<pre");
+    expect(figure(source)).not.toContain("<table");
+  });
+
+  it("places SVG in an image context only in description mode", () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const source = `~~~svg Diagram label\n${svg}\n~~~`;
+    const markup = figure(source);
+    expect(markup).toContain("data:image/svg+xml,%3Csvg");
+    expect(markup).toContain('alt="Diagram label"');
+    expect(markup).not.toMatch(/<(svg|script)\b/);
+    expect(render(source)).not.toContain("<img");
+  });
+});

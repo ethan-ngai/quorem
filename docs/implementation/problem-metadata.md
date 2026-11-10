@@ -37,3 +37,23 @@ Default controls cover numeric expressions, plain strings, boolean choices, sequ
 Numeric expressions accept literal arithmetic, parentheses, scientific notation, exponentiation, division/floor division and modulo. No names, calls, variables or evaluation API. Input length, token count, recursion, exponent magnitude and numeric finiteness are bounded; unsafe integer intermediates are rejected instead of silently rounding. Final values must satisfy their declared codec and problem constraints. Expressions persist in browser drafts, but execution requests contain only evaluated typed values. Existing bracketed draft strings remain readable.
 
 Run case results expose optional `stdout` and `stderr` separately from positioned diagnostics. The runner retains existing output limits; Submit never exposes these public case fields. Historical results keep their original unclassified diagnostics; new runs populate the explicit streams.
+
+## Description figures
+
+Use a fenced `grid` or `svg` block in the problem description. Put the accessible label after the fence name. These figures are authored independently of the examples and tests.
+
+```grid Selected cell in a matrix
+{"cells":[[1,2],[3,4]],"highlights":[[1,0]]}
+```
+
+Grid rows must have equal length. Cells accept numbers, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates.
+
+```svg Two points joined by a line
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" width="120">
+  <path d="M16 16h88" stroke="#64748b" />
+  <circle cx="16" cy="16" r="5" fill="#2563eb" />
+  <circle cx="104" cy="16" r="5" fill="#2563eb" />
+</svg>
+```
+
+Supply a standalone SVG with a namespace and a view box so it scales with the description. The browser renders the SVG as an image with the fence label as alt text.
