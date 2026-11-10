@@ -52,7 +52,7 @@ In an example explanation, reference the current input by argument name to annot
 {"argument":"grid","highlights":[[1,0]]}
 ```
 
-Grid rows must have equal length. Cells accept numbers, booleans, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates. Keep standalone `cells` for diagrams with their own data.
+Grid rows must have equal length. Cells accept numbers, booleans, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates. Keep standalone `cells` for diagrams with their own data. Set `"caption":true` to show the fence label above a grid. Adjacent grids wrap side by side when space allows.
 
 In Signature, choose **Inline** or **Rows** for a two-dimensional array parameter. Import files use `"input": {"preset":"default","layout":"rows"}`. Omit the layout for the inline default. Enable **Show grid in examples and tests** (`"showGrid":true` under `input`) to draw the current case’s array, including custom cases. Large grids are paged.
 

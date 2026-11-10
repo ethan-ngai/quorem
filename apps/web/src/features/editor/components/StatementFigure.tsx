@@ -50,7 +50,7 @@ function readGrid(source: string, exampleArgument?: ExampleArgument) {
         return;
       highlighted.add(row * width + column);
     }
-    return { cells, highlighted };
+    return { cells, highlighted, caption: "caption" in grid && grid.caption === true };
   } catch {
     return;
   }
@@ -83,9 +83,11 @@ export function renderStatementFigure(
   if (kind !== "grid") return;
   const grid = readGrid(source, exampleArgument);
   if (!grid) return;
+  const name = label?.trim() || "Grid";
   return (
     <figure className="statement-figure-grid">
-      <ValueGrid rows={grid.cells} highlighted={grid.highlighted} label={label?.trim() || "Grid"} />
+      {grid.caption && <figcaption>{name}</figcaption>}
+      <ValueGrid rows={grid.cells} highlighted={grid.highlighted} label={name} />
     </figure>
   );
 }

@@ -158,7 +158,33 @@ function renderMarkdown(
         return literal;
     }
   };
-  return tree.children.map(render);
+  if (!allowFigures) return tree.children.map(render);
+
+  const content: ReactNode[] = [];
+  let grids: ReactNode[] = [];
+  function flushGrids() {
+    if (!grids.length) return;
+    content.push(
+      <div key={`grids-${content.length}`} className="statement-grid-group">
+        {grids}
+      </div>,
+    );
+    grids = [];
+  }
+  tree.children.forEach((node, index) => {
+    const grid =
+      node.type === "code" && node.lang?.toLowerCase() === "grid"
+        ? renderStatementFigure("grid", node.value, node.meta, exampleArgument)
+        : undefined;
+    if (grid) {
+      grids.push(<Fragment key={index}>{grid}</Fragment>);
+    } else {
+      flushGrids();
+      content.push(render(node, index));
+    }
+  });
+  flushGrids();
+  return content;
 }
 
 export function inlineStatement(source: string): ReactNode[] {
