@@ -72,7 +72,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -90,9 +90,9 @@
         }
       }
     },
-    "/v1/problem-versions/{id}": {
+    "/v1/question-publications/{id}": {
       "get": {
-        "operationId": "getProblemVersion",
+        "operationId": "getPublishedQuestion",
         "parameters": [
           {
             "name": "id",
@@ -110,7 +110,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -648,7 +648,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ProblemVersion"
+                        "$ref": "#/components/schemas/PublishedQuestion"
                       }
                     },
                     "total": {
@@ -874,7 +874,7 @@
         }
       }
     },
-    "/v1/problem-versions/{id}/solutions": {
+    "/v1/question-publications/{id}/solutions": {
       "get": {
         "operationId": "getSolutions",
         "parameters": [
@@ -925,7 +925,7 @@
         }
       }
     },
-    "/v1/problem-versions/{id}/complexity": {
+    "/v1/question-publications/{id}/complexity": {
       "get": {
         "operationId": "getComplexity",
         "parameters": [
@@ -4162,7 +4162,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -6133,7 +6133,7 @@
         "required": ["args"],
         "additionalProperties": false
       },
-      "ProblemVersion": {
+      "PublishedQuestion": {
         "type": "object",
         "properties": {
           "id": {
@@ -6145,10 +6145,6 @@
           },
           "slug": {
             "type": "string"
-          },
-          "version": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "title": {
             "type": "string"
@@ -6236,7 +6232,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -7440,9 +7435,6 @@
           "slug": {
             "type": "string"
           },
-          "version": {
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -7499,7 +7491,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -8127,7 +8118,7 @@
         "type": "object",
         "properties": {
           "problem": {
-            "$ref": "#/components/schemas/ProblemVersion"
+            "$ref": "#/components/schemas/PublishedQuestion"
           },
           "language": {
             "$ref": "#/components/schemas/Language"
@@ -8505,9 +8496,6 @@
           "slug": {
             "type": "string"
           },
-          "version": {
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -8564,7 +8552,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -9061,7 +9048,7 @@
             ]
           },
           "problem": {
-            "$ref": "#/components/schemas/ProblemVersion"
+            "$ref": "#/components/schemas/PublishedQuestion"
           },
           "participants": {
             "type": "array",

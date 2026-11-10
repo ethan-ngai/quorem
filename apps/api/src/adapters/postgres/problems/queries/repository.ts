@@ -44,20 +44,20 @@ const options = {
   lockTimeoutMs: 1000,
 };
 const projection = sql`jsonb_build_object(
-'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
+'id',v.id,'isPrivate',p.owner_id IS NOT NULL,'slug',p.slug,'title',v.title,'difficulty',v.difficulty,
 'sql',v.sql_config,'odyssey',CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE NULL END,
 'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,
-'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id),
-'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE version_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
+'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE publication_id=v.id),
+'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE publication_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',${topicProjection(sql`v.id`)},
-'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb))`;
-const from = sql.raw(` FROM problem_versions v JOIN problems p ON p.id=v.problem_id `);
+'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb))`;
+const from = sql.raw(` FROM question_publications v JOIN problems p ON p.id=v.problem_id `);
 const detailProjection = sql`(${projection} || jsonb_build_object(
   'hiddenCaseCounts', COALESCE((
     SELECT jsonb_object_agg(stage,n) FROM (
-      SELECT stage,count(*) AS n FROM runner_version_input_cases
-      WHERE version_id=v.id AND channel='hidden' GROUP BY stage
+      SELECT stage,count(*) AS n FROM runner_publication_input_cases
+      WHERE publication_id=v.id AND channel='hidden' GROUP BY stage
     ) counts
   ), '{}'::jsonb)
 ))::text`;
@@ -91,7 +91,7 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
         f.topicMatch === "all",
         sql`EXISTS (
           SELECT 1 FROM problem_tags t ${topicJoin}
-          WHERE t.version_id=v.id AND ${isTopic} AND ${topicMatches(sql`selected.value`)}
+          WHERE t.publication_id=v.id AND ${isTopic} AND ${topicMatches(sql`selected.value`)}
         )`,
       )}`
     : sql``;
@@ -105,9 +105,9 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
         )`,
       )}`
     : sql``;
-  return sql`${catalogVisibility(actor, f.library)} AND ${catalogKind(f)} AND v.id=p.current_version_id
+  return sql`${catalogVisibility(actor, f.library)} AND ${catalogKind(f)} AND v.id=p.current_publication_id
     AND (${f.query}='' OR strpos(lower(v.title||' '||p.slug),lower(${f.query}))>0
-      OR EXISTS(SELECT 1 FROM problem_tags t ${topicJoin} WHERE t.version_id=v.id AND ${topicSearch(f.query)}))
+      OR EXISTS(SELECT 1 FROM problem_tags t ${topicJoin} WHERE t.publication_id=v.id AND ${topicSearch(f.query)}))
     AND (${f.difficulty}='' OR v.difficulty=ANY(string_to_array(${f.difficulty},','))) ${topics} ${companies}`;
 }
 type Projected = {
@@ -136,7 +136,7 @@ async function redactMatchTopics(
   if (!actor?.userId) return values;
   const restricted = (
     await tx.execute<{ id: string }>(
-      sql`SELECT m.problem_version_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${actor.userId} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`,
+      sql`SELECT m.publication_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${actor.userId} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`,
     )
   ).rows;
   const ids = new Set(restricted.map((r) => r.id));
@@ -156,14 +156,14 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const where = sql`${catalogWhere(actor, f)}${
       account
         ? sql` AND NOT EXISTS(
-    SELECT 1 FROM recommendation_impressions r WHERE r.owner_id=${account} AND r.version_id=v.id
+    SELECT 1 FROM recommendation_impressions r WHERE r.owner_id=${account} AND r.publication_id=v.id
       AND r.dismissed_at>statement_timestamp()-interval '7 days')`
         : sql``
     }`,
     visibility = catalogVisibility(actor, f.library);
   const [{ total }] = (
     await tx.execute<{ total: string }>(
-      sql`SELECT count(*)::text AS total FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE ${where}`,
+      sql`SELECT count(*)::text AS total FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE ${where}`,
     )
   ).rows;
   const direction = sql.raw(f.order === "desc" ? "DESC" : "ASC");
@@ -226,8 +226,8 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     }>(
       sql`WITH visible_tags AS (
         SELECT DISTINCT t.tag FROM problem_tags t
-        JOIN problem_versions v ON v.id=t.version_id
-        JOIN problems p ON p.current_version_id=v.id
+        JOIN question_publications v ON v.id=t.publication_id
+        JOIN problems p ON p.current_publication_id=v.id
         WHERE ${visibility} AND ${catalogKind(f)} AND ${isTopic}
       )
       SELECT ${topicColumns}, array_agg(t.tag ORDER BY t.tag) AS aliases
@@ -250,7 +250,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     await tx.execute<{ name: string; tier: string; count: string }>(
       sql`SELECT c.name, COALESCE(ct.tier,'other') AS tier, count(*)::text AS count
           FROM companies c JOIN problem_companies pc ON pc.company_id=c.id
-          JOIN problems p ON p.id=pc.problem_id JOIN problem_versions v ON v.id=p.current_version_id
+          JOIN problems p ON p.id=pc.problem_id JOIN question_publications v ON v.id=p.current_publication_id
           LEFT JOIN company_tiers ct ON ct.company_key=lower(c.name)
           WHERE ${visibility} AND ${catalogKind(f)}
           GROUP BY c.name, ct.tier ORDER BY lower(c.name), c.name`,
@@ -291,22 +291,22 @@ async function byValue(
   tx: Transaction,
   actor: ProblemActor | undefined,
   value: string,
-  version: boolean,
+  byId: boolean,
 ): Promise<string | null> {
-  const select = version
+  const select = byId
     ? sql`v.id::text=${value}`
-    : sql`p.slug=${value} AND v.id=p.current_version_id`;
+    : sql`p.slug=${value} AND v.id=p.current_publication_id`;
   const rows = (
     await tx.execute<Projected>(
-      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE ${select} AND ${visible(actor, version)} LIMIT 1`,
+      sql`SELECT ${detailProjection} AS data,v.lossless_public AS lossless ${from} WHERE ${select} AND ${visible(actor, byId)} LIMIT 1`,
     )
   ).rows;
   return rows.length
     ? stringifyLosslessJson((await redactMatchTopics(tx, actor, [projected(rows[0])]))[0])
     : null;
 }
-/** Projects a version after the caller has authorized its specific context. */
-export async function projectAuthorizedVersion(
+/** Projects a publication after the caller has authorized its specific context. */
+export async function projectAuthorizedPublication(
   tx: Transaction,
   id: string,
   actor?: ProblemActor,
@@ -333,9 +333,9 @@ async function readEditorials(
       active: boolean;
       allowComplexity: boolean;
     }>(sql`SELECT
- (SELECT v.odyssey IS NOT NULL FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND ${visible(actor, true)} LIMIT 1) AS staged,
- EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND m.problem_version_id::text=${id} AND m.state IN ('active','finalizing')) AS active,
- EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.problem_version_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity"`)
+ (SELECT v.odyssey IS NOT NULL FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND ${visible(actor, true)} LIMIT 1) AS staged,
+ EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing')) AS active,
+ EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity"`)
   ).rows;
   const state = rows[0];
   if (state.active && !(complexityOnly && state.allowComplexity))
@@ -355,9 +355,9 @@ async function readEditorials(
     JSON.parse(row.value).items.length
   ) {
     await tx.execute(sql`
-      INSERT INTO question_exposure(owner_id,version_id,last_seen_at,assisted_at)
+      INSERT INTO question_exposure(owner_id,publication_id,last_seen_at,assisted_at)
       VALUES(${actor.userId},${id}::uuid,statement_timestamp(),statement_timestamp())
-      ON CONFLICT(owner_id,version_id) DO UPDATE SET assisted_at=EXCLUDED.assisted_at
+      ON CONFLICT(owner_id,publication_id) DO UPDATE SET assisted_at=EXCLUDED.assisted_at
     `);
   }
   return row.value;
@@ -368,11 +368,11 @@ export async function readCandidates(
   actor: ProblemActor,
   criteria: CandidateCriteria,
 ) {
-  const selection = sql`SELECT v.id::text AS id,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS sql FROM problem_versions v JOIN problems p ON p.id=v.problem_id`;
-  if (criteria.selectedVersionId)
+  const selection = sql`SELECT v.id::text AS id,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS sql FROM question_publications v JOIN problems p ON p.id=v.problem_id`;
+  if (criteria.selectedPublicationId)
     return (
       await tx.execute<{ id: string; sql: boolean }>(
-        sql`${selection} WHERE v.id::text=${criteria.selectedVersionId} AND (p.owner_id IS NULL OR (${actor.userId}<>'' AND p.owner_id=${actor.userId})) ORDER BY v.id`,
+        sql`${selection} WHERE v.id::text=${criteria.selectedPublicationId} AND (p.owner_id IS NULL OR (${actor.userId}<>'' AND p.owner_id=${actor.userId})) ORDER BY v.id`,
       )
     ).rows;
   const filter: CatalogFilter = {
@@ -417,7 +417,7 @@ export function problemQueries(run: ReadScope): ProblemQueries {
     recommendationFeedback: (owner, ids, action) =>
       write((tx) => recordFeedback(tx, owner, ids, action)),
     bySlug: (actor, slug) => read((tx) => byValue(tx, actor, slug, false)),
-    byVersion: (actor, id) => read((tx) => byValue(tx, actor, id, true)),
+    byPublication: (actor, id) => read((tx) => byValue(tx, actor, id, true)),
     editorials: (actor, id, complexity) =>
       (actor && !actor.guestScope && !complexity ? write : read)((tx) =>
         readEditorials(tx, actor, id, complexity),

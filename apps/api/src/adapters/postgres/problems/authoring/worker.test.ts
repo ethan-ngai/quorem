@@ -26,7 +26,6 @@ describe.skipIf(!url)("native worker authoring", () => {
       problem: {
         id: "00000000-0000-4000-8000-000000000000",
         slug: `worker-${crypto.randomUUID().slice(0, 8)}`,
-        version: "0",
         title: "Worker",
         difficulty: "easy",
         tags: [],

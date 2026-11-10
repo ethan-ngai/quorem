@@ -19,7 +19,7 @@ import type { Principal } from "../../../../modules/identity/model.ts";
 import { validateCustomQuestionShape } from "../../../../modules/interviews/question/validation.ts";
 import { capabilitiesInTransaction } from "../../access/repository.ts";
 import { object, storageProjection } from "../../problems/storage.ts";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 import type { PreparedQuestion } from "../lifecycle/repository.ts";
 type Obj = { [key: string]: JsonValue };
 const bad = (m: string) => new ApplicationError("invalid_input", m, 400);
@@ -67,7 +67,6 @@ export async function prepareCustomInterviewQuestion(
   const problem: Obj = {
     id,
     slug: `private-${id}`,
-    version: "1",
     title: string(custom.title).trim(),
     difficulty: "easy",
     tags: [],
@@ -126,17 +125,16 @@ export async function prepareCustomInterviewQuestion(
     source: string(selected.starterSource),
     language,
     fingerprint,
-    versionId: id,
+    publicationId: id,
     persist: async (inner) => {
       await inner.execute(
         sql`INSERT INTO problems(id,slug,owner_id) VALUES(${parent}::uuid,${`private-${id}`},${actor.userId})`,
       );
-      await persistQuestionVersion(
+      await persistQuestionPublication(
         inner,
         stringifyLosslessJson(library),
         parent,
         id,
-        1,
         actor.userId,
         languageRuntime,
         { customInterview: true },

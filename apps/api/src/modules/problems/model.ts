@@ -21,7 +21,7 @@ export interface ProblemActor {
   readonly guestScope?: import("../identity/model.ts").GuestScope;
 }
 export interface CandidateCriteria {
-  readonly selectedVersionId?: string;
+  readonly selectedPublicationId?: string;
   readonly difficulty: string;
   readonly topic: string;
   readonly topicMatch?: FilterMatch;

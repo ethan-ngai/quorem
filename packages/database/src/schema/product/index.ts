@@ -528,7 +528,7 @@ export const problems = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     slug: text().notNull(),
-    current_version_id: uuid(),
+    current_publication_id: uuid(),
     owner_id: text(),
     leetcode_id: integer(),
   },
@@ -540,8 +540,8 @@ export const problems = pgTable(
       .using("btree", table.owner_id.asc().nullsLast().op("text_ops"))
       .where(sql`(owner_id IS NOT NULL)`),
     foreignKey({
-      columns: [table.id, table.current_version_id],
-      foreignColumns: [problem_versions.problem_id, problem_versions.id],
+      columns: [table.id, table.current_publication_id],
+      foreignColumns: [question_publications.problem_id, question_publications.id],
       name: "current_publication_identity",
     }).onDelete("set null"),
     foreignKey({
@@ -593,7 +593,7 @@ export const workspaces = pgTable(
     id: uuid().primaryKey().notNull(),
     owner_id: text().notNull(),
     team: smallint(),
-    problem_version_id: uuid(),
+    publication_id: uuid(),
     language: text().notNull(),
     kind: text().default("solo").notNull(),
     updated_at: timestamp({ withTimezone: true, mode: "string" })
@@ -636,7 +636,7 @@ export const workspaces = pgTable(
       .using(
         "btree",
         table.owner_id.asc().nullsLast().op("text_ops"),
-        table.problem_version_id.asc().nullsLast().op("text_ops"),
+        table.publication_id.asc().nullsLast().op("text_ops"),
         table.language.asc().nullsLast().op("text_ops"),
       )
       .where(sql`(kind = 'solo'::text)`),
@@ -651,9 +651,9 @@ export const workspaces = pgTable(
       name: "workspaces_owner_id_fkey",
     }),
     foreignKey({
-      columns: [table.problem_version_id],
-      foreignColumns: [problem_versions.id],
-      name: "workspace_problem_version_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "workspace_publication_fkey",
     }),
     unique("workspace_owner_identity").on(table.id, table.owner_id),
     check("workspace_match_kind", sql`(kind = 'match'::text) = (match_id IS NOT NULL)`),
@@ -729,7 +729,7 @@ export const matches = pgTable(
     state: text().notNull(),
     version: bigint({ mode: "bigint" }).default(0n).notNull(),
     admission_sequence: bigint({ mode: "bigint" }).default(0n).notNull(),
-    problem_version_id: uuid(),
+    publication_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
     rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
@@ -742,7 +742,7 @@ export const matches = pgTable(
     mode: text().default("showdown").notNull(),
     faction_names: jsonb().default([]).notNull(),
     difficulties: text().array().notNull(),
-    selected_problem_version_id: uuid(),
+    selected_publication_id: uuid(),
     rules: jsonb().default(matchPreset()).notNull(),
     access_mode: text().default("accounts_only").notNull(),
     guest_joins: integer().default(0).notNull(),
@@ -776,14 +776,14 @@ export const matches = pgTable(
       name: "matches_host_owner_id_fkey",
     }),
     foreignKey({
-      columns: [table.problem_version_id],
-      foreignColumns: [problem_versions.id],
-      name: "matches_problem_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "matches_publication_id_fkey",
     }),
     foreignKey({
-      columns: [table.selected_problem_version_id],
-      foreignColumns: [problem_versions.id],
-      name: "matches_selected_problem_version_id_fkey",
+      columns: [table.selected_publication_id],
+      foreignColumns: [question_publications.id],
+      name: "matches_selected_publication_id_fkey",
     }),
     foreignKey({
       columns: [table.party_id],
@@ -802,8 +802,8 @@ export const matches = pgTable(
     ),
     check(
       "matches_check",
-      sql`(started_at IS NULL AND problem_version_id IS NULL)
-      OR (started_at IS NOT NULL AND (problem_version_id IS NOT NULL OR state IN ('completed','cancelled')))`,
+      sql`(started_at IS NULL AND publication_id IS NULL)
+      OR (started_at IS NOT NULL AND (publication_id IS NOT NULL OR state IN ('completed','cancelled')))`,
     ),
     check(
       "matches_check1",
@@ -965,8 +965,8 @@ export const question_drafts = pgTable(
     updated_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
-    published_version_id: uuid(),
-    edit_version_id: uuid(),
+    published_publication_id: uuid(),
+    edit_publication_id: uuid(),
     edit_base: text(),
     owner_id: text(),
     lossless_content: bytea("lossless_content"),
@@ -987,16 +987,16 @@ export const question_drafts = pgTable(
       table.id.desc().nullsFirst().op("text_ops"),
     ),
     foreignKey({
-      columns: [table.edit_version_id],
-      foreignColumns: [problem_versions.id],
-      name: "question_drafts_edit_version_fkey",
+      columns: [table.edit_publication_id],
+      foreignColumns: [question_publications.id],
+      name: "question_drafts_edit_publication_fkey",
     }),
-    uniqueIndex("question_drafts_edit_version")
-      .on(table.edit_version_id)
-      .where(sql`edit_version_id IS NOT NULL`),
-    index("question_drafts_published_version").using(
+    uniqueIndex("question_drafts_edit_publication")
+      .on(table.edit_publication_id)
+      .where(sql`edit_publication_id IS NOT NULL`),
+    index("question_drafts_published_publication").using(
       "btree",
-      table.published_version_id.asc().nullsLast().op("uuid_ops"),
+      table.published_publication_id.asc().nullsLast().op("uuid_ops"),
     ),
     index("question_drafts_updated_at").using(
       "btree",
@@ -1018,9 +1018,9 @@ export const question_drafts = pgTable(
       name: "question_drafts_owner_id_fkey",
     }),
     foreignKey({
-      columns: [table.published_version_id],
-      foreignColumns: [problem_versions.id],
-      name: "question_drafts_published_version_id_fkey",
+      columns: [table.published_publication_id],
+      foreignColumns: [question_publications.id],
+      name: "question_drafts_published_publication_id_fkey",
     }),
     foreignKey({
       columns: [table.updated_by],
@@ -1035,11 +1035,10 @@ export const question_drafts = pgTable(
   ],
 );
 
-export const problem_versions = pgTable(
-  "problem_versions",
+export const question_publications = pgTable(
+  "question_publications",
   {
     id: uuid().primaryKey().notNull(),
-    version: integer().notNull(),
     problem_id: uuid().notNull(),
     title: text().notNull(),
     difficulty: text().notNull(),
@@ -1069,12 +1068,11 @@ export const problem_versions = pgTable(
     foreignKey({
       columns: [table.problem_id],
       foreignColumns: [problems.id],
-      name: "problem_versions_problem_id_fkey",
+      name: "question_publications_problem_id_fkey",
     }),
-    unique("problem_version_identity").on(table.problem_id, table.id),
-    unique("problem_versions_problem_version_key").on(table.problem_id, table.version),
+    unique("publication_identity").on(table.problem_id, table.id),
     check(
-      "problem_versions_difficulty_check",
+      "question_publications_difficulty_check",
       sql`difficulty = ANY (ARRAY['easy'::text, 'medium'::text, 'hard'::text])`,
     ),
   ],
@@ -1301,18 +1299,18 @@ export const foundational_topics = pgTable(
 export const problem_tags = pgTable(
   "problem_tags",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     tag: text().notNull(),
     ordinal: integer().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_tags_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "problem_tags_publication_id_fkey",
     }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.tag], name: "problem_tags_pkey" }),
-    unique("problem_tags_version_id_ordinal_key").on(table.version_id, table.ordinal),
+    primaryKey({ columns: [table.publication_id, table.tag], name: "problem_tags_pkey" }),
+    unique("problem_tags_publication_id_ordinal_key").on(table.publication_id, table.ordinal),
     check("problem_tags_ordinal_check", sql`ordinal >= 0`),
     check("problem_tags_tag_check", sql`length(tag) > 0`),
   ],
@@ -1427,19 +1425,19 @@ export const interview_language_drafts = pgTable(
 export const problem_odyssey_cases = pgTable(
   "problem_odyssey_cases",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     level: integer().notNull(),
     ordinal: integer().notNull(),
     case_data: jsonb().notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_odyssey_cases_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "problem_odyssey_cases_publication_id_fkey",
     }).onDelete("cascade"),
     primaryKey({
-      columns: [table.version_id, table.level, table.ordinal],
+      columns: [table.publication_id, table.level, table.ordinal],
       name: "problem_odyssey_cases_pkey",
     }),
     check("problem_odyssey_cases_level_check", sql`level >= 0`),
@@ -1480,7 +1478,7 @@ export const odyssey_progress = pgTable(
   "odyssey_progress",
   {
     scope_id: uuid().notNull(),
-    problem_version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     level: integer().default(1).notNull(),
     completed: boolean().default(false).notNull(),
     reset_at: timestamp({ withTimezone: true, mode: "string" })
@@ -1489,7 +1487,7 @@ export const odyssey_progress = pgTable(
   },
   (table): PgTableExtraConfigValue[] => [
     primaryKey({
-      columns: [table.scope_id, table.problem_version_id],
+      columns: [table.scope_id, table.publication_id],
       name: "odyssey_progress_pkey",
     }),
     check("odyssey_progress_level_check", sql`(level >= 1) AND (level <= 8)`),
@@ -1605,7 +1603,7 @@ export const interview_updates = pgTable(
 export const problem_test_cases = pgTable(
   "problem_test_cases",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     ordinal: integer().notNull(),
     args: jsonb().notNull(),
     expected: jsonb().notNull(),
@@ -1614,11 +1612,11 @@ export const problem_test_cases = pgTable(
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_test_cases_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "problem_test_cases_publication_id_fkey",
     }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.ordinal], name: "problem_test_cases_pkey" }),
+    primaryKey({ columns: [table.publication_id, table.ordinal], name: "problem_test_cases_pkey" }),
     check("problem_test_cases_ordinal_check", sql`ordinal >= 0`),
   ],
 );
@@ -1653,7 +1651,7 @@ export const match_idempotency = pgTable(
 export const problem_examples = pgTable(
   "problem_examples",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     ordinal: integer().notNull(),
     args: jsonb().notNull(),
     expected: jsonb().notNull(),
@@ -1663,11 +1661,11 @@ export const problem_examples = pgTable(
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_examples_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "problem_examples_publication_id_fkey",
     }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.ordinal], name: "problem_examples_pkey" }),
+    primaryKey({ columns: [table.publication_id, table.ordinal], name: "problem_examples_pkey" }),
     check("problem_examples_ordinal_check", sql`ordinal >= 0`),
   ],
 );
@@ -1700,7 +1698,7 @@ export const quota_overrides = pgTable(
 export const problem_solution_approaches = pgTable(
   "problem_solution_approaches",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     id: text().notNull(),
     ordinal: integer().notNull(),
     title: text().default("").notNull(),
@@ -1713,17 +1711,20 @@ export const problem_solution_approaches = pgTable(
   },
   (table): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [table.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "problem_solution_approaches_version_id_fkey",
+      columns: [table.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "problem_solution_approaches_publication_id_fkey",
     }).onDelete("cascade"),
-    primaryKey({ columns: [table.version_id, table.id], name: "problem_solution_approaches_pkey" }),
-    unique("problem_solution_approaches_version_id_ordinal_key").on(
-      table.version_id,
+    primaryKey({
+      columns: [table.publication_id, table.id],
+      name: "problem_solution_approaches_pkey",
+    }),
+    unique("problem_solution_approaches_publication_id_ordinal_key").on(
+      table.publication_id,
       table.ordinal,
     ),
     uniqueIndex("problem_solution_approaches_canonical")
-      .on(table.version_id)
+      .on(table.publication_id)
       .where(sql`is_canonical`),
     check("problem_solution_approaches_id_check", sql`id ~ '^[a-z][a-z0-9-]*$' AND length(id)<=64`),
     check("problem_solution_approaches_ordinal_check", sql`ordinal>=0`),
@@ -1736,7 +1737,7 @@ export const problem_solution_approaches = pgTable(
 export const problem_solutions = pgTable(
   "problem_solutions",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     language: text().notNull(),
     source: text().notNull(),
     approach_id: text().notNull(),
@@ -1747,12 +1748,12 @@ export const problem_solutions = pgTable(
       sql`language IN ('python','java','typescript','ocaml','postgresql')`,
     ),
     foreignKey({
-      columns: [table.version_id, table.approach_id],
-      foreignColumns: [problem_solution_approaches.version_id, problem_solution_approaches.id],
+      columns: [table.publication_id, table.approach_id],
+      foreignColumns: [problem_solution_approaches.publication_id, problem_solution_approaches.id],
       name: "problem_solutions_approach_fkey",
     }).onDelete("cascade"),
     primaryKey({
-      columns: [table.version_id, table.approach_id, table.language],
+      columns: [table.publication_id, table.approach_id, table.language],
       name: "problem_solutions_pkey",
     }),
   ],
@@ -2437,7 +2438,7 @@ export const question_exposure = pgTable(
   "question_exposure",
   {
     owner_id: text().notNull(),
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     assisted_at: timestamp({ withTimezone: true, mode: "string" }),
     last_seen_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
@@ -2448,12 +2449,12 @@ export const question_exposure = pgTable(
       foreignColumns: [users.id],
     }).onDelete("cascade"),
     foreignKey({
-      name: "question_exposure_version_id_fkey",
-      columns: [t.version_id],
-      foreignColumns: [problem_versions.id],
+      name: "question_exposure_publication_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [question_publications.id],
     }),
-    primaryKey({ columns: [t.owner_id, t.version_id] }),
-    index("question_exposure_version").on(t.version_id),
+    primaryKey({ columns: [t.owner_id, t.publication_id] }),
+    index("question_exposure_version").on(t.publication_id),
   ],
 );
 export const question_learning_events = pgTable(
@@ -2461,7 +2462,7 @@ export const question_learning_events = pgTable(
   {
     submission_id: uuid().primaryKey(),
     owner_id: text().notNull(),
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     difficulty: text().notNull(),
     tags: text().array().notNull(),
     assisted: boolean().notNull().default(false),
@@ -2479,13 +2480,13 @@ export const question_learning_events = pgTable(
       foreignColumns: [users.id],
     }).onDelete("cascade"),
     foreignKey({
-      name: "question_learning_events_version_id_fkey",
-      columns: [t.version_id],
-      foreignColumns: [problem_versions.id],
+      name: "question_learning_events_publication_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [question_publications.id],
     }),
     index("learning_events_owner_time").on(t.owner_id, t.observed_at, t.submission_id),
     index("learning_events_retention").on(t.observed_at, t.submission_id),
-    index("question_learning_events_version").on(t.version_id),
+    index("question_learning_events_version").on(t.publication_id),
     check(
       "question_learning_events_difficulty_check",
       sql`${t.difficulty} IN ('easy','medium','hard')`,
@@ -2496,7 +2497,7 @@ export const question_learning_events = pgTable(
 export const question_learning_observations = pgView("question_learning_observations", {
   submission_id: uuid(),
   owner_id: text(),
-  version_id: uuid(),
+  publication_id: uuid(),
   difficulty: text(),
   tags: text().array(),
   accepted: boolean(),
@@ -2534,7 +2535,7 @@ export const recommendation_impressions = pgTable(
   {
     id: uuid().primaryKey().defaultRandom(),
     owner_id: text().notNull(),
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     model_id: uuid(),
     variant: text().notNull(),
     position: integer().notNull(),
@@ -2555,19 +2556,19 @@ export const recommendation_impressions = pgTable(
       foreignColumns: [users.id],
     }).onDelete("cascade"),
     foreignKey({
-      name: "recommendation_impressions_version_id_fkey",
-      columns: [t.version_id],
-      foreignColumns: [problem_versions.id],
+      name: "recommendation_impressions_publication_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [question_publications.id],
     }),
-    unique("recommendation_impressions_owner_id_version_id_variant_mode_key")
-      .on(t.owner_id, t.version_id, t.variant, t.model_id, t.served_at)
+    unique("recommendation_impressions_publication_variant_key")
+      .on(t.owner_id, t.publication_id, t.variant, t.model_id, t.served_at)
       .nullsNotDistinct(),
     index("recommendation_impressions_owner_question").on(
       t.owner_id,
-      t.version_id,
+      t.publication_id,
       t.served_at.desc(),
     ),
-    index("recommendation_impressions_version").on(t.version_id),
+    index("recommendation_impressions_version").on(t.publication_id),
     index("recommendation_impressions_retention").on(t.served_at),
     check("recommendation_impressions_variant_check", sql`${t.variant} IN ('control','explore')`),
     check("recommendation_impressions_position_check", sql`${t.position}>0`),

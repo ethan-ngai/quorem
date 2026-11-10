@@ -1,5 +1,5 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
-import type { DevelopmentIdentity, paths, ProblemVersion } from "@quorem/contracts";
+import type { DevelopmentIdentity, paths, PublishedQuestion } from "@quorem/contracts";
 import { api, publicApi, requireData } from "../../api/client";
 import { fetchProblem, fetchProblemVersion } from "../editor/api";
 import { catalogKind, type CatalogSearch } from "./catalogSearch";
@@ -163,7 +163,7 @@ export function problemQueryOptions(
   value: string,
   byID = false,
 ) {
-  const publicState = freshState<ProblemVersion>(client, problemKey(publicScope, value, byID));
+  const publicState = freshState<PublishedQuestion>(client, problemKey(publicScope, value, byID));
   const scope =
     actor === "anonymous" || (actor === undefined && publicState?.data)
       ? publicScope
@@ -180,9 +180,9 @@ export function problemQueryOptions(
         return byID ? fetchProblemVersion(actor, value) : fetchProblem(actor, value);
       const transport = publicApi();
       const result = byID
-        ? await transport.GET("/v1/problem-versions/{id}", { params: { path: { id: value } } })
+        ? await transport.GET("/v1/question-publications/{id}", { params: { path: { id: value } } })
         : await transport.GET("/v1/problems/{slug}", { params: { path: { slug: value } } });
-      return requireData(result.data as ProblemVersion | undefined, result.error);
+      return requireData(result.data as PublishedQuestion | undefined, result.error);
     },
   });
 }

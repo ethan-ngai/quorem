@@ -130,9 +130,9 @@ export async function collectInputBlobs(
     WITH state AS MATERIALIZED (SELECT cursor FROM runner_input_gc_state WHERE id=1 FOR UPDATE SKIP LOCKED),
     candidates AS MATERIALIZED (SELECT b.hash FROM runner_input_blobs b,state WHERE b.hash>COALESCE(state.cursor,''::bytea) ORDER BY b.hash FOR UPDATE OF b SKIP LOCKED LIMIT ${scanLimit}),
     eligible AS MATERIALIZED (SELECT c.hash FROM candidates c WHERE
-      (SELECT 1 FROM runner_version_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
+      (SELECT 1 FROM runner_publication_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
       (SELECT 1 FROM runner_snapshot_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_version_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL AND
+      (SELECT 1 FROM runner_publication_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL AND
       (SELECT 1 FROM runner_snapshot_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL AND
       (SELECT 1 FROM runner_job_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
       (SELECT 1 FROM runner_job_inputs x WHERE x.source_hash=c.hash LIMIT 1) IS NULL AND

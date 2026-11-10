@@ -266,8 +266,9 @@ void test("interview Odyssey uses only the current manual stage and cumulative c
     "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
     [actor.userId],
   );
-  const p = (await pool.query("SELECT id::text FROM problem_versions WHERE title='Large' LIMIT 1"))
-    .rows[0].id;
+  const p = (
+    await pool.query("SELECT id::text FROM question_publications WHERE title='Large' LIMIT 1")
+  ).rows[0].id;
   const id = crypto.randomUUID(),
     e = crypto.randomUUID(),
     d = crypto.randomUUID(),
@@ -311,7 +312,7 @@ void test("interview Odyssey uses only the current manual stage and cumulative c
     (err: unknown) => err instanceof Error && "code" in err && err.code === "stage_changed",
   );
   await pool.query(
-    "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,2) ON CONFLICT(scope_id,problem_version_id) DO UPDATE SET level=2",
+    "INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2) ON CONFLICT(scope_id,publication_id) DO UPDATE SET level=2",
     [e, p],
   );
   const f = await fence();
@@ -333,7 +334,7 @@ void test("interview Odyssey uses only the current manual stage and cumulative c
   assert.equal(
     (
       await pool.query(
-        "SELECT level FROM odyssey_progress WHERE scope_id=$1 AND problem_version_id=$2",
+        "SELECT level FROM odyssey_progress WHERE scope_id=$1 AND publication_id=$2",
         [e, p],
       )
     ).rows[0].level,

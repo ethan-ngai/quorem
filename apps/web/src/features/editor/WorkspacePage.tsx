@@ -25,7 +25,7 @@ import {
   participantUserId,
   type DevelopmentIdentity,
   type MatchSnapshot,
-  type ProblemVersion,
+  type PublishedQuestion,
 } from "@quorem/contracts";
 import { RotateCcw } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
@@ -105,7 +105,7 @@ export function WorkspacePage({
   identity?: DevelopmentIdentity;
   matchHeader?:
     | ReactNode
-    | ((problem: ProblemVersion, saveDraft: () => Promise<void>) => ReactNode);
+    | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => ReactNode);
   review?: boolean;
   sharedDocument?: SharedWorkspaceDocument;
 }) {
@@ -175,7 +175,7 @@ export function WorkspacePage({
               ),
             );
             if (!response.ok) throw new Error("Could not load the match problem.");
-            return response.json() as Promise<ProblemVersion>;
+            return response.json() as Promise<PublishedQuestion>;
           }
         : problemOptions.queryFn,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),

@@ -16,7 +16,7 @@ import { LoadingIndicator } from "../../../ui/Spinner";
 
 /** Complexity is separate from published solution source. */
 async function loadComplexity(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/complexity", {
+  const { data, error } = await api(identity).GET("/v1/question-publications/{id}/complexity", {
     params: { path: { id } },
   });
   return requireData(data, error);
@@ -78,7 +78,7 @@ export function EditorialPanel({
   const solutions = useQuery({
     queryKey: ["solutions", "approaches", identity, versionId],
     queryFn: async () => {
-      const { data, error } = await api(identity).GET("/v1/problem-versions/{id}/solutions", {
+      const { data, error } = await api(identity).GET("/v1/question-publications/{id}/solutions", {
         params: { path: { id: versionId } },
       });
       return requireData(data, error);

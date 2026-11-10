@@ -46,10 +46,10 @@ it.skipIf(!url)(
           sql`INSERT INTO problems(id,slug) VALUES(${parent}::uuid,${`large-${parent}`})`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_public,lossless_fixture) SELECT ${version}::uuid,${parent}::uuid,1,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,NULL,convert_to('{"problem":{"examples":[{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"expected":9007199254740993,"explanation":"public explanation","calls":[{"methodName":"safeCall","args":[],"expected":1,"referenceSource":"NESTED_SECRET"}],"referenceSource":"DO_NOT_LEAK"}]}}','UTF8'),convert_to('{"problem":{"examples":[{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"expected":9007199254740993,"explanation":"public explanation","calls":[{"methodName":"safeCall","args":[],"expected":1,"referenceSource":"NESTED_SECRET"}],"referenceSource":"DO_NOT_LEAK"}]},"hiddenCases":[{"args":["PRIVATE_SECRET'||repeat('y',${size})||'"],"expected":1}]}','UTF8') FROM problem_versions WHERE id=${base}::uuid`,
+          sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_public,lossless_fixture) SELECT ${version}::uuid,${parent}::uuid,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,NULL,convert_to('{"problem":{"examples":[{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"expected":9007199254740993,"explanation":"public explanation","calls":[{"methodName":"safeCall","args":[],"expected":1,"referenceSource":"NESTED_SECRET"}],"referenceSource":"DO_NOT_LEAK"}]}}','UTF8'),convert_to('{"problem":{"examples":[{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"expected":9007199254740993,"explanation":"public explanation","calls":[{"methodName":"safeCall","args":[],"expected":1,"referenceSource":"NESTED_SECRET"}],"referenceSource":"DO_NOT_LEAK"}]},"hiddenCases":[{"args":["PRIVATE_SECRET'||repeat('y',${size})||'"],"expected":1}]}','UTF8') FROM question_publications WHERE id=${base}::uuid`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls) VALUES(${version}::uuid,0,'["placeholder"]'::jsonb,'9007199254740993'::jsonb,'public explanation','[]'::jsonb)`,
+          sql`INSERT INTO problem_examples(publication_id,ordinal,args,expected,explanation,calls) VALUES(${version}::uuid,0,'["placeholder"]'::jsonb,'9007199254740993'::jsonb,'public explanation','[]'::jsonb)`,
         );
         const { parseLosslessJson } = await import("@quorem/questions");
         const { encodeFixtureMetadata, storeFixtureBlob } =
@@ -57,7 +57,7 @@ it.skipIf(!url)(
         const { fixtureSourceHash } = await import("../../judging/inputs/source.ts");
         const baseMetadata = (
           await tx.execute<{ data: Uint8Array }>(
-            sql`SELECT b.data FROM runner_version_inputs r JOIN runner_input_blobs b ON b.hash=r.metadata_hash WHERE r.version_id=${base}::uuid`,
+            sql`SELECT b.data FROM runner_publication_inputs r JOIN runner_input_blobs b ON b.hash=r.metadata_hash WHERE r.publication_id=${base}::uuid`,
           )
         ).rows[0].data;
         const problem = parseLosslessJson(new TextDecoder().decode(baseMetadata)) as {
@@ -65,28 +65,30 @@ it.skipIf(!url)(
         };
         problem.id = version;
         const metadataHash = await storeFixtureBlob(tx, await encodeFixtureMetadata(tx, problem));
-        const fixtureHash = await fixtureSourceHash(tx, { version });
+        const fixtureHash = await fixtureSourceHash(tx, { publication: version });
         await tx.execute(
-          sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES(${version}::uuid,${metadataHash},${fixtureHash})`,
+          sql`INSERT INTO runner_publication_inputs(publication_id,metadata_hash,fixture_hash) VALUES(${version}::uuid,${metadataHash},${fixtureHash})`,
         );
         await tx.execute(
           sql`WITH input AS (SELECT convert_to('{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"calls":[{"args":[],"expected":1,"methodName":"safeCall","referenceSource":"NESTED_SECRET"}],"expected":9007199254740993}','UTF8') AS data) INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT DO NOTHING`,
         );
         await tx.execute(
-          sql`INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) SELECT ${version}::uuid,'example',0,0,sha256(convert_to('{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"calls":[{"args":[],"expected":1,"methodName":"safeCall","referenceSource":"NESTED_SECRET"}],"expected":9007199254740993}','UTF8'))`,
+          sql`INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) SELECT ${version}::uuid,'example',0,0,sha256(convert_to('{"args":["'||repeat('x',${size})||chr(92)||'u0000"],"calls":[{"args":[],"expected":1,"methodName":"safeCall","referenceSource":"NESTED_SECRET"}],"expected":9007199254740993}','UTF8'))`,
         );
         await tx.execute(
           sql`WITH input AS (SELECT convert_to('{"args":["PRIVATE_SECRET'||repeat('y',${size})||'"],"expected":1}','UTF8') AS data) INSERT INTO runner_input_blobs(hash,data) SELECT sha256(data),data FROM input ON CONFLICT DO NOTHING`,
         );
         await tx.execute(
-          sql`INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) SELECT ${version}::uuid,'hidden',0,0,sha256(convert_to('{"args":["PRIVATE_SECRET'||repeat('y',${size})||'"],"expected":1}','UTF8'))`,
+          sql`INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) SELECT ${version}::uuid,'hidden',0,0,sha256(convert_to('{"args":["PRIVATE_SECRET'||repeat('y',${size})||'"],"expected":1}','UTF8'))`,
         );
         await tx.execute(
-          sql`UPDATE runner_version_inputs SET sealed=true WHERE version_id=${version}::uuid`,
+          sql`UPDATE runner_publication_inputs SET sealed=true WHERE publication_id=${version}::uuid`,
         );
-        await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${version}::uuid`);
         await tx.execute(
-          sql`UPDATE problems SET current_version_id=${version}::uuid WHERE id=${parent}::uuid`,
+          sql`UPDATE question_publications SET sealed=true WHERE id=${version}::uuid`,
+        );
+        await tx.execute(
+          sql`UPDATE problems SET current_publication_id=${version}::uuid WHERE id=${parent}::uuid`,
         );
       }),
     );
@@ -96,7 +98,7 @@ it.skipIf(!url)(
         async (tx) =>
           (
             await tx.execute<{ size: number }>(
-              sql`SELECT octet_length(lossless_fixture)::int AS size FROM problem_versions WHERE id=${version}::uuid`,
+              sql`SELECT octet_length(lossless_fixture)::int AS size FROM question_publications WHERE id=${version}::uuid`,
             )
           ).rows[0].size,
       ),

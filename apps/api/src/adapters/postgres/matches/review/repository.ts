@@ -8,7 +8,7 @@ import { ApplicationError } from "../../../../application/error.ts";
 import type { MatchReview } from "../../../../modules/matches/review/model.ts";
 import type { WorkspaceLanguage } from "../../../../modules/workspace/model.ts";
 import { questionRuntime } from "../../problems/runtime.ts";
-import { projectAuthorizedVersion } from "../../problems/queries/repository.ts";
+import { projectAuthorizedPublication } from "../../problems/queries/repository.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 type Participant = {
@@ -48,7 +48,7 @@ export function matchReviewRepository(run: Run): MatchReview {
           const match = await authorizeReview(tx, principal, matchId, source.owner);
           const version = (
             await tx.execute<{ isSql: boolean }>(
-              sql`SELECT sql_config IS NOT NULL AND sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions WHERE id=${match.problemId}::uuid`,
+              sql`SELECT sql_config IS NOT NULL AND sql_config <> 'null'::jsonb AS "isSql" FROM question_publications WHERE id=${match.problemId}::uuid`,
             )
           ).rows[0];
           if (!version) throw missing();
@@ -61,10 +61,10 @@ export function matchReviewRepository(run: Run): MatchReview {
               language: WorkspaceLanguage;
               reviewMatchId: string;
             }>(sql`
-          INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,review_match_id,review_source_owner_id)
+          INSERT INTO workspaces(id,owner_id,publication_id,language,kind,review_match_id,review_source_owner_id)
           VALUES(${crypto.randomUUID()}::uuid,${principal.userId},${match.problemId}::uuid,${language},'review',${matchId}::uuid,${source.owner})
           ON CONFLICT(review_match_id,owner_id,review_source_owner_id,language) WHERE kind='review' DO UPDATE SET owner_id=EXCLUDED.owner_id
-          RETURNING id::text,kind,problem_version_id::text AS "problemVersionId",language,review_match_id::text AS "reviewMatchId"
+          RETURNING id::text,kind,publication_id::text AS "problemVersionId",language,review_match_id::text AS "reviewMatchId"
         `)
           ).rows[0];
         }),
@@ -125,7 +125,7 @@ export function matchReviewRepository(run: Run): MatchReview {
           WHERE p.match_id=${matchId}::uuid AND (p.owner_id=${principal.userId} OR ${teammate} OR ${match.shareCodeAfterMatch}) ORDER BY p.seat
         `)
           ).rows;
-          const problem = await projectAuthorizedVersion(tx, match.problemId);
+          const problem = await projectAuthorizedPublication(tx, match.problemId);
           if (!problem) throw missing();
           const starters = participants.some((person) => person.starterLanguage)
             ? new Map(

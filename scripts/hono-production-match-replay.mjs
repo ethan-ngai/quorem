@@ -49,11 +49,11 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
   } = await database.query(
     `SELECT v.id, v.signature, v.difficulty, i.case_count, i.sample_count,
             (SELECT solution.source FROM problem_solutions solution
-             JOIN problem_solution_approaches approach ON approach.version_id=solution.version_id
+             JOIN problem_solution_approaches approach ON approach.publication_id=solution.publication_id
                AND approach.id=solution.approach_id
-             WHERE solution.version_id=v.id AND solution.language='python'
+             WHERE solution.publication_id=v.id AND solution.language='python'
              ORDER BY approach.is_canonical DESC, approach.ordinal LIMIT 1) AS reference_source
-     FROM matches m JOIN problem_versions v ON v.id=m.problem_version_id
+     FROM matches m JOIN question_publications v ON v.id=m.publication_id
      JOIN submissions s ON s.match_id=m.id JOIN execution_jobs j ON j.submission_id=s.id
      JOIN runner_job_inputs i ON i.job_id=j.id
      WHERE m.id=$1::uuid AND s.kind='submit' AND j.language='python' AND s.odyssey_level IS NULL
@@ -129,7 +129,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
       actors.push({ headers, userId: user.id, token });
     }
     const [host, peer] = actors;
-    const problem = await call(`/v1/problem-versions/${reference.id}`, host.headers);
+    const problem = await call(`/v1/question-publications/${reference.id}`, host.headers);
     const sample = problem.examples.find((example) => "expected" in example);
     const expected = sample && JSON.stringify(sample.expected);
     if (!expected || expected.length > 2048) throw new Error("Replay example unavailable");

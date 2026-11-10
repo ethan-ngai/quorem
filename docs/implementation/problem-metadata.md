@@ -1,6 +1,6 @@
 # Problem metadata
 
-Constraints belong to immutable problem versions. The API publishes a discriminated union; prose is informational, structured constraints are enforced before execution.
+Constraints belong to the published question. The API publishes a discriminated union; prose is informational, structured constraints are enforced before execution.
 
 | Kind         | Shape                          | Meaning                                                  |
 | ------------ | ------------------------------ | -------------------------------------------------------- |
@@ -26,7 +26,7 @@ The frontend composes inline Markdown from structured shapes: parameter referenc
 
 Examples and execution cases bind positional `args` to the immutable signature's declared order. Shared frontend binding supplies names and types and rejects arity mismatches; it never invents parameter names. Positional transport remains appropriate for Python invocation and avoids duplicating a second signature in every case. Example explanations are optional metadata and survive backend decoding; they do not enter executable custom-case identity.
 
-New seeded metadata uses new problem version IDs. Earlier rows, drafts, submissions and workspaces remain intact; legacy string constraints decode as informational prose and retain their original codec guarantees. Existing versions do not acquire new validation rules. Future constraints outside the supported vocabulary use prose until a validated shape is added to both backend and shared schema.
+Published edits use the existing publication ID. Legacy string constraints decode as informational prose. Future constraints outside the supported vocabulary use prose until a validated shape is added to both backend and shared schema.
 
 ## Input presets
 

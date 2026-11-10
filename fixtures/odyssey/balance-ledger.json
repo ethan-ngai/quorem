@@ -117,7 +117,6 @@
     "slug": "balance-ledger",
     "statementMarkdown": "Build a small ledger across two levels. Keep your implementation as new requirements unlock.",
     "tags": ["Design"],
-    "title": "Balance Ledger",
-    "version": "1"
+    "title": "Balance Ledger"
   }
 }

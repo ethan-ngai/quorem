@@ -2,7 +2,6 @@
   "problem": {
     "id": "d83802b1-ad72-5082-a220-4ff8e2aa572a",
     "slug": "quota-window",
-    "version": "2",
     "title": "Quota Window",
     "difficulty": "hard",
     "tags": ["strings", "sliding window"],

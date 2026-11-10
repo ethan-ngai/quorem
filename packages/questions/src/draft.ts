@@ -33,7 +33,6 @@ export function validateQuestionDraft(content: QuestionContent): void {
     throw new Error("question collection limit exceeded");
   if (
     bytes(p.id) > 64 ||
-    bytes(p.version) > 32 ||
     !questionSlugFits(p.slug) ||
     bytes(p.title) > 160 ||
     bytes(p.statementMarkdown) > 65536 ||

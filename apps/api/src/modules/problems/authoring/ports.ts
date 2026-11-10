@@ -27,7 +27,7 @@ export interface QuestionAuthoring {
   create(
     actor: AuthorActor,
     content: string | undefined,
-    versionId: string | undefined,
+    publicationId: string | undefined,
   ): Promise<string>;
   importDraft(actor: AuthorActor, content: string, preview: boolean): Promise<string>;
   importDraftBatch(

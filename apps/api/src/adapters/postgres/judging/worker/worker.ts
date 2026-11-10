@@ -36,10 +36,10 @@ it("claims and fences a real attempt through workerd", async () => {
       await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Worker')`);
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
       await tx.execute(
-        sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [], returnType: "int" })}::jsonb,'[]',${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'')`,
+        sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [], returnType: "int" })}::jsonb,'[]',${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'')`,
       );
       await tx.execute(
-        sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
+        sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
       );
       await tx.execute(
         sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'run','','hash','queued','[{"expected":2}]')`,
@@ -64,10 +64,10 @@ it("claims and fences a real attempt through workerd", async () => {
         },
         hiddenCases: [],
       });
-      await indexRunnerFixture(tx, { version }, raw);
+      await indexRunnerFixture(tx, { publication: version }, raw);
       await bindJobInputs(tx, {
         jobId: job,
-        owner: { version },
+        owner: { publication: version },
         level: 0,
         primary: "example",
         custom: [],
@@ -430,7 +430,7 @@ it("claims and fences a real attempt through workerd", async () => {
         await tx.execute(sql`DELETE FROM execution_jobs WHERE id=${job}::uuid`);
         await tx.execute(sql`DELETE FROM submissions WHERE id=${submission}::uuid`);
         await tx.execute(sql`DELETE FROM workspaces WHERE id=${workspace}::uuid`);
-        await tx.execute(sql`DELETE FROM problem_versions WHERE id=${version}::uuid`);
+        await tx.execute(sql`DELETE FROM question_publications WHERE id=${version}::uuid`);
         await tx.execute(sql`DELETE FROM problems WHERE id=${problem}::uuid`);
         await tx.execute(sql`DELETE FROM users WHERE id=${user}`);
       }),

@@ -1,4 +1,4 @@
-/** @file publication.ts @description Validated immutable question version persistence. @module problems */
+/** @file publication.ts @description Validated question publication persistence. @module problems */
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import {
@@ -68,13 +68,12 @@ function sidecars(c: Obj): {
   };
 }
 
-/** Validates complete content before inserting and sealing the version. */
-export async function persistQuestionVersion(
+/** Validates complete content before inserting and sealing a publication. */
+export async function persistQuestionPublication(
   tx: Transaction,
   raw: string,
   problemId: string,
-  versionId: string,
-  version: number,
+  publicationId: string,
   privateOwner: string | null,
   runtime: RuntimeResolver,
   options: { customInterview?: boolean } = {},
@@ -86,8 +85,7 @@ export async function persistQuestionVersion(
   });
   const c = content(raw),
     p = object(c.problem);
-  if (p.id !== versionId || p.version !== String(version))
-    throw new Error("Version identity mismatch");
+  if (p.id !== publicationId) throw new Error("Publication identity mismatch");
   const parent = (
     await tx.execute<{ slug: string; owner: string | null }>(
       sql`SELECT slug,owner_id AS owner FROM problems WHERE id=${problemId}::uuid FOR UPDATE`,
@@ -100,29 +98,31 @@ export async function persistQuestionVersion(
     safeProblem = object(safe.problem),
     publicJSON = stringifyLosslessJson(safeProblem);
   await tx.execute(
-    sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${versionId}::uuid,${problemId}::uuid,${version},doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',CASE WHEN doc->'sql' IS NOT NULL OR doc->'odyssey' IS NOT NULL THEN NULL ELSE doc->'signature' END,COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
+    sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${publicationId}::uuid,${problemId}::uuid,doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',CASE WHEN doc->'sql' IS NOT NULL OR doc->'odyssey' IS NOT NULL THEN NULL ELSE doc->'signature' END,COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
   );
   const hidden = stringifyLosslessJson(safe.hiddenCases ?? []),
     staged = stringifyLosslessJson(safe.odysseyHiddenCases ?? []);
   await tx.execute(
-    sql`INSERT INTO problem_examples(version_id,ordinal,args,expected,explanation,calls,graphs) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->>'explanation',''),COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${publicJSON}::jsonb->'examples') WITH ORDINALITY`,
+    sql`INSERT INTO problem_examples(publication_id,ordinal,args,expected,explanation,calls,graphs) SELECT ${publicationId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->>'explanation',''),COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${publicJSON}::jsonb->'examples') WITH ORDINALITY`,
   );
   await tx.execute(
-    sql`INSERT INTO problem_test_cases(version_id,ordinal,args,expected,calls,graphs) SELECT ${versionId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${hidden}::jsonb) WITH ORDINALITY`,
+    sql`INSERT INTO problem_test_cases(publication_id,ordinal,args,expected,calls,graphs) SELECT ${publicationId}::uuid,ordinality-1,value->'args',value->'expected',COALESCE(value->'calls','[]'),value->'graphs' FROM jsonb_array_elements(${hidden}::jsonb) WITH ORDINALITY`,
   );
   await tx.execute(
-    sql`INSERT INTO problem_odyssey_cases(version_id,level,ordinal,case_data) SELECT ${versionId}::uuid,stage.ordinality-1,c.ordinality-1,c.value FROM jsonb_array_elements(${staged}::jsonb) WITH ORDINALITY stage(value,ordinality),LATERAL jsonb_array_elements(stage.value) WITH ORDINALITY c(value,ordinality)`,
+    sql`INSERT INTO problem_odyssey_cases(publication_id,level,ordinal,case_data) SELECT ${publicationId}::uuid,stage.ordinality-1,c.ordinality-1,c.value FROM jsonb_array_elements(${staged}::jsonb) WITH ORDINALITY stage(value,ordinality),LATERAL jsonb_array_elements(stage.value) WITH ORDINALITY c(value,ordinality)`,
   );
   await tx.execute(
-    sql`INSERT INTO problem_tags(version_id,tag,ordinal) SELECT ${versionId}::uuid,value,ordinality-1 FROM jsonb_array_elements_text(${publicJSON}::jsonb->'tags') WITH ORDINALITY`,
+    sql`INSERT INTO problem_tags(publication_id,tag,ordinal) SELECT ${publicationId}::uuid,value,ordinality-1 FROM jsonb_array_elements_text(${publicJSON}::jsonb->'tags') WITH ORDINALITY`,
   );
   await updateQuestionCatalogMetadata(tx, problemId, p, privateOwner);
-  await registerArtifacts(tx, c, versionId);
-  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
+  await registerArtifacts(tx, c, publicationId);
+  await indexRunnerFixture(tx, { publication: publicationId }, stringifyLosslessJson(fixture(c)));
   await tx.execute(
-    sql`UPDATE problems SET current_version_id=${versionId}::uuid WHERE id=${problemId}::uuid`,
+    sql`UPDATE problems SET current_publication_id=${publicationId}::uuid WHERE id=${problemId}::uuid`,
   );
-  await tx.execute(sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid`);
+  await tx.execute(
+    sql`UPDATE question_publications SET sealed=true WHERE id=${publicationId}::uuid`,
+  );
 }
 
 /** Synchronize catalog metadata with the current publication. */
@@ -147,43 +147,42 @@ async function updateQuestionCatalogMetadata(
     );
   }
 }
-async function registerArtifacts(tx: Transaction, c: Obj, versionId: string): Promise<void> {
+async function registerArtifacts(tx: Transaction, c: Obj, publicationId: string): Promise<void> {
   for (const [ordinal, item] of list(c.approaches).entries()) {
     const a = object(item);
     const registered =
-      await tx.execute(sql`INSERT INTO problem_solution_approaches AS existing(version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes)
-      VALUES(${versionId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${typeof a.defaultLanguage === "string" ? a.defaultLanguage : null},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(version_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
+      await tx.execute(sql`INSERT INTO problem_solution_approaches AS existing(publication_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes)
+      VALUES(${publicationId}::uuid,${str(a.id)},${ordinal},${typeof a.title === "string" ? a.title : ""},${a.id === c.canonicalApproachId},${typeof a.defaultLanguage === "string" ? a.defaultLanguage : null},${str(a.explanationMarkdown)},${str(a.timeComplexity)},${str(a.spaceComplexity)},${str(a.complexityNotes)}) ON CONFLICT(publication_id,id) DO UPDATE SET id=EXCLUDED.id WHERE existing IS NOT DISTINCT FROM EXCLUDED RETURNING id`);
     if (!registered.rows.length) throw new Error("Approach metadata is immutable");
     for (const variant of list(a.implementations)) {
       const v = object(variant);
       const code = await tx.execute(
-        sql`INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES(${versionId}::uuid,${str(a.id)},${str(v.language)},${str(v.source)}) ON CONFLICT(version_id,approach_id,language) DO UPDATE SET source=EXCLUDED.source WHERE problem_solutions.source=EXCLUDED.source RETURNING language`,
+        sql`INSERT INTO problem_solutions(publication_id,approach_id,language,source) VALUES(${publicationId}::uuid,${str(a.id)},${str(v.language)},${str(v.source)}) ON CONFLICT(publication_id,approach_id,language) DO UPDATE SET source=EXCLUDED.source WHERE problem_solutions.source=EXCLUDED.source RETURNING language`,
       );
       if (!code.rows.length) throw new Error("Approach code is immutable");
     }
   }
 }
 /** Resume an interrupted fixed fixture installation without changing existing content. */
-export async function resumeQuestionVersion(
+export async function resumeQuestionPublication(
   tx: Transaction,
   raw: string,
-  versionId: string,
+  publicationId: string,
   runtime: RuntimeResolver,
 ): Promise<void> {
   validateQuestionPublication(raw, validateQuestionSchema, runtime);
   const c = content(raw),
     p = object(c.problem);
-  if (p.id !== versionId) throw new Error("Version identity mismatch");
+  if (p.id !== publicationId) throw new Error("Publication identity mismatch");
   const current = (
-    await tx.execute<{ slug: string; version: number }>(
-      sql`SELECT p.slug,v.version FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${versionId}::uuid FOR UPDATE OF v`,
+    await tx.execute<{ slug: string }>(
+      sql`SELECT p.slug FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id=${publicationId}::uuid FOR UPDATE OF v`,
     )
   ).rows[0];
-  if (!current || current.slug !== p.slug || String(current.version) !== p.version)
-    throw new Error("Version identity mismatch");
-  await registerArtifacts(tx, c, versionId);
-  await indexRunnerFixture(tx, { version: versionId }, stringifyLosslessJson(fixture(c)));
+  if (!current || current.slug !== p.slug) throw new Error("Publication identity mismatch");
+  await registerArtifacts(tx, c, publicationId);
+  await indexRunnerFixture(tx, { publication: publicationId }, stringifyLosslessJson(fixture(c)));
   await tx.execute(
-    sql`UPDATE problem_versions SET sealed=true WHERE id=${versionId}::uuid AND NOT sealed`,
+    sql`UPDATE question_publications SET sealed=true WHERE id=${publicationId}::uuid AND NOT sealed`,
   );
 }

@@ -1,6 +1,6 @@
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 /** @file ProblemStatement.test.tsx @description Public inputs retain their declared argument names. @module editor */
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProblemStatement } from "./ProblemStatement";
@@ -16,7 +16,7 @@ describe("topic disclosure", () => {
       examples: [],
       constraints: [],
       signature: { parameters: [] },
-    } as unknown as ProblemVersion;
+    } as unknown as PublishedQuestion;
     const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
     expect(markup).toContain('aria-label="Show topics"');
     expect(markup).toContain('aria-expanded="false"');
@@ -46,7 +46,7 @@ it("renders structured mathematics and literal prose with named examples", () =>
       { kind: "range", target: { parameter: "values", projection: "length" }, min: 1, max: 10000 },
       { kind: "prose", text: "Use the supplied values." },
     ],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(stripSyntaxMarkup(markup)).toMatch(
     /class="parameter-name">values<.*?class="machine-value ">\[3,4\]<.*?class="parameter-name">index<.*?class="machine-value ">0</,
@@ -69,7 +69,7 @@ it("removes the topic control and all topic content when the host disables hints
     examples: [],
     constraints: [],
     signature: { parameters: [] },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} allowTopics={false} />);
   expect(markup).not.toContain("Show topics");
   expect(markup).not.toContain("SECRET_TOPIC");
@@ -89,7 +89,7 @@ it("connects example tabs to one visible panel", () => {
       { args: [1], expected: 2, explanation: "First explanation" },
       { args: [3], expected: 4, explanation: "Second explanation" },
     ],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(markup.match(/role="tab"/g)).toHaveLength(2);
   expect(markup.match(/role="tabpanel"/g)).toHaveLength(1);
@@ -115,7 +115,7 @@ it("shows the shared SQL schema and row-only example tables", () => {
       output: [{ name: "id", type: "integer" }],
     },
     examples: [{ args: [{ tables: [{ name: "items", rows: [[1]] }] }], expected: { rows: [[1]] } }],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(html).toContain('aria-label="SQL schema"');
   expect(html).toContain('aria-label="items"');
@@ -133,7 +133,7 @@ it("preserves uppercase topic labels", () => {
     constraints: [],
     examples: [],
     signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(html).toContain(">SQL</span>");
   expect(html).toContain(">Hash Table</span>");

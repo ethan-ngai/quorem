@@ -72,16 +72,16 @@ it("does not decide a match from an unverified terminal result", async () => {
       );
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
       await tx.execute(
-        sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,1,'T','easy','','{}','[]','{}','test')`,
+        sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'T','easy','','{}','[]','{}','test')`,
       );
       await tx.execute(
-        sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES(${id}::uuid,${owner},${id},clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',${version}::uuid)`,
+        sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,publication_id) VALUES(${id}::uuid,${owner},${id},clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',${version}::uuid)`,
       );
       await tx.execute(
         sql`INSERT INTO match_participants(match_id,owner_id,seat) VALUES(${id}::uuid,${owner},1),(${id}::uuid,${opponent},2)`,
       );
       await tx.execute(
-        sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES(${workspace}::uuid,${owner},${version}::uuid,'python','match',${id}::uuid)`,
+        sql`INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES(${workspace}::uuid,${owner},${version}::uuid,'python','match',${id}::uuid)`,
       );
       await tx.execute(
         sql`INSERT INTO submissions(id,owner_id,workspace_id,match_id,match_sequence,kind,source,source_hash,state,cases,result) VALUES(${submission}::uuid,${owner},${workspace}::uuid,${id}::uuid,1,'submit','','hash','completed','[]','{"verdict":"accepted","score":{"passed":1,"total":1}}')`,

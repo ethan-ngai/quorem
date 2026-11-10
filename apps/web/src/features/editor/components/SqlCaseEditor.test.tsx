@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { SqlCaseEditor } from "./SqlCaseEditor";
 
 it("renders editable schema-driven input and expected tables", () => {
@@ -22,7 +22,7 @@ it("renders editable schema-driven input and expected tables", () => {
       ],
       output: [{ name: "id", type: "integer" }],
     },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const html = renderToStaticMarkup(
     <SqlCaseEditor
       problem={problem}
@@ -58,7 +58,7 @@ it("syncs changed row widths only after an explicit action", async () => {
       ],
       output: [{ name: "id", type: "bigint" }],
     },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   await act(async () =>
     root.render(
       <SqlCaseEditor

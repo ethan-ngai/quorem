@@ -284,7 +284,7 @@ void test("public snapshots read only unlocked examples and authorized revealed 
     epoch = crypto.randomUUID(),
     problem = crypto.randomUUID(),
     document = crypto.randomUUID();
-  const raw = `{"problem":{"id":"${problem}","slug":"test","version":"1","title":"Public","difficulty":"easy","tags":[],"statementMarkdown":"Visible","signature":{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"},"constraints":[],"limits":{},"languages":[{"language":"python","starterSource":"pass","runtimeRevision":"v1","harnessRevision":"h1","referenceSource":"SECRET REFERENCE"}],"starterSource":"pass","runtimeRevision":"v1","odyssey":{"levels":[{"title":"One","statementMarkdown":"First","methods":[{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"}],"examples":[{"args":[9007199254740993],"expected":"public\\u0000"}]},{"title":"FUTURE","statementMarkdown":"Hidden stage","methods":[],"examples":[{"args":[],"expected":"later"}]}]}},"odysseyHiddenCases":[[{"args":[1],"expected":"PRIVATE-ONE\\u0000"}],[{"args":[2],"expected":"PRIVATE-TWO"}]],"hiddenCases":[]}`;
+  const raw = `{"problem":{"id":"${problem}","slug":"test","title":"Public","difficulty":"easy","tags":[],"statementMarkdown":"Visible","signature":{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"},"constraints":[],"limits":{},"languages":[{"language":"python","starterSource":"pass","runtimeRevision":"v1","harnessRevision":"h1","referenceSource":"SECRET REFERENCE"}],"starterSource":"pass","runtimeRevision":"v1","odyssey":{"levels":[{"title":"One","statementMarkdown":"First","methods":[{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"}],"examples":[{"args":[9007199254740993],"expected":"public\\u0000"}]},{"title":"FUTURE","statementMarkdown":"Hidden stage","methods":[],"examples":[{"args":[],"expected":"later"}]}]}},"odysseyHiddenCases":[[{"args":[1],"expected":"PRIVATE-ONE\\u0000"}],[{"args":[2],"expected":"PRIVATE-TWO"}]],"hiddenCases":[]}`;
   const stored = storageProjection(raw),
     candidate = "interview-member";
   await pool.query(
@@ -378,10 +378,10 @@ void test("public snapshots read only unlocked examples and authorized revealed 
     writer.release();
   }
   assert.equal(JSON.parse(await read(member)).hints.topics, false);
-  await pool.query(
-    "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,2)",
-    [epoch, problem],
-  );
+  await pool.query("INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2)", [
+    epoch,
+    problem,
+  ]);
   assert.match(await read(member), /FUTURE/);
   await pool.query(
     "DELETE FROM interview_public_examples WHERE session_id=$1 AND question_epoch=$2 AND level=2",
@@ -512,7 +512,7 @@ void test("custom question creates and replays a canonical private library versi
   assert.equal(retried.id, created.id);
   const library = (
     await pool.query(
-      "SELECT p.owner_id,v.sealed FROM problems p JOIN problem_versions v ON v.problem_id=p.id WHERE v.id=$1",
+      "SELECT p.owner_id,v.sealed FROM problems p JOIN question_publications v ON v.problem_id=p.id WHERE v.id=$1",
       [created.question.problem.id],
     )
   ).rows[0];

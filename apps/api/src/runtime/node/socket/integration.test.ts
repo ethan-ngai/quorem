@@ -579,11 +579,11 @@ void test("submission SSE sends only invalidations and enforces ownership", asyn
     submission = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, `socket-${problem}`]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Socket','easy','','{}','[]','{}','test')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Socket','easy','','{}','[]','{}','test')",
     [version, problem],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
     [workspace, host.userId, version],
   );
   await pool.query(

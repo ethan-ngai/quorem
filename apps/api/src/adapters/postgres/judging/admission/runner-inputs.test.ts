@@ -8,7 +8,7 @@ import {
   setActiveRunnerFixture,
 } from "../../interviews/runner-inputs/active.ts";
 import { saveInterviewFixture } from "../../interviews/execution/fixture.ts";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 import { languageRuntime, defaultLimits, type Job } from "@quorem/execution";
 import { createRunnerCommandHandler } from "../worker/http.ts";
 import { postgresCompletionStaging } from "../worker/staging.ts";
@@ -58,7 +58,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         version = crypto.randomUUID();
       await client.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
       await client.query(
-        "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','','{}','[]','{}','')",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','','{}','[]','{}','')",
         [version, problem],
       );
       const meta = Buffer.from('{"signature":{}}'),
@@ -68,20 +68,21 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         [meta, value],
       );
       await client.query(
-        "INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES($1,$2,$2)",
+        "INSERT INTO runner_publication_inputs(publication_id,metadata_hash,fixture_hash) VALUES($1,$2,$2)",
         [version, b.rows[0].hash],
       );
       await client.query(
-        "INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,0,$2)",
+        "INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,0,$2)",
         [version, b.rows[1].hash],
       );
-      await client.query("UPDATE runner_version_inputs SET sealed=true WHERE version_id=$1", [
-        version,
-      ]);
+      await client.query(
+        "UPDATE runner_publication_inputs SET sealed=true WHERE publication_id=$1",
+        [version],
+      );
       await client.query("SAVEPOINT immutable");
       await expect(
         client.query(
-          "INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,1,$2)",
+          "INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,1,$2)",
           [version, b.rows[1].hash],
         ),
       ).rejects.toThrow();
@@ -96,13 +97,16 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       await client.query("ROLLBACK TO SAVEPOINT immutable_blob");
       await client.query("SAVEPOINT version_retention");
       await expect(
-        client.query("DELETE FROM runner_version_inputs WHERE version_id=$1", [version]),
+        client.query("DELETE FROM runner_publication_inputs WHERE publication_id=$1", [version]),
       ).rejects.toThrow();
       await client.query("ROLLBACK TO SAVEPOINT version_retention");
-      await client.query("DELETE FROM problem_versions WHERE id=$1", [version]);
+      await client.query("DELETE FROM question_publications WHERE id=$1", [version]);
       expect(
-        (await client.query("SELECT 1 FROM runner_version_inputs WHERE version_id=$1", [version]))
-          .rowCount,
+        (
+          await client.query("SELECT 1 FROM runner_publication_inputs WHERE publication_id=$1", [
+            version,
+          ])
+        ).rowCount,
       ).toBe(0);
       await client.query("ROLLBACK");
     } finally {
@@ -134,24 +138,28 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
           await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
           await tx.execute(
-            sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy',repeat('x',4194304),'{}','[]','{}','')`,
+            sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy',repeat('x',4194304),'{}','[]','{}','')`,
           );
-          await indexRunnerFixture(tx, { version }, raw);
-          await indexRunnerFixture(tx, { version }, raw);
+          await indexRunnerFixture(tx, { publication: version }, raw);
+          await indexRunnerFixture(tx, { publication: version }, raw);
           const cases = (
             await tx.execute<{ raw: string }>(
-              sql`SELECT convert_from(b.data,'UTF8') AS raw FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${version}::uuid ORDER BY c.channel`,
+              sql`SELECT convert_from(b.data,'UTF8') AS raw FROM runner_publication_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.publication_id=${version}::uuid ORDER BY c.channel`,
             )
           ).rows;
           expect(cases).toHaveLength(2);
           expect(cases[0].raw).toContain("\\u0000");
           await expect(
-            indexRunnerFixture(tx, { version }, raw.replace('"expected":3', '"expected":4')),
+            indexRunnerFixture(
+              tx,
+              { publication: version },
+              raw.replace('"expected":3', '"expected":4'),
+            ),
           ).rejects.toThrow("Conflicting runner fixture");
         }),
       );
     } finally {
-      await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
+      await pool.query("DELETE FROM question_publications WHERE id=$1", [version]);
       await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
       await pool.end();
     }
@@ -180,13 +188,13 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await tx.execute(
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${"fixture-" + problem})`,
             );
-            await persistQuestionVersion(tx, published, problem, version, 3, null, (language) => {
+            await persistQuestionPublication(tx, published, problem, version, null, (language) => {
               const value = languageRuntime(language);
               return value ? { revision: value.revision, harness: value.harness } : undefined;
             });
             const indexed = (
               await tx.execute<{ sealed: boolean; n: number }>(
-                sql`SELECT i.sealed,count(c.ordinal)::int AS n FROM runner_version_inputs i JOIN runner_version_input_cases c ON c.version_id=i.version_id WHERE i.version_id=${version}::uuid GROUP BY i.sealed`,
+                sql`SELECT i.sealed,count(c.ordinal)::int AS n FROM runner_publication_inputs i JOIN runner_publication_input_cases c ON c.publication_id=i.publication_id WHERE i.publication_id=${version}::uuid GROUP BY i.sealed`,
               )
             ).rows[0];
             expect(indexed.sealed).toBe(true);
@@ -305,12 +313,12 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
-            await indexRunnerFixture(tx, { version }, raw);
+            await indexRunnerFixture(tx, { publication: version }, raw);
             const rows = (
               await tx.execute<{ channel: string; count: number }>(
-                sql`SELECT channel,count(*)::int AS count FROM runner_version_input_cases WHERE version_id=${version}::uuid GROUP BY channel ORDER BY channel`,
+                sql`SELECT channel,count(*)::int AS count FROM runner_publication_input_cases WHERE publication_id=${version}::uuid GROUP BY channel ORDER BY channel`,
               )
             ).rows;
             expect(rows).toEqual([
@@ -345,11 +353,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
       await client.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [user]);
       await client.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
       await client.query(
-        "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','','{}','[]','{}','')",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','','{}','[]','{}','')",
         [version, problem],
       );
       await client.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspace, user, version],
       );
       await client.query(
@@ -368,17 +376,18 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
         )
       ).rows[0].hash;
       await client.query(
-        "INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES($1,$2,$2)",
+        "INSERT INTO runner_publication_inputs(publication_id,metadata_hash,fixture_hash) VALUES($1,$2,$2)",
         [version, hash],
       );
-      await client.query("UPDATE runner_version_inputs SET sealed=true WHERE version_id=$1", [
-        version,
-      ]);
+      await client.query(
+        "UPDATE runner_publication_inputs SET sealed=true WHERE publication_id=$1",
+        [version],
+      );
       await client.query(
         "INSERT INTO runner_input_blobs(hash,data) VALUES(sha256(convert_to('abc','UTF8')),convert_to('abc','UTF8'))",
       );
       await client.query(
-        "INSERT INTO runner_job_inputs(job_id,version_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) VALUES($1,$2,$3,sha256(convert_to('abc','UTF8')),'r','h',1,0,false,false)",
+        "INSERT INTO runner_job_inputs(job_id,publication_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) VALUES($1,$2,$3,sha256(convert_to('abc','UTF8')),'r','h',1,0,false,false)",
         [job, version, hash],
       );
       await client.query("SAVEPOINT incomplete");
@@ -448,10 +457,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]',${JSON.stringify(defaultLimits())}::jsonb,'')`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]',${JSON.stringify(defaultLimits())}::jsonb,'')`,
             );
             await tx.execute(
-              sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
+              sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
             );
             await tx.execute(
               sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'submit','abc','hash','queued','[]')`,
@@ -459,10 +468,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             await tx.execute(
               sql`INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES(${job}::uuid,${submission}::uuid,'python','python-3.12-v1','quorem-harness-v2')`,
             );
-            await indexRunnerFixture(tx, { version }, raw);
+            await indexRunnerFixture(tx, { publication: version }, raw);
             await bindJobInputs(tx, {
               jobId: job,
-              owner: { version },
+              owner: { publication: version },
               level: 0,
               primary: "hidden",
               custom: [],
@@ -872,11 +881,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
-            await indexRunnerFixture(tx, { version }, raw);
+            await indexRunnerFixture(tx, { publication: version }, raw);
             const rows = await tx.execute<{ n: string }>(
-              sql`SELECT count(*)::text AS n FROM (${fixtureRows({ version }, 0)}) f WHERE channel='example'`,
+              sql`SELECT count(*)::text AS n FROM (${fixtureRows({ publication: version }, 0)}) f WHERE channel='example'`,
             );
             expect(rows.rows).toEqual([{ n: "1000" }]);
             throw new Error("fixture rollback");
@@ -927,9 +936,9 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
-            await indexRunnerFixture(tx, { version }, versionRaw);
+            await indexRunnerFixture(tx, { publication: version }, versionRaw);
             await tx.execute(
               sql`INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,question_epoch,invite_hash,invite_token,interviewer_invite_hash,interviewer_invite_token) VALUES(${session}::uuid,${host},'Fixture',${activeRaw}::jsonb,'python','',${epoch}::uuid,${epoch}::uuid,${session},${session},${host},${host})`,
             );
@@ -976,11 +985,11 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`,
             );
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]','{}','')`,
             );
             const canonical = (
               await tx.execute<{ fields: (string | null)[] }>(
-                sql`SELECT ARRAY[v.id::text,v.problem_id::text,v.version::text,v.title,v.difficulty,v.statement_markdown,v.signature::text,v.constraints::text,v.limits::text,v.attribution,v.sql_config::text,(v.odyssey-'levels')::text] AS fields FROM problem_versions v WHERE v.id=${version}::uuid`,
+                sql`SELECT ARRAY[v.id::text,v.problem_id::text,v.title,v.difficulty,v.statement_markdown,v.signature::text,v.constraints::text,v.limits::text,v.attribution,v.sql_config::text,(v.odyssey-'levels')::text] AS fields FROM question_publications v WHERE v.id=${version}::uuid`,
               )
             ).rows[0].fields;
             const hash = (value: Uint8Array | string) =>
@@ -999,7 +1008,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const empty = hash(new Uint8Array());
             const expected = hash(
               Buffer.concat([
-                Buffer.from("quorem-version-fixture-v1"),
+                Buffer.from("quorem-question-fixture-v2"),
                 metadataHash,
                 empty,
                 empty,
@@ -1010,15 +1019,15 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
                 empty,
               ]),
             ).toString("hex");
-            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).toBe(
-              expected,
-            );
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { publication: version })).toString("hex"),
+            ).toBe(expected);
             await tx.execute(
-              sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'["λ"]'::jsonb,'1'::jsonb)`,
+              sql`INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES(${version}::uuid,0,'["λ"]'::jsonb,'1'::jsonb)`,
             );
-            expect(Buffer.from(await fixtureSourceHash(tx, { version })).toString("hex")).not.toBe(
-              expected,
-            );
+            expect(
+              Buffer.from(await fixtureSourceHash(tx, { publication: version })).toString("hex"),
+            ).not.toBe(expected);
             const metadata = await encodeFixtureMetadata(tx, {
               id: "v",
               title: "ignored",
@@ -1042,10 +1051,10 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
             const raw = String.raw` { "z": "λ\u0000", "n": 1e+30, "a": -0 } `;
             const losslessVersion = crypto.randomUUID();
             await tx.execute(
-              sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES(${losslessVersion}::uuid,2,${problem}::uuid,'Fixture','easy','','{}','[]','{}','',${new TextEncoder().encode(raw)})`,
+              sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES(${losslessVersion}::uuid,${problem}::uuid,'Fixture','easy','','{}','[]','{}','',${new TextEncoder().encode(raw)})`,
             );
             expect(
-              Buffer.from(await fixtureSourceHash(tx, { version: losslessVersion })).toString(
+              Buffer.from(await fixtureSourceHash(tx, { publication: losslessVersion })).toString(
                 "hex",
               ),
             ).toBe(createHash("sha256").update(raw).digest("hex"));

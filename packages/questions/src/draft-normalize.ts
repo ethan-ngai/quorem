@@ -68,9 +68,9 @@ export function normalizeQuestionDraft(rawJson: string): string {
   const content = object(parseLosslessJson(rawJson)),
     p = object(content.problem);
   content.problem = p;
-  fields(p, ["id", "slug", "version", "title", "difficulty", "statementMarkdown"]);
+  fields(p, ["id", "slug", "title", "difficulty", "statementMarkdown"]);
   if (p.id === "") p.id = "00000000-0000-4000-8000-000000000000";
-  if (p.version === "") p.version = "0";
+  delete p.version;
   if (p.difficulty === "") p.difficulty = "easy";
   p.tags = array(p.tags).map((v) => (v === null ? "" : v));
   p.companies = array(p.companies).map((v) => (v === null ? "" : v));

@@ -5,7 +5,7 @@ import { useId, useLayoutEffect, useRef, useState, type UIEvent } from "react";
 import { AlertCircle, Dices, Lightbulb } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
-import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type { DevelopmentIdentity, PublishedQuestion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
 import { CatalogFilters, CatalogKindFilters, topicFilterValues } from "./CatalogFilters";
 import { QuestionIndicators } from "./QuestionIndicators";
@@ -47,7 +47,7 @@ export function ProblemPicker({
 }: {
   items: readonly { id: string; title: string; difficulty?: string }[];
   value?: string;
-  onChange: (id: string | undefined, problem?: ProblemVersion) => void;
+  onChange: (id: string | undefined, problem?: PublishedQuestion) => void;
   disabled?: boolean;
   automaticSelection?: { mode: AutomaticMode; onChange: (mode: AutomaticMode) => void };
   identity?: DevelopmentIdentity;

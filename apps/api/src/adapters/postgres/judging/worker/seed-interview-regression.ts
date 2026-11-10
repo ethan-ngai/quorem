@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { languageRuntime } from "@quorem/execution";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 const url = process.env.QUOREM_INTERVIEW_REGRESSION_URL;
 if (
   !url ||
@@ -36,12 +36,12 @@ try {
   await withNodeConnection(pool, { lifetimeMs: 20000 }, (scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${id}::uuid,'run-widths')`);
-      await persistQuestionVersion(tx, raw, id, version, 3, null, (language) => {
+      await persistQuestionPublication(tx, raw, id, version, null, (language) => {
         const v = languageRuntime(language);
         return v ? { revision: v.revision, harness: v.harness } : undefined;
       });
       await tx.execute(
-        sql`UPDATE problems SET current_version_id=${version}::uuid WHERE id=${id}::uuid`,
+        sql`UPDATE problems SET current_publication_id=${version}::uuid WHERE id=${id}::uuid`,
       );
     }),
   );

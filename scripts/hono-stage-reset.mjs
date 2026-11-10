@@ -44,27 +44,22 @@ async function fixtureTables(client) {
       .sort()
       .map(async (name) => JSON.parse(await readFile(join(dir, name), "utf8")).problem),
   );
-  const pairs = items.map((p) => ({ slug: p.slug, id: p.id, version: Number(p.version) }));
+  const pairs = items.map((p) => ({ slug: p.slug, id: p.id }));
   if (
     !pairs.length ||
-    pairs.some(
-      (p) =>
-        typeof p.slug !== "string" ||
-        !/^[a-f0-9-]{36}$/.test(p.id) ||
-        !Number.isSafeInteger(p.version),
-    )
+    pairs.some((p) => typeof p.slug !== "string" || !/^[a-f0-9-]{36}$/.test(p.id))
   )
     throw new Error("Invalid fixture catalog");
   const valid = (
     await client.query(
-      `WITH expected AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(slug text,id uuid,version integer))
-    SELECT NOT EXISTS (SELECT 1 FROM problems p LEFT JOIN expected e ON e.slug=p.slug LEFT JOIN problem_versions v ON v.problem_id=p.id AND v.id=e.id AND v.version=e.version WHERE e.id IS NULL OR p.owner_id IS NOT NULL OR p.current_version_id IS DISTINCT FROM e.id OR v.id IS NULL OR NOT v.sealed)
-      AND NOT EXISTS (SELECT 1 FROM problem_versions v LEFT JOIN problems p ON p.id=v.problem_id LEFT JOIN expected e ON e.slug=p.slug AND e.id=v.id AND e.version=v.version WHERE e.id IS NULL)
+      `WITH expected AS (SELECT * FROM jsonb_to_recordset($1::jsonb) AS x(slug text,id uuid))
+    SELECT NOT EXISTS (SELECT 1 FROM problems p LEFT JOIN expected e ON e.slug=p.slug LEFT JOIN question_publications v ON v.problem_id=p.id AND v.id=e.id WHERE e.id IS NULL OR p.owner_id IS NOT NULL OR p.current_publication_id IS DISTINCT FROM e.id OR v.id IS NULL OR NOT v.sealed)
+      AND NOT EXISTS (SELECT 1 FROM question_publications v LEFT JOIN problems p ON p.id=v.problem_id LEFT JOIN expected e ON e.slug=p.slug AND e.id=v.id WHERE e.id IS NULL)
       AND NOT EXISTS (SELECT 1 FROM quorem_auth."user" u WHERE u.id !~ '^stage-fixture-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$' OR u.name<>u.id OR u.email<>u.id||'@example.test' OR NOT u."emailVerified")
       AND NOT EXISTS (SELECT 1 FROM identity_bindings b LEFT JOIN quorem_auth."user" u ON u.id=b.subject WHERE u.id IS NULL OR b.issuer<>'https://hono-stage.quorem.app')
       AND NOT EXISTS (SELECT 1 FROM users u LEFT JOIN identity_bindings b ON b.user_id=u.id WHERE b.user_id IS NULL OR u.role<>'user' OR u.kind<>'account')
       AND NOT EXISTS (SELECT 1 FROM quorem_auth."session" s LEFT JOIN quorem_auth."user" u ON u.id=s."userId" WHERE u.id IS NULL)
-      AND NOT EXISTS (SELECT 1 FROM workspaces w LEFT JOIN users u ON u.id=w.owner_id LEFT JOIN problem_versions v ON v.id=w.problem_version_id WHERE u.id IS NULL OR v.id IS NULL OR w.kind<>'solo' OR w.match_id IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM workspaces w LEFT JOIN users u ON u.id=w.owner_id LEFT JOIN question_publications v ON v.id=w.publication_id WHERE u.id IS NULL OR v.id IS NULL OR w.kind<>'solo' OR w.match_id IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE w.id IS NULL OR w.owner_id<>s.owner_id OR s.match_id IS NOT NULL OR s.interview_id IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM deadline_prearms WHERE purpose<>'execution' OR shard<0)
       AND (NOT EXISTS (SELECT 1 FROM quorem_auth.jwks) OR EXISTS (SELECT 1 FROM quorem_auth."user")) AS valid`,
@@ -80,12 +75,12 @@ async function fixtureTables(client) {
     "problem_solution_approaches",
     "problem_tags",
     "problem_test_cases",
-    "runner_version_input_cases",
-    "runner_version_inputs",
+    "runner_publication_input_cases",
+    "runner_publication_inputs",
   ])
     checks.set(
       `public.${name}`,
-      `NOT EXISTS (SELECT 1 FROM public.${quote(name)} x LEFT JOIN problem_versions v ON v.id=x.version_id WHERE v.id IS NULL)`,
+      `NOT EXISTS (SELECT 1 FROM public.${quote(name)} x LEFT JOIN question_publications v ON v.id=x.publication_id WHERE v.id IS NULL)`,
     );
   for (const name of ["practice_case_feedback", "practice_solves"])
     checks.set(
@@ -134,11 +129,11 @@ async function fixtureTables(client) {
     );
   checks.set(
     "public.runner_job_inputs",
-    `NOT EXISTS (SELECT 1 FROM runner_job_inputs x LEFT JOIN execution_jobs j ON j.id=x.job_id LEFT JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE w.id IS NULL OR x.version_id IS DISTINCT FROM w.problem_version_id OR x.session_id IS NOT NULL)`,
+    `NOT EXISTS (SELECT 1 FROM runner_job_inputs x LEFT JOIN execution_jobs j ON j.id=x.job_id LEFT JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE w.id IS NULL OR x.publication_id IS DISTINCT FROM w.publication_id OR x.session_id IS NOT NULL)`,
   );
   checks.set(
     "public.question_exposure",
-    `NOT EXISTS (SELECT 1 FROM question_exposure x LEFT JOIN users u ON u.id=x.owner_id LEFT JOIN problem_versions v ON v.id=x.version_id WHERE u.id IS NULL OR v.id IS NULL)`,
+    `NOT EXISTS (SELECT 1 FROM question_exposure x LEFT JOIN users u ON u.id=x.owner_id LEFT JOIN question_publications v ON v.id=x.publication_id WHERE u.id IS NULL OR v.id IS NULL)`,
   );
   checks.set(
     "public.execution_verification_output_chunks",
@@ -146,11 +141,11 @@ async function fixtureTables(client) {
   );
   checks.set(
     "public.runner_input_blobs",
-    `NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE NOT EXISTS (SELECT 1 FROM runner_version_inputs v WHERE b.hash IN (v.metadata_hash,v.fixture_hash)) AND NOT EXISTS (SELECT 1 FROM runner_version_input_cases c WHERE c.blob_hash=b.hash) AND NOT EXISTS (SELECT 1 FROM runner_job_inputs j WHERE b.hash IN (j.metadata_hash,j.source_hash)) AND NOT EXISTS (SELECT 1 FROM runner_job_input_cases c WHERE c.blob_hash=b.hash))`,
+    `NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE NOT EXISTS (SELECT 1 FROM runner_publication_inputs v WHERE b.hash IN (v.metadata_hash,v.fixture_hash)) AND NOT EXISTS (SELECT 1 FROM runner_publication_input_cases c WHERE c.blob_hash=b.hash) AND NOT EXISTS (SELECT 1 FROM runner_job_inputs j WHERE b.hash IN (j.metadata_hash,j.source_hash)) AND NOT EXISTS (SELECT 1 FROM runner_job_input_cases c WHERE c.blob_hash=b.hash))`,
   );
   for (const name of [
     "problems",
-    "problem_versions",
+    "question_publications",
     "users",
     "identity_bindings",
     "workspaces",

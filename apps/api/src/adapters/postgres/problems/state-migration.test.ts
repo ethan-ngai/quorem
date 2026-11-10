@@ -56,7 +56,6 @@ it.skipIf(!url)(
           parent = index === 0 ? "00000000-0000-4000-8000-000000007502" : crypto.randomUUID();
         versions.push(id);
         p.id = id;
-        p.version = "1";
         p.slug = `state-${index}`;
         const language = p.sql ? "postgresql" : "python";
         if (p.odyssey) {
@@ -190,18 +189,18 @@ it.skipIf(!url)(
       ).toBe("stale");
       const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
         withNodeConnection(pool, { lifetimeMs: 15000 }, fn);
+      await migrate(pool, "product", fileURLToPath(new URL("../", migrations)));
       for (const [index, id] of versions.entries()) {
         const hash = await run((scope) =>
           scope.transaction(
             { readOnly: true, statementTimeoutMs: 5000, lockTimeoutMs: 1000 },
-            (tx) => fixtureSourceHash(tx, { version: id }),
+            (tx) => fixtureSourceHash(tx, { publication: id }),
           ),
         );
         expect(Buffer.from(hash).toString("hex")).toBe(hashes[index]);
       }
-      await migrate(pool, "product", fileURLToPath(new URL("../", migrations)));
       const catalog = problemQueries(run);
-      const coding = JSON.parse((await catalog.byVersion(undefined, versions[0]))!);
+      const coding = JSON.parse((await catalog.byPublication(undefined, versions[0]))!);
       expect(coding.languages.map((item: any) => item.language)).toEqual([
         "python",
         "java",
@@ -209,10 +208,10 @@ it.skipIf(!url)(
         "ocaml",
       ]);
       expect(coding.starterSource).toContain("values: list[int]");
-      const sql = JSON.parse((await catalog.byVersion(undefined, versions[1]))!);
+      const sql = JSON.parse((await catalog.byPublication(undefined, versions[1]))!);
       expect(sql).not.toHaveProperty("signature");
       expect(sql.languages.map((item: any) => item.language)).toEqual(["postgresql"]);
-      const steps = JSON.parse((await catalog.byVersion(undefined, versions[2]))!);
+      const steps = JSON.parse((await catalog.byPublication(undefined, versions[2]))!);
       expect(steps.signature.methodName).toBe(steps.odyssey.levels[0].methods[0].methodName);
       expect(steps.odyssey.levels[0]).not.toHaveProperty("hiddenCases");
       const saved = (
@@ -238,7 +237,7 @@ it.skipIf(!url)(
       const editing = JSON.parse(await author.create(actor, undefined, versions[0]));
       editing.content.problem.title = "Updated with an existing Java workspace";
       await author.update(actor, editing.id, editing.revision, JSON.stringify(editing.content));
-      expect(JSON.parse((await catalog.byVersion(undefined, versions[0]))!).title).toBe(
+      expect(JSON.parse((await catalog.byPublication(undefined, versions[0]))!).title).toBe(
         editing.content.problem.title,
       );
     } finally {

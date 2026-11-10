@@ -12,6 +12,11 @@ const fixture = readFileSync(
 );
 it("validates generated publication schema and bounded draft defaults", () => {
   expect(() => validateQuestionSchema(fixture)).not.toThrow();
+  const legacy = JSON.parse(fixture);
+  legacy.problem.version = "3";
+  const imported = normalizeQuestionDraft(JSON.stringify(legacy));
+  expect(JSON.parse(imported).problem).not.toHaveProperty("version");
+  expect(() => validateQuestionSchema(imported)).not.toThrow();
   const draft = JSON.parse(
     normalizeQuestionDraft(
       '{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}',

@@ -59,7 +59,7 @@ try {
     for (const table of [
       "public.users",
       "public.problems",
-      "public.problem_versions",
+      "public.question_publications",
       "public.workspaces",
       "public.submissions",
       "public.execution_jobs",

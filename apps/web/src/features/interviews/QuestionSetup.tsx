@@ -15,7 +15,7 @@ import type {
   DevelopmentIdentity,
   InterviewQuestionInput,
   Signature,
-  ProblemVersion,
+  PublishedQuestion,
 } from "@quorem/contracts";
 import { LanguageLogo } from "../../ui/LanguageLogo";
 import { SelectField } from "../../ui/SelectField";
@@ -82,7 +82,7 @@ export function QuestionSetup({
   const sectionId = useId();
   const [language, setLanguage] = useState<EditorLanguage>("python");
   const [selected, setSelected] = useState("");
-  const [selectedProblem, setSelectedProblem] = useState<ProblemVersion>();
+  const [selectedProblem, setSelectedProblem] = useState<PublishedQuestion>();
   const [customTitle, setCustomTitle] = useState("");
   const [statement, setStatement] = useState("");
   const [signature, setSignature] = useState<Signature>(initialSignature);

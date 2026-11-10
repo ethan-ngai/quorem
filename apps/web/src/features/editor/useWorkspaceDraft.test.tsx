@@ -2,7 +2,7 @@
 import { act, createRef, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { ProblemVersion, Workspace } from "@quorem/contracts";
+import type { PublishedQuestion, Workspace } from "@quorem/contracts";
 import type { PythonEditorHandle } from "./PythonEditor";
 import * as recovery from "./recovery";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
@@ -18,7 +18,7 @@ const problem = {
   starterSource: "starter",
   signature: { parameters: [], returnType: "int" },
   examples: [],
-} as unknown as ProblemVersion;
+} as unknown as PublishedQuestion;
 const workspace = {
   id: "w1",
   problemVersionId: "v1",

@@ -1,6 +1,6 @@
 /** @file useWorkspaceDraft.ts @description Owns editor draft persistence and recovery. @module editor */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
+import type { DevelopmentIdentity, PublishedQuestion, Workspace } from "@quorem/contracts";
 import type { PythonEditorHandle } from "./PythonEditor";
 import type { SaveState } from "./components/SaveIndicator";
 import { readCustomDrafts, writeCustomDrafts, type CustomCaseDraft } from "./customCases";
@@ -27,7 +27,7 @@ export function useWorkspaceDraft({
 }: {
   identity: DevelopmentIdentity;
   accountPresent: boolean;
-  queriedProblem?: ProblemVersion;
+  queriedProblem?: PublishedQuestion;
   loadedWorkspace?: Workspace;
   editorRef: RefObject<PythonEditorHandle | null>;
   initialSource?: string;
@@ -42,7 +42,7 @@ export function useWorkspaceDraft({
   errorHandler.current = onError;
   const matchSourceSaver = useRef(saveMatchSource);
   matchSourceSaver.current = saveMatchSource;
-  const [problem, setProblem] = useState<ProblemVersion>();
+  const [problem, setProblem] = useState<PublishedQuestion>();
   const [workspace, setWorkspace] = useState<Workspace>();
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);

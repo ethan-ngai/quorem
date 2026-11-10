@@ -15,7 +15,7 @@ import {
   participantUserId,
   type DevelopmentIdentity,
   type MatchSnapshot,
-  type ProblemVersion,
+  type PublishedQuestion,
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "../../ui/Popover";
@@ -372,7 +372,7 @@ export function MatchPage({
       }
     />
   );
-  const ledger = (problem?: ProblemVersion, saveDraft?: () => Promise<void>) => (
+  const ledger = (problem?: PublishedQuestion, saveDraft?: () => Promise<void>) => (
     <>
       <MatchLedger
         snapshot={snapshot}

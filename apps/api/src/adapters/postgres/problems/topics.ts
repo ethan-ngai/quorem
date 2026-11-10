@@ -14,16 +14,16 @@ export const topicColumns = sql`${topicLabel} AS tag, ft.slug, ft.is_foundationa
 export const isTopic = sql`${normalizedTag} NOT IN ('','sql')`;
 
 /** Canonicalize on read so sealed publication inputs and learning history stay intact. */
-function questionTopics(version: SQL) {
+function questionTopics(publication: SQL) {
   return sql`SELECT ${topicLabel} AS tag
     FROM problem_tags t ${topicJoin}
-    WHERE t.version_id=${version} AND ${isTopic}
+    WHERE t.publication_id=${publication} AND ${isTopic}
     GROUP BY 1
     ORDER BY bool_or(COALESCE(ft.is_foundational, false)) DESC, min(t.ordinal), 1`;
 }
 
-export function topicProjection(version: SQL) {
-  return sql`to_jsonb(ARRAY(${questionTopics(version)}))`;
+export function topicProjection(publication: SQL) {
+  return sql`to_jsonb(ARRAY(${questionTopics(publication)}))`;
 }
 
 export function topicMatches(selection: SQL) {

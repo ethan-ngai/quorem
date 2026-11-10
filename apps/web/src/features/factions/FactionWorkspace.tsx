@@ -2,7 +2,7 @@ import { factionName } from "@quorem/contracts/factions";
 /** @file FactionWorkspace.tsx @description Team collaboration composed into the common coding workspace. @module factions */
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { DevelopmentIdentity, MatchSnapshot, ProblemVersion } from "@quorem/contracts";
+import type { DevelopmentIdentity, MatchSnapshot, PublishedQuestion } from "@quorem/contracts";
 import type { TeamSnapshot, TeamAction } from "@quorem/contracts/factions";
 import type { CollaborationStatus } from "../collaboration/documentSync";
 import { WorkspacePage } from "../editor/WorkspacePage";
@@ -20,7 +20,7 @@ export function FactionWorkspace({
 }: {
   match: MatchSnapshot;
   identity: DevelopmentIdentity;
-  header?: (problem: ProblemVersion) => ReactNode;
+  header?: (problem: PublishedQuestion) => ReactNode;
 }) {
   const query = useQuery({
     queryKey: ["team", match.id, identity],
@@ -61,7 +61,7 @@ function TeamWorkspace({
   snapshot: TeamSnapshot;
   match: MatchSnapshot;
   identity: DevelopmentIdentity;
-  header?: (problem: ProblemVersion) => ReactNode;
+  header?: (problem: PublishedQuestion) => ReactNode;
 }) {
   const client = useQueryClient();
   // Source and collaboration version must come from the same snapshot until this epoch remounts.

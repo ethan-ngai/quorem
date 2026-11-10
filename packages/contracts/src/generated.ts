@@ -40,14 +40,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}": {
+    "/v1/question-publications/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["getProblemVersion"];
+        get: operations["getPublishedQuestion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -264,7 +264,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}/solutions": {
+    "/v1/question-publications/{id}/solutions": {
         parameters: {
             query?: never;
             header?: never;
@@ -280,7 +280,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}/complexity": {
+    "/v1/question-publications/{id}/complexity": {
         parameters: {
             query?: never;
             header?: never;
@@ -1618,12 +1618,11 @@ export interface components {
             explanation?: string;
             calls?: components["schemas"]["MethodCall"][];
         };
-        ProblemVersion: {
+        PublishedQuestion: {
             /** Format: uuid */
             id: string;
             isPrivate?: boolean;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
@@ -2042,7 +2041,6 @@ export interface components {
         QuestionProblem: {
             id: string;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
@@ -2212,7 +2210,7 @@ export interface components {
             guest: boolean;
         };
         InterviewQuestion: {
-            problem: components["schemas"]["ProblemVersion"];
+            problem: components["schemas"]["PublishedQuestion"];
             language: components["schemas"]["Language"];
             progress?: components["schemas"]["OdysseyProgress"];
             languages: components["schemas"]["Language"][];
@@ -2327,7 +2325,6 @@ export interface components {
         AuthoredQuestionProblem: {
             id: string;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
@@ -2470,7 +2467,7 @@ export interface components {
             completedAt: string;
             shareCodeAfterMatch: boolean;
             outcome: components["schemas"]["MatchOutcome"] | null;
-            problem: components["schemas"]["ProblemVersion"];
+            problem: components["schemas"]["PublishedQuestion"];
             participants: components["schemas"]["MatchReviewParticipant"][];
         };
         PartyGuestJoinRequest: {
@@ -2571,7 +2568,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
             };
             /** @description Safe application error */
@@ -2585,7 +2582,7 @@ export interface operations {
             };
         };
     };
-    getProblemVersion: {
+    getPublishedQuestion: {
         parameters: {
             query?: never;
             header?: never;
@@ -2602,7 +2599,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
             };
             /** @description Safe application error */
@@ -3016,7 +3013,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["ProblemVersion"][];
+                        items: components["schemas"]["PublishedQuestion"][];
                         total: number;
                         page: number;
                         limit: number;
@@ -5211,7 +5208,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
             };
             /** @description Safe application error */

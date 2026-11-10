@@ -18,7 +18,7 @@ export async function validateSelectedMatchProblem(tx: Transaction, owner: strin
   if (
     !(
       await tx.execute(
-        sql`SELECT 1 FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${s.selectedProblemVersionId} AND p.current_version_id=v.id AND v.sealed AND (p.owner_id IS NULL OR p.owner_id=${owner})`,
+        sql`SELECT 1 FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${s.selectedProblemVersionId} AND p.current_publication_id=v.id AND v.sealed AND (p.owner_id IS NULL OR p.owner_id=${owner})`,
       )
     ).rows.length
   )
@@ -42,7 +42,7 @@ export async function selectMatchCandidate(
   await validateSelectedMatchProblem(tx, owner, settings);
   const f = settings.questionFilters;
   const criteria: CandidateCriteria = {
-    selectedVersionId: settings.selectedProblemVersionId,
+    selectedPublicationId: settings.selectedProblemVersionId,
     difficulty: settings.difficulties.join(","),
     type: f.type === "odyssey" ? f.type : defaultCatalogFormat,
     sql: f.sql === "true" ? "true" : "false",
@@ -54,7 +54,7 @@ export async function selectMatchCandidate(
   const available = await readCandidates(tx, { userId: owner }, criteria);
   const permitted = (
     await tx.execute<{ id: string }>(
-      sql`SELECT id::text AS id FROM problem_versions WHERE sealed AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
+      sql`SELECT id::text AS id FROM question_publications WHERE sealed AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
     )
   ).rows;
   const allowed = new Set(permitted.map((x) => x.id));
@@ -80,7 +80,7 @@ export async function selectMatchCandidate(
   if (!eligible.length) throw noMatchingQuestions();
   const chosen = choice(eligible);
   const pinned = await tx.execute(
-    sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${chosen.id}::uuid AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${owner}) FOR SHARE OF p,v`,
+    sql`SELECT v.id FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id=${chosen.id}::uuid AND v.sealed AND p.current_publication_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${owner}) FOR SHARE OF p,v`,
   );
   if (!pinned.rows.length) throw noMatchingQuestions();
   const latest = await readCandidates(tx, { userId: owner }, criteria);

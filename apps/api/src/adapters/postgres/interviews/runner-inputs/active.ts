@@ -34,7 +34,7 @@ export async function createActiveRunnerFixture(
         CASE WHEN i.lossless_question IS NULL THEN i.question ELSE jsonb_set(i.question,'{_lossless_sha256}',to_jsonb(encode(sha256(i.lossless_question),'hex'))) END AS fixture,
         v.metadata_hash,
         COALESCE(jsonb_typeof(i.question->'problem'->'odyssey'),'null') <> 'null' OR COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(i.question->'hiddenCases')='array' THEN i.question->'hiddenCases' ELSE '[]'::jsonb END),0)>0 AS copy_hidden
-      FROM interviews i JOIN runner_version_inputs v ON v.version_id=${versionId}::uuid AND v.sealed
+      FROM interviews i JOIN runner_publication_inputs v ON v.publication_id=${versionId}::uuid AND v.sealed
       WHERE i.id=${sessionId}::uuid AND i.question_epoch=${questionEpoch}::uuid AND i.question->'problem'->>'id'=${versionId} FOR UPDATE OF i
     ), payload AS (
       SELECT id,fixture,lossless_question,metadata_hash,copy_hidden,sha256(convert_to(fixture::text,'UTF8')) AS fixture_id,sha256(COALESCE(lossless_question,convert_to(fixture::text,'UTF8'))) AS fixture_hash FROM source
@@ -58,7 +58,7 @@ export async function createActiveRunnerFixture(
       sql`INSERT INTO runner_snapshot_inputs(session_id,fixture_id,metadata_hash,fixture_hash) VALUES(${sessionId}::uuid,${row.fixture},${row.metadata},${row.fixture_hash})`,
     );
     await tx.execute(
-      sql`INSERT INTO runner_snapshot_input_cases(session_id,fixture_id,channel,stage,ordinal,blob_hash) SELECT ${sessionId}::uuid,${row.fixture},channel,stage,ordinal,blob_hash FROM runner_version_input_cases WHERE version_id=${versionId}::uuid AND (channel<>'hidden' OR ${row.copy_hidden})`,
+      sql`INSERT INTO runner_snapshot_input_cases(session_id,fixture_id,channel,stage,ordinal,blob_hash) SELECT ${sessionId}::uuid,${row.fixture},channel,stage,ordinal,blob_hash FROM runner_publication_input_cases WHERE publication_id=${versionId}::uuid AND (channel<>'hidden' OR ${row.copy_hidden})`,
     );
     await tx.execute(
       sql`UPDATE runner_snapshot_inputs SET sealed=true WHERE session_id=${sessionId}::uuid AND fixture_id=${row.fixture}`,

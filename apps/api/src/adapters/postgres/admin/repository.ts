@@ -44,8 +44,8 @@ export function adminOverview(run: Run): AdminOverviewReader {
                 'active7d', (SELECT count(*)::integer FROM active_accounts)
               ) FROM users WHERE kind='account'),
               'content', json_build_object(
-                'publications', (SELECT count(*)::integer FROM problems WHERE owner_id IS NULL AND current_version_id IS NOT NULL),
-                'drafts', (SELECT count(*)::integer FROM question_drafts WHERE owner_id IS NULL AND published_version_id IS NULL),
+                'publications', (SELECT count(*)::integer FROM problems WHERE owner_id IS NULL AND current_publication_id IS NOT NULL),
+                'drafts', (SELECT count(*)::integer FROM question_drafts WHERE owner_id IS NULL AND published_publication_id IS NULL),
                 'workspaces', (SELECT count(*)::integer FROM workspaces)
               ),
               'submissions', json_build_object(
@@ -60,10 +60,10 @@ export function adminOverview(run: Run): AdminOverviewReader {
               ) a), '[]'::json),
               'recentDrafts', coalesce((SELECT json_agg(json_build_object(
                 'id', d.id, 'title', coalesce(d.content->'problem'->>'title','Untitled question'),
-                'updatedAt', d.updated_at, 'editingPublication', d.edit_version_id IS NOT NULL
+                'updatedAt', d.updated_at, 'editingPublication', d.edit_publication_id IS NOT NULL
               ) ORDER BY d.updated_at DESC, d.id) FROM (
-                SELECT id, content, updated_at, edit_version_id FROM question_drafts
-                WHERE owner_id IS NULL AND published_version_id IS NULL ORDER BY updated_at DESC, id LIMIT 5
+                SELECT id, content, updated_at, edit_publication_id FROM question_drafts
+                WHERE owner_id IS NULL AND published_publication_id IS NULL ORDER BY updated_at DESC, id LIMIT 5
               ) d), '[]'::json)
             ) AS overview FROM bounds w
           `);

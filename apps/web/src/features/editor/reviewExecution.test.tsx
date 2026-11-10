@@ -3,7 +3,7 @@ import { act, createRef } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { expect, it, vi } from "vitest";
-import type { ProblemVersion, Workspace } from "@quorem/contracts";
+import type { PublishedQuestion, Workspace } from "@quorem/contracts";
 import type { PythonEditorHandle } from "./PythonEditor";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { useSubmission } from "./useSubmission";
@@ -36,7 +36,7 @@ const problem = {
   ],
   signature: { parameters: [], returnType: "int" },
   examples: [],
-} as unknown as ProblemVersion;
+} as unknown as PublishedQuestion;
 const own = {
   id: "own-review",
   kind: "review",

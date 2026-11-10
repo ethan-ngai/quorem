@@ -7,7 +7,7 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 import { sql } from "drizzle-orm";
 import { readFileSync } from "node:fs";
 import { postgresExecutionCommands } from "../../judging/worker/repository.ts";
@@ -113,7 +113,6 @@ before(async () => {
   Object.assign(fixture.problem, {
     id: version,
     slug: "lifecycle",
-    version: "1",
     title: "Lifecycle",
     tags: ["arrays"],
     statementMarkdown: "Return x plus one.",
@@ -133,12 +132,11 @@ before(async () => {
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'lifecycle')`);
-      await persistQuestionVersion(
+      await persistQuestionPublication(
         tx,
         JSON.stringify(fixture),
         problem,
         version,
-        1,
         null,
         (language) => {
           const runtime = languageRuntime(language);
@@ -377,10 +375,10 @@ void test("only published owner-visible selected questions are admitted", async 
     privateProblem,
   ]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Private','easy','','{}','[]','{}','test')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Private','easy','','{}','[]','{}','test')",
     [privateVersion, privateProblem],
   );
-  await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [
+  await pool.query("UPDATE problems SET current_publication_id=$2 WHERE id=$1", [
     privateProblem,
     privateVersion,
   ]);
@@ -705,11 +703,11 @@ void test("selected SQL question gives each participant a PostgreSQL workspace",
     v = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug,owner_id) VALUES($1,$2,'match-host')", [p, p]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',NULL,'[]','{}','test','{}')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,'SQL','easy','',NULL,'[]','{}','test','{}')",
     [v, p],
   );
-  await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [p, v]);
-  await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [v]);
+  await pool.query("UPDATE problems SET current_publication_id=$2 WHERE id=$1", [p, v]);
+  await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [v]);
   const id = (
     (await repo.create(host, "sql-room", normalizeSettings({ selectedProblemVersionId: v }))) as {
       id: string;
@@ -1381,7 +1379,7 @@ for (const accepted of [false, true])
     const { ruleApproval } = await import("@quorem/contracts/match-rules");
     const room = await rulesRoom({ ...matchPreset(), victory: "high_score" });
     await activateRulesRoom(room);
-    const question = JSON.parse((await problemQueries(run).byVersion(room.actor, version))!);
+    const question = JSON.parse((await problemQueries(run).byPublication(room.actor, version))!);
     assert.deepEqual(question.hiddenCaseCounts, { 0: 1 });
     assert.equal(question.hiddenCases, undefined);
     const workspace = (

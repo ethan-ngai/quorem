@@ -6,7 +6,7 @@ import type {
   PartySnapshot,
   MatchSnapshot,
   MatchReview,
-  ProblemVersion,
+  PublishedQuestion,
   Workspace,
 } from "@quorem/contracts";
 import { matchPreset } from "@quorem/contracts/match-rules";
@@ -58,7 +58,7 @@ void test(
       throw new Error("Party fixture transition did not complete");
     }
     try {
-      const problem = await json<ProblemVersion>(
+      const problem = await json<PublishedQuestion>(
         "/v1/problems/sql-positive-items",
         alice,
         undefined,

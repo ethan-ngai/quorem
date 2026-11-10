@@ -4,7 +4,7 @@ import { parseLosslessJson, type JsonValue } from "@quorem/questions";
 import { ApplicationError } from "../../../application/error.ts";
 import type { TeamAction, TeamVote } from "@quorem/contracts/factions";
 import { fingerprint } from "../matches/lifecycle/crypto.ts";
-import { projectAuthorizedVersion } from "../problems/queries/repository.ts";
+import { projectAuthorizedPublication } from "../problems/queries/repository.ts";
 import { projectQuestionRuntime } from "../problems/runtime.ts";
 import { finishMatch, matchEvent } from "../matches/reconcile/repository.ts";
 import type { TeamActionExecutor } from "./votes.ts";
@@ -28,10 +28,10 @@ export function teamActionExecutor(paid: TeamActionExecutor): TeamActionExecutor
           if (typeof value.language !== "string") throw invalid();
           const w = (
             await tx.execute<{ version: string }>(
-              sql`SELECT problem_version_id::text AS version FROM workspaces WHERE id=${team.workspaceId}::uuid`,
+              sql`SELECT publication_id::text AS version FROM workspaces WHERE id=${team.workspaceId}::uuid`,
             )
           ).rows[0];
-          const raw = await projectAuthorizedVersion(tx, w.version);
+          const raw = await projectAuthorizedPublication(tx, w.version);
           if (!raw) throw invalid();
           projectQuestionRuntime(
             parseLosslessJson(raw) as { [key: string]: JsonValue },
@@ -83,10 +83,10 @@ export function teamActionExecutor(paid: TeamActionExecutor): TeamActionExecutor
       }
       const workspace = (
         await tx.execute<{ version: string; language: string }>(
-          sql`SELECT problem_version_id::text AS version,language FROM workspaces WHERE id=${team.workspaceId}::uuid`,
+          sql`SELECT publication_id::text AS version,language FROM workspaces WHERE id=${team.workspaceId}::uuid`,
         )
       ).rows[0];
-      const raw = await projectAuthorizedVersion(tx, workspace.version);
+      const raw = await projectAuthorizedPublication(tx, workspace.version);
       if (!raw) throw invalid();
       const problem = parseLosslessJson(raw) as { [key: string]: JsonValue };
       const language = action.kind === "language" ? action.language : workspace.language;
@@ -103,7 +103,7 @@ export function teamActionExecutor(paid: TeamActionExecutor): TeamActionExecutor
       if (language !== workspace.language) {
         const selected = (
           await tx.execute<{ id: string }>(
-            sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id,team) SELECT ${crypto.randomUUID()}::uuid,owner_id,problem_version_id,${language},'match',match_id,team FROM workspaces WHERE id=${team.workspaceId}::uuid ON CONFLICT(match_id,owner_id,language) WHERE kind='match' DO UPDATE SET owner_id=excluded.owner_id RETURNING id::text`,
+            sql`INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id,team) SELECT ${crypto.randomUUID()}::uuid,owner_id,publication_id,${language},'match',match_id,team FROM workspaces WHERE id=${team.workspaceId}::uuid ON CONFLICT(match_id,owner_id,language) WHERE kind='match' DO UPDATE SET owner_id=excluded.owner_id RETURNING id::text`,
           )
         ).rows[0];
         workspaceId = selected.id;

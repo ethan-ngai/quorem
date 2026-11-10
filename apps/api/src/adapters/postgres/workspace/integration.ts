@@ -95,13 +95,13 @@ before(async () => {
     [privateProblem, privateVersion],
   ]) {
     await pool.query(
-      "insert into problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_stages,lossless_fixture) values($1,$2,1,'Title','easy','statement',CASE WHEN $3::jsonb IS NULL OR $3::jsonb='null'::jsonb THEN '{}'::jsonb ELSE NULL END,'[]'::jsonb,'{}'::jsonb,'fixture',$3::jsonb,$4,$5)",
+      "insert into question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_stages,lossless_fixture) values($1,$2,'Title','easy','statement',CASE WHEN $3::jsonb IS NULL OR $3::jsonb='null'::jsonb THEN '{}'::jsonb ELSE NULL END,'[]'::jsonb,'{}'::jsonb,'fixture',$3::jsonb,$4,$5)",
       [v, p, JSON.stringify(levels), Buffer.from(sidecar), Buffer.from("SECRET HIDDEN")],
     );
-    await pool.query("update problems set current_version_id=$1 where id=$2", [v, p]);
+    await pool.query("update problems set current_publication_id=$1 where id=$2", [v, p]);
   }
   await pool.query(
-    "insert into matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,problem_version_id) values($1,'workspace-host','workspace-invite',clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),$2)",
+    "insert into matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,publication_id) values($1,'workspace-host','workspace-invite',clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),$2)",
     [match, privateVersion],
   );
   await pool.query(
@@ -113,7 +113,7 @@ before(async () => {
     [hash, match],
   );
   await pool.query(
-    "insert into workspaces(id,owner_id,problem_version_id,language,kind,match_id) values($1,'workspace-guest',$2,'python','match',$3)",
+    "insert into workspaces(id,owner_id,publication_id,language,kind,match_id) values($1,'workspace-guest',$2,'python','match',$3)",
     [matchWorkspace, privateVersion, match],
   );
 });
@@ -158,10 +158,10 @@ void test("unlocked stages preserve exact public sidecars and redact future/priv
   assert.equal(raw.includes("SECRET FUTURE"), false);
   assert.equal(raw.includes("SECRET HIDDEN"), false);
   assert.equal(raw.includes("SECRET REFERENCE"), false);
-  await pool.query(
-    "insert into odyssey_progress(scope_id,problem_version_id,level) values($1,$2,2)",
-    [workspaceId, version],
-  );
+  await pool.query("insert into odyssey_progress(scope_id,publication_id,level) values($1,$2,2)", [
+    workspaceId,
+    version,
+  ]);
   raw = await new Response(await repo.odyssey(alice, workspaceId)).text();
   assert.ok(raw.includes("SECRET FUTURE"));
   assert.ok(raw.includes("9007199254740995"));

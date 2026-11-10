@@ -1,7 +1,7 @@
 import { primarySignature } from "@quorem/questions";
 import { AuthoringTabs } from "../../../ui/AuthoringTabs";
 /** @file WorkspaceTests.tsx @description Shared test tabs, verdict and case browser. @module editor */
-import type { ProblemVersion, Submission, OdysseyProgress } from "@quorem/contracts";
+import type { PublishedQuestion, Submission, OdysseyProgress } from "@quorem/contracts";
 import type { CustomCaseDraft, RunSnapshot } from "../customCases";
 import { Icon } from "../../../ui/Icon";
 import { ResultContent } from "./ResultContent";
@@ -26,7 +26,7 @@ export function WorkspaceTests({
   detailsVisible = false,
   hiddenCaseDetails,
 }: {
-  problem: ProblemVersion;
+  problem: PublishedQuestion;
   submission?: Submission;
   busy: boolean;
   pendingKind?: Submission["kind"];

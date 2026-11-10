@@ -16,7 +16,7 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import type {
   PartySettings,
   DevelopmentIdentity,
-  ProblemVersion,
+  PublishedQuestion,
   FilterMatch,
 } from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
@@ -39,9 +39,9 @@ export const defaultMatchSettings: PartySettings = {
   rules: matchPreset(),
 };
 
-type MatchProblem = Pick<ProblemVersion, "id" | "title"> & {
+type MatchProblem = Pick<PublishedQuestion, "id" | "title"> & {
   difficulty: string;
-} & Partial<Pick<ProblemVersion, "sql" | "odyssey" | "tags" | "companies">>;
+} & Partial<Pick<PublishedQuestion, "sql" | "odyssey" | "tags" | "companies">>;
 
 function matchesValues(
   selection: string | undefined,
@@ -139,7 +139,7 @@ export function MatchSettings({
       active = false;
     };
   }, [identity, catalog, preview]);
-  const [pickedProblem, setPickedProblem] = useState<ProblemVersion>();
+  const [pickedProblem, setPickedProblem] = useState<PublishedQuestion>();
   const pools = value.difficulties ?? [value.difficulty ?? "easy"];
   const selectedId = preview ? undefined : value.selectedProblemVersionId;
   const knownProblem =

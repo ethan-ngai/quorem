@@ -50,7 +50,6 @@
     },
     "statementMarkdown": "Return the positive item IDs in ascending order.",
     "tags": ["Database"],
-    "title": "Positive Items",
-    "version": "1"
+    "title": "Positive Items"
   }
 }

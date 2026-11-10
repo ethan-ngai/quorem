@@ -3,12 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TypedCaseInput } from "./TypedCaseInput";
 import { TestCases } from "./TestCases";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 
-const problem: ProblemVersion = {
+const problem: PublishedQuestion = {
   id: "fixture",
   slug: "fixture",
-  version: "1",
   title: "Fixture",
   difficulty: "easy",
   tags: [],

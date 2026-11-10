@@ -5,7 +5,7 @@ import "./machine-values.css";
 import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
-import type { MethodCall, ProblemVersion, Signature } from "@quorem/contracts";
+import type { MethodCall, PublishedQuestion, Signature } from "@quorem/contracts";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
@@ -81,7 +81,7 @@ export function CaseValue({
   parameter?: boolean;
   tone?: string;
   type?: string;
-  sql?: ProblemVersion["sql"];
+  sql?: PublishedQuestion["sql"];
   sqlTypes?: readonly string[];
   nodeContext?: NodeContext;
 }) {
@@ -179,7 +179,7 @@ export function CaseOutput({
   preview?: boolean;
   returnType?: string;
   nodeContext?: NodeContext;
-  sql?: ProblemVersion["sql"];
+  sql?: PublishedQuestion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
   const tone = verdictTone(result.status);

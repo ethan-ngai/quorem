@@ -8,7 +8,7 @@ Submissions belong to exactly one workspace or interview. Each interview submiss
 
 Expired execution attempts may be reclaimed only after teardown of that exact attempt. The database guard rejects an older judge replacing or finalizing an expired attempt without the new confirmation; drain old judges during rollout because they can retry and stall affected work. Rolling back the judge binary while this guard remains enabled prevents old judges from recovering expired attempts.
 
-Workspace identity is immutable. Its language must be available for its problem version; submission and participant references must match its owner and match context.
+Workspace identity is immutable. Its language must be available for its published question; submission and participant references must match its owner and match context.
 
 The current interview document lives on the session. Language drafts store inactive documents; switching consumes the selected draft and saves the outgoing document atomically.
 
@@ -41,7 +41,7 @@ Before downgrading case readers, run this read-only check after draining enabled
 ```sql
 SELECT
   (SELECT count(*) FROM question_drafts WHERE lossless_content IS NOT NULL) AS drafts,
-  (SELECT count(*) FROM problem_versions WHERE lossless_fixture IS NOT NULL OR lossless_public IS NOT NULL OR lossless_stages IS NOT NULL) AS versions,
+  (SELECT count(*) FROM question_publications WHERE lossless_fixture IS NOT NULL OR lossless_public IS NOT NULL OR lossless_stages IS NOT NULL) AS versions,
   (SELECT count(*) FROM interviews WHERE lossless_question IS NOT NULL) AS interviews,
   (SELECT count(*) FROM interview_question_snapshots WHERE lossless_fixture IS NOT NULL) AS snapshots,
   (SELECT count(*) FROM submissions WHERE lossless_cases IS NOT NULL) AS submissions;

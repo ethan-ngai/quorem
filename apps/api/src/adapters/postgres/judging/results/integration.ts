@@ -87,11 +87,11 @@ before(async () => {
   );
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,'results-problem')", [problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Test','easy','','{}','[]','{}','test')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Test','easy','','{}','[]','{}','test')",
     [version, problem],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'results-alice',$2,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,'results-alice',$2,'python')",
     [workspace, version],
   );
   for (const [id, state] of [
@@ -121,7 +121,7 @@ before(async () => {
     [match],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,'results-guest',$2,'python','match',$3)",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,'results-guest',$2,'python','match',$3)",
     [matchWorkspace, version, match],
   );
   await pool.query(

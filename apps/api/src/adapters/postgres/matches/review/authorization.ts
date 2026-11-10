@@ -33,11 +33,11 @@ export async function authorizeReview(
       host: string;
       hostEnabled: boolean;
     }>(sql`
-    SELECT to_char(m.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.problem_version_id::text AS "problemId",m.outcome,m.host_owner_id AS host,NOT host.disabled AS "hostEnabled"
+    SELECT to_char(m.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.publication_id::text AS "problemId",m.outcome,m.host_owner_id AS host,NOT host.disabled AS "hostEnabled"
     FROM matches m JOIN match_participants viewer ON viewer.match_id=m.id AND viewer.owner_id=${principal.userId}
     JOIN users u ON u.id=viewer.owner_id AND NOT u.disabled JOIN users host ON host.id=m.host_owner_id
     WHERE m.id=${matchId}::uuid AND m.started_at IS NOT NULL AND m.state IN ('completed','cancelled')
-      AND m.completed_at>clock_timestamp()-interval '24 hours' AND m.problem_version_id IS NOT NULL
+      AND m.completed_at>clock_timestamp()-interval '24 hours' AND m.publication_id IS NOT NULL
       AND (${!settled} OR NOT (${reviewPending(sql`m.id`)}))
       AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
         WHERE later.owner_id=viewer.owner_id AND next.started_at IS NOT NULL AND (next.started_at,next.id)>(m.started_at,m.id))
@@ -65,7 +65,7 @@ export async function authorizeFrozenOwnWorkspace(
   const row = await tx.execute(sql`
     SELECT 1 FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${principal.userId} AND p.forfeited
     JOIN users u ON u.id=p.owner_id AND NOT u.disabled JOIN users host ON host.id=m.host_owner_id AND NOT host.disabled
-    WHERE m.id=${matchId}::uuid AND m.problem_version_id=${versionId}::uuid AND m.state IN ('active','finalizing')
+    WHERE m.id=${matchId}::uuid AND m.publication_id=${versionId}::uuid AND m.state IN ('active','finalizing')
       AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
         WHERE later.owner_id=p.owner_id AND next.started_at IS NOT NULL AND (next.started_at,next.id)>(m.started_at,m.id))
   `);

@@ -1,4 +1,4 @@
-/** @file repository.ts @description Atomic question drafts and immutable publication. @module problems */
+/** @file repository.ts @description Atomic question drafts and publication edits. @module problems */
 import { sql } from "drizzle-orm";
 import {
   classifyDatabaseError,
@@ -23,7 +23,7 @@ import type {
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
 import { object, storageProjection } from "../storage.ts";
-import { persistQuestionVersion } from "../publication.ts";
+import { persistQuestionPublication } from "../publication.ts";
 import { readAuthoringQuestion } from "../private-content.ts";
 import { preserveCaseLiterals } from "../case-literals.ts";
 import { authoringQueries } from "./queries.ts";
@@ -105,7 +105,7 @@ type DraftRow = {
   ownerId: string | null;
 };
 const draftColumns = sql.raw(
-  `id::text AS id,revision::text AS revision,convert_from(COALESCE(lossless_content,convert_to(content::text,'UTF8')),'UTF8') AS content,published_version_id::text AS "publishedVersionId",edit_version_id::text AS "editVersionId",edit_base AS "editBase",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt",owner_id AS "ownerId"`,
+  `id::text AS id,revision::text AS revision,convert_from(COALESCE(lossless_content,convert_to(content::text,'UTF8')),'UTF8') AS content,published_publication_id::text AS "publishedVersionId",edit_publication_id::text AS "editVersionId",edit_base AS "editBase",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt",owner_id AS "ownerId"`,
 );
 function draftJson(row: DraftRow): string {
   const d: Obj = {
@@ -144,7 +144,7 @@ async function create(
   const data = store(normal(raw));
   const rows = (
     await tx.execute<DraftRow>(
-      sql`INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id,import_digest,edit_version_id,edit_base) VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${admin ? null : actor.userId},${digest ?? null},${edit?.id ?? null}::uuid,${edit?.token ?? null}) RETURNING ${draftColumns}`,
+      sql`INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id,import_digest,edit_publication_id,edit_base) VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${admin ? null : actor.userId},${digest ?? null},${edit?.id ?? null}::uuid,${edit?.token ?? null}) RETURNING ${draftColumns}`,
     )
   ).rows;
   return draftJson(rows[0]);
@@ -216,7 +216,7 @@ async function importItem(
   const [receipt] = (
     await tx.execute<{ id: string }>(sql`
       SELECT id::text AS id FROM question_drafts
-      WHERE created_by=${actor.userId} AND import_digest=${digest} AND published_version_id IS NULL
+      WHERE created_by=${actor.userId} AND import_digest=${digest} AND published_publication_id IS NULL
         AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))
     `)
   ).rows;
@@ -230,7 +230,7 @@ async function importItem(
       source: string | null;
     }>(sql`
     SELECT v.id::text,v.xmin::text AS token,p.slug,p.leetcode_id::text AS source
-    FROM problems p LEFT JOIN problem_versions v ON v.id=p.current_version_id
+    FROM problems p LEFT JOIN question_publications v ON v.id=p.current_publication_id
     WHERE (p.owner_id IS NULL OR p.owner_id=${actor.userId})
       AND (p.slug=${slug} OR p.leetcode_id=${leetcode}::integer)
   `)
@@ -248,7 +248,7 @@ async function importItem(
 
     const [saved] = (
       await tx.execute<DraftRow>(sql`
-      SELECT ${draftColumns} FROM question_drafts WHERE published_version_id=${published.id}::uuid
+      SELECT ${draftColumns} FROM question_drafts WHERE published_publication_id=${published.id}::uuid
       ORDER BY updated_at DESC,id LIMIT 1
     `)
     ).rows;
@@ -286,8 +286,8 @@ async function importItem(
     await tx.execute<DraftRow>(sql`
       SELECT ${draftColumns} FROM question_drafts
       WHERE (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))
-        AND published_version_id IS NULL
-        AND (content->'problem'->>'slug'=${published?.slug ?? slug} OR content->'problem'->>'leetcodeId'=${leetcode} OR edit_version_id=${edit?.id ?? null}::uuid)
+        AND published_publication_id IS NULL
+        AND (content->'problem'->>'slug'=${published?.slug ?? slug} OR content->'problem'->>'leetcodeId'=${leetcode} OR edit_publication_id=${edit?.id ?? null}::uuid)
       LIMIT 2
     `)
   ).rows;
@@ -331,45 +331,43 @@ async function editPublication(
   raw: string,
   runtime: RuntimeResolver,
 ): Promise<string> {
-  const versionId = (draft.publishedVersionId ?? draft.editVersionId)!;
+  const publicationId = (draft.publishedVersionId ?? draft.editVersionId)!;
   const { c, p } = preparePublication(raw, runtime);
   await lockIdentity(tx, str(p.slug), sourceId(p));
-  const parent = await lockPublication(tx, versionId);
-  if (parent.current !== versionId || (draft.editVersionId && parent.token !== draft.editBase))
+  const parent = await lockPublication(tx, publicationId);
+  if (parent.current !== publicationId || (draft.editVersionId && parent.token !== draft.editBase))
     throw conflict();
   if (parent.owner !== draft.ownerId || parent.slug !== p.slug)
     throw bad("Keep the published question slug and ownership");
   if (parent.owner !== null && sourceId(p) !== null)
     throw bad("LeetCode IDs are reserved for global questions");
-  p.id = versionId;
-  p.version = String(parent.version);
-  await assertPublicationIdle(tx, versionId);
+  p.id = publicationId;
+  await assertPublicationIdle(tx, publicationId);
   const missingLanguage = (
     await tx.execute(sql`
-    SELECT 1 FROM workspaces WHERE problem_version_id=${versionId}::uuid
+    SELECT 1 FROM workspaces WHERE publication_id=${publicationId}::uuid
       AND language NOT IN (SELECT jsonb_array_elements_text(${JSON.stringify(questionLanguages(!!p.sql))}::jsonb))
     LIMIT 1
   `)
   ).rows.length;
   if (missingLanguage) throw bad("Keep languages used by existing workspaces");
-  await tx.execute(sql`SET CONSTRAINTS workspace_problem_version_fkey,
-    matches_problem_version_id_fkey,matches_selected_problem_version_id_fkey,
-    question_drafts_published_version_id_fkey,question_drafts_edit_version_fkey,
-    runner_job_inputs_version_id_fkey,question_exposure_version_id_fkey,question_learning_events_version_id_fkey,
-    recommendation_impressions_version_id_fkey DEFERRED`);
+  await tx.execute(sql`SET CONSTRAINTS workspace_publication_fkey,
+    matches_publication_id_fkey,matches_selected_publication_id_fkey,
+    question_drafts_published_publication_id_fkey,question_drafts_edit_publication_fkey,
+    runner_job_inputs_publication_id_fkey,question_exposure_publication_id_fkey,question_learning_events_publication_id_fkey,
+    recommendation_impressions_publication_id_fkey DEFERRED`);
   // Recommendation metadata belongs to the stable publication ID.
   await tx.execute(
-    sql`SELECT set_config('quorem.question_replacement',${versionId}::uuid::text,true)`,
+    sql`SELECT set_config('quorem.question_replacement',${publicationId}::uuid::text,true)`,
   );
-  await removePublicationRow(tx, versionId);
+  await removePublicationRow(tx, publicationId);
   const replacement = stringifyLosslessJson(c);
   await tx.execute(sql`SELECT set_config('quorem.lossless_case_write','v1',true)`);
-  await persistQuestionVersion(
+  await persistQuestionPublication(
     tx,
     replacement,
     parent.id,
-    versionId,
-    parent.version,
+    publicationId,
     parent.owner,
     runtime,
   );
@@ -394,11 +392,11 @@ async function publish(
     const replacement = await editPublication(tx, actor, d, d.content, runtime);
     const updated = store(replacement);
     await tx.execute(
-      sql`DELETE FROM question_drafts WHERE published_version_id=${d.editVersionId}::uuid`,
+      sql`DELETE FROM question_drafts WHERE published_publication_id=${d.editVersionId}::uuid`,
     );
     const [saved] = (
       await tx.execute<DraftRow>(sql`
-      UPDATE question_drafts SET published_version_id=edit_version_id,edit_version_id=NULL,edit_base=NULL,import_digest=NULL,
+      UPDATE question_drafts SET published_publication_id=edit_publication_id,edit_publication_id=NULL,edit_base=NULL,import_digest=NULL,
         content=${updated.safe}::jsonb,lossless_content=${updated.lossless},revision=revision+1,
         updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id=${id}::uuid RETURNING ${draftColumns}
     `)
@@ -429,15 +427,13 @@ async function publish(
     )
   ).rows;
   if (!existing) throw bad("Choose a new question slug");
-  const versionId = crypto.randomUUID();
-  p.id = versionId;
-  p.version = "1";
-  await persistQuestionVersion(
+  const publicationId = crypto.randomUUID();
+  p.id = publicationId;
+  await persistQuestionPublication(
     tx,
     stringifyLosslessJson(c),
     existing.id,
-    versionId,
-    1,
+    publicationId,
     privateOwner,
     runtime,
   );
@@ -448,15 +444,15 @@ async function publish(
       preserveCaseLiterals(operatorSeedSource, publishedContent) ?? updated.lossless;
   const [saved] = (
     await tx.execute<DraftRow>(
-      sql`UPDATE question_drafts SET owner_id=${privateOwner},published_version_id=${versionId}::uuid,import_digest=NULL,content=${updated.safe}::jsonb,lossless_content=${updated.lossless},revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
+      sql`UPDATE question_drafts SET owner_id=${privateOwner},published_publication_id=${publicationId}::uuid,import_digest=NULL,content=${updated.safe}::jsonb,lossless_content=${updated.lossless},revision=revision+1,updated_by=${actor.userId},updated_at=clock_timestamp() WHERE id::text=${id} RETURNING ${draftColumns}`,
     )
   ).rows;
   await tx.execute(
-    sql`INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES(${"publish:" + versionId},${actor.userId},${actor.userId},'questions.publish',${id},'Explicit publication')`,
+    sql`INSERT INTO access_audit(operation_id,actor,user_id,action,scope,reason) VALUES(${"publish:" + publicationId},${actor.userId},${actor.userId},'questions.publish',${id},'Explicit publication')`,
   );
   return draftJson(saved);
 }
-async function cloneVersion(
+async function clonePublication(
   tx: Transaction,
   actor: AuthorActor,
   admin: boolean,
@@ -496,21 +492,23 @@ function authorizePublicationDeletion(
 }
 
 /** Caller holds the publication lock and has checked ownership and step-up. */
-async function deletePublicationVersion(
+async function deletePublication(
   tx: Transaction,
-  versionId: string,
-  version: Awaited<ReturnType<typeof lockPublication>>,
+  publicationId: string,
+  publication: Awaited<ReturnType<typeof lockPublication>>,
 ): Promise<void> {
-  await assertPublicationIdle(tx, versionId);
-  if (version.current !== versionId) throw conflict();
-  await tx.execute(sql`UPDATE problems SET current_version_id=NULL WHERE id=${version.id}::uuid`);
-  await detachPublication(tx, versionId);
-  await removePublicationRow(tx, versionId);
-  await tx.execute(sql`DELETE FROM problems p WHERE p.id=${version.id}::uuid
-          AND NOT EXISTS (SELECT 1 FROM problem_versions v WHERE v.problem_id=p.id)`);
+  await assertPublicationIdle(tx, publicationId);
+  if (publication.current !== publicationId) throw conflict();
+  await tx.execute(
+    sql`UPDATE problems SET current_publication_id=NULL WHERE id=${publication.id}::uuid`,
+  );
+  await detachPublication(tx, publicationId);
+  await removePublicationRow(tx, publicationId);
+  await tx.execute(sql`DELETE FROM problems p WHERE p.id=${publication.id}::uuid
+          AND NOT EXISTS (SELECT 1 FROM question_publications v WHERE v.problem_id=p.id)`);
 }
 
-/** Open one bounded transaction per authoring operation; publication never leaves a partial version. */
+/** Open one bounded transaction per authoring operation; publication writes are atomic. */
 function createQuestionAuthoring(
   run: AuthoringScope,
   runtime: RuntimeResolver,
@@ -550,9 +548,9 @@ function createQuestionAuthoring(
             } else if (batch.action === "delete-drafts") {
               await deleteDraft(tx, actor, admin, id, batch.items[index].revision);
             } else {
-              const version = await lockPublication(tx, id);
-              authorizePublicationDeletion(actor, admin, version.owner);
-              await deletePublicationVersion(tx, id, version);
+              const publication = await lockPublication(tx, id);
+              authorizePublicationDeletion(actor, admin, publication.owner);
+              await deletePublication(tx, id, publication);
             }
             items.push({ id, status: "succeeded" });
           } catch (error) {
@@ -576,26 +574,26 @@ function createQuestionAuthoring(
         return draftJson(await readDraft(tx, actor, admin, id));
       }, true);
     },
-    async create(actor, raw, versionId) {
+    async create(actor, raw, publicationId) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, true);
-        if ((raw === undefined) === (versionId === undefined))
+        if ((raw === undefined) === (publicationId === undefined))
           throw bad("Provide content or problemVersionId");
-        const target = versionId ? await lockPublication(tx, versionId) : undefined;
-        if (target && target.current !== versionId) throw missing();
+        const target = publicationId ? await lockPublication(tx, publicationId) : undefined;
+        if (target && target.current !== publicationId) throw missing();
         if (target && target.owner !== actor.userId && (target.owner !== null || !admin))
           throw missing();
         const source =
           raw ??
-          (versionId
-            ? await cloneVersion(tx, actor, admin, versionId)
+          (publicationId
+            ? await clonePublication(tx, actor, admin, publicationId)
             : (() => {
                 throw bad("Provide content or problemVersionId");
               })());
-        if (target && versionId) {
+        if (target && publicationId) {
           const [existing] = (
             await tx.execute<DraftRow>(sql`
-            SELECT ${draftColumns} FROM question_drafts WHERE published_version_id=${versionId}::uuid
+            SELECT ${draftColumns} FROM question_drafts WHERE published_publication_id=${publicationId}::uuid
             ORDER BY updated_at DESC,id LIMIT 1
           `)
           ).rows;
@@ -603,8 +601,8 @@ function createQuestionAuthoring(
           const data = store(source);
           const [row] = (
             await tx.execute<DraftRow>(sql`
-            INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id,published_version_id)
-            VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${target.owner},${versionId}::uuid)
+            INSERT INTO question_drafts(content,lossless_content,created_by,updated_by,owner_id,published_publication_id)
+            VALUES(${data.safe}::jsonb,${data.lossless},${actor.userId},${actor.userId},${target.owner},${publicationId}::uuid)
             RETURNING ${draftColumns}
           `)
           ).rows;
@@ -694,8 +692,8 @@ function createQuestionAuthoring(
         const { admin } = await author(tx, actor, false);
         const d = await readDraft(tx, actor, admin, id);
         if (!d.publishedVersionId) throw missing();
-        const version = await lockPublication(tx, d.publishedVersionId);
-        if (version.current !== d.publishedVersionId) throw missing();
+        const publication = await lockPublication(tx, d.publishedVersionId);
+        if (publication.current !== d.publishedVersionId) throw missing();
         return JSON.stringify({
           ...(await publicationImpact(tx, d.publishedVersionId)),
         });
@@ -708,9 +706,9 @@ function createQuestionAuthoring(
         revision(rev);
         if (!d.publishedVersionId || d.revision !== rev) throw conflict();
         authorizePublicationDeletion(actor, admin, d.ownerId);
-        const versionId = d.publishedVersionId;
-        const version = await lockPublication(tx, versionId);
-        await deletePublicationVersion(tx, versionId, version);
+        const publicationId = d.publishedVersionId;
+        const publication = await lockPublication(tx, publicationId);
+        await deletePublication(tx, publicationId, publication);
         return '{"deleted":true}';
       });
     },

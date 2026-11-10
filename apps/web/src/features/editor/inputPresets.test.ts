@@ -6,7 +6,7 @@ import {
   registerInputPreset,
   resolveInputPreset,
 } from "./inputPresets";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCases";
 
 describe("typed input presets", () => {
@@ -84,10 +84,9 @@ describe("typed input presets", () => {
   });
 
   it("seeds configured structured strings in their stored representation", () => {
-    const problem: ProblemVersion = {
+    const problem: PublishedQuestion = {
       id: "one",
       slug: "echo",
-      version: "1",
       title: "Echo",
       difficulty: "easy",
       tags: [],

@@ -20,7 +20,7 @@ export function paidTeamActions(config: AdmissionOptions): TeamActionExecutor {
       if (value.kind === "submit") {
         const level = (
           await tx.execute<{ level: number }>(
-            sql`SELECT COALESCE(o.level,CASE WHEN v.odyssey IS NULL THEN 0 ELSE 1 END) AS level FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=${team.workspaceId}::uuid`,
+            sql`SELECT COALESCE(o.level,CASE WHEN v.odyssey IS NULL THEN 0 ELSE 1 END) AS level FROM workspaces w JOIN question_publications v ON v.id=w.publication_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.publication_id=w.publication_id WHERE w.id=${team.workspaceId}::uuid`,
           )
         ).rows[0].level;
         action = {

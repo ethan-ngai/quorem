@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { DevelopmentIdentity, MatchReview, ProblemVersion } from "@quorem/contracts";
+import type { DevelopmentIdentity, MatchReview, PublishedQuestion } from "@quorem/contracts";
 import { PythonEditor, type EditorTheme, type PythonEditorHandle } from "../editor/PythonEditor";
 import { useWorkspaceDraft } from "../editor/useWorkspaceDraft";
 import { readBrowserDraft } from "../editor/recovery";
@@ -28,7 +28,7 @@ export function ReviewComparison({
   identity: DevelopmentIdentity;
   matchId: string;
   participant: MatchReview["participants"][number];
-  problem: ProblemVersion;
+  problem: PublishedQuestion;
   theme: EditorTheme;
   colorScheme: EditorScheme;
   fontSize: number;

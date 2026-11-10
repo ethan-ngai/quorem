@@ -8,7 +8,6 @@ export function blankQuestion(): QuestionContent {
     problem: {
       id: "00000000-0000-4000-8000-000000000000",
       slug: "",
-      version: "1",
       title: "",
       difficulty: "easy",
       tags: [],

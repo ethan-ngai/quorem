@@ -20,7 +20,7 @@ export function visibleProblem(actor: ProblemActor | undefined, match: boolean):
         : scope
           ? sql`false`
           : sql`true`;
-  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing') AND ${round})))`;
+  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.publication_id=v.id AND m.state IN ('active','finalizing') AND ${round})))`;
 }
 export function jsonObject(value: JsonValue | undefined): { [key: string]: JsonValue } {
   if (!value || typeof value !== "object" || value instanceof JsonNumber || Array.isArray(value))

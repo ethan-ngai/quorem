@@ -20,12 +20,12 @@ export async function sealFixture(
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
       const existing = await tx.execute(
-        sql`SELECT 1 FROM runner_version_inputs WHERE version_id=${version}::uuid AND sealed`,
+        sql`SELECT 1 FROM runner_publication_inputs WHERE publication_id=${version}::uuid AND sealed`,
       );
       if (!existing.rows.length)
         await indexRunnerFixture(
           tx,
-          { version },
+          { publication: version },
           JSON.stringify({
             problem: {
               signature: {
@@ -50,7 +50,7 @@ export async function sealFixture(
         );
       await bindJobInputs(tx, {
         jobId,
-        owner: { version },
+        owner: { publication: version },
         level: 0,
         primary: "example",
         custom: [],

@@ -2,7 +2,7 @@ import { publicQuestionFixture } from "../../../test/questionFixture";
 /** @file WorkspaceTests.test.tsx @description Shared case presentation retains authoring and Odyssey safety. @module editor */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { OdysseyProgress, ProblemVersion, Signature, Submission } from "@quorem/contracts";
+import type { OdysseyProgress, PublishedQuestion, Signature, Submission } from "@quorem/contracts";
 import fixture from "../../../../../../fixtures/problems/run-widths.json";
 import { caseSnapshotValue, createCustomDraft } from "../customCases";
 import { TestCases } from "./TestCases";
@@ -10,7 +10,7 @@ import { WorkspaceTests } from "./WorkspaceTests";
 
 const problem = {
   ...publicQuestionFixture(fixture),
-} as ProblemVersion;
+} as PublishedQuestion;
 const methods: Signature[] = [
   {
     className: "Solution",
@@ -437,7 +437,7 @@ it("keeps public results separate from hidden case statuses", () => {
 });
 
 it("renders SQL table examples without binding method arguments", () => {
-  const sqlProblem: ProblemVersion = {
+  const sqlProblem: PublishedQuestion = {
     ...problem,
     signature: undefined,
     sql: { dialect: "postgresql" as const, outputOrder: "unordered" as const },

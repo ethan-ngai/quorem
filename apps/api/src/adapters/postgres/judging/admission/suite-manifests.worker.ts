@@ -38,17 +38,17 @@ it("admits more than 320 indexed cases without Worker reference aggregation", as
       await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Fixture')`);
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
       await tx.execute(
-        sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES(${version}::uuid,${problem}::uuid,1,'Fixture','easy','',NULL,'[]','{}','test',${JSON.stringify({ levels })}::jsonb)`,
+        sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','',NULL,'[]','{}','test',${JSON.stringify({ levels })}::jsonb)`,
       );
       await tx.execute(
-        sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
+        sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
       );
       await tx.execute(
-        sql`INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES(${workspace}::uuid,${version}::uuid,8)`,
+        sql`INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES(${workspace}::uuid,${version}::uuid,8)`,
       );
       await indexRunnerFixture(
         tx,
-        { version },
+        { publication: version },
         JSON.stringify({
           problem: { signature, constraints: [], limits: {}, odyssey: { levels } },
           odysseyHiddenCases: hidden,

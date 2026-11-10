@@ -9,7 +9,7 @@ import { migrate } from "@quorem/database/migrations";
 import { languageRuntime } from "@quorem/execution";
 import type { LocalPrincipal } from "../../../../modules/identity/model.ts";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 import { retainBatch } from "../../events/scheduling/retention.ts";
 import { reconcileScheduledMatch } from "../reconcile/repository.ts";
 import { matchSnapshot } from "../lifecycle/repository.ts";
@@ -68,7 +68,6 @@ before(async () => {
   Object.assign(fixture.problem, {
     id: ids.version,
     slug: "review-fixture",
-    version: "1",
     title: "Review",
     constraints: [],
   });
@@ -77,12 +76,11 @@ before(async () => {
       await tx.execute(
         sql`INSERT INTO problems(id,slug) VALUES(${ids.problem}::uuid,'review-fixture')`,
       );
-      await persistQuestionVersion(
+      await persistQuestionPublication(
         tx,
         JSON.stringify(fixture),
         ids.problem,
         ids.version,
-        1,
         null,
         (language) => {
           const runtime = languageRuntime(language);
@@ -92,11 +90,11 @@ before(async () => {
     }),
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,problem_version_id,started_at,deadline,share_code_after_match) VALUES($1,'review-a','review-unique',now()+interval '1 hour',30,'active',ARRAY['easy'],$2,now()-interval '8 days',now(),true)",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,publication_id,started_at,deadline,share_code_after_match) VALUES($1,'review-a','review-unique',now()+interval '1 hour',30,'active',ARRAY['easy'],$2,now()-interval '8 days',now(),true)",
     [ids.match, ids.version],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,'review-a',$3,'python','match',$4),($2,'review-b',$3,'java','match',$4)",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,'review-a',$3,'python','match',$4),($2,'review-b',$3,'java','match',$4)",
     [ids.a, ids.b, ids.version, ids.match],
   );
   await pool.query(
@@ -289,7 +287,7 @@ void test("completed review is participant-only, latest-round and frozen-sharing
     "cancelled",
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1,'review-a','review-next',now()+interval '1 hour',30,'active',ARRAY['easy'],now(),now()+interval '30 minutes',$2)",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,publication_id) VALUES($1,'review-a','review-next',now()+interval '1 hour',30,'active',ARRAY['easy'],now(),now()+interval '30 minutes',$2)",
     [ids.next, ids.version],
   );
   await pool.query(
@@ -351,11 +349,11 @@ void test("party guest is restricted to participated rounds and live credentials
     [party],
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,problem_version_id,started_at,deadline,party_id,share_code_after_match,completed_at,outcome) VALUES($1,'review-a','guest-round-one',now()+interval '1 hour',30,'completed',ARRAY['easy'],$4,now()-interval '1 hour',now(),$5,true,now(),'{}'),($2,'review-a','guest-round-two',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$5,true,NULL,NULL),($3,'review-a','guest-other-party',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now()-interval '1 minute',now()+interval '30 minutes',$6,true,NULL,NULL)",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,publication_id,started_at,deadline,party_id,share_code_after_match,completed_at,outcome) VALUES($1,'review-a','guest-round-one',now()+interval '1 hour',30,'completed',ARRAY['easy'],$4,now()-interval '1 hour',now(),$5,true,now(),'{}'),($2,'review-a','guest-round-two',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now(),now()+interval '30 minutes',$5,true,NULL,NULL),($3,'review-a','guest-other-party',now()+interval '1 hour',30,'active',ARRAY['easy'],$4,now()-interval '1 minute',now()+interval '30 minutes',$6,true,NULL,NULL)",
     [first, second, outsider, ids.version, party, otherParty],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,'review-guest',$3,'python','match',$4),($2,'review-new',$3,'java','match',$4)",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,'review-guest',$3,'python','match',$4),($2,'review-new',$3,'java','match',$4)",
     [own, otherWorkspace, ids.version, second],
   );
   await pool.query(
@@ -425,13 +423,13 @@ void test("party guest is restricted to participated rounds and live credentials
   ]);
   await pool.query("UPDATE problems SET owner_id='review-a' WHERE id=$1", [ids.problem]);
   assert.ok(
-    await problemQueries(run).byVersion(
+    await problemQueries(run).byPublication(
       { userId: guest.userId, guestScope: guest.scope },
       ids.version,
     ),
   );
   assert.equal(
-    await problemQueries(run).byVersion(
+    await problemQueries(run).byPublication(
       { userId: newcomer.userId, guestScope: { kind: "party", partyId: otherParty } },
       ids.version,
     ),
@@ -458,13 +456,13 @@ void test("review freezes editor code and uses the exact race-winning submission
   const later = crypto.randomUUID();
   await pool.query(
     `INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,
-      problem_version_id,started_at,deadline,share_code_after_match,review_final_code)
+      publication_id,started_at,deadline,share_code_after_match,review_final_code)
       VALUES($1,'review-final-a',$1::uuid::text,now()+interval '1 hour',30,'active',ARRAY['easy'],$2,
       now(),now()+interval '30 minutes',true,true)`,
     [match, ids.version],
   );
   await pool.query(
-    `INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id)
+    `INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id)
       VALUES($1,'review-final-a',$3,'python','match',$4),($2,'review-final-b',$3,'java','match',$4)`,
     [a, b, ids.version, match],
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { normalizeSqlDraft, sqlCellInputConstraint } from "./sqlDraft";
 
 const problem = {
@@ -22,7 +22,7 @@ const problem = {
       { name: "id", type: "bigint" },
     ],
   },
-} as unknown as ProblemVersion;
+} as unknown as PublishedQuestion;
 
 describe("SQL custom table drafts", () => {
   it("normalizes legacy column metadata while preserving precision, empty strings and nulls", () => {

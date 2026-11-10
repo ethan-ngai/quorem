@@ -33,18 +33,18 @@ export async function learningEvents(
   // by throwing away unrelated practice before the learner ever sees it.
   const eligible =
     owners === null
-      ? sql`JOIN problem_versions v ON v.id=e.version_id JOIN problems p ON p.id=v.problem_id
+      ? sql`JOIN question_publications v ON v.id=e.publication_id JOIN problems p ON p.id=v.problem_id
       JOIN users u ON u.id=e.owner_id WHERE p.owner_id IS NULL AND u.kind='account' AND NOT u.disabled`
       : sql`WHERE e.owner_id IN (SELECT jsonb_array_elements_text(${JSON.stringify(owners)}::jsonb))`;
   const rows = (
     await tx.execute<LearningEvent>(sql`
     WITH sessions AS MATERIALIZED (
-      SELECT min(e.submission_id::text) AS "eventId",e.owner_id AS owner,e.version_id::text AS id,
+      SELECT min(e.submission_id::text) AS "eventId",e.owner_id AS owner,e.publication_id::text AS id,
         e.difficulty,e.tags,e.context, bool_or(e.accepted) AS accepted,
         least(count(*)::int,20) AS attempts, bool_or(e.assisted) AS assisted,
         (extract(epoch FROM e.session_end)*1000)::double precision AS at
       FROM question_learning_observations e ${eligible}
-      GROUP BY e.owner_id,e.version_id,e.difficulty,e.tags,e.context,e.session_end
+      GROUP BY e.owner_id,e.publication_id,e.difficulty,e.tags,e.context,e.session_end
     )
     ${
       owners === null
@@ -69,7 +69,7 @@ export async function recommendationContext(
   const exposures = owners.length
     ? (
         await tx.execute<{ owner: string; id: string; lastSeen: string }>(
-          sql`SELECT owner_id AS owner,version_id::text AS id,last_seen_at::text AS "lastSeen" FROM question_exposure WHERE owner_id IN (SELECT jsonb_array_elements_text(${JSON.stringify(owners)}::jsonb))`,
+          sql`SELECT owner_id AS owner,publication_id::text AS id,last_seen_at::text AS "lastSeen" FROM question_exposure WHERE owner_id IN (SELECT jsonb_array_elements_text(${JSON.stringify(owners)}::jsonb))`,
         )
       ).rows
     : [];
@@ -87,8 +87,8 @@ export async function learningQuestions(
   if (!ids.length) return [];
   const rows = (
     await tx.execute<LearningQuestion>(sql`SELECT v.id::text AS id,v.difficulty,
-    ARRAY(SELECT tag FROM problem_tags WHERE version_id=v.id ORDER BY ordinal) AS tags
-    FROM problem_versions v
+    ARRAY(SELECT tag FROM problem_tags WHERE publication_id=v.id ORDER BY ordinal) AS tags
+    FROM question_publications v
     WHERE v.id IN (SELECT jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb)::uuid)`)
   ).rows;
   return rows;

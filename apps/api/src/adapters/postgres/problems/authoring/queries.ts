@@ -92,13 +92,13 @@ export function authoringQueries(
           SELECT chosen.id::text,chosen.title,p.slug,
                  chosen.difficulty,
                  COALESCE(jsonb_typeof(chosen.odyssey)='object',false) AS "isOdyssey",
-                 ARRAY(SELECT tag FROM problem_tags WHERE version_id=chosen.id ORDER BY ordinal) AS tags,
+                 ARRAY(SELECT tag FROM problem_tags WHERE publication_id=chosen.id ORDER BY ordinal) AS tags,
                  ARRAY(SELECT c.name FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id ORDER BY c.name) AS companies,
                  p.owner_id IS NOT NULL AS "isPrivate",
                  p.leetcode_id IS NOT NULL AS "fromLeetCode",
                  COALESCE(jsonb_typeof(chosen.sql_config)='object',false) AS "isSql"
           FROM problems p
-          JOIN problem_versions chosen ON chosen.id=p.current_version_id AND chosen.sealed
+          JOIN question_publications chosen ON chosen.id=p.current_publication_id AND chosen.sealed
           WHERE p.owner_id=${actor.userId} OR (p.owner_id IS NULL AND ${admin})
         `;
         const { page = 1, limit = 50 } = filters ?? {};
@@ -130,8 +130,8 @@ export function authoringQueries(
                 ARRAY(SELECT jsonb_array_elements_text(COALESCE(content->'problem'->'companies','[]'::jsonb))) AS companies,
                 COALESCE(convert_from(lossless_content,'UTF8'),content::text) AS raw,
                 COALESCE(jsonb_typeof(content->'problem'->'leetcodeId')='number',false) AS "fromLeetCode",
-                COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_version_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
-                FROM question_drafts WHERE published_version_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))`;
+                COALESCE(jsonb_typeof(content->'problem'->'sql')='object',false) AS "isSql",COALESCE(content->'problem'->>'title','') AS title,COALESCE(content->'problem'->>'slug','') AS slug,edit_publication_id::text AS "editVersionId",to_char(updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+                FROM question_drafts WHERE published_publication_id IS NULL AND (owner_id=${actor.userId} OR (owner_id IS NULL AND ${admin}))`;
         const { page = 1, limit = 50 } = filters ?? {};
         const where = matchesAuthoringFilters(filters);
         const { key, order, after } = authoringOrder(filters, true);

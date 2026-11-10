@@ -25,11 +25,11 @@ it("reads and cancels real owner submissions through workerd", async () => {
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
       const version = (
-        await tx.execute<{ id: string }>(sql`SELECT id::text FROM problem_versions LIMIT 1`)
+        await tx.execute<{ id: string }>(sql`SELECT id::text FROM question_publications LIMIT 1`)
       ).rows[0].id;
       await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${owner},'Worker')`);
       await tx.execute(
-        sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${owner},${version}::uuid,'python')`,
+        sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${owner},${version}::uuid,'python')`,
       );
       await tx.execute(
         sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${owner},${workspace}::uuid,'run','','worker-hash','queued','[]')`,

@@ -32,25 +32,25 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
     const problem = crypto.randomUUID(),
       current = crypto.randomUUID(),
       archived = crypto.randomUUID();
-    const insert = `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sealed)
-      VALUES($1,$2,$3,'Fixture','easy','statement','{}','[]','{}','fixture',true)`;
+    const insert = `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sealed)
+      VALUES($1,$2,'Fixture','easy','statement','{}','[]','{}','fixture',true)`;
     try {
       await client.query("BEGIN");
       await client.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [
         problem,
         `archive-${problem}`,
       ]);
-      await client.query(insert, [current, problem, 2]);
-      await client.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [
+      await client.query(insert, [current, problem]);
+      await client.query("UPDATE problems SET current_publication_id=$1 WHERE id=$2", [
         current,
         problem,
       ]);
       // Model rows retained from a database upgraded before the insert guard.
       await client.query("SET LOCAL session_replication_role=replica");
-      await client.query(insert, [archived, problem, 1]);
+      await client.query(insert, [archived, problem]);
       await client.query("SET LOCAL session_replication_role=origin");
       await client.query("SAVEPOINT rejected_version");
-      await expect(client.query(insert, [crypto.randomUUID(), problem, 3])).rejects.toMatchObject({
+      await expect(client.query(insert, [crypto.randomUUID(), problem])).rejects.toMatchObject({
         code: "23505",
       });
       await client.query("ROLLBACK TO SAVEPOINT rejected_version");
@@ -59,16 +59,16 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "SELECT set_config('quorem.question_mutation',$1,true),set_config('quorem.question_replacement',$1,true)",
         [current],
       );
-      await client.query("DELETE FROM problem_versions WHERE id=$1", [current]);
-      await client.query(insert, [current, problem, 2]);
+      await client.query("DELETE FROM question_publications WHERE id=$1", [current]);
+      await client.query(insert, [current, problem]);
       expect(
         (
           await client.query(
-            "SELECT id::text FROM problem_versions WHERE problem_id=$1 ORDER BY version",
+            "SELECT id::text FROM question_publications WHERE problem_id=$1 ORDER BY id",
             [problem],
           )
         ).rows.map((r) => r.id),
-      ).toEqual([archived, current]);
+      ).toEqual([archived, current].sort());
     } finally {
       await client.query("ROLLBACK");
       client.release();
@@ -119,20 +119,22 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const draft = JSON.parse(await repository.create(actor, JSON.stringify(content), undefined));
       const published = JSON.parse(await repository.publish(actor, draft.id, "1", "global"));
       const version = published.publishedVersionId;
-      const publicProblem = JSON.parse((await problemQueries(run).byVersion(undefined, version))!);
+      const publicProblem = JSON.parse(
+        (await problemQueries(run).byPublication(undefined, version))!,
+      );
       expect(publicProblem.examples).toEqual([
         { args: [[1, -1]], expected: [1, 1], graphs: { values: graph } },
       ]);
       expect(publicProblem.hiddenCases).toBeUndefined();
       const rows = await pool.query(
-        "SELECT args,graphs FROM problem_test_cases WHERE version_id=$1",
+        "SELECT args,graphs FROM problem_test_cases WHERE publication_id=$1",
         [version],
       );
       expect(rows.rows).toEqual([{ args: [[-1, 0]], graphs: { values: privateGraph } }]);
       const runner = await pool.query(
         `SELECT convert_from(b.data,'UTF8')::jsonb AS data
-        FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash
-        WHERE c.version_id=$1 AND c.channel='hidden'`,
+        FROM runner_publication_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash
+        WHERE c.publication_id=$1 AND c.channel='hidden'`,
         [version],
       );
       expect(runner.rows).toEqual([{ data: { args: [[-1, 0]], expected: [1, 1] } }]);
@@ -275,7 +277,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(published.revision).toBe("3");
       expect(published.publishedVersionId).toBeTruthy();
       const available = JSON.parse(
-        (await catalog.byVersion({ userId: owner }, published.publishedVersionId))!,
+        (await catalog.byPublication({ userId: owner }, published.publishedVersionId))!,
       );
       expect(available.languages.map((item: { language: string }) => item.language).sort()).toEqual(
         ["java", "ocaml", "python", "typescript"],
@@ -298,10 +300,10 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         )
       ).json();
       expect(publicationsPage).toMatchObject({ items: [], total: 1, page: 2, limit: 1 });
-      expect(await catalog.byVersion({ userId: owner }, published.publishedVersionId)).toContain(
-        "class Solution",
-      );
-      expect(await catalog.byVersion(undefined, published.publishedVersionId)).toBeNull();
+      expect(
+        await catalog.byPublication({ userId: owner }, published.publishedVersionId),
+      ).toContain("class Solution");
+      expect(await catalog.byPublication(undefined, published.publishedVersionId)).toBeNull();
       await expect(repository.publish(actor, draft.id, "2", "private")).rejects.toMatchObject({
         code: "revision_conflict",
       });
@@ -342,12 +344,12 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const nd = JSON.parse(await repository.create(actor, JSON.stringify(nul), undefined));
       const np = JSON.parse(await repository.publish(actor, nd.id, "1", "private"));
       const side = await pool.query(
-        "SELECT lossless_fixture,lossless_public FROM problem_versions WHERE id=$1",
+        "SELECT lossless_fixture,lossless_public FROM question_publications WHERE id=$1",
         [np.publishedVersionId],
       );
       expect(side.rows[0].lossless_fixture).not.toBeNull();
       expect(side.rows[0].lossless_public.toString()).not.toContain("SECRET");
-      const publicView = await catalog.byVersion({ userId: owner }, np.publishedVersionId);
+      const publicView = await catalog.byPublication({ userId: owner }, np.publishedVersionId);
       expect(publicView).toContain("\\u0000");
       expect(publicView).not.toContain("SECRET");
       const cloned = JSON.parse(await repository.create(actor, undefined, np.publishedVersionId));
@@ -386,10 +388,12 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const rawSqlPublished = await repository.publish(actor, sd.id, "1", "private");
       expect(rawSqlPublished).toContain("1e309");
       const sp = JSON.parse(rawSqlPublished);
-      expect(await catalog.byVersion({ userId: owner }, sp.publishedVersionId)).toContain("1e309");
+      expect(await catalog.byPublication({ userId: owner }, sp.publishedVersionId)).toContain(
+        "1e309",
+      );
       expect(await repository.create(actor, undefined, sp.publishedVersionId)).toContain("1e309");
       const stored = await pool.query(
-        "SELECT args::text FROM problem_test_cases WHERE version_id=$1",
+        "SELECT args::text FROM problem_test_cases WHERE publication_id=$1",
         [sp.publishedVersionId],
       );
       expect(stored.rows[0].args).toContain("1000000000000000000000000000000000000000");
@@ -404,7 +408,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const od = JSON.parse(await repository.create(actor, JSON.stringify(staged), undefined));
       const op = JSON.parse(await repository.publish(actor, od.id, "1", "private"));
       const stageView = JSON.parse(
-        (await catalog.byVersion({ userId: owner }, op.publishedVersionId))!,
+        (await catalog.byPublication({ userId: owner }, op.publishedVersionId))!,
       );
       expect(stageView.odyssey.levels).toHaveLength(1);
       const stageFork = JSON.parse(
@@ -462,31 +466,34 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const publishedBatch = await Promise.all(
         [batchDrafts[0], batchDrafts[2]].map((d) => repository.get(actor, d.id).then(JSON.parse)),
       );
-      const currentVersion = publishedBatch[1].publishedVersionId;
+      const currentPublication = publishedBatch[1].publishedVersionId;
       const deleteBatch = (user: typeof actor, items: { id: string; current: boolean }[]) =>
         repository.mutateBatch(user, { action: "delete-publications", items }).then(JSON.parse);
       expect(
-        (await deleteBatch({ ...actor, userId: other }, [{ id: currentVersion, current: true }]))
-          .items[0],
+        (
+          await deleteBatch({ ...actor, userId: other }, [
+            { id: currentPublication, current: true },
+          ])
+        ).items[0],
       ).toMatchObject({ status: "failed", code: "not_found" });
       const batchWorkspace = crypto.randomUUID();
       const batchSubmission = crypto.randomUUID();
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
-        [batchWorkspace, owner, currentVersion],
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
+        [batchWorkspace, owner, currentPublication],
       );
       await pool.query(
         "INSERT INTO submissions(id,workspace_id,owner_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','pass','hash','queued','[]')",
         [batchSubmission, batchWorkspace, owner],
       );
       expect(
-        (await deleteBatch(actor, [{ id: currentVersion, current: true }])).items[0],
+        (await deleteBatch(actor, [{ id: currentPublication, current: true }])).items[0],
       ).toMatchObject({ status: "failed", code: "revision_conflict" });
       await pool.query("DELETE FROM submissions WHERE id=$1", [batchSubmission]);
       const deletedBatch = await deleteBatch(actor, [
         { id: crypto.randomUUID(), current: false },
         { id: publishedBatch[0].publishedVersionId, current: false },
-        { id: currentVersion, current: true },
+        { id: currentPublication, current: true },
       ]);
       expect(deletedBatch.items.map((i: { status: string }) => i.status)).toEqual([
         "failed",
@@ -494,11 +501,8 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "succeeded",
       ]);
       expect(
-        (
-          await pool.query("SELECT problem_version_id FROM workspaces WHERE id=$1", [
-            batchWorkspace,
-          ])
-        ).rows[0].problem_version_id,
+        (await pool.query("SELECT publication_id FROM workspaces WHERE id=$1", [batchWorkspace]))
+          .rows[0].publication_id,
       ).toBeNull();
       const draftDeletes = JSON.parse(
         await repository.mutateBatch(actor, {
@@ -646,25 +650,25 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(JSON.parse(await repository.get(global, duplicateBatch.id)).revision).toBe("1");
       const workspace = crypto.randomUUID();
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspace, owner, first.publishedVersionId],
       );
       const stableQuestionId = first.publishedVersionId;
       await pool.query(
-        "INSERT INTO question_learning_events(submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at) VALUES(gen_random_uuid(),$1,$2,'easy','{}',true,'practice',now())",
+        "INSERT INTO question_learning_events(submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at) VALUES(gen_random_uuid(),$1,$2,'easy','{}',true,'practice',now())",
         [owner, stableQuestionId],
       );
       await pool.query(
-        "INSERT INTO recommendation_impressions(owner_id,version_id,variant,position) VALUES($1,$2,'control',1)",
+        "INSERT INTO recommendation_impressions(owner_id,publication_id,variant,position) VALUES($1,$2,'control',1)",
         [owner, stableQuestionId],
       );
       const recommendationCounts = async () =>
         (
           await pool.query(
             `SELECT
-          (SELECT count(*)::int FROM question_learning_events WHERE version_id=$1) AS events,
-          (SELECT count(*)::int FROM question_exposure WHERE version_id=$1) AS exposures,
-          (SELECT count(*)::int FROM recommendation_impressions WHERE version_id=$1) AS impressions`,
+          (SELECT count(*)::int FROM question_learning_events WHERE publication_id=$1) AS events,
+          (SELECT count(*)::int FROM question_exposure WHERE publication_id=$1) AS exposures,
+          (SELECT count(*)::int FROM recommendation_impressions WHERE publication_id=$1) AS impressions`,
             [stableQuestionId],
           )
         ).rows[0];
@@ -701,9 +705,9 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         active,
       ]);
       await pool.query(
-        `INSERT INTO runner_job_inputs(job_id,version_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples)
-         SELECT $1,version_id,metadata_hash,metadata_hash,'python-3.12-v1','quorem-harness-v2',0,0,false,false
-         FROM runner_version_inputs WHERE version_id=$2`,
+        `INSERT INTO runner_job_inputs(job_id,publication_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples)
+         SELECT $1,publication_id,metadata_hash,metadata_hash,'python-3.12-v1','quorem-harness-v2',0,0,false,false
+         FROM runner_publication_inputs WHERE publication_id=$2`,
         [finishedJob, first.publishedVersionId],
       );
       const afterDrain = JSON.parse(
@@ -721,10 +725,10 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(
         (await pool.query("SELECT 1 FROM execution_jobs WHERE id=$1", [finishedJob])).rowCount,
       ).toBe(0);
-      expect(await catalog.byVersion({ userId: owner }, first.publishedVersionId)).toBeNull();
+      expect(await catalog.byPublication({ userId: owner }, first.publishedVersionId)).toBeNull();
       expect(
-        (await pool.query("SELECT problem_version_id FROM workspaces WHERE id=$1", [workspace]))
-          .rows[0].problem_version_id,
+        (await pool.query("SELECT publication_id FROM workspaces WHERE id=$1", [workspace])).rows[0]
+          .publication_id,
       ).toBeNull();
 
       await repository.publish(

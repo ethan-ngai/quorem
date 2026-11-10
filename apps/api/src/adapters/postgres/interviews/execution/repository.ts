@@ -108,12 +108,12 @@ export function postgresInterviewAdmission(
           const problemId = row.problemId;
           scope = row.questionEpoch;
           await tx.execute(
-            sql`INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES(${scope}::uuid,${problemId}::uuid) ON CONFLICT DO NOTHING`,
+            sql`INSERT INTO odyssey_progress(scope_id,publication_id) VALUES(${scope}::uuid,${problemId}::uuid) ON CONFLICT DO NOTHING`,
           );
           level = Number(
             (
               await tx.execute<{ level: number }>(
-                sql`SELECT level FROM odyssey_progress WHERE scope_id=${scope}::uuid AND problem_version_id=${problemId}::uuid FOR UPDATE`,
+                sql`SELECT level FROM odyssey_progress WHERE scope_id=${scope}::uuid AND publication_id=${problemId}::uuid FOR UPDATE`,
               )
             ).rows[0].level,
           );

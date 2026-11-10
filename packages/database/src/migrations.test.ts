@@ -297,22 +297,22 @@ await test("migration and catalog parity on disposable database", { skip: !url }
           const publication = fk.name === "current_publication_identity";
           const deferred = publication || fk.name === "submission_interview_execution_fkey";
           const replaceablePublication = [
-            "workspace_problem_version_fkey",
-            "matches_problem_version_id_fkey",
-            "matches_selected_problem_version_id_fkey",
-            "question_drafts_published_version_id_fkey",
-            "question_drafts_edit_version_fkey",
-            "runner_job_inputs_version_id_fkey",
-            "question_exposure_version_id_fkey",
-            "question_learning_events_version_id_fkey",
-            "recommendation_impressions_version_id_fkey",
+            "workspace_publication_fkey",
+            "matches_publication_id_fkey",
+            "matches_selected_publication_id_fkey",
+            "question_drafts_published_publication_id_fkey",
+            "question_drafts_edit_publication_fkey",
+            "runner_job_inputs_publication_id_fkey",
+            "question_exposure_publication_id_fkey",
+            "question_learning_events_publication_id_fkey",
+            "recommendation_impressions_publication_id_fkey",
           ].includes(fk.name);
           assert.deepEqual(
             { deferrable: fk.condeferrable, deferred: fk.condeferred, setColumns: fk.set_columns },
             {
               deferrable: deferred || replaceablePublication,
               deferred,
-              setColumns: publication ? ["current_version_id"] : [],
+              setColumns: publication ? ["current_publication_id"] : [],
             },
             `${namespace}.${config.name}.${fk.name} PostgreSQL-only FK options`,
           );
@@ -462,7 +462,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     );
     await pool.query(`UPDATE quorem_auth.passkey SET counter=4294967295 WHERE id='fixture-key'`);
     await pool.query(
-      `INSERT INTO users(id,display_name) VALUES('fixture-user','Fixture'); INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('fixture-issuer','fixture-subject','fixture-user'); INSERT INTO problems(id,slug,owner_id) VALUES('10000000-0000-4000-8000-000000000001','fixture-problem','fixture-user'); INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES('20000000-0000-4000-8000-000000000002',1,'10000000-0000-4000-8000-000000000001','Fixture','easy','fixture','{}','[]','{}','fixture'); INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES('30000000-0000-4000-8000-000000000003','fixture-user','20000000-0000-4000-8000-000000000002','python')`,
+      `INSERT INTO users(id,display_name) VALUES('fixture-user','Fixture'); INSERT INTO identity_bindings(issuer,subject,user_id) VALUES('fixture-issuer','fixture-subject','fixture-user'); INSERT INTO problems(id,slug,owner_id) VALUES('10000000-0000-4000-8000-000000000001','fixture-problem','fixture-user'); INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES('20000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','Fixture','easy','fixture','{}','[]','{}','fixture'); INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES('30000000-0000-4000-8000-000000000003','fixture-user','20000000-0000-4000-8000-000000000002','python')`,
     );
     await pool.query(`UPDATE identity_bindings SET subject=$1 WHERE user_id='fixture-user'`, [
       userId,
@@ -474,7 +474,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
       "--data-only",
       "--file",
       archive,
-      ...["users", "identity_bindings", "problems", "problem_versions", "workspaces"].flatMap(
+      ...["users", "identity_bindings", "problems", "question_publications", "workspaces"].flatMap(
         (name) => ["--table", `public.${name}`],
       ),
       ...["user", "account", "session", "passkey"].flatMap((name) => [
@@ -489,7 +489,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);
     for (const [schema, names] of [
-      ["public", ["users", "identity_bindings", "problems", "problem_versions", "workspaces"]],
+      ["public", ["users", "identity_bindings", "problems", "question_publications", "workspaces"]],
       ["quorem_auth", ["user", "account", "session", "passkey"]],
     ] as const)
       for (const name of names)
@@ -508,7 +508,7 @@ await test("migration and catalog parity on disposable database", { skip: !url }
     await migrate(pool, "product", productDir);
     await migrate(pool, "auth", authDir);
     const restored = await pool.query(
-      `SELECT w.owner_id,w.language,v.title,p.slug,b.subject FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id JOIN identity_bindings b ON b.user_id=w.owner_id WHERE w.id='30000000-0000-4000-8000-000000000003'`,
+      `SELECT w.owner_id,w.language,v.title,p.slug,b.subject FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id JOIN identity_bindings b ON b.user_id=w.owner_id WHERE w.id='30000000-0000-4000-8000-000000000003'`,
     );
     assert.deepEqual(restored.rows, [
       {

@@ -49,9 +49,6 @@
         "slug": {
           "type": "string"
         },
-        "version": {
-          "type": "string"
-        },
         "title": {
           "type": "string"
         },
@@ -108,7 +105,6 @@
       "required": [
         "id",
         "slug",
-        "version",
         "title",
         "difficulty",
         "tags",

@@ -6,7 +6,7 @@ import {
   questionAuthoring,
 } from "../adapters/postgres/problems/authoring/repository.ts";
 import { readPublishedFixture } from "../adapters/postgres/problems/private-content.ts";
-import { resumeQuestionVersion } from "../adapters/postgres/problems/publication.ts";
+import { resumeQuestionPublication } from "../adapters/postgres/problems/publication.ts";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { applyAccess, grantFingerprint } from "./access.ts";
 import { seedCatalog } from "./seed.ts";
@@ -172,11 +172,11 @@ describe("operator CLI contracts", () => {
           else process.env.AUTH_ORIGIN = oldOrigin;
         }
         await seedCatalog(pool, true);
-        const before = (await pool.query("SELECT count(*)::int AS n FROM problem_versions")).rows[0]
-          .n;
+        const before = (await pool.query("SELECT count(*)::int AS n FROM question_publications"))
+          .rows[0].n;
         await seedCatalog(pool, true);
         expect(
-          (await pool.query("SELECT count(*)::int AS n FROM problem_versions")).rows[0].n,
+          (await pool.query("SELECT count(*)::int AS n FROM question_publications")).rows[0].n,
         ).toBe(before);
         const run = <T>(fn: Parameters<typeof withNodeConnection<T>>[2]) =>
           withNodeConnection(pool, { lifetimeMs: 10000 }, fn);
@@ -255,10 +255,9 @@ describe("operator CLI contracts", () => {
           slug = `resume-${crypto.randomUUID().slice(0, 8)}`;
         fixture.problem.id = versionId;
         fixture.problem.slug = slug;
-        fixture.problem.version = "1";
         await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problemId, slug]);
         await pool.query(
-          "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9)",
+          "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9)",
           [
             versionId,
             problemId,
@@ -273,17 +272,17 @@ describe("operator CLI contracts", () => {
         );
         await run((scope) =>
           scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, (tx) =>
-            resumeQuestionVersion(tx, JSON.stringify(fixture), versionId, languageRuntime),
+            resumeQuestionPublication(tx, JSON.stringify(fixture), versionId, languageRuntime),
           ),
         );
         expect(
-          (await pool.query("SELECT sealed FROM problem_versions WHERE id=$1", [versionId]))
+          (await pool.query("SELECT sealed FROM question_publications WHERE id=$1", [versionId]))
             .rows[0],
         ).toMatchObject({ sealed: true });
         await expect(
           run((scope) =>
             scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 2000 }, (tx) =>
-              resumeQuestionVersion(tx, "{}", versionId, languageRuntime),
+              resumeQuestionPublication(tx, "{}", versionId, languageRuntime),
             ),
           ),
         ).rejects.toThrow();
@@ -490,14 +489,14 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
       expect(await new Promise<number | null>((resolve) => retry.once("exit", resolve))).toBe(0);
       const count = (
         await client.query(
-          "SELECT count(*)::int AS n FROM problems p JOIN problem_versions v ON v.problem_id=p.id WHERE p.slug LIKE $1",
+          "SELECT count(*)::int AS n FROM problems p JOIN question_publications v ON v.problem_id=p.id WHERE p.slug LIKE $1",
           [`%${fixture.problem.slug}`],
         )
       ).rows[0].n;
       expect(count).toBe(1);
       const drafts = (
         await client.query(
-          `SELECT count(*)::int AS n,count(*) FILTER (WHERE d.published_version_id IS NOT NULL)::int AS published FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.action='questions.seed' AND d.content->'problem'->>'slug' LIKE $1`,
+          `SELECT count(*)::int AS n,count(*) FILTER (WHERE d.published_publication_id IS NOT NULL)::int AS published FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.action='questions.seed' AND d.content->'problem'->>'slug' LIKE $1`,
           [`%${fixture.problem.slug}`],
         )
       ).rows[0];

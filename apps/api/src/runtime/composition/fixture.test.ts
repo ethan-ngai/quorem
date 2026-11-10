@@ -20,7 +20,7 @@ void test("runtime fixture seeds both ledgers, rejects overlap, and cleans up", 
     await assert.rejects(bootstrapRuntimeFixture(url!), /already in use/);
     const row = (
       await pool.query(
-        `SELECT to_regclass('public.schema_migrations') IS NOT NULL AS product, to_regclass('quorem_auth.schema_migrations') IS NOT NULL AS auth, EXISTS(SELECT 1 FROM runner_version_inputs WHERE version_id='e91ec728-4597-5dfb-9d19-7c4ba17138b7' AND sealed) AS indexed, EXISTS(SELECT 1 FROM access_audit WHERE operation_id='bootstrap:operator' AND user_id='runtime-fixture-operator') AS operator`,
+        `SELECT to_regclass('public.schema_migrations') IS NOT NULL AS product, to_regclass('quorem_auth.schema_migrations') IS NOT NULL AS auth, EXISTS(SELECT 1 FROM runner_publication_inputs WHERE publication_id='e91ec728-4597-5dfb-9d19-7c4ba17138b7' AND sealed) AS indexed, EXISTS(SELECT 1 FROM access_audit WHERE operation_id='bootstrap:operator' AND user_id='runtime-fixture-operator') AS operator`,
       )
     ).rows[0];
     assert.deepEqual(row, { product: true, auth: true, indexed: true, operator: true });

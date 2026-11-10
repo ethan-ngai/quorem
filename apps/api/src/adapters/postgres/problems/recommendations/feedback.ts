@@ -12,18 +12,18 @@ export async function impressionIds(
 ) {
   if (!ids.length) return {};
   // Collapse polling and repeated loads into one impression opportunity per time bucket.
-  const { rows } = await tx.execute<{ id: string; version: string }>(sql`
-    INSERT INTO recommendation_impressions(owner_id,version_id,model_id,variant,position,served_at)
+  const { rows } = await tx.execute<{ id: string; publication: string }>(sql`
+    INSERT INTO recommendation_impressions(owner_id,publication_id,model_id,variant,position,served_at)
     SELECT ${owner}, v.id,${model}::uuid,${explore ? "explore" : "control"},x.position::int,
       date_bin(interval '15 minutes',statement_timestamp(),timestamptz '2000-01-01 UTC')
     FROM jsonb_array_elements_text(${JSON.stringify(ids)}::jsonb) WITH ORDINALITY x(id,position)
-    JOIN problem_versions v ON v.id=x.id::uuid JOIN problems p ON p.current_version_id=v.id
+    JOIN question_publications v ON v.id=x.id::uuid JOIN problems p ON p.current_publication_id=v.id
     WHERE p.owner_id IS NULL OR p.owner_id=${owner}
     ORDER BY v.id
-    ON CONFLICT(owner_id,version_id,variant,model_id,served_at) DO UPDATE SET id=recommendation_impressions.id
-    RETURNING id::text,version_id::text AS version
+    ON CONFLICT(owner_id,publication_id,variant,model_id,served_at) DO UPDATE SET id=recommendation_impressions.id
+    RETURNING id::text,publication_id::text AS publication
   `);
-  return Object.fromEntries(rows.map((row) => [row.version, row.id]));
+  return Object.fromEntries(rows.map((row) => [row.publication, row.id]));
 }
 
 export async function recordFeedback(

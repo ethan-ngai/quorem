@@ -3,7 +3,7 @@ import { matchPreset } from "@quorem/contracts/match-rules";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
-import type { MatchSnapshot, ProblemVersion } from "@quorem/contracts";
+import type { MatchSnapshot, PublishedQuestion } from "@quorem/contracts";
 import type { MatchSyncStatus } from "../realtime/useMatchSync";
 
 const state = vi.hoisted(() => ({
@@ -40,7 +40,7 @@ vi.mock("../editor/WorkspacePage", async () => {
     }: {
       matchHeader:
         | React.ReactNode
-        | ((problem: ProblemVersion, saveDraft: () => Promise<void>) => React.ReactNode);
+        | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => React.ReactNode);
     }) => {
       React.useEffect(() => {
         state.mounts++;
@@ -48,7 +48,7 @@ vi.mock("../editor/WorkspacePage", async () => {
       return (
         <div data-workspace="true">
           {typeof matchHeader === "function"
-            ? matchHeader({ title: "Two Sum" } as ProblemVersion, state.saveDraft)
+            ? matchHeader({ title: "Two Sum" } as PublishedQuestion, state.saveDraft)
             : matchHeader}
         </div>
       );
