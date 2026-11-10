@@ -6,7 +6,7 @@ Question editor → Bulk import checks each file and creates a draft for new con
 
 Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.schema.json) and [complete example](../../packages/contracts/questions/example-v1.json). The schema is JSON Schema 2020-12, generated from the reachable OpenAPI `QuestionContent` definitions. `vp -C packages/contracts run generate` refreshes it; contract checks detect drift.
 
-Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, and string literals in backticks. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
+Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, strings, and serialized arrays in backticks, including literals repeated in example explanations. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
 
 | Intent                       | Markdown source                |
 | ---------------------------- | ------------------------------ |
@@ -14,6 +14,8 @@ Write the statement and example explanations as Markdown. Use LaTeX between `$` 
 | Indexed value                | ``$1 \le$ `nums[i]` $\le 50$`` |
 | Property access and equality | `` `nums.length` $= n$ ``      |
 | Complexity in a sentence     | `$O(n \log n)$`                |
+
+Before importing, preview the statement and each example. Check that code blocks have a distinct surface, serialized values render as code, and equations render as math.
 
 Prefer structured constraints whenever they can express the rule. Use the same Markdown convention in prose constraints. In JSON strings, escape LaTeX backslashes, for example `"$O(n \\log n)$"`.
 
