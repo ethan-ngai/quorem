@@ -8,12 +8,13 @@ Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.sch
 
 Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, strings, and serialized arrays in backticks, including literals repeated in example explanations. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
 
-| Intent                       | Markdown source                |
-| ---------------------------- | ------------------------------ |
-| Mathematical bound           | `$1 \le n \le 2 \cdot 10^{4}$` |
-| Indexed value                | ``$1 \le$ `nums[i]` $\le 50$`` |
-| Property access and equality | `` `nums.length` $= n$ ``      |
-| Complexity in a sentence     | `$O(n \log n)$`                |
+| Intent                       | Markdown source                   |
+| ---------------------------- | --------------------------------- |
+| Mathematical bound           | `$1 \le n \le 2 \cdot 10^{4}$`    |
+| Indexed value                | ``$1 \le$ `nums[i]` $\le 50$``    |
+| Property access and equality | `` `nums.length` $= n$ ``         |
+| Allowed numeric values       | `` `grid[i][j]` $\in \{0, 1\}$ `` |
+| Complexity in a sentence     | `$O(n \log n)$`                   |
 
 Before importing, preview the statement and each example. Check that code blocks have a distinct surface, serialized values render as code, and equations render as math.
 
