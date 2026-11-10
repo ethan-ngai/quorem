@@ -3,7 +3,7 @@ import "./value-grid.css";
 export type GridCell = string | number | boolean | null;
 
 /** Bound cell count before mounting a table in the editor. */
-export function gridRows(value: unknown, limit: number): GridCell[][] | undefined {
+export function gridRows(value: unknown, limit = Infinity): GridCell[][] | undefined {
   if (!Array.isArray(value) || !Array.isArray(value[0])) return;
   const width = value[0].length;
   if (!width || value.length * width > limit) return;

@@ -725,6 +725,10 @@
           ],
           "description": "Display a two-dimensional array on one line or one row per line. Defaults to inline."
         },
+        "showGrid": {
+          "type": "boolean",
+          "description": "Show a grid from this two-dimensional array in examples and tests."
+        },
         "rows": {
           "type": "integer",
           "minimum": 1,

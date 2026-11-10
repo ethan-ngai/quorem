@@ -438,21 +438,40 @@ export function SignatureFields({
                 )
               )}
               {isMatrixType(parameter.type) && (
-                <SegmentedControl
-                  compact
-                  label={`${parameter.name} array layout`}
-                  value={parameter.input?.layout ?? "inline"}
-                  options={[
-                    { value: "inline", label: "Inline" },
-                    { value: "rows", label: "Rows", hint: "One row per line" },
-                  ]}
-                  disabled={disabled || editingInvalidNames}
-                  onChange={(layout) =>
-                    updateParameter(index, {
-                      input: { preset: "default", ...parameter.input, layout },
-                    })
-                  }
-                />
+                <>
+                  <SegmentedControl
+                    compact
+                    label={`${parameter.name} array layout`}
+                    value={parameter.input?.layout ?? "inline"}
+                    options={[
+                      { value: "inline", label: "Inline" },
+                      { value: "rows", label: "Rows", hint: "One row per line" },
+                    ]}
+                    disabled={disabled || editingInvalidNames}
+                    onChange={(layout) =>
+                      updateParameter(index, {
+                        input: { preset: "default", ...parameter.input, layout },
+                      })
+                    }
+                  />
+                  <label className="authoring-grid-option">
+                    <input
+                      type="checkbox"
+                      checked={parameter.input?.showGrid ?? false}
+                      disabled={disabled || editingInvalidNames}
+                      onChange={(event) =>
+                        updateParameter(index, {
+                          input: {
+                            preset: "default",
+                            ...parameter.input,
+                            showGrid: event.target.checked || undefined,
+                          },
+                        })
+                      }
+                    />
+                    Show grid in examples and tests
+                  </label>
+                </>
               )}
             </div>
             <div className="admin-field authoring-parameter-description">

@@ -38,23 +38,23 @@ Numeric expressions accept literal arithmetic, parentheses, scientific notation,
 
 Run case results expose optional `stdout` and `stderr` separately from positioned diagnostics. The runner retains existing output limits; Submit never exposes these public case fields. Historical results keep their original unclassified diagnostics; new runs populate the explicit streams.
 
-## Description figures
+## Problem and example figures
 
-Use a fenced `grid` or `svg` block in the problem description. Put the accessible label after the fence name.
+Use a fenced `grid` or `svg` block in the problem description or in the explanation for a specific example. Put the accessible label after the fence name. Example explanations allow up to 32 KiB.
 
 ```grid Selected cell in a matrix
 {"cells":[[1,2],[3,4]],"highlights":[[1,0]]}
 ```
 
-When the grid illustrates an existing example input, reference the one-based example number and the argument name instead of copying its cells.
+In an example explanation, reference the current input by argument name to annotate the grid without copying its cells. A description figure can reference an example with the one-based `example` number.
 
-```grid Selected cell in Example 2
-{"example":2,"argument":"grid","highlights":[[1,0]]}
+```grid Selected cell
+{"argument":"grid","highlights":[[1,0]]}
 ```
 
 Grid rows must have equal length. Cells accept numbers, booleans, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates. Keep standalone `cells` for diagrams with their own data.
 
-In Signature, choose **Inline** or **Rows** for a two-dimensional array parameter. Import files use `"input": {"preset":"default","layout":"rows"}`. Omit the layout for the inline default.
+In Signature, choose **Inline** or **Rows** for a two-dimensional array parameter. Import files use `"input": {"preset":"default","layout":"rows"}`. Omit the layout for the inline default. Enable **Show grid in examples and tests** (`"showGrid":true` under `input`) to draw the current case’s array, including custom cases. Large grids are paged.
 
 ```svg Two points joined by a line
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" width="120">

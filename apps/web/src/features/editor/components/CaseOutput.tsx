@@ -2,6 +2,7 @@ import { verdictIcon } from "./verdictPresentation";
 import { CasePreviewLayout } from "./NodePreview";
 import type { NodeContext } from "../nodeLiterals";
 import "./machine-values.css";
+import { CaseGrid } from "./CaseGrid";
 import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
@@ -73,6 +74,7 @@ export function CaseValue({
   tone,
   type,
   layout,
+  showGrid,
   sql,
   sqlTypes,
   nodeContext,
@@ -84,6 +86,7 @@ export function CaseValue({
   tone?: string;
   type?: string;
   layout?: InputPresetConfig["layout"];
+  showGrid?: boolean;
   sql?: PublishedQuestion["sql"];
   sqlTypes?: readonly string[];
   nodeContext?: NodeContext;
@@ -118,6 +121,7 @@ export function CaseValue({
             language={language}
           />
         )}
+        {showGrid && <CaseGrid name={name} value={value} />}
       </div>
     </div>
   );
@@ -161,6 +165,7 @@ export function CaseArguments({
             value={value}
             type={type}
             layout={input?.layout}
+            showGrid={input?.showGrid}
             parameter
             nodeContext={signature ? { signature, args: args as NodeContext["args"] } : undefined}
           />

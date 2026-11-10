@@ -197,3 +197,18 @@ describe("typed case controls", () => {
     expect(render(true)).toContain('value="10 * 3"');
   });
 });
+
+it("draws the parsed matrix from the current test field", () => {
+  const markup = renderToStaticMarkup(
+    <TypedCaseInput
+      id="custom-grid"
+      name="grid"
+      type="list<list<int>>"
+      input={{ preset: "default", showGrid: true }}
+      value="[[9,2**3],[0,4]]"
+      onChange={() => {}}
+    />,
+  );
+  expect(markup).toContain('aria-label="Matrix for grid"');
+  expect(markup).toContain("<td>8</td>");
+});

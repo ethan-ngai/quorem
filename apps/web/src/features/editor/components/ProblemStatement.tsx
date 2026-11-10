@@ -69,8 +69,8 @@ export function ProblemStatement({
       });
     } else setRevealedTopicsFor(problem.id);
   }
-  function exampleArgument(example: number, argument: string) {
-    if (problem.sql || problem.odyssey) return;
+  function exampleArgument(example: number | undefined, argument: string) {
+    if (example === undefined || problem.sql || problem.odyssey) return;
     const index = primarySignature(problem).parameters.findIndex(({ name }) => name === argument);
     return problem.examples[example - 1]?.args[index];
   }
@@ -199,7 +199,13 @@ export function ProblemStatement({
                             </span>
                           </Tooltip>
                           <div>
-                            <StatementMarkdown source={example.explanation} />
+                            <StatementMarkdown
+                              source={example.explanation}
+                              allowFigures
+                              exampleArgument={(number, argument) =>
+                                exampleArgument(number ?? selectedExample + 1, argument)
+                              }
+                            />
                           </div>
                         </div>
                       )}

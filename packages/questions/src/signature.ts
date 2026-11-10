@@ -22,8 +22,8 @@ export function validateInputConfig(type: string, config?: InputPresetConfig): v
   if (!validQuestionType(normalized))
     throw new Error(`unknown input codec ${JSON.stringify(normalized)}`);
   if (!config) return;
-  if (config.layout !== undefined && !isMatrixType(normalized))
-    throw new Error("input layout requires a two-dimensional array");
+  if ((config.layout !== undefined || config.showGrid) && !isMatrixType(normalized))
+    throw new Error("input layout and grid preview require a two-dimensional array");
   while (normalized.startsWith("optional<")) normalized = normalized.slice(9, -1);
   const primitive = (t: string) => ["int", "long", "float", "str", "bool"].includes(t);
   const innerList = (t: string) =>

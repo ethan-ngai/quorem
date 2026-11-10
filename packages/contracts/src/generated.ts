@@ -1538,6 +1538,8 @@ export interface components {
              * @enum {string}
              */
             layout?: "inline" | "rows";
+            /** @description Show a grid from this two-dimensional array in examples and tests. */
+            showGrid?: boolean;
             rows?: number;
         };
         Parameter: {

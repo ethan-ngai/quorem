@@ -4,7 +4,14 @@ import { gridRows, ValueGrid } from "./ValueGrid";
 
 const maxFigureLength = 32_768;
 
-export type ExampleArgument = (example: number, argument: string) => unknown;
+export type ExampleArgument = (example: number | undefined, argument: string) => unknown;
+
+function exampleIndex(grid: object) {
+  if (!("example" in grid)) return undefined;
+  if (typeof grid.example !== "number" || !Number.isInteger(grid.example) || grid.example < 1)
+    throw new Error("Invalid example number.");
+  return grid.example;
+}
 
 function readGrid(source: string, exampleArgument?: ExampleArgument) {
   try {
@@ -13,13 +20,8 @@ function readGrid(source: string, exampleArgument?: ExampleArgument) {
     const value =
       "cells" in grid
         ? grid.cells
-        : "example" in grid &&
-            typeof grid.example === "number" &&
-            Number.isInteger(grid.example) &&
-            grid.example > 0 &&
-            "argument" in grid &&
-            typeof grid.argument === "string"
-          ? exampleArgument?.(grid.example, grid.argument)
+        : "argument" in grid && typeof grid.argument === "string"
+          ? exampleArgument?.(exampleIndex(grid), grid.argument)
           : undefined;
     const cells = gridRows(value, 256);
     if (!cells || cells.length > 32) return;

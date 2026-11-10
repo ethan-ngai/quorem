@@ -1,3 +1,4 @@
+import { CaseGrid } from "./CaseGrid";
 import { TextInput, TextArea } from "../../../ui/TextControl";
 import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { useNodeReferenceSelection } from "./NodePreview";
@@ -69,11 +70,13 @@ export function TypedCaseInput({
     schema: schemas.value,
   };
   let error = rejected ?? validationError;
-  if (touched && !error) {
+  let gridValue: unknown;
+  if ((touched && !error) || input?.showGrid) {
     try {
-      schemas.value.parse(value);
+      gridValue = preset.parse(value);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Check the input format.";
+      if (touched && !error)
+        error = cause instanceof Error ? cause.message : "Check the input format.";
     }
   }
   const errorId = `${id}-error`;
@@ -228,6 +231,7 @@ export function TypedCaseInput({
               )}
             </div>
           )}
+          {input?.showGrid && <CaseGrid name={name} value={gridValue} />}
         </div>
       </NoticeRegion>
     </div>

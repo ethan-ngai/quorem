@@ -17,7 +17,7 @@ it("strips private stage state while retaining node-reference interface semantic
                 {
                   name: "grid",
                   type: "list<list<int>>",
-                  input: { preset: "default", layout: "rows" },
+                  input: { preset: "default", layout: "rows", showGrid: true },
                 },
               ],
               returnType: "ListNode",
@@ -36,5 +36,9 @@ it("strips private stage state while retaining node-reference interface semantic
   expect(JSON.stringify(value)).not.toContain("PRIVATE");
   const method = value.odyssey.levels[0].methods[0];
   expect(method.nodeReferences).toBe("return");
-  expect(method.parameters[1]?.input?.layout).toBe("rows");
+  expect(method.parameters[1]?.input).toEqual({
+    preset: "default",
+    layout: "rows",
+    showGrid: true,
+  });
 });

@@ -59,6 +59,7 @@ function signature(v: unknown): Obj {
                       ...(input.placeholder != null ? { placeholder: input.placeholder } : {}),
                       ...(input.rows != null ? { rows: input.rows } : {}),
                       ...(input.layout != null ? { layout: input.layout } : {}),
+                      ...(input.showGrid != null ? { showGrid: input.showGrid } : {}),
                     },
                   }
                 : {}),

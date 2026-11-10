@@ -70,7 +70,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
     companies.add(key);
   }
   for (const example of p.examples)
-    if (bytes(example.explanation ?? "") > 8192)
+    if (bytes(example.explanation ?? "") > 32_768)
       throw new Error("example explanation limit exceeded");
   for (const c of p.constraints)
     if (c.kind === "prose" && bytes(c.text) > 4096)

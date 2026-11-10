@@ -198,3 +198,36 @@ it("uses the authored array layout for each example input", () => {
   expect(markup).toContain("[[5,2,4],\n[3,0,5],\n[0,7,2]]</code>");
   expect(markup).toContain("[[1],[2]]</code>");
 });
+
+it("renders case grids and annotations inside the selected example", () => {
+  const problem = {
+    id: "case-figures",
+    title: "Case figures",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Return the last cell.",
+    signature: {
+      parameters: [
+        { name: "grid", type: "list<list<int>>", input: { preset: "default", showGrid: true } },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      {
+        args: [[[1, 2]]],
+        expected: 2,
+        explanation: '~~~grid First path\n{"argument":"grid","highlights":[[0,1]]}\n~~~',
+      },
+      {
+        args: [[[3, 4]]],
+        expected: 4,
+        explanation: '~~~grid Second path\n{"argument":"grid","highlights":[[0,1]]}\n~~~',
+      },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup).toMatch(/role="tabpanel".*aria-label="Matrix for grid".*aria-label="First path"/);
+  expect(markup).toContain('aria-label="2, highlighted">2</td>');
+  expect(markup).not.toContain('aria-label="Second path"');
+});

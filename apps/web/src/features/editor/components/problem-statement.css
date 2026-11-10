@@ -74,6 +74,9 @@
   align-items: baseline;
   gap: 8px;
 }
+.example-explanation-content > div {
+  min-width: 0;
+}
 .problem-copy img,
 .example-explanation img {
   max-width: 100%;
