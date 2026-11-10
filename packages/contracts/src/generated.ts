@@ -1533,6 +1533,11 @@ export interface components {
             /** @description Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets. */
             preset: string;
             placeholder?: string;
+            /**
+             * @description Display a two-dimensional array on one line or one row per line. Defaults to inline.
+             * @enum {string}
+             */
+            layout?: "inline" | "rows";
             rows?: number;
         };
         Parameter: {

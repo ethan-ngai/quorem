@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import "./value-grid.css";
 
 export type GridCell = string | number | boolean | null;
@@ -29,18 +28,14 @@ export function ValueGrid({
   rows,
   label,
   highlighted,
-  format,
-  className = "",
 }: {
   rows: readonly (readonly GridCell[])[];
   label: string;
   highlighted?: ReadonlySet<number>;
-  format?: (cell: GridCell) => ReactNode;
-  className?: string;
 }) {
   const width = rows[0]!.length;
   return (
-    <div className={`value-grid ${className}`}>
+    <div className="value-grid">
       <table aria-label={label}>
         <tbody>
           {rows.map((row, rowIndex) => (
@@ -53,7 +48,7 @@ export function ValueGrid({
                     data-highlighted={active || undefined}
                     aria-label={active ? `${cell ?? "Empty"}, highlighted` : undefined}
                   >
-                    {format ? format(cell) : cell === null ? null : String(cell)}
+                    {cell === null ? null : String(cell)}
                   </td>
                 );
               })}

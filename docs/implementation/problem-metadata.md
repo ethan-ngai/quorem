@@ -54,7 +54,7 @@ When the grid illustrates an existing example input, reference the one-based exa
 
 Grid rows must have equal length. Cells accept numbers, booleans, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates. Keep standalone `cells` for diagrams with their own data.
 
-Rectangular scalar arrays in examples and run results offer Array and Matrix views. Editable matrix fields can align their bracketed rows without changing the values sent to the runner.
+In Signature, choose **Inline** or **Rows** for a two-dimensional array parameter. Import files use `"input": {"preset":"default","layout":"rows"}`. Omit the layout for the inline default.
 
 ```svg Two points joined by a line
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" width="120">

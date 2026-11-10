@@ -92,7 +92,7 @@ export function restorePublicExamples(
                 const parameter = jsonObject(parameterValue);
                 retain(parameter, ["name", "type", "description", "input"]);
                 if (parameter.input)
-                  retain(jsonObject(parameter.input), ["preset", "placeholder", "rows"]);
+                  retain(jsonObject(parameter.input), ["preset", "placeholder", "rows", "layout"]);
               }
           }
         clean(stage.examples);

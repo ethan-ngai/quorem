@@ -164,3 +164,37 @@ it("draws a description grid from the named argument of the specified example", 
   expect(markup).toContain('aria-label="Example grid"');
   expect(markup).toContain('aria-label="42, highlighted">42</td>');
 });
+
+it("uses the authored array layout for each example input", () => {
+  const problem = {
+    id: "layout",
+    title: "Grid layout",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Two grids.",
+    signature: {
+      parameters: [
+        { name: "grid", type: "list<list<int>>", input: { preset: "default", layout: "rows" } },
+        { name: "inline", type: "list<list<int>>" },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      {
+        args: [
+          [
+            [5, 2, 4],
+            [3, 0, 5],
+            [0, 7, 2],
+          ],
+          [[1], [2]],
+        ],
+        expected: 0,
+      },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = stripSyntaxMarkup(renderToStaticMarkup(<ProblemStatement problem={problem} />));
+  expect(markup).toContain("[[5,2,4],\n[3,0,5],\n[0,7,2]]</code>");
+  expect(markup).toContain("[[1],[2]]</code>");
+});

@@ -16,6 +16,7 @@ import {
   Link2,
   CornerDownLeft,
 } from "lucide-react";
+import { isMatrixType } from "@quorem/contracts/question-type";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
 import {
@@ -421,20 +422,39 @@ export function SignatureFields({
                 onChange={(event) => renameParameter(index, event.target.value)}
               />
             </div>
-            {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
-              <PresetType
-                type={parameter.type}
-                note="Graph node count"
-                icon={<Hash size={14} aria-hidden="true" />}
-              />
-            ) : (
-              typeField(
-                parameter.name,
-                `Parameter ${index + 1} type`,
-                parameter.type,
-                (type, signature) => updateParameterType(index, type, signature),
-              )
-            )}
+            <div className="authoring-parameter-type">
+              {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
+                <PresetType
+                  type={parameter.type}
+                  note="Graph node count"
+                  icon={<Hash size={14} aria-hidden="true" />}
+                />
+              ) : (
+                typeField(
+                  parameter.name,
+                  `Parameter ${index + 1} type`,
+                  parameter.type,
+                  (type, signature) => updateParameterType(index, type, signature),
+                )
+              )}
+              {isMatrixType(parameter.type) && (
+                <SegmentedControl
+                  compact
+                  label={`${parameter.name} array layout`}
+                  value={parameter.input?.layout ?? "inline"}
+                  options={[
+                    { value: "inline", label: "Inline" },
+                    { value: "rows", label: "Rows", hint: "One row per line" },
+                  ]}
+                  disabled={disabled || editingInvalidNames}
+                  onChange={(layout) =>
+                    updateParameter(index, {
+                      input: { preset: "default", ...parameter.input, layout },
+                    })
+                  }
+                />
+              )}
+            </div>
             <div className="admin-field authoring-parameter-description">
               <input
                 aria-label={`Parameter ${index + 1} description`}

@@ -58,6 +58,7 @@ function signature(v: unknown): Obj {
                       preset: input.preset ?? "",
                       ...(input.placeholder != null ? { placeholder: input.placeholder } : {}),
                       ...(input.rows != null ? { rows: input.rows } : {}),
+                      ...(input.layout != null ? { layout: input.layout } : {}),
                     },
                   }
                 : {}),

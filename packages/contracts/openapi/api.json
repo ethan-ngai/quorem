@@ -5839,6 +5839,11 @@
             "type": "string",
             "maxLength": 512
           },
+          "layout": {
+            "type": "string",
+            "enum": ["inline", "rows"],
+            "description": "Display a two-dimensional array on one line or one row per line. Defaults to inline."
+          },
           "rows": {
             "type": "integer",
             "minimum": 1,

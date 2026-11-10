@@ -1,16 +1,13 @@
 import { isLongValue } from "@quorem/contracts/long";
 import { z } from "zod";
 import { parseNodeLiteral, formatNodeLiteral, type NodeContext } from "./nodeLiterals";
-import type { Signature } from "@quorem/contracts";
+import type { InputPresetConfig, Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
 import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
-export type InputConfig = {
-  preset: string;
-  placeholder?: string;
-  rows?: number;
+export type InputConfig = InputPresetConfig & {
   nodeReference?: true;
   nodeContext?: NodeContext;
 };
@@ -42,7 +39,8 @@ export abstract class InputPreset {
     return value;
   }
   format(value: WireValue): string {
-    return JSON.stringify(value);
+    const source = JSON.stringify(value);
+    return this.config?.layout === "rows" ? formatMatrixSource(source) : source;
   }
   toEditorSource(source: string): string {
     return source;
@@ -170,29 +168,17 @@ function splitEntries(source: string): string[] {
   return entries;
 }
 
-/** Change only whitespace so numeric expressions and quoted values survive formatting. */
-export function formatMatrixSource(source: string, align: boolean) {
-  if (source.length > 20_000) return source;
+/** Break only the outer array so editing preserves expressions and quoted values. */
+export function formatMatrixSource(source: string) {
   const literal = source.trim();
-  if (!literal.startsWith("[") || !literal.endsWith("]")) return source;
+  if (source.length > MAX_CUSTOM_CASE_BYTES || !literal.startsWith("[") || !literal.endsWith("]"))
+    return source;
   try {
-    const rows = splitEntries(literal.slice(1, -1)).map((entry) => {
-      const row = entry.trim();
-      if (!row.startsWith("[") || !row.endsWith("]")) throw new Error("Incomplete matrix row.");
-      return splitEntries(row.slice(1, -1)).map((cell) => cell.trim());
-    });
-    const columns = rows[0]!.length;
-    if (rows.some((row) => row.length !== columns || row.some((cell) => !cell))) return source;
-    const widths = Array.from({ length: columns }, (_, column) =>
-      rows.reduce((max, row) => Math.max(max, row[column]!.length), 0),
-    );
-    if (align && widths.reduce((sum, width) => sum + width + 2, 2) * rows.length > 20_000)
+    const rows = splitEntries(literal.slice(1, -1)).map((row) => row.trim());
+    if (rows.some((row) => row !== "null" && !(row.startsWith("[") && row.endsWith("]"))))
       return source;
-    const result = rows.map(
-      (row) =>
-        `[${row.map((cell, column) => (align ? cell.padStart(widths[column]!) : cell)).join(align ? ", " : ",")}]`,
-    );
-    return `[${result.join(align ? ",\n" : ",")}]`;
+    const result = `[${rows.join(",\n")}]`;
+    return result.length <= MAX_CUSTOM_CASE_BYTES ? result : source;
   } catch {
     return source;
   }

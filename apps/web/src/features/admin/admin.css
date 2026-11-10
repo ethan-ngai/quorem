@@ -580,6 +580,13 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 2fr) 34px;
 }
 
+.authoring-parameter-type {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .authoring-exception-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 3fr) 34px;
 }

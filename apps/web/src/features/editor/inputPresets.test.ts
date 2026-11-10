@@ -206,18 +206,18 @@ it("guards datetime prefixes and exact long bounds", () => {
   expect(long.accepts("9223372036854775808")).toBe(false);
 });
 
-it("aligns matrix entries without changing expressions, long values, or quoted delimiters", () => {
+it("breaks matrix rows without changing expressions, long values, or quoted delimiters", () => {
   const source = "[[1,2**3],[400,5]]";
-  const aligned = formatMatrixSource(source, true);
-  expect(aligned).toBe("[[  1, 2**3],\n[400,    5]]");
-  expect(formatMatrixSource(aligned, false)).toBe(source);
-  expect(parseTypedField("list<list<int>>", aligned)).toEqual([
+  const rows = formatMatrixSource(source);
+  expect(rows).toBe("[[1,2**3],\n[400,5]]");
+  expect(parseTypedField("list<list<int>>", rows)).toEqual([
     [1, 8],
     [400, 5],
   ]);
-  const text = '[["a, b","]"],["x","y"]]';
-  expect(formatMatrixSource(formatMatrixSource(text, true), false)).toBe(text);
-  const longs = '[[9007199254740993],["9007199254740995"]]';
-  expect(formatMatrixSource(formatMatrixSource(longs, true), false)).toBe(longs);
-  expect(formatMatrixSource("[[1],[2,3]]", true)).toBe("[[1],[2,3]]");
+  expect(formatMatrixSource('[["a, b","]"],["x","y"]]')).toBe('[["a, b","]"],\n["x","y"]]');
+  expect(formatMatrixSource('[[9007199254740993],["9007199254740995"]]')).toBe(
+    '[[9007199254740993],\n["9007199254740995"]]',
+  );
+  expect(formatMatrixSource("[[1],[2,3]]")).toBe("[[1],\n[2,3]]");
+  expect(formatMatrixSource("[[1],")).toBe("[[1],");
 });

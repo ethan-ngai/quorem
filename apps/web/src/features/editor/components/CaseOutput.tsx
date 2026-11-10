@@ -10,10 +10,8 @@ import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
-import { useState, type ReactNode } from "react";
-import { gridRows, ValueGrid } from "./ValueGrid";
-import { MatrixFormatControl, type MatrixFormat } from "./MatrixFormat";
-import { matrixCellType } from "../typedValues";
+import type { InputPresetConfig } from "@quorem/contracts";
+import type { ReactNode } from "react";
 import { Icon } from "../../../ui/Icon";
 import { Spinner } from "../../../ui/Spinner";
 import { useChangeMotion } from "../../../ui/useChangeMotion";
@@ -74,6 +72,7 @@ export function CaseValue({
   parameter = false,
   tone,
   type,
+  layout,
   sql,
   sqlTypes,
   nodeContext,
@@ -84,23 +83,15 @@ export function CaseValue({
   parameter?: boolean;
   tone?: string;
   type?: string;
+  layout?: InputPresetConfig["layout"];
   sql?: PublishedQuestion["sql"];
   sqlTypes?: readonly string[];
   nodeContext?: NodeContext;
 }) {
   const language = useQuestionLanguage();
-  const [format, setFormat] = useState<MatrixFormat>("array");
-  const matrix = !sql && (!type || matrixCellType(type)) ? gridRows(value, 1024) : undefined;
   return (
     <div className="case-detail">
-      {matrix ? (
-        <div className="case-value-label">
-          <span className={parameter ? "parameter-name" : undefined}>{name}</span>
-          <MatrixFormatControl name={name} value={format} onChange={setFormat} />
-        </div>
-      ) : (
-        <span className={parameter ? "parameter-name" : undefined}>{name}</span>
-      )}
+      <span className={parameter ? "parameter-name" : undefined}>{name}</span>
       <div className="case-value-row">
         <Tooltip content={purpose === "input" ? "Input" : name}>
           <span
@@ -120,17 +111,10 @@ export function CaseValue({
             columnTypes={sqlTypes}
             useSchemaTypes={purpose !== "output"}
           />
-        ) : matrix && format === "matrix" ? (
-          <ValueGrid
-            rows={matrix}
-            label={`${name} matrix`}
-            className={tone}
-            format={(cell) => questionValue(cell, language, type && matrixCellType(type))}
-          />
         ) : (
           <CodeLiteral
             className={`machine-value ${tone ?? ""}${type?.includes("TreeNode") ? " node-tree-literal" : ""}`}
-            source={questionValue(value, language, type, nodeContext)}
+            source={questionValue(value, language, type, nodeContext, layout === "rows")}
             language={language}
           />
         )}
@@ -156,7 +140,12 @@ export function CaseArguments({
 }) {
   const inputs = signature
     ? bindArguments(signature, args)
-    : args.map((value, index) => ({ name: `Argument ${index + 1}`, value, type: undefined }));
+    : args.map((value, index) => ({
+        name: `Argument ${index + 1}`,
+        value,
+        type: undefined,
+        input: undefined,
+      }));
   return (
     <CasePreviewLayout
       enabled={preview}
@@ -165,12 +154,13 @@ export function CaseArguments({
       actual={actual}
     >
       <div className="case-call-inputs">
-        {inputs.map(({ name, value, type }) => (
+        {inputs.map(({ name, value, type, input }) => (
           <CaseValue
             key={name}
             name={name}
             value={value}
             type={type}
+            layout={input?.layout}
             parameter
             nodeContext={signature ? { signature, args: args as NodeContext["args"] } : undefined}
           />
