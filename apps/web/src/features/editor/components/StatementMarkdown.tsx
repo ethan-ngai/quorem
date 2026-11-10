@@ -14,11 +14,19 @@ import { gfm } from "micromark-extension-gfm";
 import { math } from "micromark-extension-math";
 import type { Nodes } from "mdast";
 
-function InlineMath({ value, source }: { value: string; source: string }) {
+function StatementMath({
+  value,
+  source,
+  displayMode = false,
+}: {
+  value: string;
+  source: string;
+  displayMode?: boolean;
+}) {
   if (value.length > 4096) return source;
   try {
     const html = katex.renderToString(value, {
-      displayMode: false,
+      displayMode,
       throwOnError: true,
       strict: "error",
       trust: false,
@@ -27,7 +35,8 @@ function InlineMath({ value, source }: { value: string; source: string }) {
       maxExpand: 100,
     });
     // Only KaTeX output enters HTML; authored Markdown never enters this sink.
-    return <span className="statement-math" dangerouslySetInnerHTML={{ __html: html }} />;
+    const Element = displayMode ? "div" : "span";
+    return <Element className="statement-math" dangerouslySetInnerHTML={{ __html: html }} />;
   } catch {
     return source;
   }
@@ -96,7 +105,9 @@ function renderMarkdown(
       case "emphasis":
         return <em key={key}>{node.children.map(render)}</em>;
       case "inlineMath":
-        return <InlineMath key={key} value={node.value} source={literal} />;
+        return <StatementMath key={key} value={node.value} source={literal} />;
+      case "math":
+        return <StatementMath key={key} value={node.value} source={literal} displayMode />;
       case "paragraph":
         return inline ? node.children.map(render) : <p key={key}>{node.children.map(render)}</p>;
       case "break":

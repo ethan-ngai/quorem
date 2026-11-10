@@ -7,22 +7,42 @@ function code(value: string): string {
   return `${fence} ${value} ${fence}`;
 }
 
-function targetMarkup(target: ConstraintTarget, qualifyNodes = false): string {
-  return code(formatTarget(target, qualifyNodes));
+type FormulaPart = { math: string } | { code: string };
+
+function targetMarkup(target: ConstraintTarget, qualifyNodes = false): FormulaPart {
+  const literal = formatTarget(target, qualifyNodes);
+  if (target.projection !== "value") return { code: literal };
+  const name = /^([A-Za-z])(?:_([A-Za-z0-9]+))?$/.exec(literal);
+  return name ? { math: name[2] ? `${name[1]}_{${name[2]}}` : name[1]! } : { code: literal };
 }
 
 function boundMarkup(value: number): string {
-  return `$${formatBound(value).replace(/\^(-?\d+)/g, "^{$1}")}$`;
+  return formatBound(value).replace(/\^(-?\d+)/g, "^{$1}");
 }
 
 /** Compose prose and inline math from constraint metadata, without rewriting source text. */
 export function constraintMarkup(constraint: Constraint | string): string {
   if (typeof constraint === "string") return constraint;
-  if (
-    (constraint.kind === "range" || constraint.kind === "comparison") &&
-    constraint.quantifier === "any"
-  )
-    return `$\\exists$ ${constraintMarkup({ ...constraint, quantifier: undefined })}`;
+  const quantifier =
+    "quantifier" in constraint && constraint.quantifier === "any" ? "\\exists\\,:\\;" : "";
+  function formula(...parts: (string | FormulaPart)[]) {
+    const fragments: string[] = [];
+    let math = quantifier;
+    const flush = () => {
+      if (math) fragments.push(`$${math.trim()}$`);
+      math = "";
+    };
+    for (const part of parts) {
+      if (typeof part === "object" && "code" in part) {
+        flush();
+        fragments.push(code(part.code));
+      } else {
+        math += ` ${typeof part === "string" ? part : part.math}`;
+      }
+    }
+    flush();
+    return fragments.join(" ");
+  }
   switch (constraint.kind) {
     case "prose":
       return constraint.text;
@@ -35,14 +55,25 @@ export function constraintMarkup(constraint: Constraint | string): string {
       const lower = constraint.minInclusive === false ? "<" : "\\le";
       const upper = constraint.maxInclusive === false ? "<" : "\\le";
       if (constraint.min !== undefined && constraint.max !== undefined)
-        return `${boundMarkup(constraint.min)} $${lower}$ ${target} $${upper}$ ${boundMarkup(constraint.max)}${suffix}`;
+        return (
+          formula(boundMarkup(constraint.min), lower, target, upper, boundMarkup(constraint.max)) +
+          suffix
+        );
       return constraint.min !== undefined
-        ? `${target} $${constraint.minInclusive === false ? ">" : "\\ge"}$ ${boundMarkup(constraint.min)}${suffix}`
-        : `${target} $${upper}$ ${boundMarkup(constraint.max!)}${suffix}`;
+        ? formula(
+            target,
+            constraint.minInclusive === false ? ">" : "\\ge",
+            boundMarkup(constraint.min),
+          ) + suffix
+        : formula(target, upper, boundMarkup(constraint.max!)) + suffix;
     }
     case "comparison": {
       const operator = { eq: "=", le: "\\le", lt: "<", ge: "\\ge", gt: ">" }[constraint.operator];
-      return `${targetMarkup(constraint.left, true)} $${operator}$ ${targetMarkup(constraint.right, true)}`;
+      return formula(
+        targetMarkup(constraint.left, true),
+        operator,
+        targetMarkup(constraint.right, true),
+      );
     }
     case "property": {
       const nodes = constraint.target.projection === "nodeValues";

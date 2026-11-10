@@ -6,6 +6,17 @@ Question editor → Bulk import checks each file and creates a draft for new con
 
 Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.schema.json) and [complete example](../../packages/contracts/questions/example-v1.json). The schema is JSON Schema 2020-12, generated from the reachable OpenAPI `QuestionContent` definitions. `vp -C packages/contracts run generate` refreshes it; contract checks detect drift.
 
+Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, and string literals in backticks. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
+
+| Intent                       | Markdown source                |
+| ---------------------------- | ------------------------------ |
+| Mathematical bound           | `$1 \le n \le 2 \cdot 10^{4}$` |
+| Indexed value                | ``$1 \le$ `nums[i]` $\le 50$`` |
+| Property access and equality | `` `nums.length` $= n$ ``      |
+| Complexity in a sentence     | `$O(n \log n)$`                |
+
+Prefer structured constraints whenever they can express the rule. Use the same Markdown convention in prose constraints. In JSON strings, escape LaTeX backslashes, for example `"$O(n \\log n)$"`.
+
 One UTF-8 JSON document per file, maximum 2 MiB. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
 
 Classic coding owns `problem.signature`. Staged coding owns methods in each `problem.odyssey.levels` entry and derives its primary interface from the first method. SQL omits `signature`. Each authored stage owns `examples` and private `hiddenCases`; staged questions leave top-level examples/hidden cases empty. Reordering a stage moves its tests with it. Public projections remove all private stage cases.

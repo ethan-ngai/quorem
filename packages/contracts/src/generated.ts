@@ -1622,6 +1622,7 @@ export interface components {
             };
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
+            /** @description Example Markdown. Use $...$ for math and backticks for code, array access, and property access. Put example-specific diagrams and fenced code here. */
             explanation?: string;
             calls?: components["schemas"]["MethodCall"][];
         };
@@ -1635,6 +1636,7 @@ export interface components {
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -1945,6 +1947,7 @@ export interface components {
         } | {
             /** @constant */
             kind: "prose";
+            /** @description Use only for constraints the structured forms cannot express. Use Markdown with LaTeX for the math and backticks for program accesses. Examples: $1 \le n \le 2 \cdot 10^{4}$ and `nums.length` $= n$. */
             text: string;
         };
         /** @enum {string} */
@@ -2032,7 +2035,9 @@ export interface components {
             /** @enum {string} */
             defaultLanguage?: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             explanationMarkdown: string;
+            /** @description Time complexity as LaTeX, for example $O(n \log n)$. */
             timeComplexity: string;
+            /** @description Auxiliary space complexity as LaTeX, for example $O(n \log n)$. */
             spaceComplexity: string;
             complexityNotes: string;
             implementations: components["schemas"]["SolutionCode"][];
@@ -2041,7 +2046,9 @@ export interface components {
             id: string;
             /** @description Optional for the canonical approach; other approaches require a name. */
             title: string;
+            /** @description Time complexity as LaTeX, for example $O(n \log n)$. */
             timeComplexity: string;
+            /** @description Auxiliary space complexity as LaTeX, for example $O(n \log n)$. */
             spaceComplexity: string;
             complexityNotes: string;
         };
@@ -2053,6 +2060,7 @@ export interface components {
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -2159,6 +2167,7 @@ export interface components {
         };
         OdysseyLevel: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             methods: components["schemas"]["Signature"][];
             examples: components["schemas"]["ProblemExample"][];
@@ -2196,6 +2205,7 @@ export interface components {
         };
         InterviewCustomQuestion: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             signature?: components["schemas"]["Signature"];
             publicCases?: components["schemas"]["CustomCase"][];
@@ -2337,6 +2347,7 @@ export interface components {
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -2350,6 +2361,7 @@ export interface components {
         };
         AuthoredOdysseyLevel: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             methods: components["schemas"]["Signature"][];
             examples: components["schemas"]["ProblemExample"][];

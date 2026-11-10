@@ -169,6 +169,9 @@
 .statement-math {
   max-width: 100%;
 }
+div.statement-math {
+  overflow-x: auto;
+}
 .topic-list {
   opacity: 1;
   visibility: visible;

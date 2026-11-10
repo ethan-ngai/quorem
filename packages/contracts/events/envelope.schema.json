@@ -1298,7 +1298,8 @@
           "$ref": "#/$defs/WireValue"
         },
         "explanation": {
-          "type": "string"
+          "type": "string",
+          "description": "Example Markdown. Use $...$ for math and backticks for code, array access, and property access. Put example-specific diagrams and fenced code here."
         },
         "calls": {
           "type": "array",
@@ -1350,7 +1351,8 @@
           }
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "examples": {
           "type": "array",
@@ -2432,7 +2434,8 @@
             },
             "text": {
               "type": "string",
-              "minLength": 1
+              "minLength": 1,
+              "description": "Use only for constraints the structured forms cannot express. Use Markdown with LaTeX for the math and backticks for program accesses. Examples: $1 \\le n \\le 2 \\cdot 10^{4}$ and `nums.length` $= n$."
             }
           },
           "required": [
@@ -2844,10 +2847,12 @@
           "type": "string"
         },
         "timeComplexity": {
-          "type": "string"
+          "type": "string",
+          "description": "Time complexity as LaTeX, for example $O(n \\log n)$."
         },
         "spaceComplexity": {
-          "type": "string"
+          "type": "string",
+          "description": "Auxiliary space complexity as LaTeX, for example $O(n \\log n)$."
         },
         "complexityNotes": {
           "type": "string"
@@ -2883,10 +2888,12 @@
           "description": "Optional for the canonical approach; other approaches require a name."
         },
         "timeComplexity": {
-          "type": "string"
+          "type": "string",
+          "description": "Time complexity as LaTeX, for example $O(n \\log n)$."
         },
         "spaceComplexity": {
-          "type": "string"
+          "type": "string",
+          "description": "Auxiliary space complexity as LaTeX, for example $O(n \\log n)$."
         },
         "complexityNotes": {
           "type": "string"
@@ -2927,7 +2934,8 @@
           }
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "examples": {
           "type": "array",
@@ -3368,7 +3376,8 @@
           "type": "string"
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "methods": {
           "type": "array",
@@ -3545,7 +3554,8 @@
           "type": "string"
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "signature": {
           "$ref": "#/$defs/Signature"
@@ -4144,7 +4154,8 @@
           }
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "examples": {
           "type": "array",
@@ -4250,7 +4261,8 @@
           "type": "string"
         },
         "statementMarkdown": {
-          "type": "string"
+          "type": "string",
+          "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
         },
         "methods": {
           "type": "array",

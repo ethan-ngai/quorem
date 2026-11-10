@@ -19,6 +19,12 @@ describe("restricted statement Markdown", () => {
     expect(markup).toContain("<msup>");
     expect(markup).toContain("<mo>≤</mo>");
   });
+  it("renders standalone formulas as display math", () => {
+    const markup = render("Before.\n\n$$\nx^2 \\le 10^{4}\n$$\n\nAfter.");
+    expect(markup).toContain('<div class="statement-math">');
+    expect(markup).toContain('display="block"');
+    expect(markup).toContain("<mo>≤</mo>");
+  });
   it("leaves unclosed and invalid math readable", () => {
     expect(render("Unclosed $x and **word")).toContain("Unclosed $x and **word");
     expect(render("Invalid $\\notacommand{x}$")).toContain("$\\notacommand{x}$");
