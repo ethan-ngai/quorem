@@ -1,6 +1,7 @@
 import { primarySignature } from "@quorem/questions";
 import { describe, expect, it } from "vitest";
 import {
+  formatMatrixSource,
   inputPresetSchemas,
   InputPreset,
   registerInputPreset,
@@ -203,4 +204,20 @@ it("guards datetime prefixes and exact long bounds", () => {
   expect(long.accepts("-")).toBe(true);
   expect(long.accepts("9223372036854775807")).toBe(true);
   expect(long.accepts("9223372036854775808")).toBe(false);
+});
+
+it("aligns matrix entries without changing expressions, long values, or quoted delimiters", () => {
+  const source = "[[1,2**3],[400,5]]";
+  const aligned = formatMatrixSource(source, true);
+  expect(aligned).toBe("[[  1, 2**3],\n[400,    5]]");
+  expect(formatMatrixSource(aligned, false)).toBe(source);
+  expect(parseTypedField("list<list<int>>", aligned)).toEqual([
+    [1, 8],
+    [400, 5],
+  ]);
+  const text = '[["a, b","]"],["x","y"]]';
+  expect(formatMatrixSource(formatMatrixSource(text, true), false)).toBe(text);
+  const longs = '[[9007199254740993],["9007199254740995"]]';
+  expect(formatMatrixSource(formatMatrixSource(longs, true), false)).toBe(longs);
+  expect(formatMatrixSource("[[1],[2,3]]", true)).toBe("[[1],[2,3]]");
 });

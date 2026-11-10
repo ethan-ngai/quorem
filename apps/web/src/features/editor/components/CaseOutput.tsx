@@ -10,7 +10,10 @@ import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { gridRows, ValueGrid } from "./ValueGrid";
+import { MatrixFormatControl, type MatrixFormat } from "./MatrixFormat";
+import { matrixCellType } from "../typedValues";
 import { Icon } from "../../../ui/Icon";
 import { Spinner } from "../../../ui/Spinner";
 import { useChangeMotion } from "../../../ui/useChangeMotion";
@@ -86,9 +89,18 @@ export function CaseValue({
   nodeContext?: NodeContext;
 }) {
   const language = useQuestionLanguage();
+  const [format, setFormat] = useState<MatrixFormat>("array");
+  const matrix = !sql && (!type || matrixCellType(type)) ? gridRows(value, 1024) : undefined;
   return (
     <div className="case-detail">
-      <span className={parameter ? "parameter-name" : undefined}>{name}</span>
+      {matrix ? (
+        <div className="case-value-label">
+          <span className={parameter ? "parameter-name" : undefined}>{name}</span>
+          <MatrixFormatControl name={name} value={format} onChange={setFormat} />
+        </div>
+      ) : (
+        <span className={parameter ? "parameter-name" : undefined}>{name}</span>
+      )}
       <div className="case-value-row">
         <Tooltip content={purpose === "input" ? "Input" : name}>
           <span
@@ -107,6 +119,13 @@ export function CaseValue({
             schema={sql}
             columnTypes={sqlTypes}
             useSchemaTypes={purpose !== "output"}
+          />
+        ) : matrix && format === "matrix" ? (
+          <ValueGrid
+            rows={matrix}
+            label={`${name} matrix`}
+            className={tone}
+            format={(cell) => questionValue(cell, language, type && matrixCellType(type))}
           />
         ) : (
           <CodeLiteral

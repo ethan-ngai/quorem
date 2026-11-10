@@ -1,27 +1,33 @@
 /** @file StatementFigure.tsx @description Manually authored problem description figures. @module editor */
 import "./statement-figure.css";
+import { gridRows, ValueGrid } from "./ValueGrid";
 
 const maxFigureLength = 32_768;
 
-type Cell = string | number | null;
+export type ExampleArgument = (example: number, argument: string) => unknown;
 
-function isCell(value: unknown): value is Cell {
-  return (
-    value === null ||
-    (typeof value === "number" && Number.isFinite(value)) ||
-    (typeof value === "string" && value.length <= 80)
-  );
-}
-
-function readGrid(source: string) {
+function readGrid(source: string, exampleArgument?: ExampleArgument) {
   try {
     const grid: unknown = JSON.parse(source);
-    if (!grid || typeof grid !== "object" || !("cells" in grid)) return;
-    const { cells } = grid;
-    if (!Array.isArray(cells) || !cells.length || cells.length > 32) return;
-    const width = Array.isArray(cells[0]) ? cells[0].length : 0;
-    if (!width || width > 32 || cells.length * width > 256) return;
-    if (!cells.every((row) => Array.isArray(row) && row.length === width && row.every(isCell)))
+    if (!grid || typeof grid !== "object") return;
+    const value =
+      "cells" in grid
+        ? grid.cells
+        : "example" in grid &&
+            typeof grid.example === "number" &&
+            Number.isInteger(grid.example) &&
+            grid.example > 0 &&
+            "argument" in grid &&
+            typeof grid.argument === "string"
+          ? exampleArgument?.(grid.example, grid.argument)
+          : undefined;
+    const cells = gridRows(value, 256);
+    if (!cells || cells.length > 32) return;
+    const width = cells[0]!.length;
+    if (
+      width > 32 ||
+      cells.some((row) => row.some((cell) => typeof cell === "string" && cell.length > 80))
+    )
       return;
     const highlights = "highlights" in grid ? grid.highlights : [];
     if (!Array.isArray(highlights) || highlights.length > cells.length * width) return;
@@ -42,7 +48,7 @@ function readGrid(source: string) {
         return;
       highlighted.add(row * width + column);
     }
-    return { cells, width, highlighted };
+    return { cells, highlighted };
   } catch {
     return;
   }
@@ -64,35 +70,20 @@ function svgImage(source: string, label: string) {
   }
 }
 
-export function renderStatementFigure(kind: string, source: string, label?: string | null) {
+export function renderStatementFigure(
+  kind: string,
+  source: string,
+  label?: string | null,
+  exampleArgument?: ExampleArgument,
+) {
   if (source.length > maxFigureLength) return;
   if (kind === "svg") return svgImage(source.trim(), label?.trim() || "Diagram");
   if (kind !== "grid") return;
-  const grid = readGrid(source);
+  const grid = readGrid(source, exampleArgument);
   if (!grid) return;
-  const name = label?.trim() || "Grid";
   return (
     <figure className="statement-figure-grid">
-      <table aria-label={name}>
-        <tbody>
-          {grid.cells.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {row.map((cell: Cell, column: number) => {
-                const highlighted = grid.highlighted.has(rowIndex * grid.width + column);
-                return (
-                  <td
-                    key={column}
-                    data-highlighted={highlighted || undefined}
-                    aria-label={highlighted ? `${cell ?? "Empty"}, highlighted` : undefined}
-                  >
-                    {cell}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ValueGrid rows={grid.cells} highlighted={grid.highlighted} label={label?.trim() || "Grid"} />
     </figure>
   );
 }

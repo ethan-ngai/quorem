@@ -1,7 +1,7 @@
 /** @file StatementMarkdown.tsx @description Safe Markdown and bounded mathematics. @module editor */
 import { Fragment } from "react";
 import { CodeLiteral } from "./CodeLiteral";
-import { renderStatementFigure } from "./StatementFigure";
+import { renderStatementFigure, type ExampleArgument } from "./StatementFigure";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import type { EditorLanguage } from "../editorLanguages";
 import type { ReactNode } from "react";
@@ -63,6 +63,7 @@ function renderMarkdown(
   inline: boolean,
   language?: EditorLanguage,
   allowFigures = false,
+  exampleArgument?: ExampleArgument,
 ): ReactNode[] {
   const tree = fromMarkdown(source, {
     extensions: [math(), gfm()],
@@ -78,7 +79,7 @@ function renderMarkdown(
       case "code": {
         const fence = node.lang?.toLowerCase() ?? "";
         if (allowFigures && (fence === "grid" || fence === "svg")) {
-          const figure = renderStatementFigure(fence, node.value, node.meta);
+          const figure = renderStatementFigure(fence, node.value, node.meta, exampleArgument);
           if (figure) return <Fragment key={key}>{figure}</Fragment>;
         }
         return (
@@ -167,10 +168,12 @@ export function inlineStatement(source: string): ReactNode[] {
 export function StatementMarkdown({
   source,
   allowFigures = false,
+  exampleArgument,
 }: {
   source: string;
   allowFigures?: boolean;
+  exampleArgument?: ExampleArgument;
 }) {
   const language = useQuestionLanguage();
-  return <>{renderMarkdown(source.trim(), false, language, allowFigures)}</>;
+  return <>{renderMarkdown(source.trim(), false, language, allowFigures, exampleArgument)}</>;
 }

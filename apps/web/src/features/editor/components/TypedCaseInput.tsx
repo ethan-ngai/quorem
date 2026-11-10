@@ -10,7 +10,14 @@ import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
 import { useState, useRef, type ReactNode } from "react";
 import { innerType } from "../customCases";
-import { inputPresetSchemas, resolveInputPreset, type InputConfig } from "../inputPresets";
+import {
+  formatMatrixSource,
+  inputPresetSchemas,
+  resolveInputPreset,
+  type InputConfig,
+} from "../inputPresets";
+import { matrixCellType } from "../typedValues";
+import { MatrixFormatControl, type MatrixFormat } from "./MatrixFormat";
 
 export function TypedCaseInput({
   id,
@@ -38,6 +45,7 @@ export function TypedCaseInput({
   const change = useRef(onChange);
   change.current = onChange;
   const nullLabel = questionValue(null, language);
+  const [format, setFormat] = useState<MatrixFormat>("array");
   const [touched, setTouched] = useState(false);
   const [rejected, setRejected] = useState<string>();
   let preset: ReturnType<typeof resolveInputPreset>;
@@ -57,6 +65,7 @@ export function TypedCaseInput({
   while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
   const control = optional ? resolveInputPreset(controlType, input) : preset;
   const framed = !!control.delimiters;
+  const matrix = framed && !!matrixCellType(type);
   const schemas = inputPresetSchemas(preset);
   const constraint = {
     edit: (source: string) => schemas.edit.safeParse(source).success,
@@ -79,7 +88,10 @@ export function TypedCaseInput({
     "aria-describedby": error ? errorId : undefined,
     onBlur: () => {
       setTouched(true);
-      if (preset.autoformat) {
+      if (matrix && format === "matrix") {
+        const next = formatMatrixSource(value, true);
+        if (next !== value) onChange(next);
+      } else if (preset.autoformat) {
         try {
           onChange(preset.format(preset.parse(value)));
         } catch {
@@ -120,6 +132,17 @@ export function TypedCaseInput({
           </code>
         </label>
         {action}
+        {matrix && !empty && (
+          <MatrixFormatControl
+            name={name}
+            value={format}
+            onChange={(next) => {
+              setFormat(next);
+              const formatted = formatMatrixSource(value, next === "matrix");
+              if (formatted !== value) onChange(formatted);
+            }}
+          />
+        )}
         {optional && (
           <button
             type="button"
@@ -198,13 +221,15 @@ export function TypedCaseInput({
                   {...props}
                   rows={
                     input?.rows ??
-                    (control.kind === "tree"
-                      ? Math.min(12, Math.max(1, props.value.split("\n").length))
-                      : control.kind === "text"
-                        ? 1
-                        : framed
-                          ? 2
-                          : 1)
+                    (matrix && format === "matrix"
+                      ? Math.min(12, Math.max(2, props.value.split("\n").length))
+                      : control.kind === "tree"
+                        ? Math.min(12, Math.max(1, props.value.split("\n").length))
+                        : control.kind === "text"
+                          ? 1
+                          : framed
+                            ? 2
+                            : 1)
                   }
                   spellCheck={false}
                 />

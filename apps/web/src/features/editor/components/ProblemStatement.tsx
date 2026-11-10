@@ -69,6 +69,11 @@ export function ProblemStatement({
       });
     } else setRevealedTopicsFor(problem.id);
   }
+  function exampleArgument(example: number, argument: string) {
+    if (problem.sql || problem.odyssey) return;
+    const index = primarySignature(problem).parameters.findIndex(({ name }) => name === argument);
+    return problem.examples[example - 1]?.args[index];
+  }
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
@@ -108,7 +113,11 @@ export function ProblemStatement({
       <div className="problem-body">
         {navigation}
         <div className="problem-copy">
-          <StatementMarkdown source={problem.statementMarkdown} allowFigures />
+          <StatementMarkdown
+            source={problem.statementMarkdown}
+            allowFigures
+            exampleArgument={exampleArgument}
+          />
         </div>
         {problem.sql && <SqlSchema schema={problem.sql} />}
         {beforeExamples}

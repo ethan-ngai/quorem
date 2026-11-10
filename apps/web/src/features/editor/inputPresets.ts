@@ -170,6 +170,34 @@ function splitEntries(source: string): string[] {
   return entries;
 }
 
+/** Change only whitespace so numeric expressions and quoted values survive formatting. */
+export function formatMatrixSource(source: string, align: boolean) {
+  if (source.length > 20_000) return source;
+  const literal = source.trim();
+  if (!literal.startsWith("[") || !literal.endsWith("]")) return source;
+  try {
+    const rows = splitEntries(literal.slice(1, -1)).map((entry) => {
+      const row = entry.trim();
+      if (!row.startsWith("[") || !row.endsWith("]")) throw new Error("Incomplete matrix row.");
+      return splitEntries(row.slice(1, -1)).map((cell) => cell.trim());
+    });
+    const columns = rows[0]!.length;
+    if (rows.some((row) => row.length !== columns || row.some((cell) => !cell))) return source;
+    const widths = Array.from({ length: columns }, (_, column) =>
+      rows.reduce((max, row) => Math.max(max, row[column]!.length), 0),
+    );
+    if (align && widths.reduce((sum, width) => sum + width + 2, 2) * rows.length > 20_000)
+      return source;
+    const result = rows.map(
+      (row) =>
+        `[${row.map((cell, column) => (align ? cell.padStart(widths[column]!) : cell)).join(align ? ", " : ",")}]`,
+    );
+    return `[${result.join(align ? ",\n" : ",")}]`;
+  } catch {
+    return source;
+  }
+}
+
 /** Inspect literal punctuation while preserving arbitrary quoted payloads. */
 function unquotedSource(source: string, allowStrings: boolean): string | undefined {
   let quoted = false,

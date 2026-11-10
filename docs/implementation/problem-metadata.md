@@ -40,13 +40,21 @@ Run case results expose optional `stdout` and `stderr` separately from positione
 
 ## Description figures
 
-Use a fenced `grid` or `svg` block in the problem description. Put the accessible label after the fence name. These figures are authored independently of the examples and tests.
+Use a fenced `grid` or `svg` block in the problem description. Put the accessible label after the fence name.
 
 ```grid Selected cell in a matrix
 {"cells":[[1,2],[3,4]],"highlights":[[1,0]]}
 ```
 
-Grid rows must have equal length. Cells accept numbers, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates.
+When the grid illustrates an existing example input, reference the one-based example number and the argument name instead of copying its cells.
+
+```grid Selected cell in Example 2
+{"example":2,"argument":"grid","highlights":[[1,0]]}
+```
+
+Grid rows must have equal length. Cells accept numbers, booleans, short text, or `null` for an empty cell. Optional `highlights` are zero-based `[row, column]` coordinates. Keep standalone `cells` for diagrams with their own data.
+
+Rectangular scalar arrays in examples and run results offer Array and Matrix views. Editable matrix fields can align their bracketed rows without changing the values sent to the runner.
 
 ```svg Two points joined by a line
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 32" width="120">

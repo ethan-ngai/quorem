@@ -19,6 +19,17 @@ export function innerType(type: string, wrapper: "optional" | "list" | "array") 
     : undefined;
 }
 
+export function matrixCellType(type: string) {
+  const unwrap = (value: string) => {
+    for (let child = innerType(value, "optional"); child; child = innerType(value, "optional"))
+      value = child;
+    return value;
+  };
+  const row = innerType(unwrap(type), "list");
+  const cell = row && innerType(unwrap(row), "list");
+  if (cell && !innerType(unwrap(cell), "list") && !nodeType(unwrap(cell))) return cell;
+}
+
 export const valueAtoms = [...nodePayloadTypes, ...nodeKinds] as const;
 export const valueWrappers = ["optional", "list", "array"] as const;
 export type ValueType =

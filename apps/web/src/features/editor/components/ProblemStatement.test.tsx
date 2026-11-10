@@ -138,3 +138,29 @@ it("preserves uppercase topic labels", () => {
   expect(html).toContain(">SQL</span>");
   expect(html).toContain(">Hash Table</span>");
 });
+
+it("draws a description grid from the named argument of the specified example", () => {
+  const problem = {
+    id: "matrix",
+    title: "Grid",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown:
+      '~~~grid Example grid\n{"example":2,"argument":"grid","highlights":[[0,1]]}\n~~~',
+    signature: {
+      parameters: [
+        { name: "start", type: "int" },
+        { name: "grid", type: "list<list<int>>" },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      { args: [0, [[1, 2]]], expected: 1 },
+      { args: [0, [[41, 42]]], expected: 42 },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup).toContain('aria-label="Example grid"');
+  expect(markup).toContain('aria-label="42, highlighted">42</td>');
+});

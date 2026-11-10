@@ -146,7 +146,14 @@
   gap: 5px;
   min-width: 0;
 }
-.case-detail > span {
+.case-value-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.case-detail > span,
+.case-value-label > span {
   color: var(--color-text-secondary);
   font-size: 11px;
 }
