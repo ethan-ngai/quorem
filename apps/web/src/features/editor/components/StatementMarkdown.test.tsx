@@ -1,3 +1,5 @@
+import { tags } from "@lezer/highlight";
+import { editorSyntaxStyle } from "../syntaxHighlighting";
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -39,7 +41,9 @@ describe("restricted statement Markdown", () => {
     expect(markup).toContain("![image](x)");
     expect(markup).toContain("# Heading");
     expect(markup).toContain('<pre class="statement-code"><code class="code-literal">');
-    expect(markup).toContain('<span class="code-keyword">return</span>');
+    expect(markup).toContain(
+      `<span class="${editorSyntaxStyle.style([tags.keyword])}">return</span>`,
+    );
     expect(markup).toContain("<ul>");
     expect(markup).not.toMatch(/<(img|h2)\b/);
   });

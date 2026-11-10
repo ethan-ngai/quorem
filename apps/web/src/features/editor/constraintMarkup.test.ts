@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { constraintMarkup } from "./constraintMarkup";
+import { constraintListMarkup, constraintMarkup } from "./constraintMarkup";
 
 describe("constraint Markdown composition", () => {
   it("keeps indexed accesses in code and typesets the numeric bounds", () => {
@@ -83,4 +83,27 @@ it("shows existential quantification and descending order in public content", ()
       direction: "desc",
     }),
   ).toContain("nonincreasing");
+});
+
+it("chains scalar bounds and keeps strict endpoints when reversing a comparison", () => {
+  const left = { parameter: "ax1", projection: "value" } as const;
+  const right = { parameter: "ax2", projection: "value" } as const;
+  expect(
+    constraintListMarkup([
+      { kind: "comparison", left: right, right: left, operator: "gt" },
+      { kind: "range", target: left, min: -10000, minInclusive: false },
+      { kind: "range", target: right, max: 10000 },
+    ]),
+  ).toEqual(["$-10^{4} <$ ` ax1 ` $<$ ` ax2 ` $\\le 10^{4}$"]);
+});
+
+it("groups identical scalar bounds and leaves independent existential rules separate", () => {
+  const target = (parameter: string) => ({ parameter, projection: "value" as const });
+  expect(
+    constraintListMarkup([
+      { kind: "range", target: target("width"), min: 1, max: 100 },
+      { kind: "range", target: target("height"), min: 1, max: 100 },
+      { kind: "range", target: target("x"), min: 1, max: 100, quantifier: "any" },
+    ]),
+  ).toEqual(["$1 \\le$ ` width `, ` height ` $\\le 100$", "$\\exists\\,:\\; 1 \\le x \\le 100$"]);
 });

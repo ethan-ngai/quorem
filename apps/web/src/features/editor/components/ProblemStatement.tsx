@@ -11,7 +11,7 @@ import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
-import { constraintMarkup } from "../constraintMarkup";
+import { constraintListMarkup } from "../constraintMarkup";
 import type { QuestionProblem } from "@quorem/contracts";
 
 export type StatementProblem = Pick<
@@ -220,11 +220,9 @@ export function ProblemStatement({
           <section className="problem-section" aria-labelledby="constraints-heading">
             <h2 id="constraints-heading">Constraints</h2>
             <ul className="constraint-list">
-              {problem.constraints.map((constraint, constraintIndex) => {
-                return (
-                  <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>
-                );
-              })}
+              {constraintListMarkup(problem.constraints).map((markup, index) => (
+                <li key={index}>{inlineStatement(markup)}</li>
+              ))}
             </ul>
           </section>
         )}
