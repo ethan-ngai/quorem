@@ -14,7 +14,11 @@ import { renderTypeScriptHover } from "./typeScriptHover";
 import { releaseProxy, wrap } from "comlink";
 
 /** Stop analysis when the document closes, changes language, or loses authentication. */
-export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnavailable = () => {}) {
+export async function browserTypeScriptIntelligence(
+  signal: AbortSignal,
+  onUnavailable = () => {},
+  automaticImports = false,
+) {
   signal.throwIfAborted();
   const worker = new Worker(new URL("./browserTypeScriptWorker.ts", import.meta.url), {
     type: "module",
@@ -45,7 +49,7 @@ export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnava
   worker.addEventListener("error", fail);
   worker.addEventListener("messageerror", fail);
   try {
-    await Promise.race([service.initialize(), interrupted]);
+    await Promise.race([service.initialize(automaticImports), interrupted]);
     clearTimeout(deadline);
     signal.throwIfAborted();
     return {

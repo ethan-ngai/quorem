@@ -76,6 +76,7 @@ it("keeps an eligible lobby question and resets an excluded question to the defa
       <MatchSettings
         identity="alice"
         catalog={catalog}
+        heading={(options) => options}
         value={settings}
         onChange={(next) => {
           onChange(next);
@@ -115,6 +116,16 @@ it("keeps an eligible lobby question and resets an excluded question to the defa
         questionFilters: { sql: "true", type: "odyssey" },
         selectedProblemVersionId: undefined,
       }),
+    );
+    await click("Lobby options");
+    const imports = "Auto-import common libraries";
+    await click(imports);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rules: expect.objectContaining({ automaticImports: true }) }),
+    );
+    await click(imports);
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rules: expect.objectContaining({ automaticImports: false }) }),
     );
   } finally {
     await act(async () => root.unmount());

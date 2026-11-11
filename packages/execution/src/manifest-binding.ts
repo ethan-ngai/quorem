@@ -87,6 +87,7 @@ export async function manifestCaseBinding(
       ref.size,
       original.attemptId,
       original.sandboxScope,
+      ...(job.automaticImports === undefined ? [] : [job.automaticImports]),
     ]),
   );
 }

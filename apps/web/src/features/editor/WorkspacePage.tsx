@@ -65,6 +65,7 @@ import type { OdysseyProgress } from "@quorem/contracts";
 import { useSubmission } from "./useSubmission";
 import { useWorkspaceDraft } from "./useWorkspaceDraft";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
+import { pythonNeedsDatetime } from "./questionTypes";
 import { useIntelligence } from "./useIntelligence";
 import { PythonEditor, type PythonEditorHandle } from "./PythonEditor";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
@@ -593,6 +594,12 @@ export function WorkspacePage({
     !loading && browserIntelligenceAvailable,
     documentLanguage,
     account.data?.kind !== "guest" && account.data?.capabilities?.hostedIntelligence === true,
+    match?.rules?.automaticImports
+      ? "common"
+      : documentLanguage === "python" &&
+          pythonNeedsDatetime(problem?.signature, displayedOdyssey?.levels)
+        ? "datetime"
+        : "none",
   );
   const intelligenceStatus = browserIntelligenceAvailable ? intelligence.status : "unavailable";
   const intelligenceHint = !browserIntelligenceAvailable

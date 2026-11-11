@@ -111,8 +111,10 @@ export async function admitWorkspaceInTransaction(
   let matchSequence: string | null = null,
     admissionTime: string | null = null,
     sponsor: string | null = null;
+  let automaticImports: boolean | undefined;
   if (row.reviewMatchId && row.reviewSourceOwnerId) {
     const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
+    automaticImports = review.automaticImports ?? undefined;
     if (review.problemId !== row.version) throw failure("not_found", "Workspace not found", 404);
     if (principal.kind === "guest") {
       if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
@@ -156,6 +158,7 @@ export async function admitWorkspaceInTransaction(
     if (prior) return replay();
     if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
     admissionTime = match.admittedAt;
+    automaticImports = match.rules.automaticImports === true;
     if (command.kind === "submit") {
       rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
         kind: "submission",
@@ -246,6 +249,7 @@ export async function admitWorkspaceInTransaction(
     sourceHash: command.sourceHash,
     customRun: command.customCases !== null,
     language: row.language,
+    automaticImports,
     runtimeRevision: runtime.revision,
     harnessRevision: runtime.harness,
     sponsorId: sponsor,

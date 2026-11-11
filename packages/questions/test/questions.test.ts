@@ -49,7 +49,7 @@ describe("starters", () => {
       returnType: "optional<long>",
     };
     const source = generateStarter([sig], "python", false);
-    expect(source).toContain("from __future__ import annotations\nimport datetime");
+    expect(source).toMatch(/^class Solution:/);
     expect(source).toContain(
       "def sum(self, values: list[TreeNode[str] | None], when: datetime.datetime) -> int | None:",
     );

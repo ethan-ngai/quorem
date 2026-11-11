@@ -14,8 +14,10 @@ const limitKeys = [
 ] as const;
 function checked(job: Job): void {
   for (const [key, value] of Object.entries(job))
-    if (key !== "limits" && (typeof value !== "string" || !value))
+    if (key !== "limits" && key !== "automaticImports" && (typeof value !== "string" || !value))
       throw new Error(`invalid ${key}`);
+  if (job.automaticImports !== undefined && typeof job.automaticImports !== "boolean")
+    throw new Error("invalid automatic import setting");
   if (!/^[A-Za-z0-9-]{1,128}$/.test(job.attemptId) || !job.sandboxScope)
     throw new Error("invalid attempt fence");
   const runtime = runtimeForRevision(job.runtimeRevision, job.harnessRevision);
@@ -33,6 +35,7 @@ export function encodeJob(job: Job): string {
   );
   return stringifyLosslessJson({
     language: job.language,
+    ...(job.automaticImports === undefined ? {} : { automaticImports: job.automaticImports }),
     jobId: job.jobId,
     submissionId: job.submissionId,
     attemptId: job.attemptId,
@@ -61,8 +64,12 @@ export function decodeJob(json: string, sandboxScope: string): Job {
       Number(intField(rawLimits, key, 1n, BigInt(Number.MAX_SAFE_INTEGER))),
     ]),
   ) as unknown as ExecutionLimits;
+  const automaticImports = obj.automaticImports;
+  if (automaticImports !== undefined && typeof automaticImports !== "boolean")
+    throw new Error("invalid automatic import setting");
   const job: Job = {
     language: stringField(obj, "language"),
+    ...(automaticImports === undefined ? {} : { automaticImports }),
     jobId: stringField(obj, "jobId"),
     submissionId: stringField(obj, "submissionId"),
     attemptId: stringField(obj, "attemptId"),

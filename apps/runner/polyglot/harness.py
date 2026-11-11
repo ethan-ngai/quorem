@@ -206,7 +206,7 @@ def main():
         compile_cmd=None
         cmd=compiled.command(lang)
     elif operation in ('compile','compile-execute'):
-        compiler_request={key:r[key] for key in ('source','signature','methods') if key in r}
+        compiler_request={key:r[key] for key in ('source','signature','methods','automaticImports') if key in r}
         compile_cmd=compiled.prepare(compiler_request,lang,globals())
         cmd=compiled.command(lang) if operation=='compile-execute' else None
     else:

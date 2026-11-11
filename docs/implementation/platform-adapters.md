@@ -17,6 +17,8 @@ API/auth run together in native Hono. The portable API image is `deploy/hono/Doc
 
 Admission commits jobs and dispatch intent before wake delivery. Consumers claim authoritative PostgreSQL attempts; queue identity cannot grant execution authority. Retries, stale attempts and cancellation use the same fenced commands. Outbox notices contain safe invalidations; subscribers reload authorized snapshots. Transport duplication, loss and reordering are handled by receipt/version/snapshot recovery.
 
+Lobby automatic imports are captured at execution admission. Each language consumes the same setting and defines its standard library bindings in [automatic_imports.json](../../internal/execution/public/automatic_imports.json). For a new language, apply those bindings in its judge and mirror them in editor analysis where available. Imports required by a question signature are independent of the lobby setting.
+
 Ports describe required semantics, bounds and cancellation rather than SDK request shapes. Cache decorators may accelerate focused reads later, but cannot replace PostgreSQL authority. [Learned recommendations](adaptive-questions.md) use a pure tags-and-outcomes predictor. Publication, authorization and execution codecs remain authoritative.
 
 Use `make dev` for the fixture-backed local stack. Runtime settings are owned by `apps/api/src/runtime/composition/config.ts`, Node composition, `apps/auth/src/platform-config.ts` and `apps/runner/src/runtime/config.ts`. Credentials are loaded only for selected adapters. Private hosted calls require purpose-scoped application credentials and namespace/attempt proofs; staging currently uses no Cloudflare Access.

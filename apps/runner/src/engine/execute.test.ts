@@ -118,7 +118,7 @@ function repository(spec: ExecutionSpec) {
   return { port, frames, chunks, seals, header: () => header };
 }
 void test(
-  "real Docker executes and stages all five existing harnesses",
+  "real Docker stages all five harnesses with common library imports enabled",
   { skip: !socket, timeout: 180000 },
   async (t) => {
     const stateRoot = await realpath(await mkdtemp(join(tmpdir(), "quorem-engine-fence-")));
@@ -130,10 +130,13 @@ void test(
       cleanupMs: 10000,
     });
     for (const [language, source] of [
-      ["python", "class Solution:\n def f(self): return 7"],
-      ["java", "class Solution { public int f(){return 7;} }"],
-      ["typescript", "class Solution { f():number {return 7;} }"],
-      ["ocaml", "let f () = 7"],
+      ["python", "class Solution:\n def f(self): return math.isqrt(49)"],
+      [
+        "java",
+        "class Solution { public int f(){return new PriorityQueue<>(List.of(7)).remove();} }",
+      ],
+      ["typescript", "class Solution { f():number {assert.equal(7,7);return 7;} }"],
+      ["ocaml", "let f () = id 7"],
       ["postgresql", "SELECT 7 AS n"],
     ] as const) {
       const runtime = languageRuntime(language)!;
@@ -179,6 +182,7 @@ void test(
           attemptId: randomUUID(),
           sandboxScope: sandbox.scope,
           language,
+          automaticImports: true,
           problemVersionId: randomUUID(),
           runtimeRevision: runtime.revision,
           harnessRevision: runtime.harness,

@@ -17,6 +17,19 @@ describe("browser TypeScript intelligence", () => {
     }
   });
 
+  it("recognizes implicit libraries only when enabled and lets local bindings shadow them", () => {
+    const code = "assert.equal(7, 7); util.inspect([7]);";
+    const enabled = createBrowserTypeScriptEnvironment(true);
+    enabled.createFile("/main.ts", code);
+    expect(enabled.languageService.getSemanticDiagnostics("/main.ts")).toEqual([]);
+    enabled.updateFile("/main.ts", "const util = 7; util.toFixed();");
+    expect(enabled.languageService.getSemanticDiagnostics("/main.ts")).toEqual([]);
+
+    const disabled = createBrowserTypeScriptEnvironment();
+    disabled.createFile("/main.ts", code);
+    expect(disabled.languageService.getSemanticDiagnostics("/main.ts")).toHaveLength(2);
+  });
+
   it("understands public node types and reports type errors", () => {
     const env = createBrowserTypeScriptEnvironment();
     const code = "const node = new TreeNode();\nnode.";
