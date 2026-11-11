@@ -1,17 +1,24 @@
 /** @file generate.mjs @description Generate API types with a valid recursive wire alias. @module contracts */
-import { readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import ts from "typescript";
-import { questionSchema, questionValidator } from "./question-schema.mjs";
+import {
+  questionImportSchema,
+  questionImportValidator,
+  questionValidator,
+} from "./question-schema.mjs";
 import { eventSchema } from "./event-schema.mjs";
 
 /** @returns Generated declarations derived entirely from the OpenAPI schema. */
 export async function generateContracts() {
-  const schema = JSON.parse(readFileSync(new URL("../openapi/api.json", import.meta.url), "utf8"));
+  const schema = new URL("../openapi/api.json", import.meta.url);
   let wireAlias;
   const ast = await openapiTS(schema, {
     postTransform(type, { path }) {
+      // The import request bundles the standalone file schema's copy of WireValue.
+      if (path === "#/components/schemas/$defs-WireValue")
+        return ts.factory.createTypeReferenceNode("WireValue");
       if (path !== "#/components/schemas/WireValue" || !ts.isUnionTypeNode(type)) return;
       // Recursive indexed-access properties become TS2502; a named alias supports recursion.
       const transformed = ts.transform(type, [
@@ -45,6 +52,14 @@ export async function generateContracts() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  writeFileSync(
+    new URL("../questions/question-v1.schema.json", import.meta.url),
+    JSON.stringify(questionImportSchema(), null, 2) + "\n",
+  );
+  writeFileSync(
+    new URL("../../questions/src/question-import-validator.mjs", import.meta.url),
+    questionImportValidator(),
+  );
   writeFileSync(new URL("../src/generated.ts", import.meta.url), await generateContracts());
   writeFileSync(
     new URL("../events/envelope.schema.json", import.meta.url),
@@ -57,9 +72,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   writeFileSync(
     new URL("../../questions/src/draft-validator.mjs", import.meta.url),
     questionValidator(true),
-  );
-  writeFileSync(
-    new URL("../questions/question-v1.schema.json", import.meta.url),
-    JSON.stringify(questionSchema(), null, 2) + "\n",
   );
 }

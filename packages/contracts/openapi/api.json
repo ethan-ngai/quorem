@@ -1416,7 +1416,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QuestionContent"
+                "$ref": "../questions/question-v1.schema.json"
               }
             }
           }
@@ -1443,8 +1443,41 @@
                     },
                     "warning": {
                       "type": "string"
+                    },
+                    "diagnostics": {
+                      "$ref": "#/components/schemas/QuestionImportDiagnostics"
                     }
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid question file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ErrorResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "details": {
+                              "type": "object",
+                              "properties": {
+                                "diagnostics": {
+                                  "$ref": "#/components/schemas/QuestionImportDiagnostics"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -1533,6 +1566,9 @@
                           },
                           "warning": {
                             "type": "string"
+                          },
+                          "diagnostics": {
+                            "$ref": "#/components/schemas/QuestionImportDiagnostics"
                           }
                         }
                       }
@@ -7740,6 +7776,24 @@
           }
         },
         "required": ["problem", "hiddenCases", "attribution", "canonicalApproachId", "approaches"]
+      },
+      "QuestionImportDiagnostic": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "code", "message"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "JSON Pointer to the affected field, or / for the whole file"
+          },
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        }
+      },
+      "QuestionImportDiagnostics": {
+        "type": "array",
+        "maxItems": 5,
+        "items": { "$ref": "#/components/schemas/QuestionImportDiagnostic" }
       },
       "QuestionDraft": {
         "type": "object",

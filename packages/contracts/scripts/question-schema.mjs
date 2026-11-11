@@ -1,10 +1,10 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+/** @file question-schema.mjs @description Derive question schemas and standalone validators. @module contracts */
+import { readFileSync } from "node:fs";
 import Ajv2020 from "ajv/dist/2020.js";
 import standaloneCode from "ajv/dist/standalone/index.js";
 
-/** Extract reachable definitions; keep file imports aligned with the API contract. */
-export function questionSchema() {
+/** @returns The reachable OpenAPI definitions for full question content. */
+function questionSchema() {
   const api = JSON.parse(readFileSync(new URL("../openapi/api.json", import.meta.url), "utf8"));
   const definitions = {};
   function collect(name) {
@@ -26,6 +26,24 @@ export function questionSchema() {
     $defs: definitions,
   };
 }
+/** @returns File shape with defaults and server-assigned identity omitted. */
+export function questionImportSchema() {
+  const schema = questionSchema();
+  const problem = schema.$defs.AuthoredQuestionProblem;
+  problem.required = problem.required.filter((field) => field !== "id" && field !== "limits");
+  problem.properties.id.description = "Optional legacy metadata. Publication assigns its own ID.";
+  // Match the authored budget and the namespace used by private publications.
+  problem.properties.slug.pattern =
+    "^(?=(?:private-[0-9a-f]{16}-)?[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$";
+  problem.properties.leetcodeId = {
+    type: ["integer", "null"],
+    minimum: 1,
+    maximum: 2147483647,
+  };
+  problem.properties.limits.description = "Omit to use the default execution limits.";
+  return schema;
+}
+
 /** Generate a CSP-safe standalone validator from the canonical question schema. */
 export function questionValidator(draft = false) {
   const schema = questionSchema();
@@ -75,6 +93,19 @@ export function questionValidator(draft = false) {
       ],
     };
   }
+  return standaloneValidator(schema);
+}
+
+/** @returns The CSP-safe validator for the file shape. */
+export function questionImportValidator() {
+  return standaloneValidator(questionImportSchema());
+}
+
+/**
+ * @param {object} schema Question shape to compile.
+ * @returns {string} Generated validator source.
+ */
+function standaloneValidator(schema) {
   const ajv = new Ajv2020({ strict: true, code: { source: true, esm: true } });
   const code = standaloneCode(ajv, ajv.compile(schema));
   const required = 'require("ajv/dist/runtime/ucs2length").default';
@@ -86,12 +117,5 @@ export function questionValidator(draft = false) {
     (usesLength ? "const ucs2length = (value) => Array.from(value).length;\n" : "") +
     transformed +
     "\n"
-  );
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  writeFileSync(
-    new URL("../questions/question-v1.schema.json", import.meta.url),
-    JSON.stringify(questionSchema(), null, 2) + "\n",
   );
 }
