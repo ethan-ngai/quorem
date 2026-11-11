@@ -52,10 +52,10 @@ def main():
         raise RuntimeError('Neon did not return a connection URI')
     print('::add-mask::' + uri, flush=True)
     if load:
-        subprocess.run(
-            ['psql', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'scripts/production-database-load.sql'],
-            env={**os.environ, 'PGDATABASE': uri, 'PGCONNECT_TIMEOUT': '10'}, check=True)
-        return
+        result = subprocess.run(
+            ['psql', '-X', '-d', uri, '-v', 'ON_ERROR_STOP=1', '-f', 'scripts/production-database-load.sql'],
+            env={**os.environ, 'PGCONNECT_TIMEOUT': '10'}, check=False)
+        raise SystemExit(result.returncode)
     match = os.environ.get('QUOREM_DIAGNOSTIC_MATCH_ID')
     if match:
         if not re.fullmatch(r'[0-9a-fA-F-]{36}', match):
