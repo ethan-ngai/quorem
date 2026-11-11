@@ -476,6 +476,7 @@ export const realtime_presence_leases = pgTable(
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    index("realtime_presence_owner_expiry").on(table.subject, table.expires_at),
     index("realtime_presence_expiry").using(
       "btree",
       table.expires_at.asc().nullsLast().op("timestamptz_ops"),
@@ -689,6 +690,7 @@ export const submission_outbox = pgTable(
     dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
+    index("submission_outbox_submission").on(table.submission_id),
     index("submission_outbox_pending")
       .using("btree", table.sequence.asc().nullsLast().op("int8_ops"))
       .where(sql`(published_at IS NULL)`),
@@ -1193,6 +1195,9 @@ export const submissions = pgTable(
       table.owner_id.asc().nullsLast().op("text_ops"),
       table.admitted_at.desc().nullsFirst().op("timestamptz_ops"),
     ),
+    index("submissions_workspace_lookup")
+      .on(table.workspace_id)
+      .where(sql`workspace_id IS NOT NULL`),
     index("submission_workspace_active")
       .using("btree", table.workspace_id.asc().nullsLast().op("uuid_ops"))
       .where(
@@ -1504,6 +1509,7 @@ export const cancellation_idempotency = pgTable(
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    index("cancellation_idempotency_submission").on(table.submission_id),
     index("cancellation_idempotency_expiry").using(
       "btree",
       table.expires_at.asc().nullsLast().op("timestamptz_ops"),
@@ -1532,6 +1538,7 @@ export const execution_idempotency = pgTable(
     expires_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
+    index("execution_idempotency_submission").on(table.submission_id),
     index("execution_idempotency_expiry").using(
       "btree",
       table.expires_at.asc().nullsLast().op("timestamptz_ops"),
@@ -1810,6 +1817,7 @@ export const match_participants = pgTable(
     last_rule_event_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [
+    index("match_participants_owner_match").on(table.owner_id, table.match_id),
     check("match_participants_team_check", sql`team BETWEEN 1 AND 4`),
     foreignKey({
       columns: [table.match_id],

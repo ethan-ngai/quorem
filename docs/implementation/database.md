@@ -48,3 +48,7 @@ SELECT
 ```
 
 Published versions and interview snapshots can outlive submissions. There is no general safe deletion cascade or automated conversion for these records; retain byte-aware readers until those records are deliberately resolved. A zero result alone does not prove old processes have stopped writing.
+
+Production has no database polling cron. Requests that can change product state arm a coalesced recovery alarm. It stops when outboxes and execution work are clear. Deadline alarms and queue delivery still handle live work. Retention runs at most once per 10 minutes of activity; eligible rows can remain until traffic resumes. Staging keeps a minute cron to exercise repair. The recommendation workflow retains its weekly schedule.
+
+Blob retention queues only new hashes and hashes whose references were removed, in the same transaction as the change. A bounded drain rechecks references under blob locks before deleting. The migration queues existing orphans once; no recurring full-store scans.

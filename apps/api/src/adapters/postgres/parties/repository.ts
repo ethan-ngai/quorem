@@ -474,25 +474,19 @@ export function partyRepository(
           )
         ).rows[0];
         if (prior) await reconcileParty(tx, prior.id);
-        await tx.execute(
-          sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<=clock_timestamp()-interval '5 minutes' LIMIT 128)`,
-        );
-        const count = (
-          await tx.execute<{ n: number; known: boolean }>(
-            sql`SELECT count(*)::int AS n,COALESCE(bool_or(window_id=${windowId}::uuid),false) AS known FROM platform_presence_leases WHERE owner_id=${who.userId} AND expires_at>clock_timestamp()`,
-          )
-        ).rows[0];
-        if (count.n >= 16 && !count.known)
+        const renewed = await tx.execute(sql`
+          INSERT INTO platform_presence_leases(owner_id,window_id,expires_at)
+          SELECT ${who.userId},${windowId}::uuid,statement_timestamp()+interval '90 seconds'
+          FROM platform_presence_leases
+          WHERE owner_id=${who.userId} AND expires_at>statement_timestamp()
+          HAVING count(*)<16 OR bool_or(window_id=${windowId}::uuid)
+          ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`);
+        if (!renewed.rowCount)
           throw new ApplicationError("rate_limited", "Too many active windows", 429);
-        await tx.execute(
-          sql`INSERT INTO platform_presence_leases(owner_id,window_id,expires_at) VALUES(${who.userId},${windowId}::uuid,clock_timestamp()+interval '90 seconds') ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`,
-        );
-        await tx.execute(
-          sql`UPDATE party_members SET last_seen_at=clock_timestamp() WHERE owner_id=${who.userId}`,
-        );
         const row = (
           await tx.execute<{ id: string }>(
-            sql`SELECT party_id::text AS id FROM party_members WHERE owner_id=${who.userId}`,
+            sql`UPDATE party_members SET last_seen_at=clock_timestamp()
+                WHERE owner_id=${who.userId} RETURNING party_id::text AS id`,
           )
         ).rows[0];
         if (row) await reconcileParty(tx, row.id);

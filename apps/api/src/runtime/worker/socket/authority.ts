@@ -45,6 +45,7 @@ export function postgresSocketAuthority(deps: {
   verifier: TokenVerifier;
   sessions: SessionAuthority;
   matches: Lifecycle;
+  beforeInterviewCommand?: () => Promise<void>;
   afterInterviewCommand?: () => Promise<void>;
 }): SocketAuthority {
   const { run, verifier, sessions, matches } = deps;
@@ -139,11 +140,10 @@ export function postgresSocketAuthority(deps: {
                     command: Parameters<typeof commands.execute>[1],
                     signal: AbortSignal,
                   ) {
+                    const changes = ["push", "presence", "rule-event"].includes(command.type);
+                    if (changes) await deps.beforeInterviewCommand?.();
                     const result = await commands.execute(actor, command, signal);
-                    if (
-                      deps.afterInterviewCommand &&
-                      ["push", "presence", "rule-event"].includes(command.type)
-                    ) {
+                    if (changes && deps.afterInterviewCommand) {
                       try {
                         await deps.afterInterviewCommand();
                       } catch {

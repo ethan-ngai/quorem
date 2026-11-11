@@ -406,7 +406,7 @@ describe("deadline scheduling with PostgreSQL", () => {
       "UPDATE runner_snapshot_inputs SET sealed=true WHERE session_id=$1 AND fixture_id=$2",
       [session, fixture],
     );
-    await pool.query("UPDATE runner_input_gc_state SET cursor=NULL WHERE id=1");
+    await pool.query("DELETE FROM runner_blob_rechecks");
     await retainBatch(run);
     expect(
       (
@@ -566,93 +566,51 @@ describe("deadline scheduling with PostgreSQL", () => {
       ).rowCount,
     ).toBe(1);
   });
-  it("bounds candidate pages, wraps for earlier and locked blobs, and rolls back cursor updates", async () => {
-    const blobText = `gc-cursor-${crypto.randomUUID()}`;
+  it("keeps locked candidates queued and rolls back acknowledgments with deletions", async () => {
+    await pool.query("DELETE FROM runner_blob_rechecks");
     const hash = (
       await pool.query(
-        "INSERT INTO runner_input_blobs(hash,data) VALUES(sha256(convert_to($1,'UTF8')),convert_to($1,'UTF8')) RETURNING hash",
-        [blobText],
+        "INSERT INTO runner_input_blobs(hash,data) VALUES(sha256($1::bytea),$1) RETURNING hash",
+        [Buffer.from(crypto.randomUUID())],
       )
     ).rows[0].hash;
-    await pool.query(
-      "UPDATE runner_input_gc_state SET cursor=decode(repeat('ff',32),'hex') WHERE id=1",
-    );
-    const collect = (scan = 4096, limit = 128) =>
-      run((scope) =>
-        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-          collectInputBlobs(tx, scan, limit),
-        ),
-      );
-    expect(await collect()).toEqual({ examined: 0, deleted: 0, wrapped: true });
-    const cursorBefore = (await pool.query("SELECT cursor FROM runner_input_gc_state WHERE id=1"))
-      .rows[0].cursor;
-    await expect(
+    const collect = (abort = false) =>
       run((scope) =>
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
-          await collectInputBlobs(tx, 2, 1);
-          throw new Error("rollback fixture");
+          const deleted = await collectInputBlobs(tx, 1);
+          if (abort) throw new Error("rollback fixture");
+          return deleted;
         }),
-      ),
-    ).rejects.toThrow("rollback fixture");
-    expect(
-      (await pool.query("SELECT cursor FROM runner_input_gc_state WHERE id=1")).rows[0].cursor,
-    ).toEqual(cursorBefore);
-    const stateLock = await pool.connect();
+      );
+    const lock = await pool.connect();
     try {
-      await stateLock.query("BEGIN");
-      await stateLock.query("SELECT id FROM runner_input_gc_state WHERE id=1 FOR UPDATE");
-      expect(await collect(2, 1)).toEqual({ examined: 0, deleted: 0, wrapped: false });
-      await stateLock.query("ROLLBACK");
+      await lock.query("BEGIN");
+      await lock.query("SELECT hash FROM runner_input_blobs WHERE hash=$1 FOR KEY SHARE", [hash]);
+      expect(await collect()).toBe(0);
     } finally {
-      stateLock.release();
+      await lock.query("ROLLBACK");
+      lock.release();
     }
-    const blobLock = await pool.connect();
-    try {
-      await blobLock.query("BEGIN");
-      await blobLock.query("SELECT hash FROM runner_input_blobs WHERE hash=$1 FOR KEY SHARE", [
-        hash,
-      ]);
-      for (let i = 0; i < 5; i++) {
-        const page = await collect();
-        expect(page.examined).toBeLessThanOrEqual(4096);
-        expect(page.deleted).toBeLessThanOrEqual(128);
-        if (page.wrapped) break;
-      }
-      expect(
-        (await pool.query("SELECT 1 FROM runner_input_blobs WHERE hash=$1", [hash])).rowCount,
-      ).toBe(1);
-      await blobLock.query("ROLLBACK");
-    } finally {
-      blobLock.release();
-    }
-    for (let i = 0; i < 5; i++) {
-      await collect();
-      if (!(await pool.query("SELECT 1 FROM runner_input_blobs WHERE hash=$1", [hash])).rowCount)
-        break;
-    }
-    expect(
-      (await pool.query("SELECT 1 FROM runner_input_blobs WHERE hash=$1", [hash])).rowCount,
-    ).toBe(0);
+    await expect(collect(true)).rejects.toThrow("rollback fixture");
+    expect(await collect()).toBe(1);
+    expect(await collect()).toBe(0);
   });
-  it("advances past each deletion budget without skipping tail orphans", async () => {
+  it("drains the changed hashes in bounded batches", async () => {
     const prefix = `gc-pages-${crypto.randomUUID()}`;
     const blobs = await pool.query(
       "INSERT INTO runner_input_blobs(hash,data) SELECT sha256(v),v FROM (SELECT convert_to($1||n::text,'UTF8') v FROM generate_series(1,12) n) q RETURNING hash",
       [prefix],
     );
     const hashes = blobs.rows.map((row) => row.hash);
-    await pool.query("UPDATE runner_input_gc_state SET cursor=NULL WHERE id=1");
     const collect = () =>
       run((scope) =>
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-          collectInputBlobs(tx, 4096, 1),
+          collectInputBlobs(tx, 1),
         ),
       );
     let remaining = hashes.length;
     for (let i = 0; i < 100 && remaining; i++) {
-      const page = await collect();
-      expect(page.examined).toBeLessThanOrEqual(4096);
-      expect(page.deleted).toBeLessThanOrEqual(1);
+      expect(await collect()).toBeLessThanOrEqual(1);
       remaining = Number(
         (
           await pool.query("SELECT count(*) FROM runner_input_blobs WHERE hash=ANY($1::bytea[])", [

@@ -216,7 +216,7 @@ export function workerConfig(input, outputs, output, scope) {
         new_sqlite_classes: ["BrowserSockets", "DeadlineCoordinator", "ExecutionRecovery"],
       },
     ],
-    triggers: { crons: ["* * * * *"] },
+    triggers: { crons: scope === "production" ? [] : ["* * * * *"] },
     ...(profileBucket
       ? { r2_buckets: [{ binding: "PROFILE_BUCKET", bucket_name: profileBucket }] }
       : {}),

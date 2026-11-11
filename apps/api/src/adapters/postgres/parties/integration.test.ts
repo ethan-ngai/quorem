@@ -82,6 +82,25 @@ beforeAll(async () => {
 afterAll(async () => {
   await pool.end();
 });
+test("heartbeat renews an active window at the cap but rejects another", async () => {
+  const owner = user("party-g");
+  const windows = Array.from({ length: 17 }, () => crypto.randomUUID());
+  try {
+    for (const window of windows.slice(0, 16))
+      await expect(repo.heartbeat(owner, window)).resolves.toEqual({ party: null });
+    await expect(repo.heartbeat(owner, windows[0])).resolves.toEqual({ party: null });
+    await expect(repo.heartbeat(owner, windows[16])).rejects.toMatchObject({
+      message: "Too many active windows",
+    });
+    await pool.query(
+      "UPDATE platform_presence_leases SET expires_at=statement_timestamp() WHERE window_id=$1",
+      [windows[0]],
+    );
+    await expect(repo.heartbeat(owner, windows[16])).resolves.toEqual({ party: null });
+  } finally {
+    await pool.query("DELETE FROM platform_presence_leases WHERE owner_id=$1", [owner.userId]);
+  }
+});
 test("members share presence, readiness, and offline cleanup", async () => {
   const settings = {
     questionFilters: {},
