@@ -239,7 +239,7 @@ overrides:
   vitest: 5.1.0
 
 patchedDependencies:
-  monaco-pyright-lsp@0.1.7: c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c
+  monaco-pyright-lsp@0.1.7: 498bf0215286a1e54f9a0d9d419f1d0f60b500ec5fffd7056c035e430cb3668b
   pg-cloudflare@1.4.1: 1b88b6b5b4718165b27a1fa9ef18ea6578728a028c64aa089a7712c2112c3450
 
 importers:
@@ -631,7 +631,7 @@ importers:
         version: 3.1.0
       monaco-pyright-lsp:
         specifier: 0.1.7
-        version: 0.1.7(patch_hash=c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c)
+        version: 0.1.7(patch_hash=498bf0215286a1e54f9a0d9d419f1d0f60b500ec5fffd7056c035e430cb3668b)
       react:
         specifier: 'catalog:'
         version: 19.3.1
@@ -9026,7 +9026,7 @@ snapshots:
 
   monaco-editor@0.52.2: {}
 
-  monaco-pyright-lsp@0.1.7(patch_hash=c7f08f3b7940addf8f2b5d81617250b6cb7e10f6e53c9b3f9e5f2bc646a4627c):
+  monaco-pyright-lsp@0.1.7(patch_hash=498bf0215286a1e54f9a0d9d419f1d0f60b500ec5fffd7056c035e430cb3668b):
     dependencies:
       monaco-editor: 0.52.2
       vscode-languageserver: 9.0.1
