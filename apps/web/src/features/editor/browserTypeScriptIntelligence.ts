@@ -10,6 +10,7 @@ import {
 import type { BrowserTypeScriptWorker } from "./typeScriptSemanticTokens";
 import { documentationTemplateProvider } from "./documentationComments";
 import { semanticHighlighting } from "./semanticHighlighting";
+import { renderTypeScriptHover } from "./typeScriptHover";
 import { releaseProxy, wrap } from "comlink";
 
 /** Stop analysis when the document closes, changes language, or loses authentication. */
@@ -60,7 +61,7 @@ export async function browserTypeScriptIntelligence(signal: AbortSignal, onUnava
         ),
         // Use language data so the shared authentication gate controls completion.
         typescriptLanguage.data.of({ autocomplete: tsAutocompleteWorker() }),
-        tsHoverWorker(),
+        tsHoverWorker({ renderTooltip: renderTypeScriptHover }),
         tsLinterWorker(),
       ],
     };

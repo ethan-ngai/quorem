@@ -7,6 +7,7 @@ import {
   type Transport,
 } from "@codemirror/lsp-client";
 import type { CompletionSource } from "@codemirror/autocomplete";
+import { highlightedPython } from "./pythonHighlighting";
 
 type CompletionItem = {
   label: string;
@@ -24,7 +25,15 @@ export class PythonLanguageClient extends LSPClient {
   private completionResponse: Promise<CompletionResponse> | undefined;
 
   constructor(config: LSPClientConfig, onUnavailable: () => void = () => {}) {
-    super(config);
+    super({
+      ...config,
+      highlightLanguage: (name) => {
+        const language = name?.trim().split(/\s+/)[0]?.toLowerCase();
+        return language === "python" || language === "py"
+          ? highlightedPython
+          : (config.highlightLanguage?.(name) ?? null);
+      },
+    });
     this.onUnavailable = onUnavailable;
   }
 
