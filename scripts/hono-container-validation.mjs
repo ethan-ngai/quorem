@@ -84,7 +84,7 @@ try {
     "POSTGRES_PASSWORD=fixture",
     "-e",
     "POSTGRES_DB=quorem_hono_engine_test",
-    "postgres:17.6-alpine",
+    "postgres:17.11-alpine",
   );
   let ready = false;
   for (let i = 0; i < 120; i++) {

@@ -3,7 +3,7 @@ terraform {
   backend "s3" {}
   required_providers {
     neon    = { source = "kislerdm/neon", version = "0.18.0" }
-    restapi = { source = "Mastercard/restapi", version = "~> 2.0" }
+    restapi = { source = "Mastercard/restapi", version = "3.0.0" }
   }
 }
 variable "project_id" { type = string }

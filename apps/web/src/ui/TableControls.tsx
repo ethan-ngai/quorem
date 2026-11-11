@@ -1,18 +1,18 @@
 /** @file TableControls.tsx @description Shared server sorting and page controls. @module ui */
-import type { Column, Table } from "@tanstack/react-table";
+import type { Column, ReactTable, RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { PageSizeControl } from "./PageSizeControl";
 import { Tooltip } from "./Tooltip";
-import type { ListState } from "./useServerTable";
+import type { ListState, serverTableFeatures } from "./useServerTable";
 import "./table.css";
-export function TableSortHeader<T>({
+export function TableSortHeader<T extends RowData>({
   column,
   children,
   disabled,
   className,
 }: {
-  column: Column<T>;
+  column: Column<typeof serverTableFeatures, T>;
   children: ReactNode;
   disabled?: boolean;
   className?: string;
@@ -32,19 +32,19 @@ export function TableSortHeader<T>({
     </th>
   );
 }
-export function TablePagination<T>({
+export function TablePagination<T extends RowData>({
   table,
   disabled = false,
   snapshot,
 }: {
-  table: Table<T>;
+  table: ReactTable<typeof serverTableFeatures, T>;
   disabled?: boolean;
   snapshot?: Pick<ListState, "page" | "limit">;
 }) {
   // Display the page these rows came from; don't navigate from stale totals.
   const { pageIndex, pageSize } = snapshot
     ? { pageIndex: snapshot.page - 1, pageSize: snapshot.limit }
-    : table.getState().pagination;
+    : table.state.pagination;
   const unavailable = disabled || !!snapshot;
   const total = table.getRowCount();
   const pages = Math.max(1, Math.ceil(total / pageSize));

@@ -7,7 +7,7 @@ import {
   type StreamingJsonSpan,
 } from "@quorem/questions";
 import type { spoolInput } from "../checkpoints/input-spool.ts";
-type Spool = Awaited<ReturnType<typeof spoolInput>>;
+type Spool = Pick<Awaited<ReturnType<typeof spoolInput>>, "stream">;
 const encoder = new TextEncoder();
 const fieldNames = new Set(["args", "calls", "expected"]);
 const callNames = new Set(["methodName", "args", "expected"]);
