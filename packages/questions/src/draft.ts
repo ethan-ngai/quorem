@@ -3,6 +3,8 @@ import type { QuestionContent } from "./model.ts";
 import { questionSlugFits } from "./identity.ts";
 import { validSource } from "./source.ts";
 
+export const questionContentLimit = 2 * 1024 * 1024;
+
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 const hasNul = (value: unknown): boolean =>
   typeof value === "string"
@@ -19,7 +21,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
     /[<>&\u2028\u2029]/g,
     (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`,
   );
-  if (bytes(json) > 2 * 1024 * 1024) throw new Error("question content exceeds 2 MiB");
+  if (bytes(json) > questionContentLimit) throw new Error("question content exceeds 2 MiB");
   const p = content.problem;
   if (
     p.tags.length > 32 ||

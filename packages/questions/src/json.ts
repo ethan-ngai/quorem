@@ -17,9 +17,27 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
+export class DuplicateJsonKeyError extends Error {
+  readonly path: string;
+
+  constructor(path: string) {
+    super("Duplicate JSON property");
+    this.path = path;
+  }
+}
+
+/** Escape one JSON Pointer segment. */
+export function jsonPointerSegment(value: string): string {
+  return value.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
 /** Parse JSON while retaining number lexemes. */
-export function parseLosslessJson(text: string): JsonValue {
+export function parseLosslessJson(
+  text: string,
+  options?: { rejectDuplicateKeys?: boolean },
+): JsonValue {
   let i = 0;
+  const path: string[] = [];
   const whitespace = () => {
     while (i < text.length && /[\t\n\r ]/.test(text[i])) i++;
   };
@@ -51,7 +69,9 @@ export function parseLosslessJson(text: string): JsonValue {
         return values;
       }
       while (true) {
+        if (options?.rejectDuplicateKeys) path.push(String(values.length));
         values.push(parse(depth + 1));
+        if (options?.rejectDuplicateKeys) path.pop();
         whitespace();
         if (text[i] === "]") {
           i++;
@@ -76,7 +96,13 @@ export function parseLosslessJson(text: string): JsonValue {
         const key = parseString();
         whitespace();
         if (text[i++] !== ":") throw new Error("malformed value");
+        if (options?.rejectDuplicateKeys) {
+          path.push(key);
+          if (Object.hasOwn(value, key))
+            throw new DuplicateJsonKeyError("/" + path.map(jsonPointerSegment).join("/"));
+        }
         value[key] = parse(depth + 1);
+        if (options?.rejectDuplicateKeys) path.pop();
         whitespace();
         if (text[i] === "}") {
           i++;
@@ -104,7 +130,8 @@ export function parseLosslessJson(text: string): JsonValue {
     whitespace();
     if (i !== text.length) throw new Error("malformed value");
     return value;
-  } catch {
+  } catch (error) {
+    if (error instanceof DuplicateJsonKeyError) throw error;
     throw new Error("malformed value");
   }
 }

@@ -40,6 +40,11 @@ function caseShape(value: unknown): void {
 }
 /** Validate publication shape without rounding or bounding raw case numbers. */
 export function validateQuestionSchema(rawJson: string): void {
+  if (!validate(questionSchemaValue(rawJson))) throw new Error("invalid question schema");
+}
+
+/** Project numeric case payloads for schema checks. Typed codecs read the original JSON. */
+export function questionSchemaValue(rawJson: string): unknown {
   let value: unknown;
   try {
     value = JSON.parse(rawJson) as unknown;
@@ -59,5 +64,5 @@ export function validateQuestionSchema(rawJson: string): void {
       apply(object(level)?.examples);
       apply(object(level)?.hiddenCases);
     }
-  if (!validate(value)) throw new Error("invalid question schema");
+  return value;
 }
