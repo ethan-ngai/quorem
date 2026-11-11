@@ -61,13 +61,11 @@ const demoReview = {
 
 export function CompletionDemo() {
   usePageTitle("Completion Demo - Quorem");
-  const [review, setReview] = useState(false);
   const [participant, setParticipant] = useState("you");
   const openReview = (participantId: string) => {
     setParticipant(participantId);
     setOriginal(false);
     setOpen(false);
-    setReview(true);
   };
   const [drafts, setDrafts] = useState<Record<string, string>>({
     you: source,
@@ -87,6 +85,7 @@ export function CompletionDemo() {
   const { theme, setPreference } = useTheme();
   const { editorSchemes, fontSize, tabSize, wrap } = useLocalEditorPreferences();
   const competitive = mode.startsWith("Competition");
+  const review = competitive;
   const lost = mode === "Competition loss";
   const lobbyMembers = [
     ...demoReview.participants.map((person) => ({
@@ -119,7 +118,8 @@ export function CompletionDemo() {
               className="button button-secondary"
               onClick={() => {
                 setMode(value);
-                setReview(false);
+                setParticipant("you");
+                setOriginal(false);
                 setInLobby(true);
                 setReady(false);
                 setReplay((n) => n + 1);
@@ -305,7 +305,7 @@ export function CompletionDemo() {
                 review={{
                   disabled: false,
                   hasCode: demoReview.participants.some(hasReviewCode),
-                  onClick: () => openReview("you"),
+                  onClick: () => setOpen(false),
                 }}
                 lobby={inLobby ? "return" : "create"}
                 readiness={

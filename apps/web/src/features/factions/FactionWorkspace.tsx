@@ -1,10 +1,11 @@
 import { factionName } from "@quorem/contracts/factions";
 /** @file FactionWorkspace.tsx @description Team collaboration composed into the common coding workspace. @module factions */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchSnapshot, PublishedQuestion } from "@quorem/contracts";
 import type { TeamSnapshot, TeamAction } from "@quorem/contracts/factions";
 import type { CollaborationStatus } from "../collaboration/documentSync";
+import { ownParticipant } from "../matches/matchState";
 import { WorkspacePage } from "../editor/WorkspacePage";
 import { WorkspaceRecovery } from "../../ui/WorkspaceRecovery";
 import { LoadingIndicator } from "../../ui/Spinner";
@@ -17,18 +18,38 @@ export function FactionWorkspace({
   match,
   identity,
   header,
+  review,
+  reviewRequest,
 }: {
   match: MatchSnapshot;
   identity: DevelopmentIdentity;
   header?: (problem: PublishedQuestion) => ReactNode;
+  review?: boolean;
+  reviewRequest?: { participantId: string };
 }) {
   const query = useQuery({
     queryKey: ["team", match.id, identity],
     queryFn: () => teamRequest<TeamSnapshot>(match.id),
+    enabled: !review,
     refetchInterval: 1000,
     retry: false,
   });
-  if (!query.data)
+  // Keep the existing team editor during review, even if a team refresh was in flight.
+  const liveTeam = useRef<TeamSnapshot>(undefined);
+  if (!review) liveTeam.current = query.data;
+  const team = review ? liveTeam.current : query.data;
+  if (!team && review)
+    return (
+      <WorkspacePage
+        match={match}
+        matchWorkspaceId={ownParticipant(match, identity)?.workspaceId}
+        identity={identity}
+        matchHeader={header}
+        review
+        reviewRequest={reviewRequest}
+      />
+    );
+  if (!team)
     return (
       <WorkspaceRecovery
         failed={query.isError}
@@ -41,12 +62,14 @@ export function FactionWorkspace({
     );
   return (
     <TeamWorkspace
-      key={query.data.document.epoch}
-      initial={query.data}
-      snapshot={query.data}
+      key={team.document.epoch}
+      initial={team}
+      snapshot={team}
       match={match}
       identity={identity}
       header={header}
+      review={review}
+      reviewRequest={reviewRequest}
     />
   );
 }
@@ -56,12 +79,16 @@ function TeamWorkspace({
   match,
   identity,
   header,
+  review,
+  reviewRequest,
 }: {
   initial: TeamSnapshot;
   snapshot: TeamSnapshot;
   match: MatchSnapshot;
   identity: DevelopmentIdentity;
   header?: (problem: PublishedQuestion) => ReactNode;
+  review?: boolean;
+  reviewRequest?: { participantId: string };
 }) {
   const client = useQueryClient();
   // Source and collaboration version must come from the same snapshot until this epoch remounts.
@@ -103,6 +130,8 @@ function TeamWorkspace({
       match={match}
       matchWorkspaceId={snapshot.workspaceId}
       identity={identity}
+      review={review}
+      reviewRequest={reviewRequest}
       sharedDocument={{
         updateOdyssey: controller.updateOdyssey,
         source: seed.document.source,
@@ -128,55 +157,59 @@ function TeamWorkspace({
         },
         changeLanguage: (language) => documentAction("language", language),
       }}
-      matchHeader={(problem) => (
-        <>
-          {header?.(problem)}
-          <div className="faction-toolbar">
-            <strong>{factionName(snapshot.team, match.factionNames)}</strong>
-            <span>{snapshot.members.map((m) => m.name).join(", ")}</span>
-            {status === "replaced" ? (
-              <span role="status">Document replaced</span>
-            ) : status !== "connected" ? (
-              <LoadingIndicator label={status === "offline" ? "Reconnecting…" : "Syncing…"} />
-            ) : null}
-            <button
-              className="quiet-button"
-              disabled={match.state !== "active"}
-              onClick={() => void action(() => documentAction("reset"))}
-            >
-              Reset code
-            </button>
-            <button
-              className="quiet-button"
-              disabled={match.state !== "active"}
-              onClick={() => void action(() => propose({ kind: "concede" }))}
-            >
-              Concede
-            </button>
-            <PersistentNotice message={error} />
-            {activeVote && (
-              <TeamVoteToast
-                key={activeVote.id}
-                vote={activeVote}
-                identity={identity}
-                proposerName={
-                  snapshot.members.find((m) => m.userId === activeVote.proposerId)?.name ??
-                  "Faction member"
-                }
-                serverNow={snapshot.serverNow}
-                onVote={async (id, approve) => {
-                  await teamRequest(match.id, "vote", { id, approve });
-                  await refresh();
-                }}
-                onCancel={async (id) => {
-                  await teamRequest(match.id, "cancel", { id });
-                  await refresh();
-                }}
-              />
-            )}
-          </div>
-        </>
-      )}
+      matchHeader={(problem) =>
+        review ? (
+          header?.(problem)
+        ) : (
+          <>
+            {header?.(problem)}
+            <div className="faction-toolbar">
+              <strong>{factionName(snapshot.team, match.factionNames)}</strong>
+              <span>{snapshot.members.map((m) => m.name).join(", ")}</span>
+              {status === "replaced" ? (
+                <span role="status">Document replaced</span>
+              ) : status !== "connected" ? (
+                <LoadingIndicator label={status === "offline" ? "Reconnecting…" : "Syncing…"} />
+              ) : null}
+              <button
+                className="quiet-button"
+                disabled={match.state !== "active"}
+                onClick={() => void action(() => documentAction("reset"))}
+              >
+                Reset code
+              </button>
+              <button
+                className="quiet-button"
+                disabled={match.state !== "active"}
+                onClick={() => void action(() => propose({ kind: "concede" }))}
+              >
+                Concede
+              </button>
+              <PersistentNotice message={error} />
+              {activeVote && (
+                <TeamVoteToast
+                  key={activeVote.id}
+                  vote={activeVote}
+                  identity={identity}
+                  proposerName={
+                    snapshot.members.find((m) => m.userId === activeVote.proposerId)?.name ??
+                    "Faction member"
+                  }
+                  serverNow={snapshot.serverNow}
+                  onVote={async (id, approve) => {
+                    await teamRequest(match.id, "vote", { id, approve });
+                    await refresh();
+                  }}
+                  onCancel={async (id) => {
+                    await teamRequest(match.id, "cancel", { id });
+                    await refresh();
+                  }}
+                />
+              )}
+            </div>
+          </>
+        )
+      }
     />
   );
 }

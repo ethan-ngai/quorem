@@ -37,7 +37,7 @@ export function ReviewToolbar({
   children,
   originalContent,
 }: {
-  review: MatchReview;
+  review: { participants: MatchReview["participants"]; shareCodeAfterMatch?: boolean };
   participantId: string;
   disabled: boolean;
   compare: boolean;
@@ -124,7 +124,7 @@ export function ReviewToolbar({
             </Popover.Portal>
           </Popover.Root>
         )}
-        {!review.shareCodeAfterMatch && (
+        {review.shareCodeAfterMatch === false && (
           <Tooltip content="Code sharing was off for this round">
             <span
               className="review-state-icon"
