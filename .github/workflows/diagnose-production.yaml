@@ -10,6 +10,10 @@ on:
         description: Measure practice SQL using a read-only production connection
         type: boolean
         default: false
+      database_load:
+        description: Read production compute settings and aggregate PostgreSQL load
+        type: boolean
+        default: false
       hyperdrive:
         description: Read Hyperdrive timing and pool metrics for benchmark_start
         type: boolean
@@ -50,7 +54,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.mail && !inputs.sql && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
+    if: ${{ !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -78,6 +82,19 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           QUOREM_BENCHMARK_START: ${{ inputs.benchmark_start }}
         run: python3 scripts/hono-production-hyperdrive-metrics.py
+  database-load:
+    if: inputs.database_load
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Read production database load
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
+          QUOREM_DATABASE_LOAD: "true"
+        run: python3 scripts/profile-production-sql.py
   sql:
     if: ${{ inputs.match_id != '' || inputs.sql || (inputs.benchmark_start != '' && !inputs.hyperdrive) }}
     runs-on: ubuntu-latest
