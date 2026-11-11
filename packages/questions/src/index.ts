@@ -58,7 +58,7 @@ export { normalizeSqlResult, compareSqlResult } from "./sql-result.ts";
 export { validateSqlCase, validateSqlSchema } from "./sql-case.ts";
 export { validateQuestionDefinition, validateQuestionPublication } from "./publication.ts";
 export type { SchemaValidator, RuntimeResolver } from "./publication.ts";
-export { assertQuestionContent, validateQuestionSchema } from "./schema-validation.ts";
+export { validateQuestionSchema } from "./schema-validation.ts";
 export { normalizeQuestionDraft } from "./draft-normalize.ts";
 export {
   decodeQuestionImport,

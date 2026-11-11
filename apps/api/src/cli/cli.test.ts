@@ -129,12 +129,13 @@ describe("operator CLI contracts", () => {
         join(dir, "valid.json"),
         await readFile(resolve("../../fixtures/odyssey/balance-ledger.json")),
       );
-      await writeFile(join(dir, "bad.json"), '{"problem":{}}');
+      await writeFile(join(dir, "bad.json"), '{"problem":{},"problem":{}}');
       const output: string[] = [];
       await validateDirectory(dir, (line) => output.push(line));
       const rows = output.map((line) => JSON.parse(line));
       expect(rows.map((row) => row.id)).toEqual(["bad", "valid"]);
       expect(rows[0].error).toBeTruthy();
+      expect(rows[0].diagnostics).toMatchObject([{ path: "/problem" }]);
       expect(rows[1].error).toBe("");
       expect(rows[1].sha256).toMatch(/^[a-f0-9]{64}$/);
     } finally {
@@ -396,6 +397,7 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
       );
       fixture.problem.slug = `interop-${crypto.randomUUID().slice(0, 8)}`;
       if (mode.startsWith("sql")) {
+        delete fixture.problem.signature;
         fixture.problem.sql = {
           dialect: "postgresql",
           outputOrder: "ordered",

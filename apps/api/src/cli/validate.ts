@@ -4,12 +4,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { languageRuntime } from "@quorem/execution";
 import {
-  normalizeQuestionDraft,
+  decodeQuestionImport,
+  QuestionImportError,
+  questionImportReadiness,
+  type QuestionImportDiagnostic,
   findPrimarySignature,
   structuredConstraintSuggestion,
   type QuestionContent,
-  validateQuestionPublication,
-  validateQuestionSchema,
 } from "@quorem/questions";
 
 export async function validateDirectory(
@@ -24,11 +25,13 @@ export async function validateDirectory(
       sha256: createHash("sha256").update(bytes).digest("hex"),
       error: "",
       warnings: [] as string[],
+      diagnostics: [] as readonly QuestionImportDiagnostic[],
     };
     try {
       const raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      const normalized = normalizeQuestionDraft(raw);
-      validateQuestionPublication(normalized, validateQuestionSchema, languageRuntime);
+      const { normalized } = decodeQuestionImport(raw);
+      const diagnostics = questionImportReadiness(normalized, languageRuntime);
+      if (diagnostics.length) throw new QuestionImportError(diagnostics);
       const { problem } = JSON.parse(normalized) as QuestionContent;
       const signature = findPrimarySignature(problem);
       if (signature)
@@ -38,6 +41,7 @@ export async function validateDirectory(
         });
     } catch (error) {
       entry.error = error instanceof Error ? error.message : "Invalid question";
+      if (error instanceof QuestionImportError) entry.diagnostics = error.diagnostics;
     }
     output(JSON.stringify(entry));
   }

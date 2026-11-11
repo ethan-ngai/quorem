@@ -6,10 +6,12 @@ import {
   type Transaction,
 } from "@quorem/database/core";
 import {
+  decodeQuestionImport,
   normalizeQuestionDraft,
+  QuestionImportError,
+  questionImportReadiness,
   questionLanguages,
   questionPublicationSlug,
-  questionSlugFits,
   parseLosslessJson,
   stringifyLosslessJson,
   validateQuestionPublication,
@@ -164,20 +166,10 @@ function sourceId(problem: Obj): string | null {
 }
 
 async function prepareImport(raw: string, admin: boolean) {
-  const normalized = normal(raw);
-  const p = object(content(normalized).problem);
-  const slug = str(p.slug);
-  const leetcode = sourceId(p);
-  if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug) || !questionSlugFits(slug))
-    throw bad("Choose a valid question slug");
-  if (leetcode !== null && (!/^[1-9]\d{0,9}$/.test(leetcode) || Number(leetcode) > 2147483647))
-    throw bad("Invalid LeetCode ID");
+  const { normalized, problem } = decodeQuestionImport(raw);
+  const { slug } = problem;
+  const leetcode = problem.leetcodeId == null ? null : String(problem.leetcodeId);
   if (leetcode !== null && !admin) throw forbidden();
-  try {
-    validateQuestionSchema(normalized);
-  } catch {
-    throw bad("Invalid question schema");
-  }
   return { normalized, slug, leetcode, digest: await contentDigest(normalized) };
 }
 
@@ -300,17 +292,13 @@ async function importItem(
     });
   }
 
-  if (preview) {
-    let warning: string | undefined;
-    try {
-      validateQuestionPublication(normalized, validateQuestionSchema, runtime);
-    } catch {
-      warning = "Draft can be imported but needs edits before publication.";
-    }
-    return JSON.stringify({ status: "ready", warning, message: changeMessage });
-  }
+  const diagnostics = questionImportReadiness(input, runtime);
+  const readiness = diagnostics.length
+    ? { warning: "Draft needs edits before publication.", diagnostics }
+    : {};
+  if (preview) return JSON.stringify({ status: "ready", message: changeMessage, ...readiness });
   const draft = content(await create(tx, actor, admin, input, digest, edit));
-  return JSON.stringify({ status: "created", draftId: draft.id });
+  return JSON.stringify({ status: "created", draftId: draft.id, ...readiness });
 }
 
 function preparePublication(raw: string, runtime: RuntimeResolver) {
@@ -614,7 +602,13 @@ function createQuestionAuthoring(
     async importDraft(actor, raw, preview) {
       return transact(async (tx) => {
         const { admin } = await author(tx, actor, !preview);
-        const item = await prepareImport(raw, admin);
+        const item = await prepareImport(raw, admin).catch((error: unknown) => {
+          if (error instanceof QuestionImportError)
+            throw new ApplicationError("invalid_input", error.message, 400, {
+              diagnostics: error.diagnostics,
+            });
+          throw error;
+        });
         if (!preview) await lockIdentity(tx, item.slug, item.leetcode);
         return importItem(tx, actor, admin, item, preview, runtime);
       }, preview);
@@ -627,6 +621,12 @@ function createQuestionAuthoring(
             try {
               return await prepareImport(raw, admin);
             } catch (error) {
+              if (error instanceof QuestionImportError)
+                return {
+                  status: "invalid",
+                  message: error.message,
+                  diagnostics: error.diagnostics,
+                } as const;
               if (!(error instanceof ApplicationError)) throw error;
               return { status: "invalid", message: error.message } as const;
             }

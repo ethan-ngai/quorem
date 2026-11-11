@@ -1,20 +1,27 @@
 import example from "../../../../../packages/contracts/questions/example-v1.json";
 import { describe, expect, it } from "vitest";
 import { blankQuestion } from "./content";
-import { parseQuestionImport, questionImportLimit } from "./importQuestion";
+import { decodeQuestionImport, questionImportLimit } from "@quorem/questions";
 
 describe("question JSON import", () => {
   it("imports the documented example", () => {
-    expect(parseQuestionImport(JSON.stringify(example))).toEqual(example);
+    expect(decodeQuestionImport(JSON.stringify(example)).problem).toMatchObject({
+      slug: example.problem.slug,
+      title: example.problem.title,
+    });
   });
   it("preserves private judging and editorial content", () => {
     const content = blankQuestion();
+    content.problem.slug = "example-import";
     content.hiddenCases = [{ args: [42], expected: 42 }];
     content.approaches[0]!.implementations[0]!.source = "canonical reference";
-    expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
+    const imported = JSON.parse(decodeQuestionImport(JSON.stringify(content)).normalized);
+    expect(imported.hiddenCases).toEqual(content.hiddenCases);
+    expect(imported.approaches[0].implementations).toEqual(content.approaches[0]!.implementations);
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {
     const content = blankQuestion();
+    content.problem.slug = "example-import";
     delete content.problem.signature;
     content.problem.sql = {
       dialect: "postgresql",
@@ -41,35 +48,42 @@ describe("question JSON import", () => {
         },
       ],
     };
-    expect(parseQuestionImport(JSON.stringify(content))).toEqual(content);
+    expect(
+      JSON.parse(decodeQuestionImport(JSON.stringify(content)).normalized).problem,
+    ).toMatchObject({
+      sql: content.problem.sql,
+      odyssey: content.problem.odyssey,
+    });
   });
   it.each(["{", "null", "[]", "{}", '{"problem":null}'])(
     "rejects malformed content: %s",
     (text) => {
-      expect(() => parseQuestionImport(text)).toThrow();
+      expect(() => decodeQuestionImport(text)).toThrow();
     },
   );
   it("rejects malformed nested structures and unknown fields", () => {
     const content = blankQuestion();
+    content.problem.slug = "example-import";
     expect(() =>
-      parseQuestionImport(JSON.stringify({ ...content, hiddenCases: [{ args: "bad" }] })),
+      decodeQuestionImport(JSON.stringify({ ...content, hiddenCases: [{ args: "bad" }] })),
     ).toThrow(/hiddenCases/);
-    expect(() => parseQuestionImport(JSON.stringify({ ...content, unknown: true }))).toThrow(
-      /additional properties/,
+    expect(() => decodeQuestionImport(JSON.stringify({ ...content, unknown: true }))).toThrow(
+      /unknown|additional|property/i,
     );
   });
   it("rejects obsolete duplicate solution ownership", () => {
     const content = blankQuestion();
-    expect(() => parseQuestionImport(JSON.stringify({ ...content, solutions: [] }))).toThrow(
-      /additional properties/,
+    content.problem.slug = "example-import";
+    expect(() => decodeQuestionImport(JSON.stringify({ ...content, solutions: [] }))).toThrow(
+      /unknown|additional|property/i,
     );
     expect(() =>
-      parseQuestionImport(
+      decodeQuestionImport(
         JSON.stringify({ ...content, implementations: [{ language: "python" }] }),
       ),
-    ).toThrow(/additional properties/);
+    ).toThrow(/unknown|additional|property/i);
   });
   it("bounds uploaded bytes", () => {
-    expect(() => parseQuestionImport(" ".repeat(questionImportLimit + 1))).toThrow(/2 MiB/);
+    expect(() => decodeQuestionImport(" ".repeat(questionImportLimit + 1))).toThrow(/2 MiB/);
   });
 });
