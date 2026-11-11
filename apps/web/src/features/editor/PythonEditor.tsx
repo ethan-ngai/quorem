@@ -94,7 +94,7 @@ const baseExtensions: Extension[] = [
   // Keep cursor placement under editor control instead of Safari's native caret.
   drawSelection(),
   dropCursor(),
-  highlightSelectionMatches(),
+  highlightSelectionMatches({ wholeWords: true, minSelectionLength: 2 }),
   indentationGuides,
   commentAnnotations,
   documentationComments,

@@ -90,7 +90,11 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           transform: "translateX(-1px) rotate(-45deg)",
         },
         ".cm-foldGutter span:hover": { opacity: "1" },
-        ".cm-matchingBracket, .cm-selectionMatch": { backgroundColor: color("selection") },
+        ".cm-matchingBracket": { backgroundColor: color("selection") },
+        ".cm-selectionMatch": {
+          backgroundColor: `color-mix(in oklab, ${color("selection")} 45%, transparent)`,
+        },
+        ".cm-searchMatch .cm-selectionMatch": { backgroundColor: "transparent" },
         ".cm-nonmatchingBracket": { textDecoration: "underline wavy var(--color-error)" },
         ".cm-searchMatch": {
           backgroundColor: color("selection"),
