@@ -121,11 +121,11 @@ before(async () => {
     [problem],
   );
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Private','easy','','{}','[]','{}','test')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Private','easy','','{}','[]','{}','test')",
     [version, problem],
   );
-  await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [problem, version]);
-  await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [version]);
+  await pool.query("UPDATE problems SET current_publication_id=$2 WHERE id=$1", [problem, version]);
+  await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [version]);
 });
 after(async () => {
   coordinator.close();
@@ -364,11 +364,14 @@ void test("candidate selection admits only the sealed current host-owned problem
     );
   assert.equal((await choose(host.userId)).id, version);
   await assert.rejects(choose(a.userId));
-  await pool.query("UPDATE problems SET current_version_id=NULL WHERE id=$1", [problem]);
+  await pool.query("UPDATE problems SET current_publication_id=NULL WHERE id=$1", [problem]);
   try {
     await assert.rejects(choose(host.userId));
   } finally {
-    await pool.query("UPDATE problems SET current_version_id=$2 WHERE id=$1", [problem, version]);
+    await pool.query("UPDATE problems SET current_publication_id=$2 WHERE id=$1", [
+      problem,
+      version,
+    ]);
   }
 });
 

@@ -282,6 +282,11 @@
   font-size: 11px;
   color: var(--color-text-secondary);
 }
+.match-forfeit-status {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-error);
+}
 .score-penalty {
   display: inline-flex;
   align-items: center;
@@ -418,6 +423,27 @@
 }
 .match-creation-dialog .competitive-dialog-heading {
   align-items: center;
+}
+.match-creation-status-dialog .competitive-dialog-heading {
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+.match-creation-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.match-creation-recovery-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+}
+.match-creation-recovery-message svg {
+  flex: none;
+  color: var(--color-error);
 }
 .match-creation-options-slot {
   display: contents;
@@ -580,8 +606,6 @@
   margin-bottom: var(--space-1);
 }
 .problem-picker-results {
-  overflow-y: auto;
-  min-height: 0;
   max-height: 260px;
 }
 .problem-picker-item {

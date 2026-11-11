@@ -42,7 +42,7 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
             throw new ApplicationError("vote_required", "Propose a team language change", 409);
           const state = (
             await tx.execute<{ active: boolean; version: string; forfeited: boolean }>(
-              sql`SELECT m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>clock_timestamp() AS active,m.problem_version_id::text AS version,p.forfeited FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${who.userId} WHERE m.id=${id}::uuid`,
+              sql`SELECT m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>clock_timestamp() AS active,m.publication_id::text AS version,p.forfeited FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${who.userId} WHERE m.id=${id}::uuid`,
             )
           ).rows[0];
           if (!state?.active || state.forfeited)
@@ -53,7 +53,7 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
             );
           const problem = (
             await tx.execute<{ isSql: boolean }>(
-              sql`SELECT sql_config IS NOT NULL AND sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions WHERE id=${state.version}::uuid`,
+              sql`SELECT sql_config IS NOT NULL AND sql_config <> 'null'::jsonb AS "isSql" FROM question_publications WHERE id=${state.version}::uuid`,
             )
           ).rows[0];
           if (!problem) throw new ApplicationError("not_found", "Question unavailable", 404);
@@ -79,7 +79,7 @@ export function matchLanguageSelection(run: Run, inviteKey: Uint8Array): MatchLa
               language: string;
               matchId: string;
             }>(
-              sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES(${workspace}::uuid,${who.userId},${state.version}::uuid,${language},'match',${id}::uuid) ON CONFLICT(match_id,owner_id,language) WHERE kind='match' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id::text,kind,problem_version_id::text AS "problemVersionId",language,match_id::text AS "matchId"`,
+              sql`INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES(${workspace}::uuid,${who.userId},${state.version}::uuid,${language},'match',${id}::uuid) ON CONFLICT(match_id,owner_id,language) WHERE kind='match' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id::text,kind,publication_id::text AS "problemVersionId",language,match_id::text AS "matchId"`,
             )
           ).rows[0];
           await tx.execute(

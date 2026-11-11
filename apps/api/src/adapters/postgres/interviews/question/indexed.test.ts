@@ -109,7 +109,7 @@ it.skipIf(!url)(
       expect(customSnapshot).toContain("a\\u0000b");
       const { seedQuestion } = await import("../../../../cli/seed-question.ts");
       const { fileURLToPath } = await import("node:url");
-      const stagedVersion = await seedQuestion(
+      const stagedPublication = await seedQuestion(
         pool,
         host,
         "private",
@@ -118,7 +118,7 @@ it.skipIf(!url)(
         ),
       );
       await question.select(actor, id, "stage-select", {
-        problemVersionId: stagedVersion,
+        problemVersionId: stagedPublication,
         language: "python",
       });
       const before = JSON.parse(await new Response(await read(actor, id)).text());
@@ -135,11 +135,11 @@ it.skipIf(!url)(
       expect(after.questionEpoch).toBe(before.questionEpoch);
       await Promise.all([
         question.select(actor, id, "race-one", {
-          problemVersionId: stagedVersion,
+          problemVersionId: stagedPublication,
           language: "python",
         }),
         question.select(actor, id, "race-two", {
-          problemVersionId: stagedVersion,
+          problemVersionId: stagedPublication,
           language: "java",
         }),
       ]);
@@ -170,29 +170,31 @@ it.skipIf(!url)(
     try {
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [parent, `seal-${parent}`]);
       await pool.query(
-        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_public) SELECT $1,$2,1,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,convert_to('raw','UTF8') FROM problem_versions WHERE id=$3",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_public) SELECT $1,$2,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,convert_to('raw','UTF8') FROM question_publications WHERE id=$3",
         [id, parent, base],
       );
       await pool.query(
-        "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[]','1')",
+        "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,'[]','1')",
         [id],
       );
       await expect(
-        pool.query("UPDATE problem_versions SET sealed=true,title='changed' WHERE id=$1", [id]),
+        pool.query("UPDATE question_publications SET sealed=true,title='changed' WHERE id=$1", [
+          id,
+        ]),
       ).rejects.toMatchObject({ code: "23514" });
       await expect(
         pool.query(
-          "UPDATE problem_versions SET sealed=true,lossless_public=convert_to('different','UTF8') WHERE id=$1",
+          "UPDATE question_publications SET sealed=true,lossless_public=convert_to('different','UTF8') WHERE id=$1",
           [id],
         ),
       ).rejects.toMatchObject({ code: "23514" });
-      await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [id]);
-      await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [id]);
+      await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [id]);
+      await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [id]);
       await expect(
-        pool.query("UPDATE problem_versions SET title='changed' WHERE id=$1", [id]),
+        pool.query("UPDATE question_publications SET title='changed' WHERE id=$1", [id]),
       ).rejects.toMatchObject({ code: "23514" });
       await expect(
-        pool.query("UPDATE problem_examples SET expected='2'::jsonb WHERE version_id=$1", [id]),
+        pool.query("UPDATE problem_examples SET expected='2'::jsonb WHERE publication_id=$1", [id]),
       ).rejects.toMatchObject({ code: "23514" });
     } finally {
       await pool.end();

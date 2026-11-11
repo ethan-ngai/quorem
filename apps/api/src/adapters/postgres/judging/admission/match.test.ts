@@ -59,7 +59,7 @@ beforeAll(async () => {
   );
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'')",
     [
       version,
       problem,
@@ -72,18 +72,18 @@ beforeAll(async () => {
     ],
   );
   await pool.query(
-    "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
+    "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
     [version],
   );
   await pool.query(
-    "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
+    "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
     [version],
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       indexRunnerFixture(
         tx,
-        { version },
+        { publication: version },
         JSON.stringify({
           problem: {
             signature: {
@@ -107,7 +107,7 @@ beforeAll(async () => {
   );
   for (let i = 0; i < 2; i++) {
     await pool.query(
-      "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',$3)",
+      "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,publication_id) VALUES($1,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',$3)",
       [matches[i], host, version],
     );
     await pool.query(
@@ -119,7 +119,7 @@ beforeAll(async () => {
       [`token-${matches[i]}`, guests[i], matches[i]],
     );
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)",
       [workspaces[i], guests[i], version, matches[i]],
     );
   }
@@ -148,9 +148,9 @@ afterAll(async () => {
   await pool.query("DELETE FROM guest_sponsor_locks WHERE user_id=$1", [host]);
   await pool.query("DELETE FROM quota_overrides WHERE user_id=$1", [host]);
   await pool.query("DELETE FROM users WHERE id=ANY($1)", [[host, ...guests]]);
-  await pool.query("DELETE FROM problem_examples WHERE version_id=$1", [version]);
-  await pool.query("DELETE FROM problem_test_cases WHERE version_id=$1", [version]);
-  await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
+  await pool.query("DELETE FROM problem_examples WHERE publication_id=$1", [version]);
+  await pool.query("DELETE FROM problem_test_cases WHERE publication_id=$1", [version]);
+  await pool.query("DELETE FROM question_publications WHERE id=$1", [version]);
   await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
   await pool.end();
 });

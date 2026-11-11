@@ -2,14 +2,16 @@ import { verdictIcon } from "./verdictPresentation";
 import { CasePreviewLayout } from "./NodePreview";
 import type { NodeContext } from "../nodeLiterals";
 import "./machine-values.css";
+import { CaseGrid } from "./CaseGrid";
 import { CodeLiteral } from "./CodeLiteral";
 import { SqlTables } from "./SqlTables";
 import { bindArguments } from "../argumentBinding";
-import type { MethodCall, ProblemVersion, Signature } from "@quorem/contracts";
+import type { MethodCall, PublishedQuestion, Signature } from "@quorem/contracts";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import { questionValue } from "../questionTypes";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { PublicCaseResult } from "@quorem/contracts";
+import type { InputPresetConfig } from "@quorem/contracts";
 import type { ReactNode } from "react";
 import { Icon } from "../../../ui/Icon";
 import { Spinner } from "../../../ui/Spinner";
@@ -71,6 +73,8 @@ export function CaseValue({
   parameter = false,
   tone,
   type,
+  layout,
+  showGrid,
   sql,
   sqlTypes,
   nodeContext,
@@ -81,7 +85,9 @@ export function CaseValue({
   parameter?: boolean;
   tone?: string;
   type?: string;
-  sql?: ProblemVersion["sql"];
+  layout?: InputPresetConfig["layout"];
+  showGrid?: boolean;
+  sql?: PublishedQuestion["sql"];
   sqlTypes?: readonly string[];
   nodeContext?: NodeContext;
 }) {
@@ -111,10 +117,11 @@ export function CaseValue({
         ) : (
           <CodeLiteral
             className={`machine-value ${tone ?? ""}${type?.includes("TreeNode") ? " node-tree-literal" : ""}`}
-            source={questionValue(value, language, type, nodeContext)}
+            source={questionValue(value, language, type, nodeContext, layout === "rows")}
             language={language}
           />
         )}
+        {showGrid && <CaseGrid name={name} value={value} />}
       </div>
     </div>
   );
@@ -137,7 +144,12 @@ export function CaseArguments({
 }) {
   const inputs = signature
     ? bindArguments(signature, args)
-    : args.map((value, index) => ({ name: `Argument ${index + 1}`, value, type: undefined }));
+    : args.map((value, index) => ({
+        name: `Argument ${index + 1}`,
+        value,
+        type: undefined,
+        input: undefined,
+      }));
   return (
     <CasePreviewLayout
       enabled={preview}
@@ -146,12 +158,14 @@ export function CaseArguments({
       actual={actual}
     >
       <div className="case-call-inputs">
-        {inputs.map(({ name, value, type }) => (
+        {inputs.map(({ name, value, type, input }) => (
           <CaseValue
             key={name}
             name={name}
             value={value}
             type={type}
+            layout={input?.layout}
+            showGrid={input?.showGrid}
             parameter
             nodeContext={signature ? { signature, args: args as NodeContext["args"] } : undefined}
           />
@@ -179,7 +193,7 @@ export function CaseOutput({
   preview?: boolean;
   returnType?: string;
   nodeContext?: NodeContext;
-  sql?: ProblemVersion["sql"];
+  sql?: PublishedQuestion["sql"];
   sequence?: { calls: readonly MethodCall[]; methods: readonly Signature[] };
 }) {
   const tone = verdictTone(result.status);

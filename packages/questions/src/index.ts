@@ -17,13 +17,27 @@ export {
   findPrimarySignature,
   blankSignature,
 } from "./signature.ts";
-export { validateConstraints, constraintTargetOptions, comparisonChoices } from "./constraints.ts";
 export {
+  validateConstraints,
+  constraintTargetOptions,
+  comparisonChoices,
+  constraintProperties,
+} from "./constraints.ts";
+export {
+  constraintMatches,
+  constraintRuleTargets,
   rangeContains,
   rangeMatches,
   comparisonMatches,
   propertyMatches,
 } from "./constraintPredicates.ts";
+export { structuredConstraintSuggestion } from "./constraintNotes.ts";
+export {
+  collectionProjection,
+  constraintProjector,
+  constraintTargetType,
+  sequenceTarget,
+} from "./constraintTargets.ts";
 export {
   generateStarter,
   generateMethodStarter,
@@ -68,3 +82,23 @@ export {
 export { questionSlugFits, questionPublicationSlug } from "./identity.ts";
 
 export { publicQuestionProblem } from "./projection.ts";
+export {
+  graphParameters,
+  graphPresetType,
+  graphNodeId,
+  inferCaseGraph,
+  projectCaseGraphs,
+  GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
+  caseGraphTargets,
+  graphEncodingForTarget,
+  graphReturnSlot,
+  isGraphReturn,
+  mergeGraphOutput,
+  type CaseGraphs,
+  validateGraph,
+  type GraphEncoding,
+  type QuestionGraph,
+  type GraphNode,
+  type GraphNodeId,
+} from "./graph.ts";

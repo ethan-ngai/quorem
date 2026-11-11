@@ -1,4 +1,4 @@
-/** @file NodePreview.tsx @description One lazy diagram per case and scoped reference picking. @module editor */
+/** @file NodePreview.tsx @description Case diagrams and scoped node reference picking. @module editor */
 import {
   createContext,
   lazy,
@@ -8,12 +8,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { GRAPH_RETURN, graphReturnSlot, type CaseGraphs } from "@quorem/questions";
 import { nodeValueType } from "../nodeDiagram";
 import type { NodeContext } from "../nodeLiterals";
 import type { WireValue } from "../typedValues";
 import "./node-preview.css";
 import { LoadingIndicator } from "../../../ui/Spinner";
 
+const GraphDiagram = lazy(() => import("./GraphDiagram"));
 const Diagram = lazy(() => import("./NodeDiagram"));
 type Selection = { type: string; name: string; choose: (reference: string) => void };
 const ReferenceSelection = createContext<
@@ -48,9 +50,49 @@ export function CasePreviewLayout({
   children,
   editable = false,
   enabled = true,
+  graphs,
   ...preview
-}: NodePreviewProps & { children: ReactNode; editable?: boolean; enabled?: boolean }) {
-  if (!enabled || !hasNodes(preview.context)) return <>{children}</>;
+}: NodePreviewProps & {
+  children: ReactNode;
+  editable?: boolean;
+  enabled?: boolean;
+  graphs?: CaseGraphs;
+}) {
+  const nodes = hasNodes(preview.context);
+  if (!enabled) return <>{children}</>;
+  const graphKeys = Object.keys(graphs ?? {});
+  if (graphs && graphKeys.length) {
+    const parameters = preview.context?.signature.parameters.map(({ name }) => name) ?? [];
+    const inputs = parameters.filter((name) => Object.hasOwn(graphs, name));
+    const remaining = graphKeys.filter((name) => !inputs.includes(name));
+    remaining.sort((a, b) => (graphReturnSlot(a) ?? -1) - (graphReturnSlot(b) ?? -1));
+    const [first, ...rest] = [...inputs, ...remaining];
+    const diagram = (name: string) => {
+      const slot = graphReturnSlot(name);
+      const label =
+        name === GRAPH_RETURN
+          ? "Expected graph"
+          : slot === undefined
+            ? name
+            : `Expected graph [${slot}]`;
+      return <GraphDiagram key={name} graph={graphs[name]!} label={label} />;
+    };
+    return (
+      <div className="case-graph-layout">
+        <div className="case-with-graphs">
+          <div className="case-preview-values">{children}</div>
+          <Suspense fallback={<LoadingIndicator label="Loading graph previews…" />}>
+            <div className="case-graph-main">
+              {nodes && <NodeCasePreview {...preview} />}
+              {diagram(first!)}
+            </div>
+            {rest.length > 0 && <div className="case-graph-extras">{rest.map(diagram)}</div>}
+          </Suspense>
+        </div>
+      </div>
+    );
+  }
+  if (!nodes) return <>{children}</>;
   return (
     <div className="case-with-preview" data-editable={editable}>
       <div className="case-preview-values">{children}</div>

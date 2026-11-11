@@ -31,7 +31,7 @@ export interface PreparedQuestion {
   source: string;
   language: string;
   fingerprint: string;
-  versionId?: string;
+  publicationId?: string;
   published?: boolean;
   persist?(tx: Transaction): Promise<void>;
 }
@@ -129,15 +129,15 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
         await tx.execute(
           sql`INSERT INTO interviews(id,host_id,title,question,language,source,document_epoch,invite_hash,invite_token,question_epoch,interviewer_invite_hash,interviewer_invite_token,monitoring,lossless_question) VALUES(${id}::uuid,${actor.userId},${title},${prepared.safe}::jsonb,${prepared.language},${prepared.source},${crypto.randomUUID()}::uuid,${candidateHash},${candidate},${questionEpoch}::uuid,${interviewerHash},${interviewer},${monitoring}::jsonb,${prepared.lossless})`,
         );
-        if (prepared.published && prepared.versionId) {
+        if (prepared.published && prepared.publicationId) {
           await writePublishedInterviewQuestion(
             tx,
             id,
-            prepared.versionId,
+            prepared.publicationId,
             prepared.language,
             (command.question as Record<string, unknown>).hints,
           );
-          await savePublishedInterviewSidecars(tx, id, questionEpoch, prepared.versionId);
+          await savePublishedInterviewSidecars(tx, id, questionEpoch, prepared.publicationId);
         } else {
           const rawFixture = prepared.lossless
             ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
@@ -146,12 +146,12 @@ export function interviewLifecycle(run: Run, deps: Dependencies): InterviewLifec
           await savePrivateCases(tx, id, questionEpoch, rawFixture);
           await tx.execute(sql`UPDATE interviews SET lossless_question=NULL WHERE id=${id}::uuid`);
         }
-        if (!prepared.versionId) throw new Error("Indexed question version required");
+        if (!prepared.publicationId) throw new Error("Indexed publication required");
         const fixtureId = await createActiveRunnerFixture(
           tx,
           id,
           questionEpoch,
-          prepared.versionId,
+          prepared.publicationId,
         );
         await copySnapshotExamples(tx, id, questionEpoch, fixtureId);
         await tx.execute(

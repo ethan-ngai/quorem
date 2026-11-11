@@ -54,14 +54,14 @@ test("indexes historical published versions in audited resumable batches", async
       v2 = crypto.randomUUID();
     await pool.query("INSERT INTO problems(id,slug) VALUES($1,'backfill-fixture')", [problem]);
     await pool.query(
-      "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$3,1,'A','easy','','{}','[]','{}',''),($2,$3,2,'B','easy','','{}','[]','{}','')",
+      "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$3,'A','easy','','{}','[]','{}',''),($2,$3,2,'B','easy','','{}','[]','{}','')",
       [v1, v2, problem],
     );
     await pool.query(
-      "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[2]','3'),($2,0,'[4]','5')",
+      "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[2]','3'),($2,0,'[4]','5')",
       [v1, v2],
     );
-    await pool.query("UPDATE problem_versions SET sealed=true WHERE id=ANY($1::uuid[])", [
+    await pool.query("UPDATE question_publications SET sealed=true WHERE id=ANY($1::uuid[])", [
       [v1, v2],
     ]);
     await expect(backfillProblemInputs(args)).rejects.toThrow(/Drain legacy/);
@@ -76,7 +76,7 @@ test("indexes historical published versions in audited resumable batches", async
       dryRun: true,
     });
     expect(
-      Number((await pool.query("SELECT count(*) FROM runner_version_inputs")).rows[0].count),
+      Number((await pool.query("SELECT count(*) FROM runner_publication_inputs")).rows[0].count),
     ).toBe(0);
     expect(await backfillProblemInputs([...args, "--legacy-drained"])).toMatchObject({
       completed: 1,
@@ -92,8 +92,11 @@ test("indexes historical published versions in audited resumable batches", async
     });
     expect(
       Number(
-        (await pool.query("SELECT count(*) FROM runner_version_input_cases WHERE channel='hidden'"))
-          .rows[0].count,
+        (
+          await pool.query(
+            "SELECT count(*) FROM runner_publication_input_cases WHERE channel='hidden'",
+          )
+        ).rows[0].count,
       ),
     ).toBe(2);
     await expect(
@@ -101,7 +104,7 @@ test("indexes historical published versions in audited resumable batches", async
     ).rejects.toBeInstanceOf(ProblemInputsIncomplete);
     const lossless = crypto.randomUUID();
     await pool.query(
-      "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,3,'C','easy','','{}','[]','{}','',convert_to($3,'UTF8'))",
+      "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,'C','easy','','{}','[]','{}','',convert_to($3,'UTF8'))",
       [
         lossless,
         problem,
@@ -112,30 +115,33 @@ test("indexes historical published versions in audited resumable batches", async
         }),
       ],
     );
-    await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [lossless]);
+    await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [lossless]);
     expect(await backfillProblemInputs([...args, "--legacy-drained"])).toMatchObject({
       completed: 1,
       complete: true,
     });
     const data = (
       await pool.query(
-        "SELECT convert_from(b.data,'UTF8') AS data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=$1",
+        "SELECT convert_from(b.data,'UTF8') AS data FROM runner_publication_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.publication_id=$1",
         [lossless],
       )
     ).rows[0].data;
     expect(JSON.parse(data).args).toEqual(["a\u0000b"]);
     const oversized = crypto.randomUUID();
     await pool.query(
-      "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,4,'D','easy','','{}','[]','{}','',convert_to(repeat('a',16777217),'UTF8'))",
+      "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,'D','easy','','{}','[]','{}','',convert_to(repeat('a',16777217),'UTF8'))",
       [oversized, problem],
     );
-    await pool.query("UPDATE problem_versions SET sealed=true WHERE id=$1", [oversized]);
+    await pool.query("UPDATE question_publications SET sealed=true WHERE id=$1", [oversized]);
     await expect(backfillProblemInputs([...args, "--legacy-drained"])).rejects.toBeInstanceOf(
       ProblemInputsIncomplete,
     );
     expect(
-      (await pool.query("SELECT 1 FROM runner_version_inputs WHERE version_id=$1", [oversized]))
-        .rowCount,
+      (
+        await pool.query("SELECT 1 FROM runner_publication_inputs WHERE publication_id=$1", [
+          oversized,
+        ])
+      ).rowCount,
     ).toBe(0);
     expect(
       Number(

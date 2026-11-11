@@ -2,7 +2,6 @@
   "problem": {
     "id": "3f4f998a-7911-5097-91ea-70651bcb363b",
     "slug": "level-spreads",
-    "version": "3",
     "title": "Level Spreads",
     "difficulty": "medium",
     "tags": ["binary trees", "breadth first search"],

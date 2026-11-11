@@ -55,11 +55,11 @@ export function problemRoutes(deps: ProblemRouteDependencies) {
   app.get("/v1/problems/:slug", async (c) =>
     json(c, await readProblem(deps.queries, await actor(c.req.raw), c.req.param("slug"), false)),
   );
-  app.get("/v1/problem-versions/:id", async (c) =>
+  app.get("/v1/question-publications/:id", async (c) =>
     json(c, await readProblem(deps.queries, await actor(c.req.raw), c.req.param("id"), true)),
   );
   for (const kind of ["solutions", "complexity"] as const)
-    app.get(`/v1/problem-versions/:id/${kind}`, async (c) => {
+    app.get(`/v1/question-publications/:id/${kind}`, async (c) => {
       const who = await actor(c.req.raw);
       const id = c.req.param("id");
       validateEditorialId(id);

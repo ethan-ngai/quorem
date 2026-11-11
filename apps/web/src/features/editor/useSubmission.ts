@@ -3,7 +3,12 @@ import { sha256 } from "../../sha256";
 /** @file useSubmission.ts @description Dispatches, resumes, and cancels judge jobs. @module editor */
 import { useErrorNotification } from "../../ui/Notifications";
 import { userFacingErrorMessage } from "../../ui/errors";
-import type { DevelopmentIdentity, ProblemVersion, Submission, Workspace } from "@quorem/contracts";
+import type {
+  DevelopmentIdentity,
+  PublishedQuestion,
+  Submission,
+  Workspace,
+} from "@quorem/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { cancelSubmission, createSubmission, fetchSubmission, SubmissionReadError } from "./api";
@@ -49,12 +54,12 @@ export function useSubmission({
   editorRef: MutableRefObject<PythonEditorHandle | null>;
   customMode: boolean;
   drafts: CustomCaseDraft[];
-  problem?: ProblemVersion;
+  problem?: PublishedQuestion;
   enabled?: boolean;
   beforeExecution?: (kind: "run" | "submit") => Promise<boolean>;
   sharedSubmissionId?: string;
   level?: number;
-  runExamples?: ProblemVersion["examples"];
+  runExamples?: PublishedQuestion["examples"];
 }) {
   const queryClient = useQueryClient();
   const [active, setActive] = useState<{

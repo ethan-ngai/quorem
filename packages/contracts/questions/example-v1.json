@@ -2,7 +2,6 @@
   "problem": {
     "id": "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
     "slug": "run-widths",
-    "version": "3",
     "title": "Run Widths",
     "difficulty": "easy",
     "tags": ["arrays"],

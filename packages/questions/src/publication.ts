@@ -1,4 +1,5 @@
 /** @file publication.ts @description Definition and publication semantics over raw question JSON. @module questions */
+import { compileGraphCase, graphParameters } from "./graph.ts";
 import { generateQuestionImplementations } from "./starter.ts";
 import { validSource } from "./source.ts";
 import { canonicalCode } from "./editorial.ts";
@@ -62,7 +63,11 @@ function core(
       throw new Error("SQL supports informational prose only");
     validateSqlSchema(p.sql);
   } else {
-    if (!levels) validateSignature(primarySignature(p), false);
+    if (!levels) {
+      validateSignature(primarySignature(p), false);
+      for (const [target, encoding] of Object.entries(primarySignature(p).graphEncodings ?? {}))
+        graphParameters(primarySignature(p), target, encoding);
+    }
     validateConstraints(primarySignature(p), p.constraints);
   }
   const limits = p.limits;
@@ -79,8 +84,22 @@ function core(
     if (!Number.isSafeInteger(n) || n < 1 || n > max)
       throw new Error("execution limits exceed supported bounds");
   const limit = limits.maxCollectionElements || 10000;
+  const signature = p.sql ? undefined : primarySignature(p);
+  const requiresGraph = Object.values(signature?.graphEncodings ?? {}).some(
+    ({ kind }) => kind === "custom",
+  );
   const validateCase = (v: JsonValue, methods?: Signature[]) => {
-    const json = stringifyLosslessJson(v);
+    const test = object(v);
+    if (p.sql || methods) {
+      if (test.graphs !== undefined)
+        throw new Error("Graph case authoring requires a classic coding question");
+    }
+    const json = stringifyLosslessJson(test);
+    if (!methods && signature && (test.graphs !== undefined || requiresGraph)) {
+      compileGraphCase(signature, test, limit, true);
+      if (json !== stringifyLosslessJson(test))
+        throw new Error("Compile graph arguments before publication");
+    }
     if (p.sql) validateSqlCase(p.sql, json, true);
     else if (methods)
       validateCodingSequence(primarySignature(p), p.constraints, methods, json, true, limit);
@@ -112,6 +131,8 @@ function core(
         throw new Error(`invalid Odyssey level ${i + 1}`);
       for (const method of level.methods) {
         validateSignature(method, true);
+        if (method.graphEncodings)
+          throw new Error("Graph authoring requires a classic coding question");
         if (names.has(method.methodName)) throw new Error("duplicate Odyssey method");
         names.add(method.methodName);
         methods = [...methods, method];

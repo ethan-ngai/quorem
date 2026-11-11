@@ -22,12 +22,12 @@ it("admits a >128 MiB fixture as bounded references in workerd", async () => {
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
       const data = (
         await tx.execute<{ version: string; size: string }>(
-          sql`SELECT id::text AS version,octet_length(lossless_fixture)::bigint::text AS size FROM problem_versions WHERE title='Large' LIMIT 1`,
+          sql`SELECT id::text AS version,octet_length(lossless_fixture)::bigint::text AS size FROM question_publications WHERE title='Large' LIMIT 1`,
         )
       ).rows[0];
       await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Worker')`);
       await tx.execute(
-        sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${data.version}::uuid,'python')`,
+        sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${data.version}::uuid,'python')`,
       );
       return { ...data, id: workspace };
     }),

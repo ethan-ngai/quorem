@@ -103,18 +103,18 @@ export function interviewQuestionCommands(run: Run): InterviewQuestions {
         });
         if (prepared.persist) await prepared.persist(tx);
         const epoch = crypto.randomUUID();
-        if (prepared.published && prepared.versionId) {
+        if (prepared.published && prepared.publicationId) {
           await tx.execute(
             sql`UPDATE interviews SET document_version=0,document_epoch=${crypto.randomUUID()}::uuid,question_epoch=${epoch}::uuid WHERE id=${id}::uuid`,
           );
           await writePublishedInterviewQuestion(
             tx,
             id,
-            prepared.versionId,
+            prepared.publicationId,
             prepared.language,
             requested,
           );
-          await savePublishedInterviewSidecars(tx, id, epoch, prepared.versionId);
+          await savePublishedInterviewSidecars(tx, id, epoch, prepared.publicationId);
         } else {
           const raw = prepared.lossless
             ? new TextDecoder("utf-8", { fatal: true }).decode(prepared.lossless)
@@ -130,8 +130,8 @@ export function interviewQuestionCommands(run: Run): InterviewQuestions {
           await savePrivateCases(tx, id, epoch, stringifyLosslessJson(fixture));
           await tx.execute(sql`UPDATE interviews SET lossless_question=NULL WHERE id=${id}::uuid`);
         }
-        if (!prepared.versionId) throw new Error("Indexed question version required");
-        const fixtureId = await createActiveRunnerFixture(tx, id, epoch, prepared.versionId);
+        if (!prepared.publicationId) throw new Error("Indexed publication required");
+        const fixtureId = await createActiveRunnerFixture(tx, id, epoch, prepared.publicationId);
         await copySnapshotExamples(tx, id, epoch, fixtureId);
       });
     },
@@ -194,14 +194,14 @@ export function interviewQuestionCommands(run: Run): InterviewQuestions {
           throw fail("document_changed", "Question changed; refresh before passing a stage", 409);
         const row = (
           await tx.execute<{ problemId: string; total: number; level: number; completed: boolean }>(
-            sql`SELECT q.metadata->'problem'->>'id' AS "problemId",CASE WHEN jsonb_typeof(q.metadata->'problem'->'odyssey'->'levels')='array' THEN jsonb_array_length(q.metadata->'problem'->'odyssey'->'levels') ELSE 0 END AS total,COALESCE(p.level,1) AS level,COALESCE(p.completed,false) AS completed FROM interview_question_public q LEFT JOIN odyssey_progress p ON p.scope_id=q.question_epoch AND p.problem_version_id=NULLIF(q.metadata->'problem'->>'id','')::uuid WHERE q.session_id=${id}::uuid AND q.question_epoch=${epoch}::uuid`,
+            sql`SELECT q.metadata->'problem'->>'id' AS "problemId",CASE WHEN jsonb_typeof(q.metadata->'problem'->'odyssey'->'levels')='array' THEN jsonb_array_length(q.metadata->'problem'->'odyssey'->'levels') ELSE 0 END AS total,COALESCE(p.level,1) AS level,COALESCE(p.completed,false) AS completed FROM interview_question_public q LEFT JOIN odyssey_progress p ON p.scope_id=q.question_epoch AND p.publication_id=NULLIF(q.metadata->'problem'->>'id','')::uuid WHERE q.session_id=${id}::uuid AND q.question_epoch=${epoch}::uuid`,
           )
         ).rows[0];
         if (!row || !row.total) throw fail("invalid_input", "Question has no stages");
         if (level !== row.level || row.completed)
           throw fail("stale_version", "Stage changed; refresh before passing a stage", 409);
         const result = await tx.execute(
-          sql`INSERT INTO odyssey_progress(scope_id,problem_version_id,level,completed) VALUES(${epoch}::uuid,${row.problemId}::uuid,${Math.min(level + 1, row.total)},${level === row.total}) ON CONFLICT(scope_id,problem_version_id) DO UPDATE SET level=EXCLUDED.level,completed=EXCLUDED.completed WHERE odyssey_progress.level=${level} AND NOT odyssey_progress.completed RETURNING level`,
+          sql`INSERT INTO odyssey_progress(scope_id,publication_id,level,completed) VALUES(${epoch}::uuid,${row.problemId}::uuid,${Math.min(level + 1, row.total)},${level === row.total}) ON CONFLICT(scope_id,publication_id) DO UPDATE SET level=EXCLUDED.level,completed=EXCLUDED.completed WHERE odyssey_progress.level=${level} AND NOT odyssey_progress.completed RETURNING level`,
         );
         if (!result.rows.length)
           throw fail("stale_version", "Stage changed; refresh before passing a stage", 409);

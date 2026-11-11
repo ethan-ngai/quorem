@@ -33,7 +33,6 @@ export function validateQuestionDraft(content: QuestionContent): void {
     throw new Error("question collection limit exceeded");
   if (
     bytes(p.id) > 64 ||
-    bytes(p.version) > 32 ||
     !questionSlugFits(p.slug) ||
     bytes(p.title) > 160 ||
     bytes(p.statementMarkdown) > 65536 ||
@@ -71,7 +70,7 @@ export function validateQuestionDraft(content: QuestionContent): void {
     companies.add(key);
   }
   for (const example of p.examples)
-    if (bytes(example.explanation ?? "") > 8192)
+    if (bytes(example.explanation ?? "") > 32_768)
       throw new Error("example explanation limit exceeded");
   for (const c of p.constraints)
     if (c.kind === "prose" && bytes(c.text) > 4096)

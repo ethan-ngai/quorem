@@ -1,3 +1,4 @@
+import { CircleAlert, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -13,7 +14,7 @@ import {
   type Party,
   type PartySettings,
 } from "./party";
-import { LoadingIndicator } from "../../ui/Spinner";
+import { LoadingIndicator, SpinnerSwap } from "../../ui/Spinner";
 
 export function CreateMatchDialog({
   identity,
@@ -34,49 +35,64 @@ export function CreateMatchDialog({
   const [recovering, setRecovering] = useState(
     () => !!readPendingCommand(identity, "party:/v1/parties"),
   );
-  const current = useParty(identity);
+  const current = useParty(identity, true, false, { refetchOnMount: false });
+  const returnToLobby = current.data?.party && !recovering;
+  const showSettings = !current.isPending && !current.isError && !returnToLobby;
   return (
     <SessionDialog
       open={open}
       onOpenChange={setOpen}
       pending={pending}
       onExited={onClose}
-      className="match-creation-dialog"
+      className={showSettings ? "match-creation-dialog" : "match-creation-status-dialog"}
       title="Create lobby"
       description="Choose settings for your party."
       descriptionHidden
       actions={
-        <>
-          <span className="match-creation-options-slot" ref={setOptionsSlot} />
-          {session.data?.capabilities?.hostGuests && (
-            <GuestAccessToggle
-              allowed={settings.accessMode === "guests_allowed"}
-              disabled={pending || recovering}
-              onToggle={() =>
-                setSettings({
-                  ...settings,
-                  accessMode:
-                    settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
-                })
-              }
-            />
-          )}
-        </>
+        showSettings && (
+          <>
+            <span className="match-creation-options-slot" ref={setOptionsSlot} />
+            {session.data?.capabilities?.hostGuests && (
+              <GuestAccessToggle
+                allowed={settings.accessMode === "guests_allowed"}
+                disabled={pending || recovering}
+                onToggle={() =>
+                  setSettings({
+                    ...settings,
+                    accessMode:
+                      settings.accessMode === "guests_allowed" ? "accounts_only" : "guests_allowed",
+                  })
+                }
+              />
+            )}
+          </>
+        )
       }
     >
       {current.isPending ? (
         <LoadingIndicator label="Checking your lobby…" />
-      ) : current.isError ? (
-        <div>
-          <p role="alert">Could not check your lobby.</p>
-          <button className="button button-secondary" onClick={() => void current.refetch()}>
-            Try again
-          </button>
-        </div>
-      ) : current.data?.party && !recovering ? (
+      ) : returnToLobby ? (
         <a className="button button-primary" href="/party">
           Return to lobby
         </a>
+      ) : current.isError ? (
+        <div className="match-creation-recovery" aria-busy={current.isFetching}>
+          <div className="match-creation-recovery-message" role="alert">
+            <CircleAlert size={18} aria-hidden="true" />
+            <span>Lobby status unavailable</span>
+          </div>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={current.isFetching}
+            onClick={() => void current.refetch()}
+          >
+            <SpinnerSwap pending={current.isFetching}>
+              <RotateCcw size={16} />
+            </SpinnerSwap>
+            Try again
+          </button>
+        </div>
       ) : (
         <form
           onSubmit={async (event) => {

@@ -2,7 +2,6 @@
   "problem": {
     "id": "7e6af288-c26f-5ab1-beed-1fc6538d31d2",
     "slug": "mirror-letters",
-    "version": "2",
     "title": "Mirror Letters",
     "difficulty": "easy",
     "tags": ["strings", "two pointers"],

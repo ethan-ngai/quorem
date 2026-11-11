@@ -73,15 +73,15 @@ before(async () => {
     returnType: "int",
   });
   await pool.query(
-    `WITH c AS (SELECT '{"args":["'||repeat('x',1400000)||chr(92)||'u0000"],"expected":1}' AS value), fixture AS (SELECT convert_to('{"problem":{"signature":'||$3||',"constraints":[],"limits":{},"examples":[{"args":["sample"],"expected":1}]},"hiddenCases":['||repeat(c.value||',',99)||c.value||']}', 'UTF8') AS data FROM c) INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) SELECT $1,$2,1,'Large','easy','',$3::jsonb,'[]','{}','',data FROM fixture`,
+    `WITH c AS (SELECT '{"args":["'||repeat('x',1400000)||chr(92)||'u0000"],"expected":1}' AS value), fixture AS (SELECT convert_to('{"problem":{"signature":'||$3||',"constraints":[],"limits":{},"examples":[{"args":["sample"],"expected":1}]},"hiddenCases":['||repeat(c.value||',',99)||c.value||']}', 'UTF8') AS data FROM c) INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) SELECT $1,$2,'Large','easy','',$3::jsonb,'[]','{}','',data FROM fixture`,
     [version, problem, signature],
   );
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Missing','easy','',$3::jsonb,'[]','{}','')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Missing','easy','',$3::jsonb,'[]','{}','')",
     [missingVersion, missingProblem, signature],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$3,'python'),($2,'input-worker',$3,'python'),($4,'input-owner',$5,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,'input-owner',$3,'python'),($2,'input-worker',$3,'python'),($4,'input-owner',$5,'python')",
     [workspace, workerWorkspace, version, missingWorkspace, missingVersion],
   );
   const meta = JSON.stringify({
@@ -101,24 +101,26 @@ before(async () => {
     'INSERT INTO runner_input_blobs(hash,data) SELECT sha256(convert_to(\'{"args":["sample"],"expected":1}\',\'UTF8\')),convert_to(\'{"args":["sample"],"expected":1}\',\'UTF8\')',
   );
   await pool.query(
-    "INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) SELECT $1,sha256(convert_to($2,'UTF8')),sha256(lossless_fixture) FROM problem_versions WHERE id=$1",
+    "INSERT INTO runner_publication_inputs(publication_id,metadata_hash,fixture_hash) SELECT $1,sha256(convert_to($2,'UTF8')),sha256(lossless_fixture) FROM question_publications WHERE id=$1",
     [version, meta],
   );
   await pool.query(
-    `WITH c AS (SELECT sha256(convert_to('{"args":["'||repeat('x',1400000)||chr(92)||'u0000"],"expected":1}','UTF8')) AS hash) INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) SELECT $1,'hidden',0,n,c.hash FROM generate_series(0,99) n CROSS JOIN c`,
+    `WITH c AS (SELECT sha256(convert_to('{"args":["'||repeat('x',1400000)||chr(92)||'u0000"],"expected":1}','UTF8')) AS hash) INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) SELECT $1,'hidden',0,n,c.hash FROM generate_series(0,99) n CROSS JOIN c`,
     [version],
   );
   await pool.query(
-    "INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,0,sha256(convert_to('{\"args\":[\"sample\"],\"expected\":1}','UTF8')))",
+    "INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) VALUES($1,'example',0,0,sha256(convert_to('{\"args\":[\"sample\"],\"expected\":1}','UTF8')))",
     [version],
   );
-  await pool.query("UPDATE runner_version_inputs SET sealed=true WHERE version_id=$1", [version]);
+  await pool.query("UPDATE runner_publication_inputs SET sealed=true WHERE publication_id=$1", [
+    version,
+  ]);
 });
 after(async () => pool.end());
 void test("seals a >128 MiB logical fixture without reading case bodies", async () => {
   const big = (
     await pool.query(
-      "SELECT octet_length(lossless_fixture)::bigint AS n FROM problem_versions WHERE id=$1",
+      "SELECT octet_length(lossless_fixture)::bigint AS n FROM question_publications WHERE id=$1",
       [version],
     )
   ).rows[0];
@@ -265,7 +267,7 @@ void test("guest admission rechecks deadline under lock and revocation on idempo
     [host],
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',$3)",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,publication_id) VALUES($1,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,'active',ARRAY['easy'],clock_timestamp(),clock_timestamp()+interval '1 hour',$3)",
     [match, host, version],
   );
   await pool.query(
@@ -277,7 +279,7 @@ void test("guest admission rechecks deadline under lock and revocation on idempo
     [token, guestUser, match],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,$2,$3,'python','match',$4)",
     [guestWorkspace, guestUser, version, match],
   );
   const guest = {
@@ -347,18 +349,18 @@ void test("Odyssey admission binds cumulative unlocked stages and rejects stale 
   ];
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Odyssey','easy','',$3::jsonb,'[]','{}','',$4::jsonb)",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,'Odyssey','easy','',$3::jsonb,'[]','{}','',$4::jsonb)",
     [v, p, null, JSON.stringify({ levels })],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$2,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,'input-owner',$2,'python')",
     [w, v],
   );
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       indexRunnerFixture(
         tx,
-        { version: v },
+        { publication: v },
         JSON.stringify({
           problem: { id: v, signature, constraints: [], limits: {}, odyssey: { levels } },
           hiddenCases: [],
@@ -367,16 +369,16 @@ void test("Odyssey admission binds cumulative unlocked stages and rejects stale 
       ),
     ),
   );
-  await pool.query(
-    "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,2)",
-    [w, v],
-  );
+  await pool.query("INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2)", [
+    w,
+    v,
+  ]);
   const { customValidationMetadata } = await import("./core.ts");
   const { validateExecutionCases } =
     await import("../../../../modules/judging/admission/select-cases.ts");
   const first = await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      customValidationMetadata(tx, { version: v }, 1),
+      customValidationMetadata(tx, { publication: v }, 1),
     ),
   );
   assert.equal(first.odyssey?.levels.length, 1);
@@ -385,7 +387,7 @@ void test("Odyssey admission binds cumulative unlocked stages and rejects stale 
   );
   const second = await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      customValidationMetadata(tx, { version: v }, 2),
+      customValidationMetadata(tx, { publication: v }, 2),
     ),
   );
   assert.doesNotThrow(() =>
@@ -438,11 +440,11 @@ void test("SQL custom input uses the canonical schema before storing its manifes
     };
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',NULL,'[]','{}','',$3::jsonb)",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,'SQL','easy','',NULL,'[]','{}','',$3::jsonb)",
     [v, p, JSON.stringify(config)],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'input-owner',$2,'postgresql')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,'input-owner',$2,'postgresql')",
     [w, v],
   );
   const sample = {
@@ -453,7 +455,7 @@ void test("SQL custom input uses the canonical schema before storing its manifes
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       indexRunnerFixture(
         tx,
-        { version: v },
+        { publication: v },
         JSON.stringify({
           problem: {
             id: v,
@@ -496,12 +498,12 @@ void test("custom validator metadata excludes large prose and descriptions", asy
     v = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
   await pool.query(
-    `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Metadata','easy','',jsonb_build_object('className','Solution','methodName','f','returnType','int','description',repeat('x',6000000),'parameters',jsonb_build_array(jsonb_build_object('name','x','type','int','description',repeat('y',6000000)))),jsonb_build_array(jsonb_build_object('kind','prose','text',repeat('z',6000000)),jsonb_build_object('kind','range','target',jsonb_build_object('parameter','x','projection','value'),'min',0,'max',2)),'{}','')`,
+    `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Metadata','easy','',jsonb_build_object('className','Solution','methodName','f','returnType','int','description',repeat('x',6000000),'parameters',jsonb_build_array(jsonb_build_object('name','x','type','int','description',repeat('y',6000000)))),jsonb_build_array(jsonb_build_object('kind','prose','text',repeat('z',6000000)),jsonb_build_object('kind','range','target',jsonb_build_object('parameter','x','projection','value'),'min',0,'max',2)),'{}','')`,
     [v, p],
   );
   const metadata = await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      customValidationMetadata(tx, { version: v }),
+      customValidationMetadata(tx, { publication: v }),
     ),
   );
   assert.ok(JSON.stringify(metadata).length < 1000);
@@ -516,13 +518,13 @@ void test("custom validator metadata excludes large prose and descriptions", asy
     badProblem = crypto.randomUUID();
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [badProblem, badProblem]);
   await pool.query(
-    `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Oversized','easy','',jsonb_build_object('className','Solution','methodName',repeat('m',6000000),'returnType','int','parameters','[]'::jsonb),'[]','{}','')`,
+    `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Oversized','easy','',jsonb_build_object('className','Solution','methodName',repeat('m',6000000),'returnType','int','parameters','[]'::jsonb),'[]','{}','')`,
     [bad, badProblem],
   );
   await assert.rejects(
     run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-        customValidationMetadata(tx, { version: bad }),
+        customValidationMetadata(tx, { publication: bad }),
       ),
     ),
     (error: unknown) => error instanceof Error && "status" in error && error.status === 503,

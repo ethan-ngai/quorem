@@ -19,7 +19,7 @@ import type {
 import { evaluatedStatusBytes, evaluatedStatusPlan } from "../judging/results/evaluated-status.ts";
 import { authorizeFrozenOwnWorkspace, authorizeReview } from "../matches/review/authorization.ts";
 import { guestMayReadMatch } from "../identity/guest.ts";
-import { projectAuthorizedVersion } from "../problems/queries/repository.ts";
+import { projectAuthorizedPublication } from "../problems/queries/repository.ts";
 import { publicOdysseyLevels, visibleProblem } from "../problems/queries/public-projection.ts";
 
 type Run = <T>(callback: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -56,14 +56,14 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   if (!uuid.test(id)) throw missing();
   const row = (
     await tx.execute<Row>(
-      sql`SELECT w.id::text,w.kind,w.problem_version_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND ${workspaceAccess(principal.userId)} FOR SHARE OF w,p,v`,
+      sql`SELECT w.id::text,w.kind,w.publication_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND ${workspaceAccess(principal.userId)} FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw missing();
   if (row.kind === "solo") {
     if (principal.kind === "guest") throw missing();
     const visible = await tx.execute(
-      sql`SELECT v.id FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${row.problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)}`,
+      sql`SELECT v.id FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id=${row.problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)}`,
     );
     if (!visible.rows.length) throw missing();
   } else if (row.kind === "review") {
@@ -73,7 +73,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   } else {
     if (!row.matchId) throw missing();
     const membership = await tx.execute(
-      sql`SELECT m.id FROM matches m JOIN match_participants mp ON mp.match_id=m.id AND mp.owner_id=${principal.userId} AND NOT mp.forfeited JOIN users host ON host.id=m.host_owner_id AND NOT host.disabled WHERE m.id=${row.matchId}::uuid AND m.problem_version_id=${row.problemVersionId}::uuid AND m.state IN ('active','finalizing') FOR SHARE OF m,mp,host`,
+      sql`SELECT m.id FROM matches m JOIN match_participants mp ON mp.match_id=m.id AND mp.owner_id=${principal.userId} AND NOT mp.forfeited JOIN users host ON host.id=m.host_owner_id AND NOT host.disabled WHERE m.id=${row.matchId}::uuid AND m.publication_id=${row.problemVersionId}::uuid AND m.state IN ('active','finalizing') FOR SHARE OF m,mp,host`,
     );
     if (!membership.rows.length) {
       await authorizeFrozenOwnWorkspace(tx, principal, row.matchId, row.problemVersionId);
@@ -85,7 +85,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
 }
 async function progress(tx: Transaction, owner: string, w: Workspace): Promise<string> {
   await tx.execute(
-    sql`SELECT 1 FROM odyssey_progress WHERE scope_id=${w.id}::uuid AND problem_version_id=${w.problemVersionId}::uuid FOR SHARE`,
+    sql`SELECT 1 FROM odyssey_progress WHERE scope_id=${w.id}::uuid AND publication_id=${w.problemVersionId}::uuid FOR SHARE`,
   );
   const row = (
     await tx.execute<{
@@ -97,7 +97,7 @@ async function progress(tx: Transaction, owner: string, w: Workspace): Promise<s
     }>(sql`SELECT CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_array_length(v.odyssey->'levels') ELSE NULL END AS total,COALESCE(o.level,1) AS level,COALESCE(o.completed,false) AS completed,
     (SELECT COALESCE(jsonb_agg(jsonb_build_object('title',stage.value->'title','statementMarkdown',stage.value->'statementMarkdown','methods',stage.value->'methods','examples',stage.value->'examples') ORDER BY stage.ordinality),'[]'::jsonb)::text FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN v.odyssey->'levels' ELSE '[]'::jsonb END) WITH ORDINALITY stage(value,ordinality) WHERE stage.ordinality<=COALESCE(o.level,1)) AS levels,
     v.lossless_stages AS lossless
-    FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.problem_version_id=w.problem_version_id WHERE w.id=${w.id}::uuid AND ${workspaceAccess(owner)}`)
+    FROM workspaces w JOIN question_publications v ON v.id=w.publication_id LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.publication_id=w.publication_id WHERE w.id=${w.id}::uuid AND ${workspaceAccess(owner)}`)
   ).rows[0];
   if (!row) throw missing();
   if (row.total === null || row.level < 1 || row.level > row.total || row.levels === null)
@@ -123,14 +123,14 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const problem = await tx.execute<{ isSql: boolean }>(
-            sql`SELECT v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p,v`,
+            sql`SELECT v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id=${problemVersionId}::uuid AND ${visibleProblem({ userId: principal.userId }, false)} FOR SHARE OF p,v`,
           );
           if (!problem.rows.length)
             throw new ApplicationError("not_found", "Problem not found", 404);
           questionRuntime(language, problem.rows[0].isSql);
           const row = (
             await tx.execute<Row>(
-              sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${crypto.randomUUID()},${principal.userId},${problemVersionId}::uuid,${language}) ON CONFLICT(owner_id,problem_version_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id::text,kind,problem_version_id::text AS "problemVersionId",language,match_id::text AS "matchId"`,
+              sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${crypto.randomUUID()},${principal.userId},${problemVersionId}::uuid,${language}) ON CONFLICT(owner_id,publication_id,language) WHERE kind='solo' DO UPDATE SET owner_id=EXCLUDED.owner_id RETURNING id::text,kind,publication_id::text AS "problemVersionId",language,match_id::text AS "matchId"`,
             )
           ).rows[0];
           return dto(row);
@@ -150,7 +150,7 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
         scope.transaction(options, async (tx) => {
           await lockUser(tx, principal);
           const w = await workspace(tx, principal, id);
-          const problem = await projectAuthorizedVersion(tx, w.problemVersionId, {
+          const problem = await projectAuthorizedPublication(tx, w.problemVersionId, {
             userId: principal.userId,
           });
           if (!problem) throw missing();
@@ -236,7 +236,7 @@ export function workspaceRepository(run: Run): WorkspaceRepository {
               409,
             );
           await tx.execute(
-            sql`INSERT INTO odyssey_progress(scope_id,problem_version_id,level,completed,reset_at) VALUES(${w.id}::uuid,${w.problemVersionId}::uuid,1,false,clock_timestamp()) ON CONFLICT(scope_id,problem_version_id) DO UPDATE SET level=1,completed=false,reset_at=clock_timestamp()`,
+            sql`INSERT INTO odyssey_progress(scope_id,publication_id,level,completed,reset_at) VALUES(${w.id}::uuid,${w.problemVersionId}::uuid,1,false,clock_timestamp()) ON CONFLICT(scope_id,publication_id) DO UPDATE SET level=1,completed=false,reset_at=clock_timestamp()`,
           );
           await tx.execute(
             sql`DELETE FROM practice_case_feedback WHERE workspace_id=${w.id}::uuid`,

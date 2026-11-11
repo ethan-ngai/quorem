@@ -29,7 +29,7 @@ it("offers measurements appropriate to the rule and parameter", () => {
     parameter: "text",
     projection: "value",
   });
-  expect(constraintTargets(signature, "property")).not.toContainEqual({
+  expect(constraintTargets(signature, "property")).toContainEqual({
     parameter: "root",
     projection: "nodeCount",
   });
@@ -85,7 +85,7 @@ it("renders independent endpoint inclusivity and real LaTeX relation glyphs", ()
   expect(math).toContain("<mo>≤</mo>");
 });
 
-it("keeps single-choice node measurements iconic in property and comparison rows", () => {
+it("keeps node measurements iconic and labels the property control", () => {
   const nodes: Signature = { ...signature, parameters: [{ name: "root", type: "TreeNode" }] };
   const html = renderToStaticMarkup(
     <ConstraintFields
@@ -114,7 +114,8 @@ it("keeps single-choice node measurements iconic in property and comparison rows
   expect(html).toContain('aria-label="Constraint 2 relation"');
   expect(html).toContain('role="combobox"');
   expect(html).toContain("<mo>≤</mo>");
-  expect(html).toContain('aria-label="Unique values"');
+  expect(html).toContain('aria-label="Constraint 1 guarantee"');
+  expect(html).toContain(">Unique values<");
   expect(html).not.toContain(">has unique values<");
 });
 

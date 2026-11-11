@@ -20,13 +20,16 @@ export function visibleProblem(actor: ProblemActor | undefined, match: boolean):
         : scope
           ? sql`false`
           : sql`true`;
-  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.problem_version_id=v.id AND m.state IN ('active','finalizing') AND ${round})))`;
+  return sql`(p.owner_id IS NULL OR (${who}<>'' AND p.owner_id=${who}) OR (${match} AND ${who}<>'' AND EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE mp.owner_id=${who} AND NOT mp.forfeited AND m.publication_id=v.id AND m.state IN ('active','finalizing') AND ${round})))`;
 }
 export function jsonObject(value: JsonValue | undefined): { [key: string]: JsonValue } {
   if (!value || typeof value !== "object" || value instanceof JsonNumber || Array.isArray(value))
     throw new Error("invalid public question");
   return value;
 }
+/** Project public case columns without reading any private fixture. */
+export const publicExampleJson = sql`(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) || CASE WHEN graphs IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('graphs',graphs) END)`;
+
 /** Restores only examples belonging to stages already selected by the caller. */
 export function restorePublicExamples(
   value: { [key: string]: JsonValue },
@@ -54,7 +57,7 @@ export function restorePublicExamples(
     if (!Array.isArray(examples)) return;
     for (const example of examples) {
       const item = jsonObject(example);
-      retain(item, ["args", "expected", "calls", "explanation"]);
+      retain(item, ["args", "expected", "calls", "explanation", "graphs"]);
       if (Array.isArray(item.calls))
         for (const call of item.calls) retain(jsonObject(call), ["methodName", "args", "expected"]);
       if (item.explanation === "") delete item.explanation;
@@ -89,7 +92,13 @@ export function restorePublicExamples(
                 const parameter = jsonObject(parameterValue);
                 retain(parameter, ["name", "type", "description", "input"]);
                 if (parameter.input)
-                  retain(jsonObject(parameter.input), ["preset", "placeholder", "rows"]);
+                  retain(jsonObject(parameter.input), [
+                    "preset",
+                    "placeholder",
+                    "rows",
+                    "layout",
+                    "showGrid",
+                  ]);
               }
           }
         clean(stage.examples);

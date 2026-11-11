@@ -1,6 +1,6 @@
 /** @file useWorkspaceDraft.ts @description Owns editor draft persistence and recovery. @module editor */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { DevelopmentIdentity, ProblemVersion, Workspace } from "@quorem/contracts";
+import type { DevelopmentIdentity, PublishedQuestion, Workspace } from "@quorem/contracts";
 import type { PythonEditorHandle } from "./PythonEditor";
 import type { SaveState } from "./components/SaveIndicator";
 import { readCustomDrafts, writeCustomDrafts, type CustomCaseDraft } from "./customCases";
@@ -23,22 +23,26 @@ export function useWorkspaceDraft({
   canEdit = true,
   authoritative = false,
   onError,
+  saveMatchSource,
 }: {
   identity: DevelopmentIdentity;
   accountPresent: boolean;
-  queriedProblem?: ProblemVersion;
+  queriedProblem?: PublishedQuestion;
   loadedWorkspace?: Workspace;
   editorRef: RefObject<PythonEditorHandle | null>;
   initialSource?: string;
   canEdit?: boolean;
   authoritative?: boolean;
   onError: (error: unknown) => void;
+  saveMatchSource?: (workspaceId: string, source: string) => Promise<void>;
 }) {
   const editable = useRef(canEdit);
   editable.current = canEdit;
   const errorHandler = useRef(onError);
   errorHandler.current = onError;
-  const [problem, setProblem] = useState<ProblemVersion>();
+  const matchSourceSaver = useRef(saveMatchSource);
+  matchSourceSaver.current = saveMatchSource;
+  const [problem, setProblem] = useState<PublishedQuestion>();
   const [workspace, setWorkspace] = useState<Workspace>();
   const [source, setSource] = useState("");
   const sourceRef = useRef(source);
@@ -104,6 +108,7 @@ export function useWorkspaceDraft({
       ).catch(() => undefined);
     }
     window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = undefined;
     draftContextRef.current = nextContext;
     lastQueuedSourceRef.current = undefined;
     setProblem(queriedProblem);
@@ -184,8 +189,12 @@ export function useWorkspaceDraft({
         version: context.problemVersionId,
         source: next,
       });
+    if (matchSourceSaver.current && saveTimerRef.current !== undefined) return;
     window.clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = undefined;
+      void saveNowRef.current();
+    }, 750);
   }, []);
 
   const saveCurrentDraft = useCallback(async () => {
@@ -197,11 +206,20 @@ export function useWorkspaceDraft({
     )
       return;
     const snapshot = sourceRef.current;
-    if (snapshot === lastQueuedSourceRef.current) return;
+    if (snapshot === lastQueuedSourceRef.current) {
+      await saveQueue.current;
+      return;
+    }
     setSaveState("saving");
-    const task = saveQueue.current.then(() =>
-      writeRecovery(context.identity, context.storageId, context.problemVersionId, snapshot),
-    );
+    const persist = matchSourceSaver.current;
+    const task = saveQueue.current.then(async () => {
+      await Promise.all([
+        writeRecovery(context.identity, context.storageId, context.problemVersionId, snapshot),
+        draftContextRef.current === context && sourceRef.current === snapshot
+          ? persist?.(context.workspaceId, snapshot)
+          : undefined,
+      ]);
+    });
     lastQueuedSourceRef.current = snapshot;
     saveQueue.current = task.then(
       () => {},
@@ -245,7 +263,10 @@ export function useWorkspaceDraft({
           sourceRef.current,
         ).catch(() => undefined);
     };
-    const onPageHide = () => preserveDraft();
+    const onPageHide = () => {
+      preserveDraft();
+      if (matchSourceSaver.current) void saveNowRef.current();
+    };
     window.addEventListener("pagehide", onPageHide);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
@@ -267,7 +288,10 @@ export function useWorkspaceDraft({
         dirtyRef.current = true;
         lastQueuedSourceRef.current = undefined;
         setSaveState("dirty");
-        saveTimerRef.current = window.setTimeout(() => void saveNowRef.current(), 750);
+        saveTimerRef.current = window.setTimeout(() => {
+          saveTimerRef.current = undefined;
+          void saveNowRef.current();
+        }, 750);
         throw new Error(
           "Newer local edits were kept. Save to retain them instead of the restored history.",
         );
@@ -282,6 +306,11 @@ export function useWorkspaceDraft({
       editorRef.current?.replaceSource(historicalSource);
       sourceRef.current = historicalSource;
       const restoredGeneration = editGeneration.current;
+      if (matchSourceSaver.current) {
+        dirtyRef.current = true;
+        await saveCurrentDraft();
+        return;
+      }
       if (context)
         await writeRecovery(
           context.identity,
@@ -292,6 +321,7 @@ export function useWorkspaceDraft({
       if (draftContextRef.current === context && editGeneration.current === restoredGeneration) {
         dirtyRef.current = false;
         window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = undefined;
         setSaveState("saved");
       }
     },

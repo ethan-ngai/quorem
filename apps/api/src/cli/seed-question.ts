@@ -31,7 +31,6 @@ function key(raw: string, actor: string): { fingerprint: string; slug: string } 
   const c = object(parseLosslessJson(normalizeQuestionDraft(raw))),
     p = object(c.problem);
   p.id = "";
-  p.version = "";
   if (typeof p.slug !== "string") throw new Error("Invalid slug");
   const prefix = `private-${hash(actor).slice(0, 16)}-`;
   if (p.slug.startsWith(prefix)) p.slug = p.slug.slice(prefix.length);
@@ -57,7 +56,7 @@ export async function seedQuestion(
     const privateSlug = `private-${hash(actor).slice(0, 16)}-${input.slug}`;
     const rows = (
       await client.query<{ scope: string; content: string }>(
-        `SELECT a.scope,convert_from(COALESCE(d.lossless_content,convert_to(d.content::text,'UTF8')),'UTF8') AS content FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.actor=$1 AND a.action='questions.seed' AND left(a.operation_id,length($2))=$2 AND d.content->'problem'->>'slug' IN ($3,$4) AND (d.published_version_id IS NULL OR EXISTS(SELECT 1 FROM problems p WHERE p.current_version_id=d.published_version_id)) ORDER BY (d.published_version_id IS NULL),a.occurred_at,a.operation_id`,
+        `SELECT a.scope,convert_from(COALESCE(d.lossless_content,convert_to(d.content::text,'UTF8')),'UTF8') AS content FROM access_audit a JOIN question_drafts d ON d.id::text=a.scope WHERE a.actor=$1 AND a.action='questions.seed' AND left(a.operation_id,length($2))=$2 AND d.content->'problem'->>'slug' IN ($3,$4) AND (d.published_publication_id IS NULL OR EXISTS(SELECT 1 FROM problems p WHERE p.current_publication_id=d.published_publication_id)) ORDER BY (d.published_publication_id IS NULL),a.occurred_at,a.operation_id`,
         [actor, prefix, input.slug, privateSlug],
       )
     ).rows;

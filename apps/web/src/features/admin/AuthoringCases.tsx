@@ -1,14 +1,27 @@
-import { primarySignature } from "@quorem/questions";
+import {
+  caseGraphTargets,
+  graphEncodingForTarget,
+  GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
+  graphReturnSlot,
+  inferCaseGraph,
+  mergeGraphOutput,
+  primarySignature,
+  projectCaseGraphs,
+  type CaseGraphs,
+  type QuestionGraph,
+} from "@quorem/questions";
 import { AuthoringTabs } from "../../ui/AuthoringTabs";
 import { caseValidationIssues, type ReportAuthoringValidity } from "./authoringValidation";
 import { caseFieldConfig } from "../editor/inputPresets";
 import { randomUUID } from "../../randomUUID";
 import { Icon } from "../../ui/Icon";
 import "../../ui/result-tabs.css";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { QuestionContent } from "@quorem/contracts";
 import { TestCases } from "../editor/components/TestCases";
 import {
+  defaultCaseValue,
   formatTypedField,
   parseCustomDraft,
   parseTypedField,
@@ -16,7 +29,15 @@ import {
   type CustomCaseDraft,
 } from "../editor/customCases";
 import "../editor/components/customCases.css";
-type AuthoringDraft = CustomCaseDraft & { unformatted?: string[] };
+import { GraphCaseField } from "./GraphCaseField";
+import { graphFromForm, graphToForm, type GraphForm } from "./graphForm";
+import type { WireValue } from "../editor/typedValues";
+type AuthoringDraft = CustomCaseDraft & {
+  unformatted?: string[];
+  graphs?: CaseGraphs;
+  graphForms?: Record<string, GraphForm>;
+  graphError?: string;
+};
 
 export function AuthoringCases({
   content,
@@ -33,6 +54,103 @@ export function AuthoringCases({
   const [selected, setSelected] = useState<Record<string, string | undefined>>({});
   const id = useId();
   const p = content.problem;
+  const sig = !p.sql && !p.odyssey ? primarySignature(p) : undefined;
+  const encodings = sig?.graphEncodings ?? {};
+  const graphTargets = Object.keys(encodings);
+  const returnList = encodings[GRAPH_RETURN_LIST];
+  function readOutput(source: string) {
+    if (!sig) return undefined;
+    try {
+      return parseTypedField(sig.returnType, source);
+    } catch {
+      return undefined;
+    }
+  }
+  const graphLabel = (target: string) =>
+    target === GRAPH_RETURN
+      ? "Expected graph"
+      : graphReturnSlot(target) !== undefined
+        ? `Expected graph [${graphReturnSlot(target)}]`
+        : target;
+  function infer(
+    args: readonly (WireValue | undefined)[],
+    expected?: WireValue,
+    explicit?: CaseGraphs,
+    skip?: Record<string, GraphForm>,
+  ) {
+    if (!sig) return;
+    const entries = caseGraphTargets(sig, expected, explicit).flatMap((target) => {
+      if (Object.hasOwn(skip ?? {}, target)) return [];
+      const graph =
+        explicit?.[target] ??
+        inferCaseGraph(sig, target, args, expected, p.limits.maxCollectionElements);
+      return graph
+        ? ([[target, graphToForm(graph, graphEncodingForTarget(sig, target)!)]] as const)
+        : [];
+    });
+    if (entries.length) return Object.fromEntries(entries);
+  }
+
+  function compile(test: AuthoringDraft): AuthoringDraft {
+    if (!sig || !test.graphForms) return test;
+    try {
+      const graphs = Object.fromEntries(
+        Object.entries(test.graphForms).map(([target, form]) => [
+          target,
+          graphFromForm(form, graphEncodingForTarget(sig, target)!, p.limits.maxCollectionElements),
+        ]),
+      ) as CaseGraphs;
+      const generated = projectCaseGraphs(sig, graphs, p.limits.maxCollectionElements);
+      const args = sig.parameters.map(({ type, input }, index) =>
+        generated.args.has(index)
+          ? formatTypedField(
+              type,
+              generated.args.get(index)!,
+              caseFieldConfig(sig, type, input, false),
+            )
+          : (test.args[index] ?? ""),
+      );
+      // Leave incomplete concrete output available while graph fields are edited.
+      const expected = generated.outputSlots.size ? readOutput(test.expected) : undefined;
+      const output =
+        generated.outputSlots.size && expected === undefined
+          ? undefined
+          : mergeGraphOutput<WireValue>(generated, expected, (_, value) => value);
+      return {
+        ...test,
+        args,
+        expected: output === undefined ? test.expected : formatTypedField(sig.returnType, output),
+        graphs: Object.keys(graphs).length ? graphs : undefined,
+        graphError: undefined,
+        unformatted: test.unformatted?.filter((field) =>
+          field === "expected"
+            ? generated.expected === undefined
+            : !generated.args.has(Number(field.slice(4))),
+        ),
+      };
+    } catch (error) {
+      return {
+        ...test,
+        graphError: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  function graphIssue(test: AuthoringDraft) {
+    return (
+      test.graphError ??
+      (sig
+        ? caseGraphTargets(sig, returnList ? readOutput(test.expected) : undefined, test.graphs)
+        : []
+      )
+        .filter(
+          (target) =>
+            graphEncodingForTarget(sig!, target)?.kind === "custom" &&
+            !Object.hasOwn(test.graphs ?? {}, target),
+        )
+        .map((target) => `${graphLabel(target)} is required for a custom encoding.`)
+        .join(" ")
+    );
+  }
   const stage = stageIndex === undefined ? undefined : p.odyssey?.levels[stageIndex];
   const examples = stage?.examples ?? p.examples;
   const hiddenCases = stageIndex === undefined ? content.hiddenCases : (stage?.hiddenCases ?? []);
@@ -68,6 +186,8 @@ export function AuthoringCases({
     const unformatted: string[] = [];
     const result: AuthoringDraft = {
       id: randomUUID(),
+      graphForms: infer(test.args, test.expected, test.graphs),
+      graphs: test.graphs,
       args: p.sql
         ? [JSON.stringify(test.args[0] ?? { tables: [] })]
         : primarySignature(p).parameters.map((parameter, index) =>
@@ -95,7 +215,7 @@ export function AuthoringCases({
           ),
     };
     if (unformatted.length) result.unformatted = unformatted;
-    return result;
+    return compile(result);
   };
   const [values, setValues] = useState(() => ({
     public: examples.map(draft),
@@ -106,6 +226,10 @@ export function AuthoringCases({
       const label = `${stageIndex === undefined ? "" : `Step ${stageIndex + 1}, `}${tab === "public" ? "Example" : "Private test"}`;
       const issues = [
         ...caseValidationIssues(values[tab], p, label),
+        ...values[tab].flatMap((test, index) => {
+          const error = graphIssue(test);
+          return error ? [{ message: `${label} ${index + 1}: ${error}` }] : [];
+        }),
         ...values[tab].flatMap((test, index) =>
           (test.unformatted ?? []).map((field) => ({
             message: `${label} ${index + 1}: replace the incompatible ${field === "expected" ? "expected output" : `input ${Number(field.slice(4)) + 1}`}.`,
@@ -122,21 +246,45 @@ export function AuthoringCases({
   );
   function change(next: CustomCaseDraft[], descriptions = explanations) {
     const previous = new Map(values[collection].map((item) => [item.id, item]));
-    const updated: AuthoringDraft[] = next.map((item) => {
+    const updated: AuthoringDraft[] = (next as AuthoringDraft[]).map((item) => {
       const before = previous.get(item.id);
       const unformatted = before?.unformatted?.filter((field) =>
         field === "expected"
           ? item.expected === before.expected
           : item.args[Number(field.slice(4))] === before.args[Number(field.slice(4))],
       );
-      return { ...item, unformatted };
+      let graphForms = item.graphForms;
+      if (sig && graphTargets.some((target) => !Object.hasOwn(graphForms ?? {}, target))) {
+        const read = (
+          type: string,
+          source: string,
+          config?: Parameters<typeof parseTypedField>[2],
+        ) => {
+          try {
+            return parseTypedField(type, source, config);
+          } catch {
+            return undefined;
+          }
+        };
+        const args = sig.parameters.map(({ type, input }, i) =>
+          read(
+            type,
+            item.args[i] ?? "",
+            caseFieldConfig(sig, type, input, false, { sources: item.args }),
+          ),
+        );
+        const inferred = infer(args, read(sig.returnType, item.expected), undefined, graphForms);
+        if (inferred) graphForms = { ...inferred, ...graphForms };
+      }
+      return compile({ ...item, graphForms, unformatted });
     });
     setValues((current) => ({ ...current, [collection]: updated }));
     try {
-      if (updated.some((item) => item.unformatted?.length)) return;
-      const tests = updated.map((test) =>
-        p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p)),
-      );
+      if (updated.some((item) => item.unformatted?.length || item.graphError)) return;
+      const tests = updated.map((test) => ({
+        ...(p.sql ? parseProblemDraft(test, p) : parseCustomDraft(test, primarySignature(p))),
+        ...(test.graphs ? { graphs: test.graphs } : {}),
+      }));
       if (collection === "public") {
         const examples = tests.map((test, index) => ({
           ...test,
@@ -177,6 +325,131 @@ export function AuthoringCases({
       // Preserve incomplete local edits; the validation effect reports their exact origin.
     }
   }
+  function renderGraphField(index: number, name: string, native: ReactNode): ReactNode {
+    const test = values[collection][index];
+    if (!sig || !test) return native;
+    if (
+      graphTargets.some(
+        (target) => test.graphForms?.[target] && encodings[target]?.countParameter === name,
+      )
+    )
+      return null;
+    const output = name === GRAPH_RETURN;
+    const list = output && returnList;
+    const expected = list ? readOutput(test.expected) : undefined;
+    const targets = output
+      ? caseGraphTargets(sig, expected, test.graphs).filter(
+          (target) => target === name || graphReturnSlot(target) !== undefined,
+        )
+      : graphTargets.filter((target) => target === name);
+    if (!targets.length && !list) return native;
+    const applyForm = (target: string, form: GraphForm) =>
+      change(
+        values[collection].map((item) =>
+          item.id === test.id
+            ? { ...item, graphForms: { ...item.graphForms, [target]: form } }
+            : item,
+        ),
+      );
+    const sections = targets.map((target, targetIndex) => {
+      const encoding = graphEncodingForTarget(sig, target)!;
+      const form = test.graphForms?.[target];
+      if (!form && encoding.kind !== "custom") return null;
+      const arg = sig.parameters.findIndex(({ name }) => name === target);
+      const count = sig.parameters.findIndex(({ name }) => name === encoding.countParameter);
+      const graph: QuestionGraph = { directed: false, nodes: [], edges: [] };
+      const slot = graphReturnSlot(target);
+      let source = target === GRAPH_RETURN ? test.expected : undefined;
+      if (arg >= 0)
+        source = `${target} = ${test.args[arg]}${count >= 0 ? `\n${encoding.countParameter} = ${test.args[count]}` : ""}`;
+      else if (slot !== undefined) {
+        try {
+          const values = parseTypedField(sig.returnType, test.expected);
+          if (Array.isArray(values) && values[slot] !== undefined)
+            source = JSON.stringify(values[slot]);
+        } catch {
+          /* The concrete field reports incomplete output. */
+        }
+      }
+      return (
+        <GraphCaseField
+          key={target}
+          label={graphLabel(target)}
+          encoding={encoding}
+          form={form ?? graphToForm(graph, encoding)}
+          graph={test.graphs?.[target]}
+          error={targetIndex === 0 ? test.graphError : undefined}
+          limit={p.limits.maxCollectionElements}
+          solverPreview={
+            encoding.kind === "custom" || source === undefined
+              ? undefined
+              : { kind: arg >= 0 ? "input" : "output", source }
+          }
+          onChange={(form) => applyForm(target, form)}
+        />
+      );
+    });
+    function resizeGraphList(append: boolean) {
+      if (!sig || !test || !Array.isArray(expected)) return;
+      const index = append ? expected.length : expected.length - 1;
+      const target = `${GRAPH_RETURN}[${index}]`;
+      const encoding = graphEncodingForTarget(sig, target)!;
+      const graphForms = { ...test.graphForms };
+      const graphs = { ...test.graphs };
+      const next = [...expected];
+      if (append) {
+        next.push(defaultCaseValue(sig.returnType.slice(sig.returnType.indexOf("<") + 1, -1)));
+        graphForms[target] = graphToForm(
+          { directed: encoding.directed ?? false, nodes: [], edges: [] },
+          encoding,
+        );
+      } else {
+        next.pop();
+        delete graphForms[target];
+        delete graphs[target];
+      }
+      change(
+        values[collection].map((item) =>
+          item.id === test.id
+            ? { ...test, graphForms, graphs, expected: formatTypedField(sig.returnType, next) }
+            : item,
+        ),
+      );
+    }
+    const needsNative = !test.graphForms?.[name] || encodings[name]?.kind === "custom";
+    return (
+      <div key={name} className="graph-field-group">
+        {sections}
+        {list && (
+          <div className="graph-list-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              disabled={
+                !Array.isArray(expected) ||
+                expected.length >= p.limits.maxCollectionElements ||
+                !!test.graphError
+              }
+              onClick={() => resizeGraphList(true)}
+            >
+              Add expected graph
+            </button>
+            {Array.isArray(expected) && expected.length > 0 && (
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={!!test.graphError}
+                onClick={() => resizeGraphList(false)}
+              >
+                Remove last graph
+              </button>
+            )}
+          </div>
+        )}
+        {needsNative && native}
+      </div>
+    );
+  }
   return (
     <div className="authoring-test-collections">
       <AuthoringTabs
@@ -207,31 +480,32 @@ export function AuthoringCases({
           requiredExpected
           minimumCases={0}
           maximumCases={collection === "hidden" ? 100 : 20}
-          customCaseDetails={
-            collection === "public"
-              ? (index) => {
-                  const example = values.public[index];
-                  if (!example) return null;
-                  return (
-                    <label className="typed-case-field admin-example-explanation">
-                      <span>
-                        <Icon name="samples" /> Example explanation <small>Optional</small>
-                      </span>
-                      <textarea
-                        rows={2}
-                        placeholder="Explain why this example produces the expected output."
-                        value={explanations[example.id] ?? ""}
-                        onChange={(event) => {
-                          const next = { ...explanations, [example.id]: event.target.value };
-                          setExplanations(next);
-                          change(values.public, next);
-                        }}
-                      />
-                    </label>
-                  );
-                }
-              : undefined
-          }
+          renderCaseField={graphTargets.length ? renderGraphField : undefined}
+          customCaseDetails={(index) => {
+            const test = values[collection][index];
+            if (!test) return null;
+            return (
+              <>
+                {collection === "public" && (
+                  <label className="typed-case-field admin-example-explanation">
+                    <span>
+                      <Icon name="samples" /> Example explanation <small>Optional</small>
+                    </span>
+                    <textarea
+                      rows={2}
+                      placeholder="Explain why this example produces the expected output."
+                      value={explanations[test.id] ?? ""}
+                      onChange={(event) => {
+                        const next = { ...explanations, [test.id]: event.target.value };
+                        setExplanations(next);
+                        change(values.public, next);
+                      }}
+                    />
+                  </label>
+                )}
+              </>
+            );
+          }}
           selectedCustomId={selected[collection]}
           onSelectCustomCase={(value) =>
             setSelected((current) => ({ ...current, [collection]: value }))

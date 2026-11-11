@@ -38,7 +38,7 @@ for (const [fixture, schema] of Object.entries({
   const validate = ajv.compile({ $ref: `${document.$id}#/$defs/${schema}` });
   assert(validate(fixtures[fixture]), JSON.stringify(validate.errors));
 }
-const publicFields = schemas.ProblemVersion.properties;
+const publicFields = schemas.PublishedQuestion.properties;
 const authorFields = schemas.QuestionProblem.properties;
 for (const derived of [
   "starterSource",
@@ -72,7 +72,7 @@ for (const field of [
     field,
   );
 }
-const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/ProblemVersion` });
+const validateProblem = ajv.compile({ $ref: `${document.$id}#/$defs/PublishedQuestion` });
 for (const name of readdirSync("../../fixtures/problems")) {
   const fixture = JSON.parse(readFileSync(`../../fixtures/problems/${name}`, "utf8"));
   const languages = generateQuestionImplementations(fixture.problem, () => ({

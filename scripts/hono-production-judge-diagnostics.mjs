@@ -36,7 +36,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
       FROM submissions s JOIN workspaces w ON w.id=s.workspace_id
       JOIN execution_jobs j ON j.submission_id=s.id JOIN runner_job_inputs i ON i.job_id=j.id
       LEFT JOIN LATERAL (SELECT min(claimed_at) AS claimed_at FROM execution_attempt_inventory WHERE job_id=j.id) a ON true
-      WHERE s.admitted_at>clock_timestamp()-interval '30 minutes' AND s.source_hash=$1 AND w.problem_version_id=$2::uuid
+      WHERE s.admitted_at>clock_timestamp()-interval '30 minutes' AND s.source_hash=$1 AND w.publication_id=$2::uuid
       ORDER BY s.admitted_at DESC LIMIT 24`,
     [createHash("sha256").update(acceptedSource).digest("hex"), version],
   );
@@ -60,7 +60,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
     `SELECT j.attempt_id,j.sandbox_scope FROM submissions s
       JOIN workspaces w ON w.id=s.workspace_id JOIN execution_jobs j ON j.submission_id=s.id
       WHERE j.finished AND j.attempt_id IS NOT NULL AND s.admitted_at>clock_timestamp()-interval '15 minutes'
-      AND s.source_hash=$1 AND w.problem_version_id=$2::uuid ORDER BY s.admitted_at DESC LIMIT 8`,
+      AND s.source_hash=$1 AND w.publication_id=$2::uuid ORDER BY s.admitted_at DESC LIMIT 8`,
     [createHash("sha256").update(acceptedSource).digest("hex"), version],
   );
   const nativeTimings = [];

@@ -46,7 +46,6 @@ it.skipIf(!url)(
       problem: {
         id: version,
         slug: "legacy",
-        version: "1",
         title: "Legacy",
         difficulty: "easy",
         tags: [],
@@ -312,7 +311,6 @@ it.skipIf(!url)("restores staged legacy cases with cumulative refs and manual un
     problem: {
       id: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
       slug: "legacy-stage",
-      version: "1",
       title: "Stages",
       difficulty: "easy",
       tags: [],

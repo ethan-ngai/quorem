@@ -102,7 +102,7 @@ export async function admitWorkspaceInTransaction(
       isSql: boolean;
       stages: number;
     }>(
-      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN problem_versions v ON v.id=w.problem_version_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
+      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw failure("not_found", "Workspace not found", 404);
@@ -135,7 +135,7 @@ export async function admitWorkspaceInTransaction(
       }>(
         sql`WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS now)
           SELECT m.rules,m.host_owner_id AS host,NOT h.disabled AS enabled,
-          m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>sampled.now AND m.problem_version_id=${row.version}::uuid AND NOT h.disabled AS active,
+          m.state='active' AND ${matchSubmissionDeadline(sql`m`)}>sampled.now AND m.publication_id=${row.version}::uuid AND NOT h.disabled AS active,
           to_char(sampled.now AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt"
           FROM matches m JOIN users h ON h.id=m.host_owner_id CROSS JOIN sampled WHERE m.id=${row.matchId}::uuid`,
       )
@@ -208,12 +208,12 @@ export async function admitWorkspaceInTransaction(
   let level: number | null = null;
   if (odyssey) {
     await tx.execute(
-      sql`INSERT INTO odyssey_progress(scope_id,problem_version_id) VALUES(${command.workspaceId}::uuid,${row.version}::uuid) ON CONFLICT DO NOTHING`,
+      sql`INSERT INTO odyssey_progress(scope_id,publication_id) VALUES(${command.workspaceId}::uuid,${row.version}::uuid) ON CONFLICT DO NOTHING`,
     );
     level = Number(
       (
         await tx.execute(
-          sql`SELECT level FROM odyssey_progress WHERE scope_id=${command.workspaceId}::uuid AND problem_version_id=${row.version}::uuid FOR UPDATE`,
+          sql`SELECT level FROM odyssey_progress WHERE scope_id=${command.workspaceId}::uuid AND publication_id=${row.version}::uuid FOR UPDATE`,
         )
       ).rows[0].level,
     );
@@ -222,7 +222,7 @@ export async function admitWorkspaceInTransaction(
     if (level < 1 || level > row.stages)
       throw failure("revision_conflict", "Odyssey level changed; reload progress", 409);
   }
-  const owner = { version: row.version };
+  const owner = { publication: row.version };
   if (command.customCases)
     validateExecutionCases(
       await customValidationMetadata(tx, owner, level ?? 0),

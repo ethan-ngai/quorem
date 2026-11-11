@@ -170,3 +170,79 @@
   color: var(--color-text);
   font: var(--text-label)/1.5 var(--font-code);
 }
+
+.case-graph-layout {
+  container-type: inline-size;
+}
+
+.case-with-graphs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 35%);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "values main"
+    "extras main";
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.case-with-graphs > .case-preview-values {
+  grid-area: values;
+  width: auto;
+}
+
+.case-graph-main {
+  grid-area: main;
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.case-graph-extras {
+  grid-area: extras;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr));
+  gap: var(--space-4);
+}
+
+@container (width < 380px) {
+  .case-with-graphs {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas: "values" "main" "extras";
+  }
+}
+
+.case-graph {
+  margin: 0;
+  min-width: 0;
+}
+
+.case-graph svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.case-graph text {
+  fill: var(--color-text);
+  font: 11px var(--font-code);
+  text-anchor: middle;
+}
+
+.case-graph .case-graph-weight {
+  fill: var(--color-text-secondary);
+  paint-order: stroke;
+  stroke: var(--color-background);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.case-graph [data-active] > path {
+  stroke: var(--color-primary);
+  stroke-width: 2px;
+}
+
+.case-graph [data-active] > .case-graph-weight {
+  fill: var(--color-primary);
+}

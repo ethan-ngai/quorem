@@ -11,7 +11,7 @@ import { useId, useState, type ReactNode } from "react";
 import { StatementMarkdown, inlineStatement } from "./StatementMarkdown";
 import { Icon, VisibilityIcon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
-import { constraintMarkup } from "../constraintMarkup";
+import { constraintListMarkup } from "../constraintMarkup";
 import type { QuestionProblem } from "@quorem/contracts";
 
 export type StatementProblem = Pick<
@@ -69,6 +69,11 @@ export function ProblemStatement({
       });
     } else setRevealedTopicsFor(problem.id);
   }
+  function exampleArgument(example: number | undefined, argument: string) {
+    if (example === undefined || problem.sql || problem.odyssey) return;
+    const index = primarySignature(problem).parameters.findIndex(({ name }) => name === argument);
+    return problem.examples[example - 1]?.args[index];
+  }
   return (
     <div className="problem-scroll">
       <div className="problem-heading">
@@ -108,7 +113,11 @@ export function ProblemStatement({
       <div className="problem-body">
         {navigation}
         <div className="problem-copy">
-          <StatementMarkdown source={problem.statementMarkdown} />
+          <StatementMarkdown
+            source={problem.statementMarkdown}
+            allowFigures
+            exampleArgument={exampleArgument}
+          />
         </div>
         {problem.sql && <SqlSchema schema={problem.sql} />}
         {beforeExamples}
@@ -190,7 +199,13 @@ export function ProblemStatement({
                             </span>
                           </Tooltip>
                           <div>
-                            <StatementMarkdown source={example.explanation} />
+                            <StatementMarkdown
+                              source={example.explanation}
+                              allowFigures
+                              exampleArgument={(number, argument) =>
+                                exampleArgument(number ?? selectedExample + 1, argument)
+                              }
+                            />
                           </div>
                         </div>
                       )}
@@ -205,11 +220,9 @@ export function ProblemStatement({
           <section className="problem-section" aria-labelledby="constraints-heading">
             <h2 id="constraints-heading">Constraints</h2>
             <ul className="constraint-list">
-              {problem.constraints.map((constraint, constraintIndex) => {
-                return (
-                  <li key={constraintIndex}>{inlineStatement(constraintMarkup(constraint))}</li>
-                );
-              })}
+              {constraintListMarkup(problem.constraints).map((markup, index) => (
+                <li key={index}>{inlineStatement(markup)}</li>
+              ))}
             </ul>
           </section>
         )}

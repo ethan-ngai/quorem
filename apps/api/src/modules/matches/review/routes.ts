@@ -1,4 +1,5 @@
-/** @file routes.ts @description Read-only completed match review transport. @module matches */
+/** @file routes.ts @description Match code capture and completed round review transport. @module matches */
+import { validSource } from "@quorem/questions";
 import { Hono } from "hono";
 import { ApplicationError } from "../../../application/error.ts";
 import type { Principal } from "../../identity/model.ts";
@@ -13,6 +14,20 @@ export function matchReviewRoutes(deps: {
   identify(request: Request): Promise<Principal | undefined>;
 }): Hono {
   const app = new Hono();
+  app.put("/v1/matches/:id/review/code", async (c) => {
+    const principal = await identifyRequest((request) => deps.identify(request), c.req.raw);
+    if (!principal) throw new ApplicationError("unauthenticated", "Sign in required", 401);
+    const value = await jsonObjectBody(c.req.raw, 400_000);
+    if (
+      Object.keys(value).some((key) => key !== "workspaceId" && key !== "source") ||
+      typeof value.workspaceId !== "string" ||
+      typeof value.source !== "string" ||
+      !validSource(value.source)
+    )
+      throw new ApplicationError("invalid_input", "Invalid match draft", 400);
+    await deps.review.saveFinalCode(principal, c.req.param("id"), value.workspaceId, value.source);
+    return c.body(null, 204);
+  });
   app.post("/v1/matches/:id/review/workspaces", async (c) => {
     const principal = await identifyRequest((request) => deps.identify(request), c.req.raw);
     if (!principal) throw new ApplicationError("unauthenticated", "Sign in required", 401);

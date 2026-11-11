@@ -25,7 +25,7 @@ import {
   participantUserId,
   type DevelopmentIdentity,
   type MatchSnapshot,
-  type ProblemVersion,
+  type PublishedQuestion,
 } from "@quorem/contracts";
 import { RotateCcw } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
@@ -45,7 +45,13 @@ import { importBrowserDrafts, clearOwnerRecovery, readBrowserDraft } from "./rec
 import { authenticatedFetch } from "../auth/session";
 import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "./components/EditorialCode";
-import { useMatchReview, createReviewWorkspace } from "../matches/useMatchReview";
+import {
+  useMatchReview,
+  createReviewWorkspace,
+  saveMatchReviewCode,
+  reviewCodeLanguage,
+  initialReviewSource,
+} from "../matches/useMatchReview";
 import { ReviewComparison } from "../matches/ReviewComparison";
 import "../matches/review.css";
 import { useTheme } from "./useTheme";
@@ -97,7 +103,9 @@ export function WorkspacePage({
   match?: MatchSnapshot;
   matchWorkspaceId?: string;
   identity?: DevelopmentIdentity;
-  matchHeader?: ReactNode | ((problem: ProblemVersion) => ReactNode);
+  matchHeader?:
+    | ReactNode
+    | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => ReactNode);
   review?: boolean;
   sharedDocument?: SharedWorkspaceDocument;
 }) {
@@ -167,7 +175,7 @@ export function WorkspacePage({
               ),
             );
             if (!response.ok) throw new Error("Could not load the match problem.");
-            return response.json() as Promise<ProblemVersion>;
+            return response.json() as Promise<PublishedQuestion>;
           }
         : problemOptions.queryFn,
     enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
@@ -212,9 +220,17 @@ export function WorkspacePage({
   const reviewParticipant =
     reviewQuery.data?.participants.find((person) => person.userId === reviewParticipantId) ??
     reviewQuery.data?.participants.find((person) => person.own);
-  const reviewLanguage = selectedLanguage;
+  const [reviewLanguageOverride, setReviewLanguageOverride] = useState<EditorLanguage>();
+  const reviewLanguage =
+    reviewLanguageOverride ?? reviewCodeLanguage(reviewParticipant) ?? selectedLanguage;
+  const reviewCode = reviewParticipant?.finalCode ?? reviewParticipant?.submission;
+  const originalLabel = reviewParticipant?.finalCode
+    ? "Final code"
+    : reviewParticipant?.submission?.winning
+      ? "Winning submission"
+      : "Original submission";
   const reviewReference = reviewQuery.data?.participants.find(
-    (person) => person.userId !== reviewParticipant?.userId && person.submission,
+    (person) => person.userId !== reviewParticipant?.userId && !!reviewCodeLanguage(person),
   );
   const workspaceQuery = useQuery({
     queryKey: [
@@ -297,20 +313,22 @@ export function WorkspacePage({
     initialSource:
       sharedDocument?.source ??
       (review && reviewParticipant
-        ? ((reviewParticipant.own &&
-          reviewParticipant.workspace &&
-          reviewParticipant.workspace.language === reviewLanguage
-            ? (originalSource.current ??
+        ? initialReviewSource(
+            reviewParticipant,
+            reviewLanguage,
+            () =>
+              originalSource.current ??
               readBrowserDraft(
                 identity,
-                reviewParticipant.workspace.id,
+                reviewParticipant.workspace!.id,
                 problemQuery.data?.id ?? "",
-              ))
-            : undefined) ??
-          (reviewParticipant.submission?.language === reviewLanguage
-            ? reviewParticipant.submission.source
-            : undefined))
+              ),
+          )
         : undefined),
+    saveMatchSource:
+      match?.shareFinalCode && !sharedDocument && !review && !frozenMatch
+        ? (workspaceId, source) => saveMatchReviewCode(match.id, workspaceId, source)
+        : undefined,
     onError: (error) => setActionError(errorMessage(error)),
   });
 
@@ -450,7 +468,7 @@ export function WorkspacePage({
       if (sharedDocument && !review) {
         await sharedDocument.changeLanguage(language);
       } else if (review) {
-        setSelectedLanguage(language);
+        setReviewLanguageOverride(language);
       } else if (match) {
         const selected = await switchMatchLanguage(identity, match.id, language);
         setMatchSelection({ matchId: match.id, workspaceId: selected.id });
@@ -469,14 +487,7 @@ export function WorkspacePage({
     setLanguageSwitching(true);
     void saveBeforeSwitch()
       .then(() => {
-        const participant = reviewQuery.data?.participants.find(
-          (person) => person.userId === value,
-        );
-        const language = participant?.own
-          ? participant.workspace?.language
-          : participant?.submission?.language;
-        if (language && problem?.languages?.some((item) => item.language === language))
-          setSelectedLanguage(language as EditorLanguage);
+        setReviewLanguageOverride(undefined);
         setReviewParticipantId(value);
         setShowOriginal(false);
       })
@@ -766,7 +777,9 @@ export function WorkspacePage({
         header={
           matchHeader || odyssey.data ? (
             <>
-              {typeof matchHeader === "function" ? matchHeader(problem) : matchHeader}
+              {typeof matchHeader === "function"
+                ? matchHeader(problem, saveCurrentDraft)
+                : matchHeader}
               {(!matchHeader || review) && odyssey.data && (
                 <OdysseyStepper
                   progress={odyssey.data}
@@ -833,27 +846,25 @@ export function WorkspacePage({
                 compare={compareReview}
                 diff={diffReview}
                 original={showOriginal}
-                canDiff={
-                  (reviewReference?.own
-                    ? reviewReference.workspace?.language
-                    : reviewReference?.submission?.language) === documentLanguage
-                }
+                canCompare={!!reviewReference}
+                canDiff={reviewCodeLanguage(reviewReference) === documentLanguage}
+                originalLabel={originalLabel}
                 onSelect={selectReviewParticipant}
                 onCompare={() => setCompareReview(!compareReview)}
                 onDiff={() => setDiffReview(!diffReview)}
                 onOriginal={() => setShowOriginal(!showOriginal)}
                 originalContent={
-                  reviewParticipant?.submission && (
+                  reviewCode && (
                     <>
                       <ReviewPaneHeader
-                        name="Original submission"
-                        language={reviewParticipant.submission.language as EditorLanguage}
+                        name={originalLabel}
+                        language={reviewCode.language as EditorLanguage}
                         original
                       />
                       <EditorialCode
-                        source={reviewParticipant.submission.source}
-                        language={reviewParticipant.submission.language as EditorLanguage}
-                        label="Original submission"
+                        source={reviewCode.source}
+                        language={reviewCode.language as EditorLanguage}
+                        label={originalLabel}
                         theme={theme}
                         colorScheme={editorSchemes[theme]}
                       />

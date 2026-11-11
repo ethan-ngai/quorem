@@ -50,12 +50,12 @@ export async function readProblem(
   queries: ProblemQueries,
   actor: ProblemActor | undefined,
   value: string,
-  byVersion: boolean,
+  byPublication: boolean,
 ): Promise<string> {
-  if (byVersion && !problemId.safeParse(value).success)
+  if (byPublication && !problemId.safeParse(value).success)
     throw new ApplicationError("not_found", "Problem not found", 404);
-  const result = byVersion
-    ? await queries.byVersion(actor, value)
+  const result = byPublication
+    ? await queries.byPublication(actor, value)
     : await queries.bySlug(actor, value);
   if (result === null) throw new ApplicationError("not_found", "Problem not found", 404);
   return result;

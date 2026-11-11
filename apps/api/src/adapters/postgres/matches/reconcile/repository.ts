@@ -29,6 +29,7 @@ type Person = {
   percentage: number;
 };
 type Submission = {
+  id: string;
   admittedAt: string;
   owner: string;
   state: string;
@@ -69,7 +70,7 @@ export async function reconcileMatch(
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql`s.admitted_at`)} AS "admittedAt",s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT s.id::text,COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql`s.admitted_at`)} AS "admittedAt",s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN question_publications p ON p.id=w.publication_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
   const submissions: SubmissionProgress[] = [];
@@ -101,6 +102,7 @@ export async function reconcileMatch(
         ? verified.caseCount - verified.definiteFailures
         : null;
     submissions.push({
+      id: row.id,
       owner: row.owner,
       admittedAt: BigInt(row.admittedAt),
       state: row.state,
@@ -152,6 +154,7 @@ export async function reconcileMatch(
         ? decision.outcome.winnerUserId
         : (people.find((p) => p.subject === decision.outcome?.winnerUserId)?.owner ?? null),
       decision.outcome.reason,
+      decision.raceWinnerSubmissionId,
     );
     changed = true;
   }
@@ -165,10 +168,11 @@ export async function finishMatch(
   kind: string,
   winner: string | null,
   reason: string,
+  raceWinnerSubmissionId?: string,
 ): Promise<void> {
   const winnerTeam = winner && /^team:[1-4]$/.test(winner) ? Number(winner.slice(5)) : null;
   const result = await tx.execute(
-    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},completed_at=clock_timestamp(),outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'winnerTeam',${winnerTeam}::int,'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
+    sql`UPDATE matches SET state=${kind === "cancelled" ? "cancelled" : "completed"},review_winning_submission_id=${raceWinnerSubmissionId ?? null}::uuid,completed_at=clock_timestamp(),outcome=jsonb_strip_nulls(jsonb_build_object('kind',${kind}::text,'winnerUserId',(SELECT participant_id FROM users WHERE id=${winner}),'winnerTeam',${winnerTeam}::int,'reason',${reason}::text,'completedAt',to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'))) WHERE id=${id}::uuid RETURNING id`,
   );
   if (result.rows.length !== 1) throw new Error("Match finish failed");
   if (

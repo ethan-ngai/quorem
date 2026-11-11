@@ -65,11 +65,11 @@ describe.skipIf(!url)("runner claim fences", () => {
       maxNestingDepth: 100,
     };
     await pool.query(
-      'INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,\'Fixture\',\'easy\',\'\',\'{"className":"Solution","methodName":"f","parameters":[],"returnType":"int"}\'::jsonb,\'[]\'::jsonb,$3::jsonb,\'\')',
+      'INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,\'Fixture\',\'easy\',\'\',\'{"className":"Solution","methodName":"f","parameters":[],"returnType":"int"}\'::jsonb,\'[]\'::jsonb,$3::jsonb,\'\')',
       [version, problem, JSON.stringify(limits)],
     );
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
     await pool.query(
@@ -86,7 +86,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     await pool.query("DELETE FROM execution_jobs WHERE submission_id=$1", [submission]);
     await pool.query("DELETE FROM submissions WHERE id=$1", [submission]);
     await pool.query("DELETE FROM workspaces WHERE id=$1", [workspace]);
-    await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
+    await pool.query("DELETE FROM question_publications WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [user]);
     await verifier.close();

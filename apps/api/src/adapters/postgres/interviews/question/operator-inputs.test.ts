@@ -31,7 +31,6 @@ it.skipIf(!url)(
       problem: {
         id: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
         slug: "legacy",
-        version: "1",
         title: "Legacy",
         difficulty: "easy",
         statementMarkdown: "test",

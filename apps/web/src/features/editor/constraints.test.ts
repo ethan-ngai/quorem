@@ -40,7 +40,7 @@ describe("structured constraints", () => {
     expect(() => parseCustomDraft(draft, signature, [])).not.toThrow();
   });
   it("formats data without inspecting prose", () => {
-    expect(formatConstraint(constraints[0]!)).toBe("1 ≤ len(values) ≤ 10^4");
+    expect(formatConstraint(constraints[0]!)).toBe("1 ≤ values.length ≤ 10^4");
     expect(
       formatConstraint({
         kind: "range",

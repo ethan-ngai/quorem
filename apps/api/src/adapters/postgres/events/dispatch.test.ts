@@ -164,11 +164,11 @@ describe.skipIf(!url)("durable dispatch on disposable PostgreSQL", () => {
         `fixture-${problem}`,
       ]);
       await pool.query(
-        "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','', '{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'')",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','', '{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'')",
         [version, problem],
       );
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspace, user, version],
       );
       await pool.query(

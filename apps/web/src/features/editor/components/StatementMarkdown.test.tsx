@@ -1,3 +1,5 @@
+import { tags } from "@lezer/highlight";
+import { editorSyntaxStyle } from "../syntaxHighlighting";
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -19,6 +21,12 @@ describe("restricted statement Markdown", () => {
     expect(markup).toContain("<msup>");
     expect(markup).toContain("<mo>≤</mo>");
   });
+  it("renders standalone formulas as display math", () => {
+    const markup = render("Before.\n\n$$\nx^2 \\le 10^{4}\n$$\n\nAfter.");
+    expect(markup).toContain('<div class="statement-math">');
+    expect(markup).toContain('display="block"');
+    expect(markup).toContain("<mo>≤</mo>");
+  });
   it("leaves unclosed and invalid math readable", () => {
     expect(render("Unclosed $x and **word")).toContain("Unclosed $x and **word");
     expect(render("Invalid $\\notacommand{x}$")).toContain("$\\notacommand{x}$");
@@ -33,7 +41,9 @@ describe("restricted statement Markdown", () => {
     expect(markup).toContain("![image](x)");
     expect(markup).toContain("# Heading");
     expect(markup).toContain('<pre class="statement-code"><code class="code-literal">');
-    expect(markup).toContain('<span class="code-keyword">return</span>');
+    expect(markup).toContain(
+      `<span class="${editorSyntaxStyle.style([tags.keyword])}">return</span>`,
+    );
     expect(markup).toContain("<ul>");
     expect(markup).not.toMatch(/<(img|h2)\b/);
   });
@@ -57,5 +67,34 @@ describe("restricted statement Markdown", () => {
   it("falls back for expansion loops and oversized math source", () => {
     expect(render("$\\def\\a{\\a}\\a$")).toContain("$\\def\\a{\\a}\\a$");
     expect(render(`$${"x".repeat(4097)}$`)).not.toContain('class="katex"');
+  });
+});
+
+describe("description figures", () => {
+  const figure = (source: string) =>
+    renderToStaticMarkup(<StatementMarkdown source={source} allowFigures />);
+
+  it("renders a labeled rectangular grid and marks highlighted cells", () => {
+    const source = '~~~grid Highlighted matrix\n{"cells":[[1,2],[3,4]],"highlights":[[1,0]]}\n~~~';
+    const markup = figure(source);
+    expect(markup).toContain('aria-label="Highlighted matrix"');
+    expect(markup).toContain('data-highlighted="true" aria-label="3, highlighted">3</td>');
+    expect(render(source)).not.toContain("<table");
+  });
+
+  it("shows malformed grid configuration as code", () => {
+    const source = '~~~grid\n{"cells":[[1],[2,3]],"highlights":[[5,0]]}\n~~~';
+    expect(figure(source)).toContain("<pre");
+    expect(figure(source)).not.toContain("<table");
+  });
+
+  it("places SVG in an image context only in description mode", () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>';
+    const source = `~~~svg Diagram label\n${svg}\n~~~`;
+    const markup = figure(source);
+    expect(markup).toContain("data:image/svg+xml,%3Csvg");
+    expect(markup).toContain('alt="Diagram label"');
+    expect(markup).not.toMatch(/<(svg|script)\b/);
+    expect(render(source)).not.toContain("<img");
   });
 });

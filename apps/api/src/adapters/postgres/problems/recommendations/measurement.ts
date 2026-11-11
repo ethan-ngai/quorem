@@ -16,22 +16,22 @@ export async function recommendationMeasurement(tx: Transaction) {
       count(DISTINCT r.owner_id) FILTER(WHERE r.solved_at<statement_timestamp()-interval '14 days' AND r.followup_solved)::int AS learners_with_delayed_solve,
       count(transfer.accepted)::int AS transfer_attempts,
       count(*) FILTER(WHERE transfer.accepted)::int AS transfer_solves
-    FROM recommendation_impressions r JOIN problem_versions v ON v.id=r.version_id
+    FROM recommendation_impressions r JOIN question_publications v ON v.id=r.publication_id
     JOIN problems p ON p.id=v.problem_id
     LEFT JOIN LATERAL (
       SELECT e.accepted
       FROM question_learning_events e
-      JOIN problem_versions next ON next.id=e.version_id
+      JOIN question_publications next ON next.id=e.publication_id
       JOIN problems next_problem ON next_problem.id=next.problem_id
       WHERE r.solved_at<statement_timestamp()-interval '14 days'
-        AND e.owner_id=r.owner_id AND e.version_id<>r.version_id
+        AND e.owner_id=r.owner_id AND e.publication_id<>r.publication_id
         AND e.context='practice' AND NOT e.assisted AND next_problem.owner_id IS NULL
         AND e.observed_at>=r.solved_at+interval '2 days'
         AND e.attempted_at BETWEEN r.solved_at+interval '2 days' AND r.solved_at+interval '14 days'
-        AND e.tags && ARRAY(SELECT tag FROM problem_tags WHERE version_id=r.version_id)
+        AND e.tags && ARRAY(SELECT tag FROM problem_tags WHERE publication_id=r.publication_id)
         AND NOT EXISTS (
           SELECT 1 FROM question_learning_events earlier
-          WHERE earlier.owner_id=e.owner_id AND earlier.version_id=e.version_id
+          WHERE earlier.owner_id=e.owner_id AND earlier.publication_id=e.publication_id
             AND (earlier.attempted_at,earlier.submission_id)<(e.attempted_at,e.submission_id)
         )
       ORDER BY e.attempted_at,e.submission_id LIMIT 1
@@ -46,7 +46,7 @@ export async function recommendationMeasurement(tx: Transaction) {
       avg(seats.score_spread) FILTER(WHERE m.state='completed') AS mean_final_score_spread,
       count(*) FILTER(WHERE m.outcome->>'reason'='first_correct')::int AS won_by_solving
     FROM recommendation_match_selections r JOIN matches m ON m.id=r.match_id
-    JOIN problem_versions v ON v.id=m.problem_version_id JOIN problems p ON p.id=v.problem_id
+    JOIN question_publications v ON v.id=m.publication_id JOIN problems p ON p.id=v.problem_id
     CROSS JOIN LATERAL (SELECT max(best_percentage)-min(best_percentage) AS score_spread
       FROM match_participants WHERE match_id=m.id AND NOT forfeited) seats
     WHERE p.owner_id IS NULL GROUP BY r.model_id ORDER BY r.model_id

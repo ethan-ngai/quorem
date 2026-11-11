@@ -68,13 +68,13 @@ void test("eight valid authored stages bind 160 hidden cases and 160 examples in
   const version = JSON.parse(await authoring.publish(actor, draft.id, "1", "private"))
     .publishedVersionId as string;
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
     [workspace, user, version],
   );
-  await pool.query(
-    "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,8)",
-    [workspace, version],
-  );
+  await pool.query("INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,8)", [
+    workspace,
+    version,
+  ]);
   const key = randomUUID(),
     fence = { receiptId: randomUUID(), jobId: randomUUID(), shard: 0 };
   await prearmReceipts(run, "execution").create(fence.receiptId, fence.shard);
@@ -160,22 +160,22 @@ void test("legacy indexed suites above 320 bind without loading reference arrays
   await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [user]);
   await pool.query("INSERT INTO problems(id,slug) VALUES($1::uuid,$1::text)", [problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Fixture','easy','',$3,'[]',$5,'test',$4)",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,'Fixture','easy','',$3,'[]',$5,'test',$4)",
     [version, problem, null, JSON.stringify({ levels }), JSON.stringify(defaultLimits())],
   );
   await pool.query(
-    "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+    "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
     [workspace, user, version],
   );
-  await pool.query(
-    "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,8)",
-    [workspace, version],
-  );
+  await pool.query("INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,8)", [
+    workspace,
+    version,
+  ]);
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 15000, lockTimeoutMs: 1000 }, (tx) =>
       indexRunnerFixture(
         tx,
-        { version },
+        { publication: version },
         JSON.stringify({
           problem: { signature, constraints: [], limits: {}, odyssey: { levels } },
           odysseyHiddenCases: hidden,
@@ -199,7 +199,7 @@ void test("legacy indexed suites above 320 bind without loading reference arrays
       });
       const selected = await prepareExecutionInputs(
         observed,
-        { version },
+        { publication: version },
         "submit",
         8,
         null,

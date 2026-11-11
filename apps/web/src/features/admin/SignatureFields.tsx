@@ -6,6 +6,7 @@ import {
   ArrowDownToLine,
   ChevronRight,
   FileText,
+  Hash,
   ListOrdered,
   Plus,
   Shuffle,
@@ -15,14 +16,29 @@ import {
   Link2,
   CornerDownLeft,
 } from "lucide-react";
+import { isMatrixType } from "@quorem/contracts/question-type";
 import { nodeType } from "@quorem/contracts/node-type";
 import type { Signature } from "@quorem/contracts";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import {
+  GRAPH_RETURN,
+  GRAPH_RETURN_LIST,
+  graphReturnSlot,
+  type GraphEncoding,
+} from "@quorem/questions";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { Tooltip } from "../../ui/Tooltip";
 import { MethodSignature } from "../editor/components/MethodSignature";
+import { TypeSyntaxText } from "../editor/components/TypeSyntax";
 import { ValueTypeField } from "./ValueTypeField";
+import {
+  defaultGraphEncoding,
+  GraphEncodingFields,
+  GraphSettingsMenu,
+  LegacyReturnGraphSlots,
+  withGraphEncoding,
+} from "./GraphEncodingFields";
 export function SignatureFields({
   value,
   onChange: onSignatureChange,
@@ -30,12 +46,14 @@ export function SignatureFields({
   disabled = false,
   onValidityChange,
   previewControl,
+  graphAuthoring = false,
 }: {
   value: Signature;
   onChange: (value: Signature) => void;
   allowVoid?: boolean;
   disabled?: boolean;
   previewControl?: ReactNode;
+  graphAuthoring?: boolean;
   onValidityChange?: (label: string, invalid: boolean) => void;
 }) {
   const nodeParameters = value.parameters.filter(({ type }) => nodeType(type));
@@ -49,21 +67,47 @@ export function SignatureFields({
         : next.nodeReferences;
     onSignatureChange({ ...next, nodeReferences: mode });
   };
+  const encodings = value.graphEncodings ?? {};
+  const graphBindings = Object.entries(encodings);
+  const returnSlots = graphBindings.filter(([name]) => graphReturnSlot(name) !== undefined);
+  const hasReturnSlots = returnSlots.length > 0;
+  const hasPresetSlot = returnSlots.some(([, { kind }]) => kind !== "custom");
+  const listReturn = /^(list|array)</.test(value.returnType);
+  const returnList = encodings[GRAPH_RETURN_LIST];
+  const returnElement = value.returnType.slice(value.returnType.indexOf("<") + 1, -1);
+  const legacySlots = hasReturnSlots && !returnList;
   const exceptions = value.throws ?? [];
   const namesId = useId();
   const addParameter = useRef<HTMLButtonElement>(null);
   const addException = useRef<HTMLButtonElement>(null);
+  const [nameDrafts, setNameDrafts] = useState<Record<number, string>>({});
+  const parameterNames = value.parameters.map(({ name }, index) => nameDrafts[index] ?? name);
   const invalidMethod = !validateInput(value.methodName, inputConstraints.identifier).success;
-  const invalidParameter = (name: string) =>
+  const invalidParameter = (name: string, names = parameterNames) =>
     !validateInput(name, inputConstraints.identifier).success ||
-    value.parameters.filter((parameter) => parameter.name === name).length > 1;
-  const invalidNames = invalidMethod || value.parameters.some(({ name }) => invalidParameter(name));
+    names.filter((parameter) => parameter === name).length > 1;
+  const invalidNames = invalidMethod || parameterNames.some((name) => invalidParameter(name));
+  const editingInvalidNames = Object.keys(nameDrafts).length > 0;
   const validity = useRef(onValidityChange);
   validity.current = onValidityChange;
   useEffect(() => {
     validity.current?.(namesId, invalidNames);
   }, [namesId, invalidNames]);
   useEffect(() => () => validity.current?.(namesId, false), [namesId]);
+  function renameParameter(index: number, name: string) {
+    const drafts = { ...nameDrafts, [index]: name };
+    const parameters = value.parameters.map((parameter, position) => ({
+      ...parameter,
+      name: drafts[position] ?? parameter.name,
+    }));
+    const names = parameters.map(({ name }) => name);
+    if (names.some((name) => invalidParameter(name, names))) {
+      setNameDrafts(drafts);
+      return;
+    }
+    setNameDrafts({});
+    onChange({ ...value, parameters });
+  }
   const updateParameter = (index: number, patch: Partial<Signature["parameters"][number]>) =>
     onChange({
       ...value,
@@ -78,6 +122,121 @@ export function SignatureFields({
         position === index ? { ...item, ...patch } : item,
       ),
     });
+  function changeEncoding(name: string, encoding?: GraphEncoding) {
+    onChange(withGraphEncoding(value, name, encoding));
+  }
+  function withoutReturnGraphs() {
+    const next = graphBindings.filter(
+      ([key]) => key !== GRAPH_RETURN_LIST && graphReturnSlot(key) === undefined,
+    );
+    return { ...value, graphEncodings: next.length ? Object.fromEntries(next) : undefined };
+  }
+  function typeField(
+    name: string,
+    label: string,
+    type: string,
+    updateType: (type: string, signature: Signature) => Signature,
+  ) {
+    const isReturn = name === GRAPH_RETURN;
+    const listEncoding = isReturn ? returnList : undefined;
+    const target = listEncoding ? GRAPH_RETURN_LIST : name;
+    const title = isReturn ? "Return value" : name;
+    const encoding = encodings[target];
+    function withoutGraph() {
+      if (!encoding) return value;
+      if (!listEncoding) return withGraphEncoding(value, target);
+      return withoutReturnGraphs();
+    }
+    if (!graphAuthoring && encoding && encoding.kind !== "custom")
+      return <PresetType type={type} note="Set by graph" />;
+    const selector = (
+      <ValueTypeField
+        hideLabel
+        label={label}
+        value={type}
+        allowVoid={isReturn && allowVoid}
+        disabled={disabled}
+        graph={
+          graphAuthoring && !listEncoding
+            ? {
+                selected: !!encoding,
+                onSelect: () => {
+                  if (!encoding)
+                    changeEncoding(
+                      name,
+                      defaultGraphEncoding(type, isReturn && value.nodeReferences === "return"),
+                    );
+                },
+              }
+            : undefined
+        }
+        elementGraph={
+          graphAuthoring && isReturn && listReturn && !encodings[GRAPH_RETURN]
+            ? {
+                selected: !!listEncoding,
+                onSelect: () => {
+                  if (!listEncoding)
+                    changeEncoding(GRAPH_RETURN_LIST, defaultGraphEncoding(returnElement));
+                },
+              }
+            : undefined
+        }
+        onValidityChange={onValidityChange}
+        onChange={(next) => onChange(updateType(next, graphAuthoring ? withoutGraph() : value))}
+      />
+    );
+    if (!encoding || !graphAuthoring) return selector;
+    return (
+      <div className="graph-signature-choice" data-graph-list={!!listEncoding || undefined}>
+        <div className="graph-signature-picker">
+          {selector}
+          <GraphSettingsMenu title={title} disabled={disabled}>
+            <GraphEncodingFields
+              signature={value}
+              name={target}
+              title={title}
+              encoding={encoding}
+              disabled={disabled}
+              customType={
+                encoding.kind === "custom" && (
+                  <ValueTypeField
+                    label={listEncoding ? "Solver element type" : "Solver type"}
+                    value={listEncoding ? returnElement : type}
+                    disabled={disabled || (!!listEncoding && hasPresetSlot)}
+                    onValidityChange={onValidityChange}
+                    onChange={(next) =>
+                      onChange(
+                        updateType(listEncoding ? `${type.split("<")[0]}<${next}>` : next, value),
+                      )
+                    }
+                  />
+                )
+              }
+              onChange={(next) => changeEncoding(target, next)}
+            />
+          </GraphSettingsMenu>
+        </div>
+        <code className="code-literal graph-signature-native">
+          <TypeSyntaxText text={type} />
+        </code>
+      </div>
+    );
+  }
+  const updateReturnType = (returnType: string, signature: Signature) => ({
+    ...signature,
+    returnType,
+    outputOrder: /^(list|array)</.test(returnType) ? signature.outputOrder : undefined,
+  });
+  function updateParameterType(index: number, type: string, signature: Signature) {
+    return {
+      ...signature,
+      parameters: signature.parameters.map((item, position) =>
+        position === index
+          ? { ...item, type, input: type === item.type ? item.input : undefined }
+          : item,
+      ),
+    };
+  }
   return (
     <fieldset className="admin-fields" aria-labelledby={`${namesId}-method`}>
       <div className="admin-method-heading">
@@ -108,28 +267,52 @@ export function SignatureFields({
             pattern="[a-zA-Z_][a-zA-Z0-9_]*"
           />
         </label>
-        <ValueTypeField
-          disabled={disabled}
-          label="Return type"
-          value={value.returnType}
-          allowVoid={allowVoid}
-          onValidityChange={onValidityChange}
-          onChange={(returnType) =>
-            onChange({
-              ...value,
-              returnType,
-              outputOrder:
-                returnType.startsWith("list<") || returnType.startsWith("array<")
-                  ? value.outputOrder
-                  : undefined,
-            })
-          }
-        />
-        {(value.returnType.startsWith("list<") || value.returnType.startsWith("array<")) && (
+        <div className="admin-field">
+          <span>Return type</span>
+          {legacySlots ? (
+            <div className="authoring-derived-type">
+              <code className="code-literal">
+                <TypeSyntaxText text={value.returnType} />
+              </code>
+            </div>
+          ) : (
+            typeField(GRAPH_RETURN, "Return type", value.returnType, updateReturnType)
+          )}
+          {legacySlots && !hasPresetSlot && listReturn && (
+            <ValueTypeField
+              label="Slot element type"
+              value={value.returnType.slice(value.returnType.indexOf("<") + 1, -1)}
+              disabled={disabled}
+              onValidityChange={onValidityChange}
+              onChange={(type) =>
+                onChange({ ...value, returnType: `${value.returnType.split("<")[0]}<${type}>` })
+              }
+            />
+          )}
+          {graphAuthoring && legacySlots && listReturn && (
+            <>
+              <LegacyReturnGraphSlots slots={returnSlots} />
+              <button
+                type="button"
+                className="quiet-button"
+                disabled={disabled}
+                onClick={() =>
+                  onChange(
+                    withGraphEncoding(withoutReturnGraphs(), GRAPH_RETURN_LIST, returnSlots[0]![1]),
+                  )
+                }
+              >
+                Use one graph format
+              </button>
+            </>
+          )}
+        </div>
+        {listReturn && (
           <div className="admin-field authoring-return-order">
             <span>Return order</span>
             <SegmentedControl<NonNullable<Signature["outputOrder"]>>
               label="Return order"
+              disabled={disabled}
               value={value.outputOrder ?? "ordered"}
               onChange={(outputOrder) => onChange({ ...value, outputOrder })}
               options={[
@@ -141,6 +324,11 @@ export function SignatureFields({
                 {
                   value: "unordered",
                   label: "Any order",
+                  disabled: hasReturnSlots || !!returnList,
+                  hint:
+                    hasReturnSlots || returnList
+                      ? "Graph return slots require ordered results."
+                      : undefined,
                   icon: <Shuffle size={15} aria-hidden="true" />,
                 },
               ]}
@@ -192,7 +380,7 @@ export function SignatureFields({
           type="button"
           className="quiet-button"
           ref={addParameter}
-          disabled={value.parameters.length >= 16}
+          disabled={disabled || editingInvalidNames || value.parameters.length >= 16}
           onClick={() => {
             let next = value.parameters.length + 1;
             while (value.parameters.some(({ name }) => name === `arg${next}`)) next++;
@@ -224,22 +412,68 @@ export function SignatureFields({
                 maxLength={80}
                 aria-label={`Parameter ${index + 1} name`}
                 className="admin-code"
-                value={parameter.name}
-                aria-invalid={invalidParameter(parameter.name)}
-                aria-describedby={invalidParameter(parameter.name) ? `${namesId}-error` : undefined}
+                value={parameterNames[index]}
+                aria-invalid={invalidParameter(parameterNames[index]!)}
+                aria-describedby={
+                  invalidParameter(parameterNames[index]!) ? `${namesId}-error` : undefined
+                }
                 required
                 pattern="[a-zA-Z_][a-zA-Z0-9_]*"
-                onChange={(event) => updateParameter(index, { name: event.target.value })}
+                onChange={(event) => renameParameter(index, event.target.value)}
               />
             </div>
-            <ValueTypeField
-              hideLabel
-              disabled={disabled}
-              label={`Parameter ${index + 1} type`}
-              value={parameter.type}
-              onValidityChange={onValidityChange}
-              onChange={(type) => updateParameter(index, { type })}
-            />
+            <div className="authoring-parameter-type">
+              {graphBindings.some(([, binding]) => binding.countParameter === parameter.name) ? (
+                <PresetType
+                  type={parameter.type}
+                  note="Graph node count"
+                  icon={<Hash size={14} aria-hidden="true" />}
+                />
+              ) : (
+                typeField(
+                  parameter.name,
+                  `Parameter ${index + 1} type`,
+                  parameter.type,
+                  (type, signature) => updateParameterType(index, type, signature),
+                )
+              )}
+              {isMatrixType(parameter.type) && (
+                <>
+                  <SegmentedControl
+                    compact
+                    label={`${parameter.name} array layout`}
+                    value={parameter.input?.layout ?? "inline"}
+                    options={[
+                      { value: "inline", label: "Inline" },
+                      { value: "rows", label: "Rows", hint: "One row per line" },
+                    ]}
+                    disabled={disabled || editingInvalidNames}
+                    onChange={(layout) =>
+                      updateParameter(index, {
+                        input: { preset: "default", ...parameter.input, layout },
+                      })
+                    }
+                  />
+                  <label className="authoring-grid-option">
+                    <input
+                      type="checkbox"
+                      checked={parameter.input?.showGrid ?? false}
+                      disabled={disabled || editingInvalidNames}
+                      onChange={(event) =>
+                        updateParameter(index, {
+                          input: {
+                            preset: "default",
+                            ...parameter.input,
+                            showGrid: event.target.checked || undefined,
+                          },
+                        })
+                      }
+                    />
+                    Show grid in examples and tests
+                  </label>
+                </>
+              )}
+            </div>
             <div className="admin-field authoring-parameter-description">
               <input
                 aria-label={`Parameter ${index + 1} description`}
@@ -254,6 +488,7 @@ export function SignatureFields({
                 type="button"
                 className="icon-button destructive-icon authoring-parameter-remove"
                 aria-label={`Remove parameter ${parameter.name}`}
+                disabled={disabled || editingInvalidNames}
                 onClick={() =>
                   onChange({
                     ...value,
@@ -363,5 +598,24 @@ export function SignatureFields({
         />
       </details>
     </fieldset>
+  );
+}
+
+function PresetType({ type, note, icon }: { type: string; note: string; icon?: ReactNode }) {
+  return (
+    <div className="authoring-derived-type">
+      <code className="code-literal">
+        <TypeSyntaxText text={type} />
+      </code>
+      {icon ? (
+        <Tooltip content={note}>
+          <span className="graph-count-icon" tabIndex={0} aria-label={note}>
+            {icon}
+          </span>
+        </Tooltip>
+      ) : (
+        <span>{note}</span>
+      )}
+    </div>
   );
 }

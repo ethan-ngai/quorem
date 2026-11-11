@@ -38,7 +38,7 @@ try {
     ) a ON true
     WHERE s.admitted_at >= $1::timestamptz
       AND s.admitted_at < $1::timestamptz + interval '2 minutes'
-      AND w.problem_version_id=$2::uuid AND s.source_hash=$3 AND s.kind='run' AND s.custom_run
+      AND w.publication_id=$2::uuid AND s.source_hash=$3 AND s.kind='run' AND s.custom_run
       AND j.language='python' AND j.finished AND s.state='completed' AND i.case_count IN (1,5,20)
     ORDER BY s.admitted_at LIMIT 50`,
     [start.toISOString(), version, createHash("sha256").update(acceptedSource).digest("hex")],

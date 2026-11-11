@@ -130,9 +130,9 @@ export async function prepareExecutionInputs(
   odyssey: boolean,
 ): Promise<Omit<Parameters<typeof bindJobInputs>[1], "jobId" | "owner">> {
   const sealed =
-    "version" in owner
+    "publication" in owner
       ? await tx.execute(
-          sql`SELECT 1 FROM runner_version_inputs WHERE version_id=${owner.version}::uuid AND sealed`,
+          sql`SELECT 1 FROM runner_publication_inputs WHERE publication_id=${owner.publication}::uuid AND sealed`,
         )
       : await tx.execute(
           sql`SELECT 1 FROM runner_snapshot_inputs WHERE session_id=${owner.session}::uuid AND fixture_id=${owner.fixture}::bytea AND sealed`,
@@ -173,8 +173,8 @@ export async function customValidationMetadata(
   if (!Number.isSafeInteger(level) || level < 0 || level > 8)
     throw new Error("Invalid fixture stage");
   const source =
-    "version" in owner
-      ? sql`SELECT jsonb_build_object('signature',signature,'constraints',constraints,'limits',limits,'sql',sql_config,'odyssey',odyssey) AS problem FROM problem_versions WHERE id=${owner.version}::uuid`
+    "publication" in owner
+      ? sql`SELECT jsonb_build_object('signature',signature,'constraints',constraints,'limits',limits,'sql',sql_config,'odyssey',odyssey) AS problem FROM question_publications WHERE id=${owner.publication}::uuid`
       : sql`SELECT question->'problem' AS problem FROM interviews WHERE id=${owner.session}::uuid`;
   const signature = (value: SQL) => sql`jsonb_strip_nulls(jsonb_build_object(
     'className',${value}->'className','methodName',${value}->'methodName','returnType',${value}->'returnType','outputOrder',${value}->'outputOrder',

@@ -102,8 +102,8 @@
   }
 }
 .case-browser {
-  --case-rail-width: clamp(100px, 16%, 140px);
-  --narrow-case-rail-width: 104px;
+  --case-rail-width: clamp(108px, calc(16% + var(--space-2)), 148px);
+  --narrow-case-rail-width: 112px;
   --case-detail-end-padding: 18px;
   display: grid;
   grid-template-columns: var(--case-rail-width) minmax(0, 1fr);
@@ -123,9 +123,9 @@
   gap: 2px;
 }
 .case-rail {
-  min-height: 0;
-  padding: 4px 8px 12px calc(var(--workspace-control-inset) - 8px);
-  border-right: 1px solid var(--color-border);
+  padding-block: var(--space-1) var(--space-3);
+  padding-inline-start: calc(var(--workspace-control-inset) - var(--space-2));
+  border-inline-end: 1px solid var(--color-border);
 }
 .case-selector {
   display: flex;

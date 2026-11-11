@@ -72,7 +72,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -90,9 +90,9 @@
         }
       }
     },
-    "/v1/problem-versions/{id}": {
+    "/v1/question-publications/{id}": {
       "get": {
-        "operationId": "getProblemVersion",
+        "operationId": "getPublishedQuestion",
         "parameters": [
           {
             "name": "id",
@@ -110,7 +110,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -648,7 +648,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ProblemVersion"
+                        "$ref": "#/components/schemas/PublishedQuestion"
                       }
                     },
                     "total": {
@@ -668,6 +668,26 @@
                       "items": {
                         "type": "string"
                       }
+                    },
+                    "companyFacets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "tier": {
+                            "type": "string",
+                            "enum": ["faang", "top", "quant", "mid-tier", "other"]
+                          },
+                          "count": { "type": "integer", "minimum": 1 }
+                        },
+                        "required": ["name", "tier", "count"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "topicAliases": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
                     },
                     "recommendationImpressions": {
                       "type": "object",
@@ -854,7 +874,7 @@
         }
       }
     },
-    "/v1/problem-versions/{id}/solutions": {
+    "/v1/question-publications/{id}/solutions": {
       "get": {
         "operationId": "getSolutions",
         "parameters": [
@@ -905,7 +925,7 @@
         }
       }
     },
-    "/v1/problem-versions/{id}/complexity": {
+    "/v1/question-publications/{id}/complexity": {
       "get": {
         "operationId": "getComplexity",
         "parameters": [
@@ -4142,7 +4162,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemVersion"
+                  "$ref": "#/components/schemas/PublishedQuestion"
                 }
               }
             }
@@ -4155,6 +4175,45 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/review/code": {
+      "put": {
+        "operationId": "saveMatchReviewCode",
+        "summary": "Save the current editor source for post-match sharing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": { "type": "string", "format": "uuid" },
+                  "source": { "type": "string" }
+                },
+                "required": ["workspaceId", "source"],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": { "description": "Saved" },
+          "default": {
+            "description": "Safe application error",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
             }
           }
         }
@@ -5780,6 +5839,15 @@
             "type": "string",
             "maxLength": 512
           },
+          "layout": {
+            "type": "string",
+            "enum": ["inline", "rows"],
+            "description": "Display a two-dimensional array on one line or one row per line. Defaults to inline."
+          },
+          "showGrid": {
+            "type": "boolean",
+            "description": "Show a grid from this two-dimensional array in examples and tests."
+          },
           "rows": {
             "type": "integer",
             "minimum": 1,
@@ -5806,9 +5874,129 @@
         "required": ["name", "type"],
         "additionalProperties": false
       },
+      "GraphNodeId": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "minimum": -2147483648,
+            "maximum": 2147483647
+          },
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        ]
+      },
+      "QuestionGraph": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "directed": {
+            "type": "boolean"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/GraphNodeId"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "$ref": "#/components/schemas/GraphNodeId"
+                    },
+                    "value": {
+                      "$ref": "#/components/schemas/WireValue"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value"
+                  ]
+                }
+              ]
+            },
+            "maxItems": 100000
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "from": {
+                  "$ref": "#/components/schemas/GraphNodeId"
+                },
+                "to": {
+                  "$ref": "#/components/schemas/GraphNodeId"
+                },
+                "value": {
+                  "$ref": "#/components/schemas/WireValue"
+                }
+              },
+              "required": [
+                "from",
+                "to"
+              ]
+            },
+            "maxItems": 100000
+          }
+        },
+        "required": [
+          "directed",
+          "nodes",
+          "edges"
+        ]
+      },
+      "GraphEncoding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "edgeList",
+              "adjacencyList",
+              "adjacencyMatrix",
+              "successor",
+              "parent",
+              "custom"
+            ]
+          },
+          "directed": { "type": "boolean" },
+          "nodeValueType": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "edgeValueType": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "countParameter": {
+            "type": "string",
+            "minLength": 1
+          },
+          "firstNode": {
+            "type": "integer",
+            "enum": [0, 1]
+          },
+          "edgeValue": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "matrixDiagonal": {
+            "type": "integer",
+            "enum": [0, 1]
+          }
+        },
+        "required": ["kind"]
+      },
       "Signature": {
         "type": "object",
         "properties": {
+          "graphEncodings": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/GraphEncoding" }
+          },
           "className": {
             "type": "string",
             "enum": ["Solution"]
@@ -5902,6 +6090,10 @@
       "CustomCase": {
         "type": "object",
         "properties": {
+          "graphs": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/QuestionGraph" }
+          },
           "args": {
             "type": "array",
             "items": {
@@ -5924,6 +6116,10 @@
       "ProblemExample": {
         "type": "object",
         "properties": {
+          "graphs": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/components/schemas/QuestionGraph" }
+          },
           "args": {
             "type": "array",
             "items": {
@@ -5934,7 +6130,8 @@
             "$ref": "#/components/schemas/WireValue"
           },
           "explanation": {
-            "type": "string"
+            "type": "string",
+            "description": "Example Markdown. Use $...$ for math and backticks for code, array access, and property access. Put example-specific diagrams and fenced code here."
           },
           "calls": {
             "type": "array",
@@ -5946,7 +6143,7 @@
         "required": ["args"],
         "additionalProperties": false
       },
-      "ProblemVersion": {
+      "PublishedQuestion": {
         "type": "object",
         "properties": {
           "id": {
@@ -5958,10 +6155,6 @@
           },
           "slug": {
             "type": "string"
-          },
-          "version": {
-            "type": "string",
-            "pattern": "^(0|[1-9][0-9]*)$"
           },
           "title": {
             "type": "string"
@@ -5988,7 +6181,8 @@
             }
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "examples": {
             "type": "array",
@@ -6049,7 +6243,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -6564,6 +6757,7 @@
             "type": "string",
             "format": "uuid"
           },
+          "shareFinalCode": { "type": "boolean" },
           "reviewPending": {
             "type": "boolean"
           },
@@ -6763,7 +6957,65 @@
           },
           "projection": {
             "type": "string",
-            "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues"]
+            "enum": ["value", "length", "elements", "sum", "nodeCount", "nodeValues", "characters", "indices", "diagonal", "columns", "graph"]
+          },
+          "path": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "const": "each"
+                },
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 99999
+                }
+              ]
+            },
+            "description": "Walk into each element or a zero-based index before measuring. For example, [\"each\"] with length measures each row; [\"each\", 0] with value selects the first column."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Add this integer to each numeric measurement, for bounds such as n - 1."
+          },
+          "total": {
+            "type": "boolean",
+            "description": "Sum all projected numeric measurements into one number, such as the total length of all rows."
+          },
+          "operations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "Apply numeric operations in order after measuring, totaling, and adding the offset. Sequences combine at matching positions; scalars broadcast.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["operator", "operand"],
+              "properties": {
+                "operator": {
+                  "type": "string",
+                  "enum": ["add", "subtract", "multiply"]
+                },
+                "operand": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "$ref": "#/components/schemas/ConstraintTarget"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "required": ["parameter", "projection"],
@@ -6864,12 +7116,17 @@
               },
               "operator": {
                 "type": "string",
-                "enum": ["eq", "le", "lt", "ge", "gt"]
+                "enum": ["eq", "le", "lt", "ge", "gt", "ne"]
               },
               "quantifier": {
                 "type": "string",
                 "enum": ["all", "any"],
                 "description": "all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any."
+              },
+              "pairing": {
+                "type": "string",
+                "enum": ["corresponding"],
+                "description": "Compare matching positions and require equal projection sizes. Omitted compares all combinations."
               }
             },
             "required": ["kind", "left", "right", "operator"],
@@ -6887,15 +7144,71 @@
               },
               "property": {
                 "type": "string",
-                "enum": ["sorted", "nondecreasing", "unique"]
+                "enum": ["sorted", "nondecreasing", "unique", "strictlySorted", "adjacentDistinct", "even", "powerOfTwo", "symmetric", "tree", "binaryTree", "star", "acyclic", "noLoops", "noParallelEdges"]
               },
               "direction": {
                 "type": "string",
                 "enum": ["asc", "desc"],
-                "description": "Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties."
+                "description": "Ordering direction. Omitted is asc. Applies only to ordering properties."
               }
             },
             "required": ["kind", "target", "property"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "membership"
+              },
+              "target": {
+                "$ref": "#/components/schemas/ConstraintTarget"
+              },
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string",
+                      "maxLength": 256
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                }
+              },
+              "negated": {
+                "type": "boolean",
+                "description": "When true, exclude every listed value. Omitted allows only listed values."
+              }
+            },
+            "required": ["kind", "target", "values"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "definition"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,31}$",
+                "description": "A name used in the statement for a derived input measurement."
+              },
+              "target": {
+                "$ref": "#/components/schemas/ConstraintTarget"
+              }
+            },
+            "required": ["kind", "name", "target"],
             "additionalProperties": false
           },
           {
@@ -6907,7 +7220,8 @@
               },
               "text": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "description": "Use only for rules without a structured equivalent. Use Markdown with LaTeX for math and backticks for program accesses."
               }
             },
             "required": ["kind", "text"],
@@ -7200,10 +7514,12 @@
             "type": "string"
           },
           "timeComplexity": {
-            "type": "string"
+            "type": "string",
+            "description": "Time complexity as LaTeX, for example $O(n \\log n)$."
           },
           "spaceComplexity": {
-            "type": "string"
+            "type": "string",
+            "description": "Auxiliary space complexity as LaTeX, for example $O(n \\log n)$."
           },
           "complexityNotes": {
             "type": "string"
@@ -7233,10 +7549,12 @@
             "description": "Optional for the canonical approach; other approaches require a name."
           },
           "timeComplexity": {
-            "type": "string"
+            "type": "string",
+            "description": "Time complexity as LaTeX, for example $O(n \\log n)$."
           },
           "spaceComplexity": {
-            "type": "string"
+            "type": "string",
+            "description": "Auxiliary space complexity as LaTeX, for example $O(n \\log n)$."
           },
           "complexityNotes": {
             "type": "string"
@@ -7250,9 +7568,6 @@
             "type": "string"
           },
           "slug": {
-            "type": "string"
-          },
-          "version": {
             "type": "string"
           },
           "title": {
@@ -7280,7 +7595,8 @@
             }
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "examples": {
             "type": "array",
@@ -7311,7 +7627,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -7676,7 +7991,8 @@
             "type": "string"
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "methods": {
             "type": "array",
@@ -7824,7 +8140,8 @@
             "type": "string"
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "signature": {
             "$ref": "#/components/schemas/Signature"
@@ -7939,7 +8256,7 @@
         "type": "object",
         "properties": {
           "problem": {
-            "$ref": "#/components/schemas/ProblemVersion"
+            "$ref": "#/components/schemas/PublishedQuestion"
           },
           "language": {
             "$ref": "#/components/schemas/Language"
@@ -8317,9 +8634,6 @@
           "slug": {
             "type": "string"
           },
-          "version": {
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -8345,7 +8659,8 @@
             }
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "examples": {
             "type": "array",
@@ -8376,7 +8691,6 @@
         "required": [
           "id",
           "slug",
-          "version",
           "title",
           "difficulty",
           "tags",
@@ -8442,7 +8756,8 @@
             "type": "string"
           },
           "statementMarkdown": {
-            "type": "string"
+            "type": "string",
+            "description": "Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \\le$ `nums[i]` $\\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math."
           },
           "methods": {
             "type": "array",
@@ -8765,6 +9080,7 @@
       "MatchReviewSubmission": {
         "type": "object",
         "properties": {
+          "winning": { "type": "boolean" },
           "language": {
             "type": "string"
           },
@@ -8819,6 +9135,20 @@
               }
             ]
           },
+          "finalCode": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "language": { "type": "string" },
+                  "source": { "type": "string" }
+                },
+                "required": ["language", "source"],
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          },
           "submission": {
             "anyOf": [
               {
@@ -8858,7 +9188,7 @@
             ]
           },
           "problem": {
-            "$ref": "#/components/schemas/ProblemVersion"
+            "$ref": "#/components/schemas/PublishedQuestion"
           },
           "participants": {
             "type": "array",

@@ -9,6 +9,7 @@ export function questionValue(
   language: EditorLanguage,
   type?: string,
   context?: NodeContext,
+  rowLayout = false,
 ): string {
   let literalType = type;
   while (literalType?.startsWith("optional<")) literalType = literalType.slice(9, -1);
@@ -40,7 +41,7 @@ export function questionValue(
         : undefined);
     const elements = value
       .map((item) => questionValue(item, language, inner))
-      .join(language === "ocaml" ? "; " : ",");
+      .join(language === "ocaml" ? (rowLayout ? ";\n" : "; ") : rowLayout ? ",\n" : ",");
     return language === "ocaml" && array ? `[|${elements}|]` : `[${elements}]`;
   }
   while (type?.startsWith("optional<")) type = type.slice(9, -1);

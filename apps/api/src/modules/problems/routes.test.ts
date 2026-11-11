@@ -17,7 +17,7 @@ it("uses injected identity, validates filters and returns contract errors", asyn
       calls.push(`slug:${actor?.userId ?? "anonymous"}:${slug}`);
       return null;
     },
-    byVersion: async () => null,
+    byPublication: async () => null,
     editorials: async () => '{"items":[]}',
     recommendationFeedback: async () => {},
     candidates: async () => [],
@@ -53,7 +53,7 @@ it("uses injected identity, validates filters and returns contract errors", asyn
   const missing = await app.request("/v1/problems/private");
   expect(missing.status).toBe(404);
   expect(await missing.json()).toMatchObject({ error: { code: "not_found" } });
-  expect((await app.request("/v1/problem-versions/not-a-uuid/solutions")).status).toBe(400);
+  expect((await app.request("/v1/question-publications/not-a-uuid/solutions")).status).toBe(400);
   expect((await app.request("/v1/problems", { headers: { Authorization: "bad" } })).status).toBe(
     401,
   );

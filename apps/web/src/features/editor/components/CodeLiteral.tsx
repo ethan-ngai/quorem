@@ -4,7 +4,7 @@ import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { loadLanguageExtensions, type EditorLanguage } from "../editorLanguages";
 import { highlightedPython } from "../pythonHighlighting";
-import { parameterTag } from "../syntaxHighlighting";
+import { editorSyntaxStyle, parameterTag } from "../syntaxHighlighting";
 import "./code-literal.css";
 
 type Tree = NonNullable<ReturnType<typeof ensureSyntaxTree>>;
@@ -24,10 +24,10 @@ const styles = tagHighlighter([
   { tag: tags.punctuation, class: "code-punctuation" },
 ]);
 
-function highlight(source: string, tree: Tree): ReactNode[] {
+function highlight(source: string, tree: Tree, block: boolean): ReactNode[] {
   let offset = 0;
   const pieces: ReactNode[] = [];
-  highlightTree(tree, styles, (from, to, classes) => {
+  highlightTree(tree, block ? editorSyntaxStyle : styles, (from, to, classes) => {
     if (from > offset) pieces.push(source.slice(offset, from));
     pieces.push(
       <span className={classes} key={from}>
@@ -78,8 +78,8 @@ export function CodeLiteral({
         : parsed?.source === source && parsed.language === language
           ? parsed.tree
           : undefined;
-    return tree ? highlight(source, tree) : source;
-  }, [source, language, withinBudget, parsed]);
+    return tree ? highlight(source, tree, block) : source;
+  }, [source, language, withinBudget, parsed, block]);
   const code = (
     <code className={block ? "code-literal" : (className ?? "code-literal")}>{text}</code>
   );

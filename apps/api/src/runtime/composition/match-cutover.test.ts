@@ -75,6 +75,7 @@ describe("party cutover", () => {
           identify,
           review: {
             read: async () => '{"ok":true}',
+            saveFinalCode: async () => {},
             createWorkspace: async () => {
               throw new Error("unexpected");
             },
@@ -84,6 +85,15 @@ describe("party cutover", () => {
     expect((await app.request("/v1/matches/current")).status).toBe(200);
     expect((await app.request("/v1/matches/id")).status).toBe(200);
     expect((await app.request("/v1/matches/id/review")).status).toBe(200);
+    expect(
+      (
+        await app.request("/v1/matches/id/review/code", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ workspaceId: "workspace", source: "" }),
+        })
+      ).status,
+    ).toBe(204);
     for (const [path, body] of [
       ["forfeit", {}],
       ["leave", {}],

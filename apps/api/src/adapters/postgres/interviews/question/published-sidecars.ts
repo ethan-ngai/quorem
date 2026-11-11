@@ -1,4 +1,5 @@
 /** @file published-sidecars.ts @description Lossless public example and private case projection. @module interviews */
+import { publicExampleJson } from "../../problems/queries/public-projection.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { StreamingJsonReader, decodeUtf8Chunks } from "@quorem/questions";
@@ -6,7 +7,7 @@ import { StreamingJsonReader, decodeUtf8Chunks } from "@quorem/questions";
 type Range = { start: number; length: number };
 type Field = { name: string; range?: Range; calls?: Field[][] | null };
 type Example = Field[];
-const exampleKeys = new Set(["args", "expected", "calls", "explanation"]);
+const exampleKeys = new Set(["args", "expected", "calls", "explanation", "graphs"]);
 const callKeys = new Set(["methodName", "args", "expected"]);
 
 async function skip(reader: StreamingJsonReader): Promise<Range> {
@@ -149,7 +150,7 @@ async function scanColumn(tx: Transaction, versionId: string, source: "public" |
   const column = source === "public" ? sql`lossless_public` : sql`lossless_stages`;
   const present = (
     await tx.execute<{ present: boolean }>(
-      sql`SELECT COALESCE(octet_length(${column})>0,false) AS present FROM problem_versions WHERE id=${versionId}::uuid`,
+      sql`SELECT COALESCE(octet_length(${column})>0,false) AS present FROM question_publications WHERE id=${versionId}::uuid`,
     )
   ).rows[0]?.present;
   if (!present) return undefined;
@@ -157,7 +158,7 @@ async function scanColumn(tx: Transaction, versionId: string, source: "public" |
     for (let offset = 1; ; offset += 65536) {
       const row = (
         await tx.execute<{ part: Uint8Array }>(
-          sql`SELECT substring(${column} FROM ${offset} FOR 65536) AS part FROM problem_versions WHERE id=${versionId}::uuid`,
+          sql`SELECT substring(${column} FROM ${offset} FOR 65536) AS part FROM question_publications WHERE id=${versionId}::uuid`,
         )
       ).rows[0];
       if (!row || !row.part.length) break;
@@ -180,7 +181,7 @@ export async function savePublishedInterviewSidecars(
     stages = await scanColumn(tx, versionId, "stages");
   const count = (
     await tx.execute<{ total: number }>(
-      sql`SELECT CASE WHEN jsonb_typeof(odyssey->'levels')='array' THEN jsonb_array_length(odyssey->'levels') ELSE 0 END AS total FROM problem_versions WHERE id=${versionId}::uuid`,
+      sql`SELECT CASE WHEN jsonb_typeof(odyssey->'levels')='array' THEN jsonb_array_length(odyssey->'levels') ELSE 0 END AS total FROM question_publications WHERE id=${versionId}::uuid`,
     )
   ).rows[0]?.total;
   if (count === undefined) throw new Error("Question unavailable");
@@ -194,22 +195,22 @@ export async function savePublishedInterviewSidecars(
         ? sql`CASE WHEN ${projected} = ${values(firstStage, sql`v.lossless_stages`)} THEN ${bytes("[]")} ELSE ${projected} END`
         : projected;
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},${data} FROM problem_versions v WHERE v.id=${versionId}::uuid${conflict}`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},${data} FROM question_publications v WHERE v.id=${versionId}::uuid${conflict}`,
       );
     } else if (level === 0) {
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM problem_versions v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE version_id=v.id) e WHERE v.id=${versionId}::uuid${conflict}`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,0,convert_to(CASE WHEN v.odyssey IS NOT NULL AND ${stages === undefined} AND e.examples=v.odyssey->'levels'->0->'examples' THEN '[]' ELSE e.examples::text END,'UTF8') FROM question_publications v CROSS JOIN LATERAL (SELECT COALESCE(jsonb_agg(${publicExampleJson} ORDER BY ordinal),'[]'::jsonb) AS examples FROM problem_examples WHERE publication_id=v.id) e WHERE v.id=${versionId}::uuid${conflict}`,
       );
     } else {
       const projection = safeExample(sql`entry`);
       await tx.execute(
-        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},convert_to(COALESCE((SELECT jsonb_agg(${projection} ORDER BY n) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels'->(${level}::int-1)->'examples')='array' THEN v.odyssey->'levels'->(${level}::int-1)->'examples' ELSE '[]'::jsonb END) WITH ORDINALITY x(entry,n)),'[]'::jsonb)::text,'UTF8') FROM problem_versions v WHERE v.id=${versionId}::uuid${conflict}`,
+        sql`INSERT INTO interview_public_examples(session_id,question_epoch,level,examples) SELECT ${id}::uuid,${epoch}::uuid,${level},convert_to(COALESCE((SELECT jsonb_agg(${projection} ORDER BY n) FROM jsonb_array_elements(CASE WHEN jsonb_typeof(v.odyssey->'levels'->(${level}::int-1)->'examples')='array' THEN v.odyssey->'levels'->(${level}::int-1)->'examples' ELSE '[]'::jsonb END) WITH ORDINALITY x(entry,n)),'[]'::jsonb)::text,'UTF8') FROM question_publications v WHERE v.id=${versionId}::uuid${conflict}`,
       );
     }
   }
   if (!repair)
     await tx.execute(
-      sql`INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) SELECT ${id}::uuid,${epoch}::uuid,CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END,(row_number() OVER (ORDER BY stage,ordinal)-1)::int,b.data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${versionId}::uuid AND c.channel='hidden' ${repair ? sql`AND EXISTS(SELECT 1 FROM interview_question_public q WHERE q.session_id=${id}::uuid AND q.question_epoch=${epoch}::uuid AND (CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END) = ANY(q.private_ids)) ON CONFLICT DO NOTHING` : sql``}`,
+      sql`INSERT INTO interview_question_private_cases(session_id,question_epoch,case_id,ordinal,case_data) SELECT ${id}::uuid,${epoch}::uuid,CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END,(row_number() OVER (ORDER BY stage,ordinal)-1)::int,b.data FROM runner_publication_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.publication_id=${versionId}::uuid AND c.channel='hidden' ${repair ? sql`AND EXISTS(SELECT 1 FROM interview_question_public q WHERE q.session_id=${id}::uuid AND q.question_epoch=${epoch}::uuid AND (CASE WHEN stage=0 THEN 'hidden:'||ordinal::text ELSE 'level:'||stage::text||':case:'||ordinal::text END) = ANY(q.private_ids)) ON CONFLICT DO NOTHING` : sql``}`,
     );
 }
 /** Bind already-projected public examples to the immutable snapshot in the same transaction. */

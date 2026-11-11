@@ -1,4 +1,5 @@
 /** @file private-content.ts @description Authorized transaction-bound private question snapshots. @module problems */
+import { publicExampleJson } from "./queries/public-projection.ts";
 import { languageRuntime } from "@quorem/execution";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -32,16 +33,16 @@ async function readPrivateQuestionContent(
       data: string;
       lossless: Uint8Array | null;
     }>(sql`SELECT p.owner_id AS owner,v.lossless_fixture AS lossless,jsonb_build_object(
- 'problem',jsonb_build_object('id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
- 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE version_id=v.id),'[]'::jsonb),
+ 'problem',jsonb_build_object('id',v.id,'slug',p.slug,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
+ 'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE publication_id=v.id),'[]'::jsonb),
  'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
- 'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'explanation',explanation,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb)),
- 'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
- 'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
+ 'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb)),
+ 'hiddenCases',COALESCE((SELECT jsonb_agg((jsonb_build_object('args',args,'expected',expected,'calls',calls) || CASE WHEN graphs IS NULL THEN '{}'::jsonb ELSE jsonb_build_object('graphs',graphs) END) ORDER BY ordinal) FROM problem_test_cases WHERE publication_id=v.id),'[]'::jsonb),
+ 'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.publication_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END,
  'attribution',v.attribution,
  'canonicalApproachId',${canonicalApproachProjection(sql`v.id`)},
  'approaches',${approachesProjection(sql`v.id`)})::text AS data
- FROM problem_versions v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_version_id=v.id)) ${lock ? sql`FOR SHARE OF p,v` : sql``}`)
+ FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND (p.owner_id=${actorUserId} OR (${allowGlobal} AND p.owner_id IS NULL)) AND (NOT ${currentOnly} OR (v.sealed AND p.current_publication_id=v.id)) ${lock ? sql`FOR SHARE OF p,v` : sql``}`)
   ).rows;
   if (!rows.length) return undefined;
   const c = content(rows[0].data),
@@ -77,7 +78,7 @@ async function readPrivateQuestionContent(
   delete c.odysseyHiddenCases;
   return normalizeQuestionDraft(stringifyLosslessJson(c));
 }
-/** Authoring may clone owned private versions or global versions as administrator. */
+/** Authoring may clone owned private questions or global questions as administrator. */
 export function readAuthoringQuestion(
   tx: Transaction,
   actorUserId: string,
@@ -91,10 +92,10 @@ export function readAuthoringQuestion(
 export async function readPublishedFixture(
   tx: Transaction,
   actorUserId: string,
-  versionId: string,
+  publicationId: string,
   language: string,
 ): Promise<{ content: string; starterSource: string; language: string } | undefined> {
-  const raw = await readPrivateQuestionContent(tx, actorUserId, versionId, true, true);
+  const raw = await readPrivateQuestionContent(tx, actorUserId, publicationId, true, true);
   if (!raw) return undefined;
   const implementations = generateQuestionImplementations(
     object(content(raw).problem) as unknown as QuestionProblem,

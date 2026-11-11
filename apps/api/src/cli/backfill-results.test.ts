@@ -64,11 +64,11 @@ void test(
         workspace = crypto.randomUUID();
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,'fixture')", [problem]);
       await pool.query(
-        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'Fixture','easy','','{}','[]','{}','')",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','','{}','[]','{}','')",
         [version, problem],
       );
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,'owner',$2,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,'owner',$2,'python')",
         [workspace, version],
       );
       const old = crypto.randomUUID(),

@@ -1,6 +1,8 @@
 /** @file catalog-filter.ts @description Catalog query and question identifier schemas. @module contracts */
 import { z } from "zod";
 
+export const defaultCatalogFormat = "classic";
+
 export const problemId = z.guid();
 const selection = (item: z.ZodType) =>
   z

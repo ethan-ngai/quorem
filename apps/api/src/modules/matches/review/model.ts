@@ -9,5 +9,11 @@ export interface MatchReview {
     participantUserId: string,
     language: WorkspaceLanguage,
   ): Promise<Workspace>;
+  saveFinalCode(
+    principal: Principal,
+    matchId: string,
+    workspaceId: string,
+    source: string,
+  ): Promise<void>;
   read(principal: Principal, matchId: string): Promise<string>;
 }

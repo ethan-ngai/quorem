@@ -141,10 +141,9 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
           })
         : null;
       await pool.query(
-        "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,$3,'Fixture','easy','',$4::jsonb,'[]'::jsonb,$5::jsonb,'',$6)",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,$4::jsonb,'',$5)",
         [
           versions[i],
-          i + 1,
           problem,
           JSON.stringify(signature),
           limit,
@@ -152,15 +151,15 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
         ],
       );
       await pool.query(
-        "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
+        "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
         [versions[i], i ? '["public"]' : "[1]", i ? '"public"' : "2"],
       );
       await pool.query(
-        "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
+        "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
         [versions[i], i ? '["PRIVATEVALUE"]' : "[3]", i ? '"PRIVATEVALUE"' : "4"],
       );
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspaces[i], owner, versions[i]],
       );
     }
@@ -182,9 +181,13 @@ describe.skipIf(!url || !judge)("admission, Go judge and result routes", () => {
     );
     await pool.query("DELETE FROM submissions WHERE owner_id=$1", [owner]);
     await pool.query("DELETE FROM workspaces WHERE owner_id=$1", [owner]);
-    await pool.query("DELETE FROM problem_examples WHERE version_id=ANY($1::uuid[])", [versions]);
-    await pool.query("DELETE FROM problem_test_cases WHERE version_id=ANY($1::uuid[])", [versions]);
-    await pool.query("DELETE FROM problem_versions WHERE id=ANY($1::uuid[])", [versions]);
+    await pool.query("DELETE FROM problem_examples WHERE publication_id=ANY($1::uuid[])", [
+      versions,
+    ]);
+    await pool.query("DELETE FROM problem_test_cases WHERE publication_id=ANY($1::uuid[])", [
+      versions,
+    ]);
+    await pool.query("DELETE FROM question_publications WHERE id=ANY($1::uuid[])", [versions]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=ANY($1)", [[owner, other]]);
     await pool.end();

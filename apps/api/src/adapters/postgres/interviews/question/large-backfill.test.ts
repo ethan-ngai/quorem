@@ -46,7 +46,7 @@ it.skipIf(!url || process.env.QUOREM_LARGE_BACKFILL_TEST !== "1")(
       );
       const source = (
         await pool.query(
-          "SELECT i.id::text AS id FROM interviews i JOIN problem_versions v ON v.id::text=i.question->'problem'->>'id' WHERE octet_length(v.lossless_fixture)>134217728 ORDER BY i.created_at DESC LIMIT 1",
+          "SELECT i.id::text AS id FROM interviews i JOIN question_publications v ON v.id::text=i.question->'problem'->>'id' WHERE octet_length(v.lossless_fixture)>134217728 ORDER BY i.created_at DESC LIMIT 1",
         )
       ).rows[0];
       if (!source) throw new Error("Run the large workerd fixture first");

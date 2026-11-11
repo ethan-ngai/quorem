@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { requireReadyTeams } from "../../../modules/factions/policy.ts";
 import { teamLobby } from "./lobby.ts";
-import { projectAuthorizedVersion } from "../problems/queries/repository.ts";
+import { projectAuthorizedPublication } from "../problems/queries/repository.ts";
 import { projectQuestionRuntime } from "../problems/runtime.ts";
 import { parseLosslessJson, type JsonValue } from "@quorem/questions";
 export async function freezePartyTeams(tx: Transaction, partyId: string, matchId: string) {
@@ -20,7 +20,7 @@ export async function freezePartyTeams(tx: Transaction, partyId: string, matchId
 export async function initializeTeamWorkspaces(tx: Transaction, id: string) {
   const members = (
     await tx.execute<{ team: number; workspace: string; version: string; language: string }>(
-      sql`SELECT p.team,p.workspace_id::text AS workspace,w.problem_version_id::text AS version,w.language FROM match_participants p JOIN workspaces w ON w.id=p.workspace_id WHERE p.match_id=${id}::uuid ORDER BY p.seat`,
+      sql`SELECT p.team,p.workspace_id::text AS workspace,w.publication_id::text AS version,w.language FROM match_participants p JOIN workspaces w ON w.id=p.workspace_id WHERE p.match_id=${id}::uuid ORDER BY p.seat`,
     )
   ).rows;
   const teams = new Map<number, string>();
@@ -36,7 +36,7 @@ export async function initializeTeamWorkspaces(tx: Transaction, id: string) {
     await tx.execute(
       sql`UPDATE workspaces SET team=${member.team} WHERE id=${member.workspace}::uuid`,
     );
-    const raw = await projectAuthorizedVersion(tx, member.version);
+    const raw = await projectAuthorizedPublication(tx, member.version);
     if (!raw) throw new Error("Team question unavailable");
     const problem = parseLosslessJson(raw) as { [key: string]: JsonValue };
     projectQuestionRuntime(problem, member.language);

@@ -98,7 +98,7 @@ export async function prepareRuleAction(
   } else if (input.kind === "topics") {
     const row = (
       await tx.execute<{ topics: string[] }>(
-        sql`SELECT ${topicProjection(sql`m.problem_version_id`)} AS topics FROM matches m WHERE m.id=${match}::uuid`,
+        sql`SELECT ${topicProjection(sql`m.publication_id`)} AS topics FROM matches m WHERE m.id=${match}::uuid`,
       )
     ).rows[0];
     if (!row?.topics.length) throw new ApplicationError("not_found", "No topics available", 404);
@@ -106,7 +106,7 @@ export async function prepareRuleAction(
   } else {
     const row = (
       await tx.execute<{ data: string }>(
-        sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`m.problem_version_id`)},'items',${approachesProjection(sql`m.problem_version_id`, false)})::text AS data FROM matches m JOIN problem_versions v ON v.id=m.problem_version_id WHERE m.id=${match}::uuid AND v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches a WHERE a.version_id=v.id AND btrim(a.time_complexity)<>'' AND btrim(a.space_complexity)<>'')`,
+        sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`m.publication_id`)},'items',${approachesProjection(sql`m.publication_id`, false)})::text AS data FROM matches m JOIN question_publications v ON v.id=m.publication_id WHERE m.id=${match}::uuid AND v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches a WHERE a.publication_id=v.id AND btrim(a.time_complexity)<>'' AND btrim(a.space_complexity)<>'')`,
       )
     ).rows[0];
     if (!row) throw new ApplicationError("not_found", "No complexity available", 404);

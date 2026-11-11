@@ -48,7 +48,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           i === 1 ? owner : null,
         ]);
         await pool.query(
-          `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_public,lossless_fixture,sql_config) VALUES($1,$2,1,$3,$4,'statement',$5::jsonb,'[]'::jsonb,$6::jsonb,'fixture',$7::jsonb,$8,$9,$10::jsonb)`,
+          `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey,lossless_public,lossless_fixture,sql_config) VALUES($1,$2,$3,$4,'statement',$5::jsonb,'[]'::jsonb,$6::jsonb,'fixture',$7::jsonb,$8,$9,$10::jsonb)`,
           [
             versions[i],
             ids[i],
@@ -101,33 +101,37 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
           ],
         );
         await pool.query(
-          "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
+          "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
           [versions[i]],
         );
-        await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,0)", [
+        await pool.query("INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES($1,$2,0)", [
           versions[i],
           i === 0 ? "Joins" : i === 2 ? "Simulation" : "arrays",
         ]);
-        await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [
+        await pool.query("UPDATE problems SET current_publication_id=$1 WHERE id=$2", [
           versions[i],
           ids[i],
         ]);
       }
       await pool.query(
-        `INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) SELECT $1,problem_id,2,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config FROM problem_versions WHERE id=$2`,
+        `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) SELECT $1,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config FROM question_publications WHERE id=$2`,
         [historical, versions[0]],
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-company`]);
       await pool.query(
+        "INSERT INTO company_tiers(company_key,tier) SELECT $1,tier FROM company_tiers WHERE company_key='amazon'",
+        [`${uid}-company`],
+      );
+      await pool.query(
         "INSERT INTO problem_companies(problem_id,company_id) SELECT p,id FROM companies CROSS JOIN unnest($1::uuid[]) p WHERE name=$2",
         [[ids[1], ids[2]], `${uid}-company`],
       );
-      await pool.query("INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,$2,1)", [
+      await pool.query("INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES($1,$2,1)", [
         versions[1],
         `${uid}-private-tag`,
       ]);
       await pool.query(
-        "INSERT INTO problem_tags(version_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2),($2,'Array',3),($2,'arrays',4),($2,'Hash Maps',5),($2,'Hash Table',6),($2,'simulation',7),($2,'SQL',8)",
+        "INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES($1,'Heap (Priority Queue)',2),($2,'heap',1),($2,'breadth first search',2),($2,'Array',3),($2,'arrays',4),($2,'Hash Maps',5),($2,'Hash Table',6),($2,'simulation',7),($2,'SQL',8)",
         [versions[1], versions[2]],
       );
       await pool.query("INSERT INTO companies(name) VALUES($1)", [`${uid}-private-company`]);
@@ -140,11 +144,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [versions[1]],
       );
       await pool.query(
-        "INSERT INTO problem_solutions(version_id,approach_id,language,source) VALUES($1,'default','python','SECRET EDITORIAL')",
+        "INSERT INTO problem_solutions(publication_id,approach_id,language,source) VALUES($1,'default','python','SECRET EDITORIAL')",
         [versions[1]],
       );
       await pool.query(
-        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,problem_version_id,started_at,deadline,difficulties,rules) VALUES($1,$2,$3,now()+interval '1 hour',30,'active',$4,now(),now()+interval '30 minutes',ARRAY['easy'], $5::jsonb)",
+        "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,publication_id,started_at,deadline,difficulties,rules) VALUES($1,$2,$3,now()+interval '1 hour',30,'active',$4,now(),now()+interval '30 minutes',ARRAY['easy'], $5::jsonb)",
         [match, owner, `hash-${uid}`, versions[1], JSON.stringify(matchPreset("casual"))],
       );
       await pool.query(
@@ -160,19 +164,20 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${rolePassword}'`);
       await pool.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
       for (const [table, columns] of Object.entries({
-        problems: "id,slug,current_version_id,owner_id,leetcode_id",
-        problem_versions:
-          "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
-        problem_examples: "version_id,ordinal,args,expected,explanation,calls",
-        runner_version_input_cases: "version_id,channel,stage",
-        problem_tags: "version_id,tag,ordinal",
-        foundational_topics: "slug,label,aliases",
+        problems: "id,slug,current_publication_id,owner_id,leetcode_id",
+        question_publications:
+          "id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
+        problem_examples: "publication_id,ordinal,args,expected,explanation,calls,graphs",
+        runner_publication_input_cases: "publication_id,channel,stage",
+        problem_tags: "publication_id,tag,ordinal",
+        foundational_topics: "slug,label,aliases,is_foundational",
         problem_solution_approaches:
-          "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
-        problem_solutions: "version_id,approach_id,language,source",
+          "publication_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+        problem_solutions: "publication_id,approach_id,language,source",
         companies: "id,name",
+        company_tiers: "company_key,tier",
         problem_companies: "problem_id,company_id",
-        matches: "id,problem_version_id,state,rules",
+        matches: "id,publication_id,state,rules",
         match_participants: "match_id,owner_id,forfeited,competitor_id",
         match_rule_events: "match_id,competitor_id,kind,resource_key",
         match_reservations: "match_id,owner_id",
@@ -190,13 +195,13 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       });
       try {
         await expect(
-          limited.query("SELECT fixture_identity_hash FROM problem_versions LIMIT 1"),
+          limited.query("SELECT fixture_identity_hash FROM question_publications LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         await expect(
-          limited.query("SELECT lossless_fixture FROM problem_versions LIMIT 1"),
+          limited.query("SELECT lossless_fixture FROM question_publications LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         await expect(
-          limited.query("SELECT blob_hash FROM runner_version_input_cases LIMIT 1"),
+          limited.query("SELECT blob_hash FROM runner_publication_input_cases LIMIT 1"),
         ).rejects.toMatchObject({ code: "42501" });
         const queries = problemQueries((read) =>
           withNodeConnection(limited, { lifetimeMs: 10000 }, read),
@@ -303,6 +308,18 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             ),
           ).toBe(visible);
           expect(result.companies.includes(`${uid}-private-company`)).toBe(visible);
+          if (library !== "private" || visible) {
+            expect(result.companyFacets).toContainEqual({
+              name: `${uid}-company`,
+              tier: "faang",
+              count: visible && library !== "private" ? 2 : 1,
+            });
+          }
+          expect(
+            result.companyFacets.some(
+              ({ name }: { name: string }) => name === `${uid}-private-company`,
+            ),
+          ).toBe(visible);
         }
         const catalogIn = async (scope: string) =>
           JSON.parse(
@@ -330,10 +347,23 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         expect(odyssey.items[0].tags).toEqual([
           "Heap",
           "Breadth-First Search",
-          "Arrays",
           "Hash Tables",
           "simulation",
+          "Arrays",
         ]);
+        expect(
+          odyssey.foundationalTopics.map(({ label }: { label: string }) => label),
+        ).not.toContain("Arrays");
+        expect(odyssey.topicAliases["foundational:arrays"]).toBe("Arrays");
+        expect(odyssey.companyFacets).toContainEqual({
+          name: `${uid}-company`,
+          tier: "faang",
+          count: 1,
+        });
+        for (const value of ["Array", "Arrays", "foundational:arrays"]) {
+          const page = await catalogIn(`sql=false&type=odyssey&topic=${value}`);
+          expect(page.items.map(({ id }: { id: string }) => id)).toEqual([versions[2]]);
+        }
         expect(JSON.parse((await queries.bySlug(undefined, `${uid}-2`))!).tags).toEqual(
           odyssey.items[0].tags,
         );
@@ -378,7 +408,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         ).toContainEqual({ id: versions[2], sql: false });
         expect(foundational.foundationalTopics).toEqual(
           expect.arrayContaining([
-            { value: "foundational:heap", label: "Heap", tags: ["Heap (Priority Queue)", "heap"] },
+            {
+              value: "foundational:heap",
+              label: "Heap",
+              tags: expect.arrayContaining(["Heap (Priority Queue)", "heap"]),
+            },
             {
               value: "foundational:breadth-first-search",
               label: "Breadth-First Search",
@@ -386,23 +420,23 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             },
           ]),
         );
-        expect(await queries.byVersion(undefined, historical)).toContain(
+        expect(await queries.byPublication(undefined, historical)).toContain(
           "-- Write your query here.",
         );
-        expect(await queries.bySlug(undefined, `${uid}-0`)).toContain('"version":"1"');
+        expect(await queries.bySlug(undefined, `${uid}-0`)).toContain(`"id":"${versions[0]}"`);
         expect(await queries.bySlug(undefined, `${uid}-1`)).toBeNull();
-        expect(await queries.byVersion(undefined, versions[1])).toBeNull();
-        expect(await queries.byVersion({ userId: participant }, versions[1])).toContain(
+        expect(await queries.byPublication(undefined, versions[1])).toBeNull();
+        expect(await queries.byPublication({ userId: participant }, versions[1])).toContain(
           '"isPrivate":true',
         );
-        expect(await queries.byVersion({ userId: other }, versions[1])).toBeNull();
+        expect(await queries.byPublication({ userId: other }, versions[1])).toBeNull();
         const anonymous = createApp({ allowedOrigins: [], requestId: () => "test" }).route(
           "/",
           problemRoutes({ queries, identify: async () => undefined }),
         );
         expect(
           (
-            await anonymous.request(`/v1/problem-versions/${versions[1]}`, {
+            await anonymous.request(`/v1/question-publications/${versions[1]}`, {
               headers: { "X-Quorem-Owner": owner, "X-Dev-User": owner },
             })
           ).status,
@@ -422,9 +456,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             }),
           }),
         );
-        expect((await member.request(`/v1/problem-versions/${versions[1]}`)).status).toBe(200);
+        expect((await member.request(`/v1/question-publications/${versions[1]}`)).status).toBe(200);
 
-        const visible = await queries.byVersion(undefined, versions[2]);
+        const visible = await queries.byPublication(undefined, versions[2]);
         expect(visible).not.toContain("SECRET");
         expect(visible).toContain("\\u0000");
         expect(visible).toContain("9007199254740993");
@@ -473,7 +507,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const chosen = await queries.candidates(
           { userId: owner },
           {
-            selectedVersionId: versions[1],
+            selectedPublicationId: versions[1],
             difficulty: "hard",
             topic: "missing",
             company: "",
@@ -507,7 +541,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
             } as ConnectionScope),
           ),
         );
-        const inFlight = raced.byVersion({ userId: participant }, versions[1]);
+        const inFlight = raced.byPublication({ userId: participant }, versions[1]);
         await entered;
         await pool.query(
           "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2",
@@ -515,7 +549,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         );
         resume();
         expect(await inFlight).not.toBeNull();
-        expect(await queries.byVersion({ userId: participant }, versions[1])).toBeNull();
+        expect(await queries.byPublication({ userId: participant }, versions[1])).toBeNull();
         let unblock!: () => void;
         let began!: () => void;
         const waiting = new Promise<void>((resolve) => {
@@ -537,22 +571,22 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         unblock();
 
         await pool.query("UPDATE problems SET owner_id=$1 WHERE id=$2", [other, ids[1]]);
-        expect(await queries.byVersion({ userId: owner }, versions[1])).not.toBeNull();
+        expect(await queries.byPublication({ userId: owner }, versions[1])).not.toBeNull();
         await pool.query("UPDATE matches SET state='completed',outcome='{}'::jsonb WHERE id=$1", [
           match,
         ]);
-        expect(await queries.byVersion({ userId: owner }, versions[1])).toBeNull();
-        expect(await queries.byVersion({ userId: other }, versions[1])).not.toBeNull();
+        expect(await queries.byPublication({ userId: owner }, versions[1])).toBeNull();
+        expect(await queries.byPublication({ userId: other }, versions[1])).not.toBeNull();
         await pool.query(
           "INSERT INTO users(id,display_name) VALUES('','Empty') ON CONFLICT DO NOTHING",
         );
         await pool.query("UPDATE problems SET owner_id='' WHERE id=$1", [ids[1]]);
-        expect(await queries.byVersion(undefined, versions[1])).toBeNull();
+        expect(await queries.byPublication(undefined, versions[1])).toBeNull();
 
-        await pool.query("UPDATE problems SET current_version_id=NULL WHERE id=$1", [ids[2]]);
+        await pool.query("UPDATE problems SET current_publication_id=NULL WHERE id=$1", [ids[2]]);
         expect(await queries.bySlug(undefined, `${uid}-2`)).toBeNull();
-        expect(await queries.byVersion(undefined, versions[2])).not.toBeNull();
-        await pool.query(`REVOKE SELECT(lossless_public) ON problem_versions FROM ${role}`);
+        expect(await queries.byPublication(undefined, versions[2])).not.toBeNull();
+        await pool.query(`REVOKE SELECT(lossless_public) ON question_publications FROM ${role}`);
         const unavailable = await anonymous.request(`/v1/problems/${uid}-0`);
         expect(unavailable.status).toBe(503);
         const failure = await unavailable.text();

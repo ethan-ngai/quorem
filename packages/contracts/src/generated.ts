@@ -40,14 +40,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}": {
+    "/v1/question-publications/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["getProblemVersion"];
+        get: operations["getPublishedQuestion"];
         put?: never;
         post?: never;
         delete?: never;
@@ -264,7 +264,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}/solutions": {
+    "/v1/question-publications/{id}/solutions": {
         parameters: {
             query?: never;
             header?: never;
@@ -280,7 +280,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/problem-versions/{id}/complexity": {
+    "/v1/question-publications/{id}/complexity": {
         parameters: {
             query?: never;
             header?: never;
@@ -1096,6 +1096,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/review/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save the current editor source for post-match sharing */
+        put: operations["saveMatchReviewCode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/matches/{id}/review/workspaces": {
         parameters: {
             query?: never;
@@ -1516,6 +1533,13 @@ export interface components {
             /** @description Registered input preset ID. Built-ins: default, number, text, boolean, sequence, matrix, tree, linkedList, structured. Server rejects unregistered or codec-incompatible presets. */
             preset: string;
             placeholder?: string;
+            /**
+             * @description Display a two-dimensional array on one line or one row per line. Defaults to inline.
+             * @enum {string}
+             */
+            layout?: "inline" | "rows";
+            /** @description Show a grid from this two-dimensional array in examples and tests. */
+            showGrid?: boolean;
             rows?: number;
         };
         Parameter: {
@@ -1524,7 +1548,36 @@ export interface components {
             input?: components["schemas"]["InputPresetConfig"];
             description?: string;
         };
+        GraphNodeId: number | string;
+        QuestionGraph: {
+            directed: boolean;
+            nodes: (components["schemas"]["GraphNodeId"] | {
+                id: components["schemas"]["GraphNodeId"];
+                value: components["schemas"]["WireValue"];
+            })[];
+            edges: {
+                from: components["schemas"]["GraphNodeId"];
+                to: components["schemas"]["GraphNodeId"];
+                value?: components["schemas"]["WireValue"];
+            }[];
+        };
+        GraphEncoding: {
+            /** @enum {string} */
+            kind: "edgeList" | "adjacencyList" | "adjacencyMatrix" | "successor" | "parent" | "custom";
+            directed?: boolean;
+            nodeValueType?: string;
+            edgeValueType?: string;
+            countParameter?: string;
+            /** @enum {integer} */
+            firstNode?: 0 | 1;
+            edgeValue?: string;
+            /** @enum {integer} */
+            matrixDiagonal?: 0 | 1;
+        };
         Signature: {
+            graphEncodings?: {
+                [key: string]: components["schemas"]["GraphEncoding"];
+            };
             /** @enum {string} */
             className: "Solution";
             methodName: string;
@@ -1556,27 +1609,34 @@ export interface components {
             maxNestingDepth: number;
         };
         CustomCase: {
+            graphs?: {
+                [key: string]: components["schemas"]["QuestionGraph"];
+            };
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
             calls?: components["schemas"]["MethodCall"][];
         };
         ProblemExample: {
+            graphs?: {
+                [key: string]: components["schemas"]["QuestionGraph"];
+            };
             args: components["schemas"]["WireValue"][];
             expected?: components["schemas"]["WireValue"];
+            /** @description Example Markdown. Use $...$ for math and backticks for code, array access, and property access. Put example-specific diagrams and fenced code here. */
             explanation?: string;
             calls?: components["schemas"]["MethodCall"][];
         };
-        ProblemVersion: {
+        PublishedQuestion: {
             /** Format: uuid */
             id: string;
             isPrivate?: boolean;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -1764,6 +1824,7 @@ export interface components {
             admissionLocked?: boolean;
             /** Format: uuid */
             partyId?: string;
+            shareFinalCode?: boolean;
             reviewPending?: boolean;
             factionNames?: string[];
         };
@@ -1828,7 +1889,19 @@ export interface components {
         ConstraintTarget: {
             parameter: string;
             /** @enum {string} */
-            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues";
+            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues" | "characters" | "indices" | "diagonal" | "columns" | "graph";
+            /** @description Walk into each element or a zero-based index before measuring. For example, ["each"] with length measures each row; ["each", 0] with value selects the first column. */
+            path?: ("each" | number)[];
+            /** @description Add this integer to each numeric measurement, for bounds such as n - 1. */
+            offset?: number;
+            /** @description Sum all projected numeric measurements into one number, such as the total length of all rows. */
+            total?: boolean;
+            /** @description Apply numeric operations in order after measuring, totaling, and adding the offset. Sequences combine at matching positions; scalars broadcast. */
+            operations?: {
+                /** @enum {string} */
+                operator: "add" | "subtract" | "multiply";
+                operand: number | components["schemas"]["ConstraintTarget"];
+            }[];
         };
         Constraint: ({
             /** @constant */
@@ -1866,26 +1939,45 @@ export interface components {
             left: components["schemas"]["ConstraintTarget"];
             right: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
-            operator: "eq" | "le" | "lt" | "ge" | "gt";
+            operator: "eq" | "le" | "lt" | "ge" | "gt" | "ne";
             /**
              * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
              * @enum {string}
              */
             quantifier?: "all" | "any";
+            /**
+             * @description Compare matching positions and require equal projection sizes. Omitted compares all combinations.
+             * @enum {string}
+             */
+            pairing?: "corresponding";
         } | {
             /** @constant */
             kind: "property";
             target: components["schemas"]["ConstraintTarget"];
             /** @enum {string} */
-            property: "sorted" | "nondecreasing" | "unique";
+            property: "sorted" | "nondecreasing" | "unique" | "strictlySorted" | "adjacentDistinct" | "even" | "powerOfTwo" | "symmetric" | "tree" | "binaryTree" | "star" | "acyclic" | "noLoops" | "noParallelEdges";
             /**
-             * @description Ordering direction. Omitted is asc. Applies only to sorted/nondecreasing properties.
+             * @description Ordering direction. Omitted is asc. Applies only to ordering properties.
              * @enum {string}
              */
             direction?: "asc" | "desc";
         } | {
             /** @constant */
+            kind: "membership";
+            target: components["schemas"]["ConstraintTarget"];
+            values: (number | string | boolean)[];
+            /** @description When true, exclude every listed value. Omitted allows only listed values. */
+            negated?: boolean;
+        } | {
+            /** @constant */
+            kind: "definition";
+            /** @description A name used in the statement for a derived input measurement. */
+            name: string;
+            target: components["schemas"]["ConstraintTarget"];
+        } | {
+            /** @constant */
             kind: "prose";
+            /** @description Use only for rules without a structured equivalent. Use Markdown with LaTeX for math and backticks for program accesses. */
             text: string;
         };
         /** @enum {string} */
@@ -1973,7 +2065,9 @@ export interface components {
             /** @enum {string} */
             defaultLanguage?: "python" | "java" | "typescript" | "ocaml" | "postgresql";
             explanationMarkdown: string;
+            /** @description Time complexity as LaTeX, for example $O(n \log n)$. */
             timeComplexity: string;
+            /** @description Auxiliary space complexity as LaTeX, for example $O(n \log n)$. */
             spaceComplexity: string;
             complexityNotes: string;
             implementations: components["schemas"]["SolutionCode"][];
@@ -1982,19 +2076,21 @@ export interface components {
             id: string;
             /** @description Optional for the canonical approach; other approaches require a name. */
             title: string;
+            /** @description Time complexity as LaTeX, for example $O(n \log n)$. */
             timeComplexity: string;
+            /** @description Auxiliary space complexity as LaTeX, for example $O(n \log n)$. */
             spaceComplexity: string;
             complexityNotes: string;
         };
         QuestionProblem: {
             id: string;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -2101,6 +2197,7 @@ export interface components {
         };
         OdysseyLevel: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             methods: components["schemas"]["Signature"][];
             examples: components["schemas"]["ProblemExample"][];
@@ -2138,6 +2235,7 @@ export interface components {
         };
         InterviewCustomQuestion: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             signature?: components["schemas"]["Signature"];
             publicCases?: components["schemas"]["CustomCase"][];
@@ -2159,7 +2257,7 @@ export interface components {
             guest: boolean;
         };
         InterviewQuestion: {
-            problem: components["schemas"]["ProblemVersion"];
+            problem: components["schemas"]["PublishedQuestion"];
             language: components["schemas"]["Language"];
             progress?: components["schemas"]["OdysseyProgress"];
             languages: components["schemas"]["Language"][];
@@ -2274,12 +2372,12 @@ export interface components {
         AuthoredQuestionProblem: {
             id: string;
             slug: string;
-            version: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
             companies?: string[];
             leetcodeId?: number | null;
             tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             examples: components["schemas"]["ProblemExample"][];
             constraints: components["schemas"]["Constraint"][];
@@ -2293,6 +2391,7 @@ export interface components {
         };
         AuthoredOdysseyLevel: {
             title: string;
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
             methods: components["schemas"]["Signature"][];
             examples: components["schemas"]["ProblemExample"][];
@@ -2390,6 +2489,7 @@ export interface components {
             language: string;
         };
         MatchReviewSubmission: {
+            winning?: boolean;
             language: string;
             source: string;
             verdict: string | null;
@@ -2403,6 +2503,10 @@ export interface components {
             color?: number;
             own: boolean;
             workspace: components["schemas"]["MatchReviewWorkspace"] | null;
+            finalCode?: {
+                language: string;
+                source: string;
+            } | null;
             submission: components["schemas"]["MatchReviewSubmission"] | null;
         };
         MatchReview: {
@@ -2412,7 +2516,7 @@ export interface components {
             completedAt: string;
             shareCodeAfterMatch: boolean;
             outcome: components["schemas"]["MatchOutcome"] | null;
-            problem: components["schemas"]["ProblemVersion"];
+            problem: components["schemas"]["PublishedQuestion"];
             participants: components["schemas"]["MatchReviewParticipant"][];
         };
         PartyGuestJoinRequest: {
@@ -2513,7 +2617,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
             };
             /** @description Safe application error */
@@ -2527,7 +2631,7 @@ export interface operations {
             };
         };
     };
-    getProblemVersion: {
+    getPublishedQuestion: {
         parameters: {
             query?: never;
             header?: never;
@@ -2544,7 +2648,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
             };
             /** @description Safe application error */
@@ -2958,11 +3062,20 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["ProblemVersion"][];
+                        items: components["schemas"]["PublishedQuestion"][];
                         total: number;
                         page: number;
                         limit: number;
                         companies: string[];
+                        companyFacets?: {
+                            name: string;
+                            /** @enum {string} */
+                            tier: "faang" | "top" | "quant" | "mid-tier" | "other";
+                            count: number;
+                        }[];
+                        topicAliases?: {
+                            [key: string]: string;
+                        };
                         recommendationImpressions?: {
                             [key: string]: string;
                         };
@@ -5144,8 +5257,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProblemVersion"];
+                    "application/json": components["schemas"]["PublishedQuestion"];
                 };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    saveMatchReviewCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    workspaceId: string;
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Safe application error */
             default: {

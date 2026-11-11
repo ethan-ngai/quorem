@@ -4,7 +4,7 @@ import { afterAll, beforeAll, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { languageRuntime } from "@quorem/execution";
-import { persistQuestionVersion } from "../problems/publication.ts";
+import { persistQuestionPublication } from "../problems/publication.ts";
 import { assertRunnerFixture } from "../judging/worker/test-db.ts";
 import { resolve } from "node:path";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
@@ -61,16 +61,15 @@ beforeAll(async () => {
   );
   const problem = crypto.randomUUID(),
     version = crypto.randomUUID();
-  Object.assign(fixture.problem, { id: version, slug: "party-fixture", version: "1" });
+  Object.assign(fixture.problem, { id: version, slug: "party-fixture" });
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, async (tx) => {
       await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,'party-fixture')`);
-      await persistQuestionVersion(
+      await persistQuestionPublication(
         tx,
         JSON.stringify(fixture),
         problem,
         version,
-        1,
         null,
         (language) => {
           const r = languageRuntime(language);
