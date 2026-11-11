@@ -1,11 +1,14 @@
 import datetime
 import collections
 import contextlib
+import importlib
 import io
 import json
 import math
 import sys
 import traceback
+from pathlib import Path
+import quorem_types
 from quorem_types import ListNode, TreeNode, NaryTreeNode
 
 MAX_ELEMENTS = 10000
@@ -232,6 +235,20 @@ def invoke(solution, signature, raw):
     raise InvalidOutput()
 
 
+def solution_imports(request):
+    if request.get('automaticImports') is True:
+        modules = json.loads(Path(quorem_types.__file__).with_name('automatic_imports.json').read_text())['python']
+        return {name: importlib.import_module(name) for name in modules}
+    signatures = [request.get('signature'), *request.get('methods', {}).values()]
+    for signature in signatures:
+        if signature and any(
+            'datetime' in kind.replace('>', '').split('<')
+            for kind in [signature['returnType'], *(p['type'] for p in signature['parameters'])]
+        ):
+            return {'datetime': datetime}
+    return {}
+
+
 def main():
     # Signal process readiness before contestant execution; Docker startup has its own deadline.
     sys.__stdout__.write('\0')
@@ -242,6 +259,7 @@ def main():
     try:
         code = compile(request['source'], '<solution>', 'exec')
         namespace = {'ListNode': ListNode, 'TreeNode': TreeNode, 'NaryTreeNode': NaryTreeNode, '__name__': '__solution__'}
+        namespace.update(solution_imports(request))
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             exec(code, namespace)
             signature = request['signature']

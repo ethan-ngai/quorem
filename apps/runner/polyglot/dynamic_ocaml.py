@@ -125,7 +125,7 @@ def decoder(t):
         return '(dec_tree ' + decoder(t[9:-1] if '<' in t else 'int') + ')'
     return {'int':'dec_int','long':'dec_long','float':'dec_float','bool':'dec_bool','str':'dec_str','datetime':'dec_datetime'}[t]
 
-def source(r,h):
+def source(r,h,common=None):
     signatures=dict(r.get('methods') or {})
     signatures[r['signature']['methodName']]=r['signature']
     branches=[]
@@ -169,4 +169,5 @@ def source(r,h):
  prerr_string ("\\nQUOREM_RESULT:"^output)
  with Failure message when message="invalid_output" -> exit 42
 '''.replace('METHOD',json.dumps(r['signature']['methodName']))
-    return h['OCAML_TYPES']+'\nmodule Solution = struct\n'+r['source']+'\nend\n'+h['OCAML_ENCODER']+PARSER+call+main
+    prelude = ''.join(f'open {name}\n' for name in common or [])
+    return h['OCAML_TYPES']+'\nmodule Solution = struct\n'+prelude+r['source']+'\nend\n'+h['OCAML_ENCODER']+PARSER+call+main

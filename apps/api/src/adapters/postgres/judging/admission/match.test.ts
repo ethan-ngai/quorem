@@ -185,11 +185,19 @@ it.skipIf(!url)(
       locker.release();
     }
     await pool.query(
-      "UPDATE matches SET deadline=clock_timestamp()+interval '1 hour' WHERE id=$1",
+      `UPDATE matches SET deadline=clock_timestamp()+interval '1 hour',
+         rules=rules||'{"automaticImports":true}'::jsonb WHERE id=$1`,
       [matches[0]],
     );
     const result = await start(0);
     expect(result.state).toBe("queued");
+    expect(
+      (
+        await pool.query("SELECT automatic_imports FROM execution_jobs WHERE submission_id=$1", [
+          result.id,
+        ])
+      ).rows[0].automatic_imports,
+    ).toBe(true);
     expect(
       (
         await pool.query(

@@ -92,24 +92,13 @@ export function generateStarter(
       language !== "python" &&
       [...sig.parameters.map((p) => p.type), sig.returnType].some((t) => t.includes("Node"));
     const note = node ? "// Judge supplies ListNode, TreeNode and NaryTreeNode.\n" : "";
-    return `${pythonPrelude(methods, language)}${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
+    return `${note}class ${sig.className}${language === "python" ? ":" : " {"}\n${body}${language === "python" ? "" : "}\n"}`;
   }
   const bodies = methods.map((sig) => generateMethodStarter(sig, language, true));
   if (language === "ocaml") return bodies.join("\n");
   if (language === "python")
-    return `${pythonPrelude(methods, language)}class Solution:\n    def __init__(self) -> None:\n        pass\n\n${bodies.join("\n")}`;
+    return `class Solution:\n    def __init__(self) -> None:\n        pass\n\n${bodies.join("\n")}`;
   return `class Solution {\n${language === "java" ? "    public Solution() {" : "    constructor() {"}\n    }\n\n${bodies.join("\n")}}\n`;
-}
-
-function pythonPrelude(methods: readonly Signature[], language: StarterLanguage): string {
-  if (language !== "python") return "";
-  const datetime = methods.some((sig) =>
-    [...sig.parameters.map((p) => p.type), sig.returnType].some((type) =>
-      type.includes("datetime"),
-    ),
-  );
-  // Node generics are annotations only; judge-supplied classes need not be subscriptable.
-  return `from __future__ import annotations\n${datetime ? "import datetime\n" : ""}\n`;
 }
 
 /** Derive executable languages from the signature, independently of editorial code variants. */

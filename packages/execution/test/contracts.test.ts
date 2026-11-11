@@ -55,6 +55,10 @@ async function* chunks(data: Uint8Array) {
 it("binds exact attempt and sandbox scope and rejects stale runtime pairs", () => {
   expect(decodeJob(encodeJob(job), job.sandboxScope)).toEqual(job);
   expect(encodeJob(job)).not.toContain("sandboxScope");
+  for (const automaticImports of [true, false]) {
+    const configured = { ...job, automaticImports };
+    expect(decodeJob(encodeJob(configured), job.sandboxScope)).toEqual(configured);
+  }
   expect(() =>
     assertAttemptFence(job, { attemptId: job.attemptId, sandboxScope: "other" }),
   ).toThrow();

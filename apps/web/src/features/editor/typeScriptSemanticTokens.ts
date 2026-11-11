@@ -20,10 +20,17 @@ const classificationRoles: readonly SemanticRole[] = [
 ];
 
 /** @returns The existing compiler worker plus semantic classifications; no second parser or compiler instance. */
-export function createTypeScriptWorker(initializer: Parameters<typeof createWorker>[0]) {
-  const worker = createWorker(initializer);
+export function createTypeScriptWorker(
+  initializer: (automaticImports: boolean) => ReturnType<Parameters<typeof createWorker>[0]>,
+) {
+  let automaticImports = false;
+  const worker = createWorker(() => initializer(automaticImports));
   return {
     ...worker,
+    initialize(enabled = false) {
+      automaticImports = enabled;
+      return worker.initialize();
+    },
     getDocumentationTemplate({
       path,
       source,

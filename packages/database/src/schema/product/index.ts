@@ -105,6 +105,7 @@ export const execution_jobs = pgTable(
     language: text().default("python").notNull(),
     runtime_revision: text().default("python-3.12-v1").notNull(),
     harness_revision: text().default("quorem-harness-v2").notNull(),
+    automatic_imports: boolean(),
     attempt_started_at: timestamp({ withTimezone: true, mode: "string" }),
   },
   (table): PgTableExtraConfigValue[] => [

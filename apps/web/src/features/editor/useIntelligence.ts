@@ -21,11 +21,13 @@ export function useIntelligence(
   enabled = true,
   language: EditorLanguage = "python",
   allowHosted = false,
+  imports: "none" | "datetime" | "common" = "none",
 ) {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [status, setStatus] = useState<IntelligenceStatus>("connecting");
   const key = `${identity}:${documentKey}`;
-  const useHosted = language === "python" && hostedIntelligenceEnabled && allowHosted;
+  const useHosted =
+    language === "python" && hostedIntelligenceEnabled && allowHosted && imports === "none";
   const [attempt, setAttempt] = useState({ key: "", nonce: 0 });
   const retry = useCallback(() => setAttempt((value) => ({ key, nonce: value.nonce + 1 })), [key]);
 
@@ -53,14 +55,13 @@ export function useIntelligence(
         setStatus("connecting");
         const initialize =
           language === "typescript"
-            ? import("./browserTypeScriptIntelligence").then(
-                (module) => module.browserTypeScriptIntelligence,
+            ? import("./browserTypeScriptIntelligence").then(({ browserTypeScriptIntelligence }) =>
+                browserTypeScriptIntelligence(controller.signal, recover, imports === "common"),
               )
-            : import("./browserPythonIntelligence").then(
-                (module) => module.browserPythonIntelligence,
+            : import("./browserPythonIntelligence").then(({ browserPythonIntelligence }) =>
+                browserPythonIntelligence(controller.signal, recover, imports),
               );
         void initialize
-          .then((start) => start(controller.signal, recover))
           .then((session) => {
             if (controller.signal.aborted || failed) {
               session.dispose();
@@ -181,7 +182,7 @@ export function useIntelligence(
       client?.disconnect();
       socket?.close(1000, "Document closed");
     };
-  }, [identity, documentKey, key, attempt, enabled, language, useHosted]);
+  }, [identity, documentKey, key, attempt, enabled, language, useHosted, imports]);
 
   return { extensions, status, retry };
 }

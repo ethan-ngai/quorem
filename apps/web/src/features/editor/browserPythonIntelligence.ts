@@ -8,6 +8,7 @@ import {
 import { pythonLanguage } from "@codemirror/lang-python";
 import DOMPurify from "dompurify";
 import workerURL from "virtual:quorem-pyright-worker";
+import automaticImports from "../../../../../internal/execution/public/automatic_imports.json";
 import publicTypes from "../../../../../internal/execution/public/quorem_types.py?raw";
 import { PythonLanguageClient } from "./pythonLanguageClient";
 
@@ -18,6 +19,7 @@ const documentUri = `${rootUri}/main.py`;
 export async function browserPythonIntelligence(
   signal: AbortSignal,
   onUnavailable: () => void = () => {},
+  imports: "none" | "datetime" | "common" = "none",
 ) {
   if (signal.aborted) throw new Error("Python session cancelled");
   const worker = new Worker(workerURL);
@@ -83,6 +85,18 @@ export async function browserPythonIntelligence(
           userFiles: {
             "main.py": "",
             "quorem_types.py": publicTypes,
+            ...(imports === "none"
+              ? {}
+              : {
+                  // Pyright reads these globals without modifying the editor's document.
+                  "__builtins__.pyi": [
+                    "from builtins import *",
+                    "from quorem_types import ListNode as ListNode, TreeNode as TreeNode, NaryTreeNode as NaryTreeNode",
+                    ...(imports === "common" ? automaticImports.python : ["datetime"]).map(
+                      (name) => `import ${name} as ${name}`,
+                    ),
+                  ].join("\n"),
+                }),
             "pyrightconfig.json": JSON.stringify({
               pythonVersion: "3.12",
               typeCheckingMode: "basic",

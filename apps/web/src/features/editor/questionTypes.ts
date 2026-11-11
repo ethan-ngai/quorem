@@ -1,9 +1,23 @@
 import { formatNodeLiteral, type NodeContext } from "./nodeLiterals";
 import type { WireValue } from "./typedValues";
 import { nodeType } from "@quorem/contracts/node-type";
+import type { OdysseyLevel, Signature } from "@quorem/contracts";
 import type { EditorLanguage } from "./editorLanguages";
 
 export { displayQuestionType as questionTypeName } from "@quorem/contracts/question-type";
+/** Check the signatures currently visible to the solver. */
+export function pythonNeedsDatetime(
+  signature?: Signature | null,
+  levels?: readonly OdysseyLevel[],
+) {
+  const methods = levels?.flatMap((level) => level.methods) ?? (signature ? [signature] : []);
+  return methods.some(({ parameters, returnType }) =>
+    [returnType, ...parameters.map(({ type }) => type)].some((type) =>
+      type.split(/[<>]/).includes("datetime"),
+    ),
+  );
+}
+
 export function questionValue(
   value: unknown,
   language: EditorLanguage,

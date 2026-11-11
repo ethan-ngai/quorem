@@ -37,6 +37,7 @@ import type { DevelopmentIdentity } from "@quorem/contracts";
 import { useSession } from "../auth/session";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "../editor/workspaceShortcuts";
+import { pythonNeedsDatetime } from "../editor/questionTypes";
 import { useIntelligence } from "../editor/useIntelligence";
 import { WorkspaceLayout, type WorkspacePanel } from "../editor/components/WorkspaceLayout";
 import { SolutionToolbar } from "../editor/components/SolutionToolbar";
@@ -395,6 +396,13 @@ function InterviewPad({
     supportedIntelligence && !closed,
     language,
     false,
+    language === "python" &&
+      pythonNeedsDatetime(
+        question.problem.signature,
+        question.progress?.levels ?? question.problem.odyssey?.levels,
+      )
+      ? "datetime"
+      : "none",
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const disabled = executing || closed || changed || status !== "connected";

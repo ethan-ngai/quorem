@@ -1,0 +1,28 @@
+{
+  "python": [
+    "bisect",
+    "collections",
+    "datetime",
+    "functools",
+    "heapq",
+    "itertools",
+    "math",
+    "operator",
+    "re",
+    "statistics",
+    "string",
+    "typing"
+  ],
+  "java": ["java.util.*", "java.time.*", "java.math.*", "java.util.regex.*"],
+  "ocaml": ["Fun", "Printf"],
+  "typescript": {
+    "assert": {
+      "module": "node:assert/strict",
+      "type": "((value: unknown, message?: string) => asserts value) & { equal(actual: unknown, expected: unknown, message?: string): void; deepEqual(actual: unknown, expected: unknown, message?: string): void }"
+    },
+    "util": {
+      "module": "node:util",
+      "type": "{ inspect(value: unknown): string; format(...values: unknown[]): string; isDeepStrictEqual(a: unknown, b: unknown): boolean }"
+    }
+  }
+}

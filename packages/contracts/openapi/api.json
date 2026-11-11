@@ -7248,6 +7248,9 @@
             "type": "string",
             "enum": ["race", "high_score"]
           },
+          "automaticImports": {
+            "type": "boolean"
+          },
           "settingsEditors": {
             "type": "string",
             "enum": ["host", "everyone"]

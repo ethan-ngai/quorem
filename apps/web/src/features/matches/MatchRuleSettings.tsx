@@ -338,6 +338,7 @@ export function MatchRuleSettingsControls({
                       ...matchPreset(name as (typeof MATCH_PRESETS)[number]),
                       victory: value.victory,
                       settingsEditors: value.settingsEditors,
+                      automaticImports: value.automaticImports,
                     });
                 }}
               />

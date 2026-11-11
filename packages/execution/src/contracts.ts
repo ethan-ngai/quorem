@@ -7,6 +7,7 @@ export interface AttemptFence {
 }
 export interface Job extends AttemptFence {
   readonly language: string;
+  readonly automaticImports?: boolean;
   readonly jobId: string;
   readonly submissionId: string;
   readonly problemVersionId: string;
