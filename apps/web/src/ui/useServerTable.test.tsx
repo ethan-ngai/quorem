@@ -1,12 +1,11 @@
 /** @file useServerTable.test.tsx @description Server rows and controlled table navigation. @module ui */
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import type { Table } from "@tanstack/react-table";
 import { useServerTable } from "./useServerTable";
 it("never sorts or slices an already paginated server response", () => {
   const data = [{ title: "Z" }, { title: "A" }];
   const onChange = vi.fn();
-  let table!: Table<{ title: string }>;
+  let table!: ReturnType<typeof useServerTable<{ title: string }, "title">>;
   function Subject() {
     table = useServerTable({
       data,

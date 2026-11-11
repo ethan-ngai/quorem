@@ -38,15 +38,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76
         with:
           node-version-file: .node-version
           cache: true
           run-install: false
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
         with:
-          terraform_version: 1.13.5
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-inspect.mjs
@@ -63,17 +63,17 @@ jobs:
       AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76
         with:
           node-version-file: .node-version
           cache: true
           run-install: false
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
         with:
-          terraform_version: 1.13.5
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: node scripts/build-hono-service-workers.mjs
@@ -86,15 +86,15 @@ jobs:
       HONO_RELEASE_SHA: ${{ inputs.release_sha }}
       WRANGLER_SEND_METRICS: "false"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76
         with:
           node-version-file: .node-version
           cache: true
           run-install: false
-      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
         with:
-          terraform_version: 1.13.5
+          terraform_version: 1.17.1
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-api-release.mjs

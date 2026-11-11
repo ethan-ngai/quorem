@@ -18,7 +18,7 @@
     "email:mailpit": "node --experimental-strip-types src/emails/send-previews.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1161.0",
+    "@aws-sdk/client-s3": "3.1165.0",
     "@better-auth/passkey": "catalog:",
     "@quorem/contracts": "workspace:*",
     "@quorem/database": "workspace:*",
@@ -26,15 +26,15 @@
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:",
     "hono": "catalog:",
-    "nodemailer": "10.3.1",
+    "nodemailer": "10.4.0",
     "pg": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-email": "6.11.7",
+    "react-email": "6.11.10",
     "sharp": "0.35.5"
   },
   "devDependencies": {
-    "@react-email/ui": "6.11.7",
+    "@react-email/ui": "6.11.10",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "@types/react": "catalog:",

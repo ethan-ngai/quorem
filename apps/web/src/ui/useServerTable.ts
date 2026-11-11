@@ -1,13 +1,18 @@
 /** @file useServerTable.ts @description Controlled TanStack state for server-owned lists. @module ui */
 import { useEffect } from "react";
 import {
-  getCoreRowModel,
-  useReactTable,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
   type ColumnDef,
   type SortingState,
   type PaginationState,
+  type RowData,
   type Updater,
 } from "@tanstack/react-table";
+export const serverTableFeatures = tableFeatures({ rowPaginationFeature, rowSortingFeature });
+
 export type ListState<Sort extends string = string> = {
   page: number;
   limit: number;
@@ -18,7 +23,7 @@ export function resolveUpdate<T>(update: Updater<T>, value: T): T {
   return typeof update === "function" ? (update as (previous: T) => T)(value) : update;
 }
 /** Server rows are already ordered and sliced; never apply client row transforms. */
-export function useServerTable<T, Sort extends string>({
+export function useServerTable<T extends RowData, Sort extends string>({
   data,
   columns,
   total,
@@ -27,7 +32,7 @@ export function useServerTable<T, Sort extends string>({
   onChange,
 }: {
   data: T[];
-  columns: ColumnDef<T>[];
+  columns: ColumnDef<typeof serverTableFeatures, T>[];
   total?: number;
   loading?: boolean;
   state: ListState<Sort>;
@@ -40,11 +45,11 @@ export function useServerTable<T, Sort extends string>({
   }, [loading, total, state.page, state.limit, onChange]);
   const pagination = { pageIndex: state.page - 1, pageSize: state.limit };
   const sorting = [{ id: state.sort, desc: state.order === "desc" }];
-  return useReactTable({
+  return useTable({
+    features: serverTableFeatures,
     data,
     columns,
     rowCount: total ?? 0,
-    getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     manualPagination: true,
     enableMultiSort: false,

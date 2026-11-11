@@ -4,7 +4,7 @@ Use [GitHub issues](https://github.com/ethan-ngai/quorem/issues) for bugs and fe
 
 ## Local setup
 
-Install Vite+ (`vp`), Node 24.21.0, Python 3, and Docker. Start Docker, then run:
+Install Vite+ (`vp`), Node 24.22.2, Python 3, and Docker. Start Docker, then run:
 
 ```sh
 make install
