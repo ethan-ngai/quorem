@@ -6,6 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import { pyrightWorker } from "./pyright/vite.ts";
 import { marketingDevBase, marketingDevHtml } from "../../scripts/marketing-dev.mjs";
 
 /** Serve the assembled production artifact; development proxies live Astro/HMR. */
@@ -65,7 +66,7 @@ const marketingEntry = marketingDevBase(process.env.QUOREM_MARKETING_BASE);
 
 export default defineConfig({
   cacheDir: process.env.QUOREM_VITE_CACHE_DIR,
-  plugins: [marketingPages(), react()],
+  plugins: [marketingPages(), pyrightWorker(), react()],
   resolve: { dedupe: ["react", "react-dom"] },
   server: {
     host: "127.0.0.1",

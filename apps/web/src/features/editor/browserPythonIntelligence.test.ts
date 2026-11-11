@@ -51,9 +51,12 @@ it("boots a local engine with only public declarations and terminates on documen
   const worker = FakeWorker.instances[0];
   const boot = worker.sent.find((message) => message.type === "initServer")!;
   const files = boot.userFiles as Record<string, string>;
-  expect(Object.keys(files).sort()).toEqual(["main.py", "pyrightconfig.json", "quorem_types.pyi"]);
-  expect(files["quorem_types.pyi"]).toContain("class TreeNode");
+  expect(Object.keys(files).sort()).toEqual(["main.py", "pyrightconfig.json", "quorem_types.py"]);
+  expect(files["quorem_types.py"]).toContain("class TreeNode");
   expect(JSON.parse(files["pyrightconfig.json"]).pythonVersion).toBe("3.12");
+  expect(worker.sent.find((message) => message.method === "initialize")?.params).toMatchObject({
+    workspaceFolders: [{ uri: "file:///typings" }],
+  });
   expect(session.extensions.length).toBe(2);
   controller.abort();
   expect(worker.terminated).toBe(true);
