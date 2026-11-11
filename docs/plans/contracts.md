@@ -30,7 +30,7 @@ Seed set: six original fixtures, two per difficulty, including list/tree algorit
 - `POST /v1/workspaces`: `{problemVersionId, language}` → owned solo Workspace; reuse unique owner+publication+language solo workspace.
 - `GET /v1/workspaces/{id}` → `{id, kind: solo|match, problemVersionId, language, matchId?}`. Match workspace allocated only at start, initialized from template rather than solo source.
 - `GET /v1/problems/{slug}` → current public question; `GET /v1/question-publications/{id}` → question by publication ID, but enforce unrevealed-match access separately. No public match snapshot leaks chosen question before start.
-- Draft source/history are browser-only. Practice scope: owner + publication ID + language. Match scope additionally includes private workspace ID. Reload resumes latest local write; concurrent windows retain independent buffers. No draft/save/history/restore HTTP routes.
+- Editor autosave uses browser storage. Competitive matches also save current source for review. Practice scope: owner + publication ID + language. Match scope additionally includes private workspace ID. Reload resumes latest local write; concurrent windows retain independent buffers. No draft/save/history/restore HTTP routes.
 
 
 Display preferences belong to browser-local settings; workspace responses contain document identity, language and scope only.

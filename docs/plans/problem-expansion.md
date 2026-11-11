@@ -28,7 +28,7 @@ Auth/login lands before admin implementation. Auth and normalized read foundatio
 - Problems have stable identity and explicit current publication. Published versions are immutable. Publishing creates a new UUID/version; existing drafts/workspaces/submissions/matches retain their pinned version.
 - Language implementation records bind starter source and runtime/harness revision to the immutable version. Only installed/validated implementations are offered for judging.
 - JSONB remains for bounded structured values (typed arguments, signatures/constraints), not for duplicating entire authoritative aggregates. Migration may retain derived compatibility snapshots while callers move to normalized reads.
-- Editor uses existing tokens/layout and browser-only language-scoped drafts/history. New languages get appropriate editing support; Python intelligence stays Python-only unless separately validated.
+- Editor uses existing tokens/layout and language-scoped browser autosave. New languages get appropriate editing support; Python intelligence stays Python-only unless separately validated.
 - Admin role is server-owned; development fixtures never imply production privileges. Draft authoring includes safe preview, explicit save, optimistic revision checks and atomic publish.
 - Active participants cannot fetch editorial solutions for their match problem through practice routes. This does not claim to prevent external spoilers/public anonymous discovery.
 

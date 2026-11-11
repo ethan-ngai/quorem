@@ -4,7 +4,7 @@ Issue #67. Global navigation owns one Radix dialog for Profile, Security & login
 
 Profile contains photo/name/username. Security & login contains verified email changes, email-link password resets and passkey enrollment/removal. Pencil editing replaces the value in place with an input and icon actions, preserving row geometry. Username rules float below the input; feedback overlays the dialog without moving content. Photo/passkey loading retains button labels and dimensions. Verification, cooldowns and safe errors remain in place. No credential protocol changes.
 
-`useLocalEditorPreferences` is shared by the workspace and settings outside it. Font size, indentation, wrapping and editor scheme use the existing browser storage keys; no account/API persistence. Theme remains browser-local. Workspace-only Drafts preserves history/import/clear handlers; it is omitted outside a workspace.
+`useLocalEditorPreferences` is shared by the workspace and settings outside it. Font size, indentation, wrapping and editor scheme use the existing browser storage keys; no account/API persistence. Theme remains browser-local.
 
 Validation: `vp check --fix`; 188 web tests passed (2 skipped). Live Vite at http://localhost:5180 from the root checkout: profile-menu entry, both account sections, local wrap persistence from catalog into workspace (restored afterward), draft controls, light/dark themes, 390px layout and independent scrolling at 390×420. Credential changes and passkey ceremonies were not triggered during this UI verification.
 

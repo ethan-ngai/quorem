@@ -34,14 +34,13 @@ import { useCallback, useMemo, useEffect, useRef, useState, type ReactNode } fro
 import { GlobalNav } from "../navigation/GlobalNav";
 import { useMatchRules } from "../matches/useMatchRules";
 import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
-import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel, type EditorialComplexity } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator } from "./components/SaveIndicator";
 import { readPreference, writePreference } from "./editorSettings";
-import { importBrowserDrafts, clearOwnerRecovery, readBrowserDraft } from "./recovery";
+import { readBrowserDraft } from "./recovery";
 import { authenticatedFetch } from "../auth/session";
 import { ReviewToolbar, ReviewPaneHeader } from "../matches/ReviewToolbar";
 import { EditorialCode } from "./components/EditorialCode";
@@ -146,7 +145,6 @@ export function WorkspacePage({
   const [quotingSubmission, setQuotingSubmission] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const {
     editorSchemes,
     onEditorSchemeChange: setEditorScheme,
@@ -310,7 +308,6 @@ export function WorkspacePage({
     updateSource,
     saveCurrentDraft,
     saveBeforeSwitch,
-    restoreHistory,
   } = useWorkspaceDraft({
     identity,
     canEdit: !frozenMatch,
@@ -749,18 +746,6 @@ export function WorkspacePage({
             onThemeChange={setThemePreference}
             workspaceSettings={{
               onOpenChange: setSettingsOpen,
-              onImportDrafts: async (file) => {
-                try {
-                  if (frozenRef.current) return;
-                  await saveCurrentDraft();
-                  const content = await file.text();
-                  if (frozenRef.current) return;
-                  const imported = await importBrowserDrafts(content, identity);
-                  if (imported > 0) window.location.reload();
-                } catch (error) {
-                  setActionError(errorMessage(error));
-                }
-              },
               theme: themePreference,
               onThemeChange: setThemePreference,
               editorSchemes,
@@ -771,10 +756,6 @@ export function WorkspacePage({
               onTabSizeChange: setTabSize,
               wrap: wrap,
               onWrapChange: setWrap,
-              onHistory: () => setHistoryOpen(true),
-              onClearRecovery: () => {
-                void clearOwnerRecovery(identity);
-              },
             }}
             onCreateMatch={() => {
               void saveCurrentDraft().then(() => setCreateMatchOpen(true));
@@ -1076,15 +1057,6 @@ export function WorkspacePage({
             </a>
           </div>
         </SessionDialog>
-        {historyOpen && (
-          <HistoryDialog
-            identity={identity}
-            workspace={workspace}
-            onClose={() => setHistoryOpen(false)}
-            onRestore={restoreHistory}
-            readOnly={frozenMatch}
-          />
-        )}
         {createMatchOpen && (
           <CreateMatchDialog identity={identity} onClose={() => setCreateMatchOpen(false)} />
         )}
