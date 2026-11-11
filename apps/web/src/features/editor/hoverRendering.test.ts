@@ -26,6 +26,18 @@ it("highlights Python hover fences using the editor scheme", () => {
     expect([...rendered.querySelectorAll("code span")].map((span) => span.textContent)).toEqual(
       expect.arrayContaining(["def", "append", "value", '"<pear>"']),
     );
+    rendered.innerHTML = LSPPlugin.get(view)!.docToHTML(
+      "```python\n(variable) items: list[str]\n```\n\n" +
+        "```python\nclass list(): ...\n\nclass list(iterable: Iterable[str], /): ...\n\n```",
+      "markdown",
+    );
+
+    expect(
+      [...rendered.querySelectorAll(".cm-python-type")].map((span) => span.textContent),
+    ).toEqual(["list", "str", "Iterable", "str"]);
+    expect(rendered.querySelectorAll("code")[1]?.textContent).toBe(
+      "class list(): ...\n\nclass list(iterable: Iterable[str], /): ...",
+    );
   } finally {
     view.destroy();
   }

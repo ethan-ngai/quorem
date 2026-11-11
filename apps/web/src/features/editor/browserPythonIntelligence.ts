@@ -86,6 +86,7 @@ export async function browserPythonIntelligence(
             "pyrightconfig.json": JSON.stringify({
               pythonVersion: "3.12",
               typeCheckingMode: "basic",
+              functionSignatureDisplay: "compact",
               include: ["main.py"],
             }),
           },
