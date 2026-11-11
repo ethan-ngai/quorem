@@ -412,24 +412,24 @@
     },
     {
       "method": "GET",
-      "path": "/v1/problem-versions/{id}",
+      "path": "/v1/question-publications/{id}",
       "packet": "13",
       "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/server.go"
+      "registration": "apps/api/src/modules/problems/routes.ts"
     },
     {
       "method": "GET",
-      "path": "/v1/problem-versions/{id}/complexity",
+      "path": "/v1/question-publications/{id}/complexity",
       "packet": "13",
       "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/editorials.go"
+      "registration": "apps/api/src/modules/problems/routes.ts"
     },
     {
       "method": "GET",
-      "path": "/v1/problem-versions/{id}/solutions",
+      "path": "/v1/question-publications/{id}/solutions",
       "packet": "13",
       "contract": "packages/contracts/openapi/api.json",
-      "registration": "apps/api/internal/httpapi/editorials.go"
+      "registration": "apps/api/src/modules/problems/routes.ts"
     },
     {
       "method": "GET",
