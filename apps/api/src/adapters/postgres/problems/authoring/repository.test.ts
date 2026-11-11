@@ -207,6 +207,42 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           now: () => 100,
         }),
       );
+      const repeatedSlug = raw.replace('"slug":', '"slug":"duplicate","slug":');
+      const importPath = "/v1/admin/question-drafts/import";
+      const invalidImport = await http.request(importPath, {
+        method: "POST",
+        body: repeatedSlug,
+      });
+      expect(invalidImport.status).toBe(400);
+      expect(await invalidImport.json()).toMatchObject({
+        error: { code: "invalid_input", details: { diagnostics: [{ path: "/problem/slug" }] } },
+      });
+      const { id: _id, limits: _limits, ...authoredProblem } = parsedContent.problem;
+      const importBatch = await http.request(`${importPath}-batch?preview=1`, {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            repeatedSlug,
+            JSON.stringify({ ...parsedContent, problem: authoredProblem }),
+            JSON.stringify({
+              ...parsedContent,
+              hiddenCases: [{ args: ["invalid input"], expected: [] }],
+            }),
+          ],
+        }),
+      });
+      expect(importBatch.status).toBe(200);
+      expect(await importBatch.json()).toMatchObject({
+        items: [
+          { status: "invalid", diagnostics: [{ path: "/problem/slug" }] },
+          { status: "ready" },
+          {
+            status: "ready",
+            warning: "Draft needs edits before publication.",
+            diagnostics: [{ path: "/hiddenCases/0" }],
+          },
+        ],
+      });
       const createResponse = await http.request("/v1/admin/question-drafts", {
         method: "POST",
         body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}}',
