@@ -3,12 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TypedCaseInput } from "./TypedCaseInput";
 import { TestCases } from "./TestCases";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 
-const problem: ProblemVersion = {
+const problem: PublishedQuestion = {
   id: "fixture",
   slug: "fixture",
-  version: "1",
   title: "Fixture",
   difficulty: "easy",
   tags: [],
@@ -197,4 +196,19 @@ describe("typed case controls", () => {
     expect(render(true)).toContain("Remove expected output");
     expect(render(true)).toContain('value="10 * 3"');
   });
+});
+
+it("draws the parsed matrix from the current test field", () => {
+  const markup = renderToStaticMarkup(
+    <TypedCaseInput
+      id="custom-grid"
+      name="grid"
+      type="list<list<int>>"
+      input={{ preset: "default", showGrid: true }}
+      value="[[9,2**3],[0,4]]"
+      onChange={() => {}}
+    />,
+  );
+  expect(markup).toContain('aria-label="Matrix for grid"');
+  expect(markup).toContain("<td>8</td>");
 });

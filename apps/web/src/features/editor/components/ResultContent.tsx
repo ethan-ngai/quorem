@@ -1,7 +1,12 @@
 import "./results.css";
 import { verdictIcon } from "./verdictPresentation";
 /** @file ResultContent.tsx @description Safe submission summaries and selected public Run output. @module editor */
-import type { Diagnostic, ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import type {
+  Diagnostic,
+  PublishedQuestion,
+  PublicCaseResult,
+  Submission,
+} from "@quorem/contracts";
 import { useState } from "react";
 import { Icon } from "../../../ui/Icon";
 import { LoadingIndicator } from "../../../ui/Spinner";
@@ -35,7 +40,7 @@ function RunCaseResults({
   returnType,
 }: {
   cases: PublicCaseResult[];
-  sql?: ProblemVersion["sql"];
+  sql?: PublishedQuestion["sql"];
   returnType?: string;
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -80,7 +85,7 @@ type ResultContentProps = {
   customMode?: boolean;
   runWasCustom?: boolean;
   showVerdict?: boolean;
-  sql?: ProblemVersion["sql"];
+  sql?: PublishedQuestion["sql"];
   returnType?: string;
 };
 

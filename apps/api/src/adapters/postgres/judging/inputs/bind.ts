@@ -3,13 +3,13 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { INPUT_BLOB_BATCH_ROWS, storeInputBlob, storeInputBlobs } from "./blob.ts";
 
-export type FixtureOwner = { version: string } | { session: string; fixture: Uint8Array };
+export type FixtureOwner = { publication: string } | { session: string; fixture: Uint8Array };
 /** A sealed fixture is selected in PostgreSQL, never materialized as a Worker array. */
 export function fixtureRows(owner: FixtureOwner, level: number) {
   if (!Number.isSafeInteger(level) || level < 0 || level > 8)
     throw new Error("Invalid fixture stage");
-  return "version" in owner
-    ? sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_version_input_cases c JOIN runner_version_inputs i USING(version_id) WHERE i.sealed AND c.version_id=${owner.version}::uuid AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`
+  return "publication" in owner
+    ? sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_publication_input_cases c JOIN runner_publication_inputs i USING(publication_id) WHERE i.sealed AND c.publication_id=${owner.publication}::uuid AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`
     : sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`;
 }
 /** Batch bounded custom inputs without changing their lexical JSON bytes. */
@@ -64,10 +64,10 @@ export async function bindJobInputs(
     sql`(SELECT convert_to(s.source,'UTF8') FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=${input.jobId}::uuid)`,
   );
   const metadata =
-    "version" in input.owner
+    "publication" in input.owner
       ? (
           await tx.execute<{ hash: Uint8Array }>(
-            sql`SELECT metadata_hash AS hash FROM runner_version_inputs WHERE version_id=${input.owner.version}::uuid AND sealed`,
+            sql`SELECT metadata_hash AS hash FROM runner_publication_inputs WHERE publication_id=${input.owner.publication}::uuid AND sealed`,
           )
         ).rows[0]
       : (
@@ -76,11 +76,11 @@ export async function bindJobInputs(
           )
         ).rows[0];
   if (!metadata) throw new Error("Runner fixture unavailable");
-  const version = "version" in input.owner ? input.owner.version : null;
+  const publication = "publication" in input.owner ? input.owner.publication : null;
   const session = "session" in input.owner ? input.owner.session : null;
   const fixture = "fixture" in input.owner ? input.owner.fixture : null;
   await tx.execute(
-    sql`INSERT INTO runner_job_inputs(job_id,version_id,session_id,fixture_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) SELECT j.id,${version}::uuid,${session}::uuid,${fixture}::bytea,${metadata.hash},${source},j.runtime_revision,j.harness_revision,${input.caseCount},${input.sampleCount},${input.privateDetails},${input.submitCasesAreSamples} FROM execution_jobs j WHERE j.id=${input.jobId}::uuid`,
+    sql`INSERT INTO runner_job_inputs(job_id,publication_id,session_id,fixture_id,metadata_hash,source_hash,runtime_revision,harness_revision,case_count,sample_count,private_details,submit_cases_are_samples) SELECT j.id,${publication}::uuid,${session}::uuid,${fixture}::bytea,${metadata.hash},${source},j.runtime_revision,j.harness_revision,${input.caseCount},${input.sampleCount},${input.privateDetails},${input.submitCasesAreSamples} FROM execution_jobs j WHERE j.id=${input.jobId}::uuid`,
   );
   const primary =
     input.primary === "custom"

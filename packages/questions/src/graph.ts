@@ -1,0 +1,476 @@
+/** @file graph.ts @description Graph authoring model and native argument projection. @module questions */
+import type { components, WireValue } from "@quorem/contracts/schema";
+import { parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
+import { validQuestionType } from "./signature.ts";
+import { normalizeQuestionValue } from "./value-codec.ts";
+import type { Signature } from "./model.ts";
+
+export type GraphNodeId = components["schemas"]["GraphNodeId"];
+export type GraphNode<Value extends WireValue = WireValue> =
+  | GraphNodeId
+  | { id: GraphNodeId; value: Value };
+export type QuestionGraph<
+  NodeValue extends WireValue = WireValue,
+  EdgeValue extends WireValue = WireValue,
+> = {
+  directed: boolean;
+  nodes: GraphNode<NodeValue>[];
+  edges: { from: GraphNodeId; to: GraphNodeId; value?: EdgeValue }[];
+};
+
+export function graphNodeId(node: GraphNode): GraphNodeId {
+  return typeof node === "object" && node !== null ? node.id : node;
+}
+export type GraphEncoding = components["schemas"]["GraphEncoding"];
+export const GRAPH_RETURN = "$return";
+export const GRAPH_RETURN_LIST = "$return[*]";
+export function graphReturnSlot(target: string): number | undefined {
+  const match = /^\$return\[(0|[1-9][0-9]{0,4})\]$/.exec(target);
+  return match ? Number(match[1]) : undefined;
+}
+export const isGraphReturn = (target: string) =>
+  target === GRAPH_RETURN || target === GRAPH_RETURN_LIST || graphReturnSlot(target) !== undefined;
+
+/** Resolve an explicit binding before falling back to the return-list format. */
+export function graphEncodingForTarget(
+  signature: Signature,
+  target: string,
+): GraphEncoding | undefined {
+  const encodings = signature.graphEncodings;
+  if (Object.hasOwn(encodings ?? {}, target)) return encodings![target];
+  if (graphReturnSlot(target) !== undefined) return encodings?.[GRAPH_RETURN_LIST];
+}
+
+/** A return list can have a different number of graphs in each case. */
+export function caseGraphTargets(
+  signature: Signature,
+  expected?: unknown,
+  graphs?: CaseGraphs,
+): string[] {
+  const targets = Object.keys(signature.graphEncodings ?? {});
+  if (!signature.graphEncodings?.[GRAPH_RETURN_LIST]) return targets;
+  const indexed = Array.isArray(expected)
+    ? expected.map((_, index) => `${GRAPH_RETURN}[${index}]`)
+    : [];
+  return [
+    ...new Set([
+      ...targets.filter((target) => !isGraphReturn(target)),
+      ...indexed,
+      ...Object.keys(graphs ?? {}).filter((target) => graphReturnSlot(target) !== undefined),
+    ]),
+  ];
+}
+
+export type CaseGraphs = Record<string, QuestionGraph>;
+const label = (v: unknown) =>
+  int(v) || (typeof v === "string" && v.length > 0 && v.length <= 120 && !v.includes("\0"));
+const int = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
+
+/** Validate IDs, endpoint references and independent node and edge values. */
+export function validateGraph(
+  graph: QuestionGraph,
+  limit: number,
+  encoding?: GraphEncoding,
+): number {
+  if (
+    !graph ||
+    typeof graph.directed !== "boolean" ||
+    Object.keys(graph).some((key) => !["directed", "nodes", "edges"].includes(key)) ||
+    !Array.isArray(graph.nodes) ||
+    !Array.isArray(graph.edges)
+  )
+    throw new Error("Graph requires direction, nodes and edges");
+  let used = graph.nodes.length + graph.edges.length;
+  if (used > limit) throw new Error("Graph exceeds the collection limit");
+  function checkValue(value: WireValue, depth = 0): void {
+    if (++used > limit || depth > 100) throw new Error("Graph values exceed the collection limit");
+    if (value === null || typeof value === "boolean" || Number.isFinite(value)) return;
+    if (typeof value === "string" && !value.includes("\0")) return;
+    if (Array.isArray(value)) {
+      for (const child of value) checkValue(child, depth + 1);
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key.includes("\0")) throw new Error("Graph value keys cannot contain NUL");
+        checkValue(child, depth + 1);
+      }
+      return;
+    }
+    throw new Error("Graph values must be valid JSON");
+  }
+  function checkTyped(value: WireValue, kind: "Node" | "Edge", type?: string) {
+    checkValue(value);
+    if (type) {
+      try {
+        normalizeQuestionValue(type, parseLosslessJson(JSON.stringify(value)), limit);
+      } catch (error) {
+        throw new Error(`${kind} value (${type}): ${(error as Error).message}`);
+      }
+    }
+  }
+  const nodes = new Set<GraphNodeId>();
+  for (const node of graph.nodes) {
+    const id = graphNodeId(node);
+    if (!label(id) || nodes.has(id))
+      throw new Error("Graph node IDs must be unique integers or text");
+    nodes.add(id);
+    if (typeof node === "object") {
+      if (Object.keys(node).some((key) => key !== "id" && key !== "value"))
+        throw new Error("Graph nodes accept an ID and value");
+      checkTyped(node.value, "Node", encoding?.nodeValueType);
+    }
+  }
+  for (const edge of graph.edges) {
+    if (
+      !edge ||
+      Object.keys(edge).some((key) => !["from", "to", "value"].includes(key)) ||
+      !nodes.has(edge.from) ||
+      !nodes.has(edge.to)
+    )
+      throw new Error("Graph edges require existing endpoints");
+    if (edge.value !== undefined) checkTyped(edge.value, "Edge", encoding?.edgeValueType);
+  }
+  return used;
+}
+
+/** Concrete solver type generated by a graph preset. */
+export function graphPresetType(kind: GraphEncoding["kind"]) {
+  if (kind === "custom") return undefined;
+  return kind === "successor" || kind === "parent" ? "list<int>" : "list<list<int>>";
+}
+
+/** Map the graph and optional node count onto typed solver parameters. */
+export function graphParameters(
+  signature: Signature,
+  target: string,
+  encoding: GraphEncoding,
+): { arg: number; count: number } | undefined {
+  const element = target === GRAPH_RETURN_LIST || graphReturnSlot(target) !== undefined;
+  const output = isGraphReturn(target);
+  const returnType = signature.returnType.replaceAll("array<", "list<");
+  if (
+    element &&
+    (!returnType.startsWith("list<") ||
+      signature.outputOrder === "unordered" ||
+      Object.hasOwn(signature.graphEncodings ?? {}, GRAPH_RETURN))
+  )
+    throw new Error(
+      "Graph return slots require an ordered collection and no whole-return encoding",
+    );
+  if (
+    target === GRAPH_RETURN_LIST &&
+    Object.keys(signature.graphEncodings ?? {}).some((key) => graphReturnSlot(key) !== undefined)
+  )
+    throw new Error("A graph return list uses one representation for every element");
+  const arg = signature.parameters.findIndex(({ name }) => name === target);
+  if (!encoding || typeof encoding !== "object") throw new Error("Invalid graph encoding");
+  if (!output && arg < 0) throw new Error(`Unknown graph argument ${target}`);
+  if (output && signature.nodeReferences === "return" && encoding.kind !== "custom")
+    throw new Error("Graph reference returns require a custom encoding");
+  for (const type of [encoding.nodeValueType, encoding.edgeValueType])
+    if (type !== undefined && (typeof type !== "string" || !validQuestionType(type)))
+      throw new Error("Graph value types must be supported question types");
+  if (encoding.kind === "custom") {
+    if (
+      Object.keys(encoding).some(
+        (key) => !["kind", "directed", "nodeValueType", "edgeValueType"].includes(key),
+      )
+    )
+      throw new Error("Custom graphs supply their own arguments");
+    return;
+  }
+  if (
+    !["edgeList", "adjacencyList", "adjacencyMatrix", "successor", "parent"].includes(
+      encoding.kind,
+    ) ||
+    encoding.edgeValueType !== undefined ||
+    (encoding.edgeValue !== undefined &&
+      (encoding.kind !== "edgeList" || !encoding.edgeValue.trim())) ||
+    (encoding.firstNode !== undefined && encoding.firstNode !== 0 && encoding.firstNode !== 1) ||
+    (encoding.matrixDiagonal !== undefined &&
+      (encoding.kind !== "adjacencyMatrix" || ![0, 1].includes(encoding.matrixDiagonal)))
+  )
+    throw new Error("Invalid graph preset settings");
+  const count = signature.parameters.findIndex(({ name }) => name === encoding.countParameter);
+  const expected = graphPresetType(encoding.kind);
+  if (
+    (output
+      ? element
+        ? returnType.slice(5, -1)
+        : returnType
+      : signature.parameters[arg]?.type
+    )?.replaceAll("array<", "list<") !== expected
+  )
+    throw new Error(`Graph preset requires a ${expected} argument`);
+  if (
+    encoding.countParameter !== undefined &&
+    (output ||
+      signature.parameters[count]?.type !== "int" ||
+      Object.hasOwn(signature.graphEncodings ?? {}, encoding.countParameter))
+  )
+    throw new Error("Graph node count must name an int argument");
+  return { arg, count };
+}
+
+/** Compile only the graph-owned arguments. Other parameters keep their original values. */
+function encodeGraph(encoding: GraphEncoding, graph: QuestionGraph, limit: number): WireValue {
+  const nodes = graph.nodes.map(graphNodeId);
+  if (!nodes.every(int)) throw new Error("Presets require integer node IDs");
+  const edges = graph.edges as { from: number; to: number; value?: number }[];
+  const n = graph.nodes.length;
+  const first = encoding.firstNode ?? 0;
+  if (encoding.kind === "edgeList") {
+    if (
+      encoding.countParameter !== undefined &&
+      nodes.some((node) => node < first || node >= first + n)
+    )
+      throw new Error(`Graph nodes must be numbered from ${first} through ${first + n - 1}`);
+    return edges.map(({ from, to, value }) => {
+      if (encoding.edgeValue ? !int(value) : value !== undefined)
+        throw new Error(
+          encoding.edgeValue
+            ? `Every edge needs ${encoding.edgeValue}`
+            : "Edge pairs cannot contain values",
+        );
+      return value === undefined ? [from, to] : [from, to, value];
+    });
+  }
+  if (nodes.some((node) => node < first || node >= first + n))
+    throw new Error(`Graph nodes must be numbered from ${first} through ${first + n - 1}`);
+  if (edges.some(({ value }) => value !== undefined))
+    throw new Error("This graph preset does not encode edge values");
+  if (encoding.kind === "successor" || encoding.kind === "parent") {
+    if (encoding.kind === "successor" && !graph.directed)
+      throw new Error("Successor edges must be directed");
+    const next = Array<number>(n).fill(-1);
+    // Both formats index the row by the source. In parent arrays the source is the child.
+    for (const { from, to } of edges) {
+      if (next[from - first] !== -1) throw new Error("Each node may name at most one next node");
+      next[from - first] = to;
+    }
+    return next;
+  }
+  const matrix = encoding.kind === "adjacencyMatrix";
+  if (matrix && n * n + n > limit) throw new Error("Adjacency matrix exceeds the collection limit");
+  const rows: number[][] = Array.from({ length: n }, (_, i) =>
+    matrix
+      ? Array.from({ length: n }, (_, j) => (i === j ? (encoding.matrixDiagonal ?? 0) : 0))
+      : [],
+  );
+  const put = (from: number, to: number) => {
+    const row = rows[from - first]!;
+    if (matrix) {
+      if (from === to && encoding.matrixDiagonal === 1)
+        throw new Error("The matrix diagonal already represents self-connectivity");
+      if (row[to - first]) throw new Error("An adjacency matrix cannot encode parallel edges");
+      row[to - first] = 1;
+    } else row.push(to);
+  };
+  for (const { from, to } of edges) {
+    put(from, to);
+    if (!graph.directed && from !== to) put(to, from);
+  }
+  return rows;
+}
+
+/** Recover a preset from its native value. Case authoring preserves adjacency order by default. */
+export function inferCaseGraph(
+  signature: Signature,
+  target: string,
+  args: readonly (WireValue | undefined)[],
+  expected: WireValue | undefined,
+  limit: number,
+  adjacencyOrder: "exact" | "ignore" = "exact",
+): QuestionGraph | undefined {
+  const encoding = graphEncodingForTarget(signature, target);
+  if (!encoding || encoding.kind === "custom" || target === GRAPH_RETURN_LIST) return;
+  const indexed = encoding.kind === "successor" || encoding.kind === "parent";
+  const directed =
+    encoding.kind === "successor"
+      ? true
+      : encoding.kind === "parent"
+        ? (encoding.directed ?? false)
+        : encoding.directed;
+  if (directed === undefined) return;
+  try {
+    const { arg, count } = graphParameters(signature, target, encoding)!;
+    const slot = graphReturnSlot(target);
+    const native =
+      arg >= 0
+        ? args[arg]
+        : slot === undefined
+          ? expected
+          : Array.isArray(expected)
+            ? expected[slot]
+            : undefined;
+    if (!Array.isArray(native) || native.length > limit) return;
+    const first = encoding.firstNode ?? 0;
+    const size =
+      count >= 0 ? args[count] : encoding.kind === "edgeList" ? undefined : native.length;
+    if (size !== undefined && (!int(size) || size < 0 || size > limit)) return;
+    if (
+      count >= 0 &&
+      (size === undefined || (encoding.kind !== "edgeList" && size !== native.length))
+    )
+      return;
+    const graph: QuestionGraph = {
+      directed,
+      nodes: size === undefined ? [] : Array.from({ length: size }, (_, i) => i + first),
+      edges: [],
+    };
+    if (encoding.kind === "edgeList") {
+      const endpoints = new Set<number>();
+      for (const row of native) {
+        if (!Array.isArray(row) || row.length !== (encoding.edgeValue ? 3 : 2)) return;
+        const [from, to, value] = row;
+        if (!int(from) || !int(to) || (value !== undefined && !int(value))) return;
+        graph.edges.push(value === undefined ? { from, to } : { from, to, value });
+        endpoints.add(from);
+        endpoints.add(to);
+      }
+      if (size === undefined) graph.nodes = [...endpoints].sort((a, b) => a - b);
+    } else {
+      let entries = 0;
+      for (const [i, row] of native.entries()) {
+        const from = i + first;
+        if (indexed) {
+          if (!int(row)) return;
+          if (row !== -1) graph.edges.push({ from, to: row });
+          continue;
+        }
+        if (!Array.isArray(row) || (entries += row.length) > limit) return;
+        for (const [j, item] of row.entries()) {
+          if (!int(item)) return;
+          const matrix = encoding.kind === "adjacencyMatrix";
+          if (matrix && item !== 1) continue;
+          if (matrix && i === j && encoding.matrixDiagonal === 1) continue;
+          const to = matrix ? j + first : item;
+          if (directed || from <= to) graph.edges.push({ from, to });
+        }
+      }
+    }
+    validateGraph(graph, limit);
+    const encoded = encodeGraph(encoding, graph, limit);
+    const comparable = (value: WireValue) =>
+      adjacencyOrder === "ignore" && encoding.kind === "adjacencyList"
+        ? (value as number[][]).map((row) => [...row].sort((a, b) => a - b))
+        : value;
+    if (JSON.stringify(comparable(encoded)) === JSON.stringify(comparable(native))) return graph;
+  } catch {
+    // Keep the exact solver fields editable when the preset cannot express their value.
+  }
+}
+
+/** Compile each graph independently, permitting a shared count when the graphs agree. */
+export function projectCaseGraphs(
+  signature: Signature,
+  graphs: CaseGraphs,
+  limit = 100000,
+): { args: Map<number, WireValue>; expected?: WireValue; outputSlots: Map<number, WireValue> } {
+  const result: ReturnType<typeof projectCaseGraphs> = { args: new Map(), outputSlots: new Map() };
+  const list = signature.graphEncodings?.[GRAPH_RETURN_LIST];
+  if (list) graphParameters(signature, GRAPH_RETURN_LIST, list);
+  let remaining = limit;
+  let encodedBudget = limit;
+  for (const [target, graph] of Object.entries(graphs)) {
+    const encoding = graphEncodingForTarget(signature, target);
+    if (!encoding || target === GRAPH_RETURN_LIST)
+      throw new Error(`Choose a graph encoding for ${target}`);
+    const indices = graphParameters(signature, target, encoding);
+    remaining -= validateGraph(graph, remaining, encoding);
+    if (!indices) continue;
+    // Charge the native layout before allocating it, especially for dense matrices.
+    const n = graph.nodes.length;
+    const e = graph.edges.length;
+    encodedBudget -=
+      encoding.kind === "adjacencyMatrix"
+        ? n * n + n
+        : encoding.kind === "edgeList"
+          ? e * (encoding.edgeValue ? 4 : 3)
+          : encoding.kind === "adjacencyList"
+            ? n + e * (graph.directed ? 1 : 2)
+            : n;
+    if (encodedBudget < 0) throw new Error("Generated graph arguments exceed the collection limit");
+    const value = encodeGraph(encoding, graph, limit);
+    const slot = graphReturnSlot(target);
+    if (slot !== undefined) {
+      if (slot >= limit) throw new Error("Graph output slot exceeds the collection limit");
+      result.outputSlots.set(slot, value);
+    } else if (target === GRAPH_RETURN) result.expected = value;
+    else result.args.set(indices.arg, value);
+    if (indices.count >= 0) {
+      const prior = result.args.get(indices.count);
+      if (prior !== undefined && prior !== graph.nodes.length)
+        throw new Error("Graphs sharing a node count must have the same number of nodes");
+      result.args.set(indices.count, graph.nodes.length);
+    }
+  }
+  return result;
+}
+
+/** Overlay generated output slots without touching other returned values. */
+export function mergeGraphOutput<T>(
+  generated: Pick<ReturnType<typeof projectCaseGraphs>, "expected" | "outputSlots">,
+  current: T | undefined,
+  merge: (current: T | undefined, value: WireValue, target: string) => T,
+): T | undefined {
+  if (generated.expected !== undefined)
+    return merge(current, generated.expected, "expected output");
+  if (!generated.outputSlots.size) return current;
+  if (current != null && !Array.isArray(current))
+    throw new Error("Graph output slots require a list");
+  const output = Array.isArray(current) ? [...current] : [];
+  for (const [index, value] of generated.outputSlots)
+    output[index] = merge(output[index] as T | undefined, value, `expected output [${index}]`);
+  // Missing non-graph slots stay absent in authoring until supplied.
+  return Array.from(output, (value) => value ?? null) as T;
+}
+
+/** Fill generated slots and reject concrete values that disagree with their graphs. */
+export function compileGraphCase(
+  signature: Signature,
+  test: { [key: string]: JsonValue },
+  limit: number,
+  complete = false,
+): void {
+  const graphs =
+    test.graphs === undefined ? {} : (JSON.parse(stringifyLosslessJson(test.graphs)) as CaseGraphs);
+  if (!graphs || typeof graphs !== "object" || Array.isArray(graphs))
+    throw new Error("Case graphs must be keyed by parameter name or $return");
+  if (complete)
+    for (const target of caseGraphTargets(signature, test.expected))
+      if (
+        graphEncodingForTarget(signature, target)?.kind === "custom" &&
+        !Object.hasOwn(graphs, target)
+      )
+        throw new Error(`Custom graph ${target} requires both a graph and a concrete value`);
+  if (!Object.keys(graphs).length) return;
+  const generated = projectCaseGraphs(signature, graphs, limit);
+  const args = test.args;
+  if (!Array.isArray(args) || args.length > signature.parameters.length)
+    throw new Error("Graph case arguments must match the signature");
+  const merge = (actual: JsonValue | undefined, value: WireValue, target: string) => {
+    const native = JSON.stringify(value);
+    if (actual != null) {
+      if (stringifyLosslessJson(actual) !== native)
+        throw new Error(`Graph conflicts with ${target}`);
+      return actual;
+    }
+    return parseLosslessJson(native);
+  };
+  for (let i = 0; i < signature.parameters.length; i++) {
+    if (generated.args.has(i))
+      args[i] = merge(args[i], generated.args.get(i)!, signature.parameters[i]!.name);
+    else if (i >= args.length || args[i] === undefined)
+      throw new Error(`Supply the argument ${signature.parameters[i]!.name}`);
+  }
+  const expected = mergeGraphOutput(generated, test.expected, merge);
+  if (expected !== undefined) test.expected = expected;
+  for (const target of Object.keys(graphs)) {
+    const slot = graphReturnSlot(target);
+    if (slot !== undefined && (!Array.isArray(expected) || expected[slot] === undefined))
+      throw new Error(`Supply the concrete value for ${target}`);
+  }
+}

@@ -4,6 +4,7 @@
 - Use `vp` for TypeScript tooling.
 - Anchor UI to root `DESIGN.md`; use the design-system skill. Prioritize the editor.
 - Develop locally with fixtures; require provider credentials only for cloud validation/deployment.
+- Before drafting or editing question JSON, read [Question import and authoring](docs/implementation/question-import.md) and its linked schema. Use LaTeX for math, code spans for program accesses, and tagged fences for code blocks.
 - UI iteration uses live Vite/HMR, never rebuild/preview loops. Web: `vp -C apps/web dev`; marketing: `vp -C apps/marketing run dev`; integrated stack: `make dev`. Verify the server's checkout and report its exact URL.
 - Ask subjective/blocking questions individually through the question tool; keep the turn open awaiting answers. Decide routine engineering details autonomously.
 - Planning alone does not authorize implementation.

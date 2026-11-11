@@ -41,10 +41,10 @@ it("recovers a delayed commit, dispatches before ack, and cannot consume deadlin
         await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Fixture')`);
         await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
         await tx.execute(
-          sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
+          sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
         );
         await tx.execute(
-          sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
+          sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
         );
         await tx.execute(
           sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES(${submission}::uuid,${user},${workspace}::uuid,'run','','hash','queued','[]'::jsonb)`,
@@ -75,7 +75,7 @@ it("recovers a delayed commit, dispatches before ack, and cannot consume deadlin
         await tx.execute(sql`DELETE FROM execution_jobs WHERE id=${job}::uuid`);
         await tx.execute(sql`DELETE FROM submissions WHERE id=${submission}::uuid`);
         await tx.execute(sql`DELETE FROM workspaces WHERE id=${workspace}::uuid`);
-        await tx.execute(sql`DELETE FROM problem_versions WHERE id=${version}::uuid`);
+        await tx.execute(sql`DELETE FROM question_publications WHERE id=${version}::uuid`);
         await tx.execute(sql`DELETE FROM problems WHERE id=${problem}::uuid`);
         await tx.execute(sql`DELETE FROM users WHERE id=${user}`);
         await tx.execute(
@@ -119,14 +119,14 @@ it("admits an actual workspace job using workerd PostgreSQL and a prearmed Durab
         await tx.execute(sql`INSERT INTO users(id,display_name) VALUES(${user},'Fixture')`);
         await tx.execute(sql`INSERT INTO problems(id,slug) VALUES(${problem}::uuid,${problem})`);
         await tx.execute(
-          sql`INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,1,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [{ name: "x", type: "int" }], returnType: "int" })}::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
+          sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES(${version}::uuid,${problem}::uuid,'Fixture','easy','',${JSON.stringify({ className: "Solution", methodName: "f", parameters: [{ name: "x", type: "int" }], returnType: "int" })}::jsonb,'[]'::jsonb,'{}'::jsonb,'')`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES(${version}::uuid,0,'[1]'::jsonb,'2'::jsonb)`,
+          sql`INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES(${version}::uuid,0,'[1]'::jsonb,'2'::jsonb)`,
         );
         await indexRunnerFixture(
           tx,
-          { version },
+          { publication: version },
           JSON.stringify({
             problem: {
               signature: {
@@ -143,7 +143,7 @@ it("admits an actual workspace job using workerd PostgreSQL and a prearmed Durab
           }),
         );
         await tx.execute(
-          sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
+          sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${user},${version}::uuid,'python')`,
         );
       }),
     );
@@ -206,8 +206,8 @@ it("admits an actual workspace job using workerd PostgreSQL and a prearmed Durab
         );
         await tx.execute(sql`DELETE FROM submissions WHERE owner_id=${user}`);
         await tx.execute(sql`DELETE FROM workspaces WHERE owner_id=${user}`);
-        await tx.execute(sql`DELETE FROM problem_examples WHERE version_id=${version}::uuid`);
-        await tx.execute(sql`DELETE FROM problem_versions WHERE id=${version}::uuid`);
+        await tx.execute(sql`DELETE FROM problem_examples WHERE publication_id=${version}::uuid`);
+        await tx.execute(sql`DELETE FROM question_publications WHERE id=${version}::uuid`);
         await tx.execute(sql`DELETE FROM problems WHERE id=${problem}::uuid`);
         await tx.execute(sql`DELETE FROM users WHERE id=${user}`);
       }),

@@ -8,14 +8,14 @@ export function SearchableTypeSelect<T extends string>({
   label,
   value,
   choices,
-  names,
+  searchAliases,
   disabled,
   onChange,
 }: {
   label: string;
   value?: T;
   choices: readonly T[];
-  names?: Partial<Record<T, string>>;
+  searchAliases?: Partial<Record<T, string>>;
   disabled: boolean;
   onChange: (value: T) => void;
 }) {
@@ -26,7 +26,9 @@ export function SearchableTypeSelect<T extends string>({
   const [active, setActive] = useState(0);
   const expanded = open && !disabled;
   const visible = choices.filter((choice) =>
-    `${names?.[choice] ?? ""} ${choice}`.toLowerCase().includes(query?.trim().toLowerCase() ?? ""),
+    `${searchAliases?.[choice] ?? ""} ${choice}`
+      .toLowerCase()
+      .includes(query?.trim().toLowerCase() ?? ""),
   );
   const results = useChangeMotion<HTMLDivElement>(visible.join(","));
   const activeChoice = visible[active];
@@ -130,7 +132,6 @@ export function SearchableTypeSelect<T extends string>({
                 onPointerDown={(event) => event.preventDefault()}
                 onClick={() => choose(choice)}
               >
-                {names?.[choice] && <span>{names[choice]}</span>}
                 <code className={typeTokenClass(choice)}>{choice}</code>
               </button>
             ))}

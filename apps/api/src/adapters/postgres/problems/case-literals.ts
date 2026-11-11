@@ -46,9 +46,27 @@ function markerContext(raw: string) {
     const c = object(value);
     if (!c || !node) return;
     const args = fields(node, "args");
-    if (args?.items) c.args = args.items.map(mark);
+    if (args?.items) {
+      const generated = c.graphs !== undefined;
+      c.args = array(c.args).map((value, index) => {
+        const source = args.items?.[index];
+        // A null authoring slot is replaced by the graph codec before publication.
+        return source &&
+          !(generated && value !== null && raw.slice(source.start, source.end) === "null")
+          ? mark(source)
+          : value;
+      });
+    }
     const expected = fields(node, "expected");
-    if (expected) c.expected = mark(expected);
+    if (
+      expected &&
+      !(
+        c.graphs !== undefined &&
+        c.expected !== undefined &&
+        compact(raw.slice(expected.start, expected.end)) !== stringifyLosslessJson(c.expected)
+      )
+    )
+      c.expected = mark(expected);
     const calls = fields(node, "calls")?.items;
     array(c.calls).forEach((call, index) => caseValue(call, calls?.[index]));
   }

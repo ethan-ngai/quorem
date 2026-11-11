@@ -1,16 +1,13 @@
 import { isLongValue } from "@quorem/contracts/long";
 import { z } from "zod";
 import { parseNodeLiteral, formatNodeLiteral, type NodeContext } from "./nodeLiterals";
-import type { Signature } from "@quorem/contracts";
+import type { InputPresetConfig, Signature } from "@quorem/contracts";
 import { nodeType } from "@quorem/contracts/node-type";
 import { acceptsNumericExpression, parseNumericExpression } from "./numericExpression";
 import { innerType, validateTypedValue, type WireValue } from "./typedValues";
 import { MAX_CUSTOM_CASE_BYTES, MAX_INPUT_ELEMENTS } from "./inputLimits";
 
-export type InputConfig = {
-  preset: string;
-  placeholder?: string;
-  rows?: number;
+export type InputConfig = InputPresetConfig & {
   nodeReference?: true;
   nodeContext?: NodeContext;
 };
@@ -42,7 +39,8 @@ export abstract class InputPreset {
     return value;
   }
   format(value: WireValue): string {
-    return JSON.stringify(value);
+    const source = JSON.stringify(value);
+    return this.config?.layout === "rows" ? formatMatrixSource(source) : source;
   }
   toEditorSource(source: string): string {
     return source;
@@ -168,6 +166,22 @@ function splitEntries(source: string): string[] {
   if (quoted || depth !== 0) throw new Error("Complete the string or nested sequence.");
   entries.push(source.slice(start));
   return entries;
+}
+
+/** Break only the outer array so editing preserves expressions and quoted values. */
+export function formatMatrixSource(source: string) {
+  const literal = source.trim();
+  if (source.length > MAX_CUSTOM_CASE_BYTES || !literal.startsWith("[") || !literal.endsWith("]"))
+    return source;
+  try {
+    const rows = splitEntries(literal.slice(1, -1)).map((row) => row.trim());
+    if (rows.some((row) => row !== "null" && !(row.startsWith("[") && row.endsWith("]"))))
+      return source;
+    const result = `[${rows.join(",\n")}]`;
+    return result.length <= MAX_CUSTOM_CASE_BYTES ? result : source;
+  } catch {
+    return source;
+  }
 }
 
 /** Inspect literal punctuation while preserving arbitrary quoted payloads. */

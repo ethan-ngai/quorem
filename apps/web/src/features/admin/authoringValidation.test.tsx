@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { QuestionContent, ProblemVersion } from "@quorem/contracts";
+import type { QuestionContent, PublishedQuestion } from "@quorem/contracts";
 import fixture from "../../../../../fixtures/problems/level-spreads.json";
 import {
   caseValidationIssues,
@@ -57,7 +57,7 @@ it("shows the same descriptive issue at the constraint, case and input", () => {
   expect(fields).toContain("Example 3: Constraint 2: root is empty");
   const caseEditor = renderToStaticMarkup(
     <TestCases
-      problem={{ ...problem, starterSource: "", runtimeRevision: "fixture" } as ProblemVersion}
+      problem={{ ...problem, starterSource: "", runtimeRevision: "fixture" } as PublishedQuestion}
       customMode
       drafts={cases}
       selectedCustomId="case-2"

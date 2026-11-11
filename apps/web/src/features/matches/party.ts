@@ -70,11 +70,17 @@ export function partyCommand<T>(
     true,
   );
 }
-export function useParty(identity: DevelopmentIdentity, enabled = true, poll = false) {
+export function useParty(
+  identity: DevelopmentIdentity,
+  enabled = true,
+  poll = false,
+  { refetchOnMount = true }: { refetchOnMount?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["current-party", identity],
     enabled,
     retry: false,
+    refetchOnMount,
     refetchInterval: (query) => {
       const party = query.state.data?.party;
       if (!poll || !party) return false;

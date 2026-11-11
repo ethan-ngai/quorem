@@ -57,7 +57,7 @@ export function formatTypedField(type: string, value: WireValue, config?: InputC
   return resolveInputPreset(type, config).format(value);
 }
 
-function defaultValue(type: string): WireValue {
+export function defaultCaseValue(type: string): WireValue {
   if (type === "str") return "";
   if (type === "long") return "0";
   if (type === "datetime") return "1970-01-01T00:00:00";
@@ -93,14 +93,14 @@ export function createCustomDraft(problem: QuestionProblem): CustomCaseDraft {
     args: primarySignature(problem).parameters.map(({ type, input }, index) =>
       formatTypedField(
         type,
-        inputs ? inputs[index]!.value : defaultValue(type),
+        inputs ? inputs[index]!.value : defaultCaseValue(type),
         caseFieldConfig(primarySignature(problem), type, input, false, { args: example?.args }),
       ),
     ),
     expectedEnabled: false,
     expected: formatTypedField(
       primarySignature(problem).returnType,
-      example?.expected ?? defaultValue(primarySignature(problem).returnType),
+      example?.expected ?? defaultCaseValue(primarySignature(problem).returnType),
       caseFieldConfig(
         primarySignature(problem),
         primarySignature(problem).returnType,

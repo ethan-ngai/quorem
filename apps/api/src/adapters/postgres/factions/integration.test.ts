@@ -10,7 +10,7 @@ import { beforeAll, afterAll, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { languageRuntime } from "@quorem/execution";
 import { matchPreset } from "@quorem/contracts/match-rules";
-import { persistQuestionVersion } from "../problems/publication.ts";
+import { persistQuestionPublication } from "../problems/publication.ts";
 import { teamActionExecutor } from "./actions.ts";
 import { paidTeamActions } from "./paid-actions.ts";
 import { prepareRuleAction, executeRuleAction } from "../matches/rules/actions.ts";
@@ -75,19 +75,25 @@ beforeAll(async () => {
   Object.assign(fixture.problem, {
     id: version,
     slug: "faction-fixture",
-    version: "1",
     tags: ["array"],
   });
   await run((scope) =>
     scope.transaction({ statementTimeoutMs: 10000, lockTimeoutMs: 1000 }, (tx) =>
-      persistQuestionVersion(tx, JSON.stringify(fixture), problem, version, 1, null, (language) => {
-        const r = languageRuntime(language);
-        return r ? { revision: r.revision, harness: r.harness } : undefined;
-      }),
+      persistQuestionPublication(
+        tx,
+        JSON.stringify(fixture),
+        problem,
+        version,
+        null,
+        (language) => {
+          const r = languageRuntime(language);
+          return r ? { revision: r.revision, harness: r.harness } : undefined;
+        },
+      ),
     ),
   );
   await pool.query(
-    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,problem_version_id,started_at,deadline,rules) VALUES($1,'a','fixture',clock_timestamp()+interval '1 hour',30,'active','factions',ARRAY['easy'],$2,clock_timestamp(),clock_timestamp()+interval '30 minutes','{}')",
+    "INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,mode,difficulties,publication_id,started_at,deadline,rules) VALUES($1,'a','fixture',clock_timestamp()+interval '1 hour',30,'active','factions',ARRAY['easy'],$2,clock_timestamp(),clock_timestamp()+interval '30 minutes','{}')",
     [match, version],
   );
   const rules = matchPreset("strict");
@@ -98,7 +104,7 @@ beforeAll(async () => {
     [workspace2, "c"],
   ])
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id,team) VALUES($1,$2,$3,'python','match',$4,CASE WHEN $2='a' THEN 1 ELSE 2 END)",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id,team) VALUES($1,$2,$3,'python','match',$4,CASE WHEN $2='a' THEN 1 ELSE 2 END)",
       [wid, owner, version, match],
     );
   for (const [i, id] of ["a", "b", "c", "d"].entries())

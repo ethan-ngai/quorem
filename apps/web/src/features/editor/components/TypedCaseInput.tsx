@@ -1,3 +1,4 @@
+import { CaseGrid } from "./CaseGrid";
 import { TextInput, TextArea } from "../../../ui/TextControl";
 import { NoticeRegion } from "../../../ui/PersistentNotice";
 import { useNodeReferenceSelection } from "./NodePreview";
@@ -10,7 +11,12 @@ import { SelectField } from "../../../ui/SelectField";
 import { Icon } from "../../../ui/Icon";
 import { useState, useRef, type ReactNode } from "react";
 import { innerType } from "../customCases";
-import { inputPresetSchemas, resolveInputPreset, type InputConfig } from "../inputPresets";
+import {
+  formatMatrixSource,
+  inputPresetSchemas,
+  resolveInputPreset,
+  type InputConfig,
+} from "../inputPresets";
 
 export function TypedCaseInput({
   id,
@@ -57,17 +63,20 @@ export function TypedCaseInput({
   while (innerType(controlType, "optional")) controlType = innerType(controlType, "optional")!;
   const control = optional ? resolveInputPreset(controlType, input) : preset;
   const framed = !!control.delimiters;
+  const rowLayout = input?.layout === "rows";
   const schemas = inputPresetSchemas(preset);
   const constraint = {
     edit: (source: string) => schemas.edit.safeParse(source).success,
     schema: schemas.value,
   };
   let error = rejected ?? validationError;
-  if (touched && !error) {
+  let gridValue: unknown;
+  if ((touched && !error) || input?.showGrid) {
     try {
-      schemas.value.parse(value);
+      gridValue = preset.parse(value);
     } catch (cause) {
-      error = cause instanceof Error ? cause.message : "Check the input format.";
+      if (touched && !error)
+        error = cause instanceof Error ? cause.message : "Check the input format.";
     }
   }
   const errorId = `${id}-error`;
@@ -79,7 +88,10 @@ export function TypedCaseInput({
     "aria-describedby": error ? errorId : undefined,
     onBlur: () => {
       setTouched(true);
-      if (preset.autoformat) {
+      if (rowLayout) {
+        const next = formatMatrixSource(value);
+        if (next !== value) onChange(next);
+      } else if (preset.autoformat) {
         try {
           onChange(preset.format(preset.parse(value)));
         } catch {
@@ -181,7 +193,8 @@ export function TypedCaseInput({
                 </span>
               )}
               {control.kind === "number" ||
-              ((control.kind === "sequence" || control.kind === "linkedList") &&
+              (!rowLayout &&
+                (control.kind === "sequence" || control.kind === "linkedList") &&
                 (input?.rows ?? 1) === 1) ? (
                 <TextInput
                   {...props}
@@ -198,13 +211,15 @@ export function TypedCaseInput({
                   {...props}
                   rows={
                     input?.rows ??
-                    (control.kind === "tree"
-                      ? Math.min(12, Math.max(1, props.value.split("\n").length))
-                      : control.kind === "text"
-                        ? 1
-                        : framed
-                          ? 2
-                          : 1)
+                    (rowLayout
+                      ? Math.min(12, Math.max(2, props.value.split("\n").length))
+                      : control.kind === "tree"
+                        ? Math.min(12, Math.max(1, props.value.split("\n").length))
+                        : control.kind === "text"
+                          ? 1
+                          : framed
+                            ? 2
+                            : 1)
                   }
                   spellCheck={false}
                 />
@@ -216,6 +231,7 @@ export function TypedCaseInput({
               )}
             </div>
           )}
+          {input?.showGrid && <CaseGrid name={name} value={gridValue} />}
         </div>
       </NoticeRegion>
     </div>

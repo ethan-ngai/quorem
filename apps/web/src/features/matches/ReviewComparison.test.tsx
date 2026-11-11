@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: { id: "copy", language: "python", kind: "review" } }),
@@ -31,7 +31,7 @@ it("marks the comparison copy read-only until explicitly selected", () => {
         workspace: null,
         submission: { source: "original", language: "python", verdict: null, state: "completed" },
       }}
-      problem={{ id: "version", languages: [{ language: "python" }] } as ProblemVersion}
+      problem={{ id: "version", languages: [{ language: "python" }] } as PublishedQuestion}
       theme="light"
       colorScheme="jetbrains-light"
       fontSize={15}

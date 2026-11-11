@@ -6,7 +6,7 @@ Ledger: https://github.com/ethan-ngai/quorem/issues/598
 
 A party is the persistent lobby. A match is one competitive round with fixed participants and settings. Completing a round returns the party to its lobby; it does not dissolve the group.
 
-Confirmed: automatic post-match code sharing between that round's participants, controlled by a lobby setting. **Share code after match** defaults on. The host can change it before the next round; changing it clears readiness. Capture the policy at round start. Later changes affect future rounds only. Own-code review is available with sharing either on or off.
+Confirmed: automatic post-match code sharing between that round's participants, controlled by a lobby setting. **Share final code after match** defaults on. The host can change it before the next round; changing it clears readiness. Capture the policy at round start. Later changes affect future rounds only. Own-code review is available with sharing either on or off.
 
 ## Party lifecycle
 
@@ -45,8 +45,8 @@ Connected but inactive tabs are a separate AFK concern. Initial scope uses platf
 ## Latest-match review
 
 - The completed workspace stays mounted behind the result dialog. Freeze the match clock, conduct monitoring, editing and new match admissions; already-admitted judging may finish. **Review code** dismisses the dialog in place; **Results** reopens it.
-- Own view restores the latest saved match draft. Identify the exact last submitted source and its verdict separately when it differs. Recover unsaved local edits through the existing recovery mechanism.
-- With sharing enabled for that round, participants can select each opponent's last admitted Submit source. Show No submission when absent. Do not share unsubmitted opponent drafts.
+- Sharing makes each player's last editor code received by the server available after settlement, including code they never submitted. Factions use the final shared team document. High Score shows final code for every player. If a correct answer wins a race, show the exact submission that decided the race for the winner.
+- If a shared editor snapshot is missing, use the latest retained submission for that editor, then the starter code. Rounds started under the old sharing policy expose only their retained submissions. Recover own private drafts through browser-local recovery.
 - Review stays unavailable until the entire round has settled, including when the viewer forfeits early. Finishing one's own participation never grants early access to a still-running opponent.
 - Only participants of that completed round may read its shared sources. Later party joiners and nonparticipant spectators gain no access. Apply authorization on every read; never depend on hidden UI.
 - Own code is readable regardless of the sharing setting. Opponent reads use the round's frozen sharing policy. Enabling sharing in a later lobby cannot expose a previous private round.
@@ -79,6 +79,6 @@ Guest sessions currently end with a match. Persistent parties require live party
 
 ## Implementation
 
-Implemented in the party lifecycle, platform presence, dedicated completed-round review projection, and shared lobby/results controls. The old single-round lobby mutation routes are removed. Winner rows show authoritative elapsed round time. Review restores browser-local drafts; opponents expose only their final admitted submission.
+Implemented in the party lifecycle, platform presence, dedicated completed-round review projection, and shared lobby/results controls. The old single-round lobby mutation routes are removed. Winner rows show authoritative elapsed round time. Review can use frozen editor code, a race-winning submission, or browser-local recovery, as permitted by the round's sharing policy.
 
 Disposable PostgreSQL tests cover presence, eligibility, readiness races, expiry, guest authorization and review retention. The mandatory native SQL runtime validation also exercises two accounts and a guest through two rounds, frozen sharing policy, automatic requeue, host transfer and disbanding.

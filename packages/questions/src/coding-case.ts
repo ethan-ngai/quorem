@@ -1,7 +1,7 @@
 /** @file coding-case.ts @description Coding cases, constraints and sequence results. @module questions */
-import { nodeType } from "@quorem/contracts/node-type";
-import type { Constraint, ConstraintTarget, Signature } from "./model.ts";
-import { rangeMatches, comparisonMatches, propertyMatches } from "./constraintPredicates.ts";
+import type { Constraint, Signature } from "./model.ts";
+import { constraintMatches } from "./constraintPredicates.ts";
+import { constraintProjector, constraintTargetType } from "./constraintTargets.ts";
 import { validateConstraints } from "./constraints.ts";
 import {
   compareUtf8,
@@ -41,51 +41,26 @@ function applyConstraints(
   argumentValue: (index: number) => JsonValue,
 ): void {
   validateConstraints(sig, constraints);
-  const project = (target: ConstraintTarget): (number | bigint)[] => {
-    const index = sig.parameters.findIndex((p) => p.name === target.parameter);
-    const type = sig.parameters[index].type.replaceAll("array<", "list<");
-    const value = argumentValue(index);
-    if (target.projection === "length")
-      return [typeof value === "string" ? Array.from(value).length : (value as JsonValue[]).length];
-    if (type === "long") return [BigInt(value as string)];
-    if (type === "list<long>") {
-      const values = (value as string[]).map(BigInt);
-      return target.projection === "sum" ? [values.reduce((a, b) => a + b, 0n)] : values;
+  const project = constraintProjector(sig, argumentValue);
+  for (const [index, rule] of constraints.entries()) {
+    try {
+      if (constraintMatches(rule, project, (target) => constraintTargetType(sig, target))) continue;
+    } catch (cause) {
+      throw new Error(`constraint ${index + 1}: ${(cause as Error).message}`);
     }
-    if (target.projection === "value")
-      return typeof value === "string"
-        ? Array.from(value).map((c) => c.codePointAt(0)!)
-        : [Number((value as JsonNumber).lexeme)];
-    const elements = (value as JsonValue[] | null)?.filter((v) => v !== null) ?? [];
-    if (target.projection === "nodeCount") return [elements.length];
-    if (target.projection === "nodeValues" && nodeType(type)?.payload === "long")
-      return (elements as string[]).map(BigInt);
-    const values = elements.map((v) => Number((v as JsonNumber).lexeme));
-    if (target.projection === "sum") return [values.reduce((a, b) => a + b, 0)];
-    return values;
-  };
-  for (const c of constraints) {
-    switch (c.kind) {
-      case "range":
-        if (!rangeMatches(c, project(c.target)))
-          throw new Error(
-            `argument ${c.target.parameter}: ${c.target.projection} outside allowed range`,
-          );
-        break;
-      case "comparison": {
-        const valid = comparisonMatches(c, project(c.left), project(c.right));
-        if (!valid)
-          throw new Error(
-            `arguments ${c.left.parameter} and ${c.right.parameter}: comparison ${c.operator} failed`,
-          );
-        break;
-      }
-      case "property": {
-        if (!propertyMatches(c, project(c.target)))
-          throw new Error(`argument ${c.target.parameter}: requires ${c.property}`);
-        break;
-      }
-    }
+    if (rule.kind === "range")
+      throw new Error(
+        `constraint ${index + 1}: argument ${rule.target.parameter}: ${rule.target.projection} outside allowed range`,
+      );
+    if (rule.kind === "comparison")
+      throw new Error(
+        `constraint ${index + 1}: arguments ${rule.left.parameter} and ${rule.right.parameter}: comparison ${rule.operator} failed`,
+      );
+    if (rule.kind === "property")
+      throw new Error(
+        `constraint ${index + 1}: argument ${rule.target.parameter}: requires ${rule.property}`,
+      );
+    throw new Error(`constraint ${index + 1}: ${rule.kind} failed`);
   }
 }
 /** Validate a raw classic coding case and its constraints. */

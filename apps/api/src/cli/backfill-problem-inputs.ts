@@ -1,4 +1,4 @@
-/** @file backfill-problem-inputs.ts @description Audited legacy problem-version runner indexing. @module cli */
+/** @file backfill-problem-inputs.ts @description Audited runner indexing for older publications. @module cli */
 import { createHash } from "node:crypto";
 import { parseArgs } from "node:util";
 import { sql } from "drizzle-orm";
@@ -101,7 +101,7 @@ export async function backfillProblemInputs(args: string[]) {
           async (tx) =>
             (
               await tx.execute<{ id: string }>(
-                sql`SELECT v.id::text AS id FROM problem_versions v WHERE v.sealed AND (${after}::uuid IS NULL OR v.id>${after}::uuid) AND NOT EXISTS (SELECT 1 FROM runner_version_inputs i WHERE i.version_id=v.id AND i.sealed) ORDER BY v.id LIMIT ${limit}`,
+                sql`SELECT v.id::text AS id FROM question_publications v WHERE v.sealed AND (${after}::uuid IS NULL OR v.id>${after}::uuid) AND NOT EXISTS (SELECT 1 FROM runner_publication_inputs i WHERE i.publication_id=v.id AND i.sealed) ORDER BY v.id LIMIT ${limit}`,
               )
             ).rows.map((r) => r.id),
         ),
@@ -118,10 +118,10 @@ export async function backfillProblemInputs(args: string[]) {
                 throw new Error("Operator changed");
               const size = (
                 await tx.execute<{ bytes: number; cases: number }>(
-                  sql`SELECT (COALESCE(octet_length(v.lossless_fixture),0) + octet_length(COALESCE(v.odyssey::text,'')) + octet_length(COALESCE(v.signature::text,'')) + octet_length(COALESCE(v.constraints::text,'')) + octet_length(COALESCE(v.limits::text,'')) + octet_length(COALESCE(v.sql_config::text,'')) + COALESCE((SELECT sum(octet_length(row_to_json(e)::text)) FROM problem_examples e WHERE e.version_id=v.id),0) + COALESCE((SELECT sum(octet_length(row_to_json(c)::text)) FROM problem_test_cases c WHERE c.version_id=v.id),0) + COALESCE((SELECT sum(octet_length(c.case_data::text)) FROM problem_odyssey_cases c WHERE c.version_id=v.id),0))::bigint AS bytes, ((SELECT count(*) FROM problem_examples e WHERE e.version_id=v.id) + (SELECT count(*) FROM problem_test_cases c WHERE c.version_id=v.id) + (SELECT count(*) FROM problem_odyssey_cases c WHERE c.version_id=v.id))::bigint AS cases FROM problem_versions v WHERE v.id=${id}::uuid FOR UPDATE`,
+                  sql`SELECT (COALESCE(octet_length(v.lossless_fixture),0) + octet_length(COALESCE(v.odyssey::text,'')) + octet_length(COALESCE(v.signature::text,'')) + octet_length(COALESCE(v.constraints::text,'')) + octet_length(COALESCE(v.limits::text,'')) + octet_length(COALESCE(v.sql_config::text,'')) + COALESCE((SELECT sum(octet_length(row_to_json(e)::text)) FROM problem_examples e WHERE e.publication_id=v.id),0) + COALESCE((SELECT sum(octet_length(row_to_json(c)::text)) FROM problem_test_cases c WHERE c.publication_id=v.id),0) + COALESCE((SELECT sum(octet_length(c.case_data::text)) FROM problem_odyssey_cases c WHERE c.publication_id=v.id),0))::bigint AS bytes, ((SELECT count(*) FROM problem_examples e WHERE e.publication_id=v.id) + (SELECT count(*) FROM problem_test_cases c WHERE c.publication_id=v.id) + (SELECT count(*) FROM problem_odyssey_cases c WHERE c.publication_id=v.id))::bigint AS cases FROM question_publications v WHERE v.id=${id}::uuid FOR UPDATE`,
                 )
               ).rows[0];
-              // Refuse oversized legacy versions rather than exceeding the offline operator's memory budget.
+              // Refuse oversized publications rather than exceeding the offline operator's memory budget.
               if (!size || Number(size.bytes) > 16 * 1024 * 1024 || Number(size.cases) > 10000)
                 throw new Error("Problem fixture exceeds operator bounds");
               const row = (
@@ -129,12 +129,12 @@ export async function backfillProblemInputs(args: string[]) {
                   raw: string;
                 }>(sql`SELECT COALESCE(convert_from(v.lossless_fixture,'UTF8'),jsonb_build_object(
               'problem',jsonb_build_object('id',v.id,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'odyssey',v.odyssey,
-              'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE version_id=v.id),'[]'::jsonb)),
-              'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE version_id=v.id),'[]'::jsonb),
-              'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.version_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END)::text) AS raw FROM problem_versions v WHERE v.id=${id}::uuid AND v.sealed FOR UPDATE`)
+              'examples',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb)),
+              'hiddenCases',COALESCE((SELECT jsonb_agg(jsonb_build_object('args',args,'expected',expected,'calls',calls) ORDER BY ordinal) FROM problem_test_cases WHERE publication_id=v.id),'[]'::jsonb),
+              'odysseyHiddenCases',CASE WHEN v.odyssey IS NULL THEN '[]'::jsonb ELSE (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg(c.case_data ORDER BY c.ordinal) FROM problem_odyssey_cases c WHERE c.publication_id=v.id AND c.level=stage.ordinality-1),'[]'::jsonb) ORDER BY stage.ordinality),'[]'::jsonb) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY stage(value,ordinality)) END)::text) AS raw FROM question_publications v WHERE v.id=${id}::uuid AND v.sealed FOR UPDATE`)
               ).rows[0];
-              if (!row) throw new Error("Problem version changed");
-              await indexRunnerFixture(tx, { version: id }, row.raw);
+              if (!row) throw new Error("Publication changed");
+              await indexRunnerFixture(tx, { publication: id }, row.raw);
               if (values["dry-run"]) throw new DryRun();
             }),
           );
@@ -152,7 +152,7 @@ export async function backfillProblemInputs(args: string[]) {
           async (tx) =>
             !(
               await tx.execute(
-                sql`SELECT 1 FROM problem_versions v WHERE v.sealed AND (${after}::uuid IS NULL OR v.id>${after}::uuid) AND NOT EXISTS (SELECT 1 FROM runner_version_inputs i WHERE i.version_id=v.id AND i.sealed) LIMIT 1`,
+                sql`SELECT 1 FROM question_publications v WHERE v.sealed AND (${after}::uuid IS NULL OR v.id>${after}::uuid) AND NOT EXISTS (SELECT 1 FROM runner_publication_inputs i WHERE i.publication_id=v.id AND i.sealed) LIMIT 1`,
               )
             ).rows.length,
         ),

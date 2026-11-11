@@ -72,17 +72,17 @@ export async function indexRunnerFixture(
   const metadataHash = await storeFixtureBlob(tx, await encodeFixtureMetadata(tx, problem));
   const fixtureHash = await fixtureSourceHash(tx, parent);
   let existing: { sealed: boolean; same: boolean } | undefined;
-  if ("version" in parent) {
+  if ("publication" in parent) {
     existing = (
       await tx.execute<{ sealed: boolean; same: boolean }>(
-        sql`SELECT sealed,(metadata_hash=${metadataHash}::bytea AND fixture_hash=${fixtureHash}::bytea) AS same FROM runner_version_inputs WHERE version_id=${parent.version}::uuid`,
+        sql`SELECT sealed,(metadata_hash=${metadataHash}::bytea AND fixture_hash=${fixtureHash}::bytea) AS same FROM runner_publication_inputs WHERE publication_id=${parent.publication}::uuid`,
       )
     ).rows[0];
     if (existing && (!existing.sealed || !existing.same))
       throw new Error("Conflicting runner fixture");
     if (!existing)
       await tx.execute(
-        sql`INSERT INTO runner_version_inputs(version_id,metadata_hash,fixture_hash) VALUES(${parent.version}::uuid,${metadataHash},${fixtureHash})`,
+        sql`INSERT INTO runner_publication_inputs(publication_id,metadata_hash,fixture_hash) VALUES(${parent.publication}::uuid,${metadataHash},${fixtureHash})`,
       );
   } else {
     existing = (
@@ -125,8 +125,8 @@ export async function indexRunnerFixture(
   }
   if (existing) {
     const actual =
-      "version" in parent
-        ? sql`SELECT c.channel,c.stage,c.ordinal,b.data FROM runner_version_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.version_id=${parent.version}::uuid`
+      "publication" in parent
+        ? sql`SELECT c.channel,c.stage,c.ordinal,b.data FROM runner_publication_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.publication_id=${parent.publication}::uuid`
         : sql`SELECT c.channel,c.stage,c.ordinal,b.data FROM runner_snapshot_input_cases c JOIN runner_input_blobs b ON b.hash=c.blob_hash WHERE c.session_id=${parent.session}::uuid AND c.fixture_id=${parent.fixture}::bytea`;
     const expected = cases.length
       ? sql`SELECT * FROM (VALUES ${sql.join(
@@ -165,18 +165,18 @@ export async function indexRunnerFixture(
       )
     ).rows[0];
     if (mismatch.found) throw new Error("Runner input hash collision");
-    if ("version" in parent)
+    if ("publication" in parent)
       await tx.execute(
-        sql`WITH input(channel,stage,ordinal,data) AS (VALUES ${rows}) INSERT INTO runner_version_input_cases(version_id,channel,stage,ordinal,blob_hash) SELECT ${parent.version}::uuid,channel,stage,ordinal,sha256(data) FROM input`,
+        sql`WITH input(channel,stage,ordinal,data) AS (VALUES ${rows}) INSERT INTO runner_publication_input_cases(publication_id,channel,stage,ordinal,blob_hash) SELECT ${parent.publication}::uuid,channel,stage,ordinal,sha256(data) FROM input`,
       );
     else
       await tx.execute(
         sql`WITH input(channel,stage,ordinal,data) AS (VALUES ${rows}) INSERT INTO runner_snapshot_input_cases(session_id,fixture_id,channel,stage,ordinal,blob_hash) SELECT ${parent.session}::uuid,${parent.fixture}::bytea,channel,stage,ordinal,sha256(data) FROM input`,
       );
   }
-  if ("version" in parent)
+  if ("publication" in parent)
     await tx.execute(
-      sql`UPDATE runner_version_inputs SET sealed=true WHERE version_id=${parent.version}::uuid`,
+      sql`UPDATE runner_publication_inputs SET sealed=true WHERE publication_id=${parent.publication}::uuid`,
     );
   else
     await tx.execute(

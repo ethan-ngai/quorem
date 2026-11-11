@@ -1,5 +1,7 @@
 /** @file StatementMarkdown.tsx @description Safe Markdown and bounded mathematics. @module editor */
+import { Fragment } from "react";
 import { CodeLiteral } from "./CodeLiteral";
+import { renderStatementFigure, type ExampleArgument } from "./StatementFigure";
 import { useQuestionLanguage } from "../QuestionLanguage";
 import type { EditorLanguage } from "../editorLanguages";
 import type { ReactNode } from "react";
@@ -12,11 +14,19 @@ import { gfm } from "micromark-extension-gfm";
 import { math } from "micromark-extension-math";
 import type { Nodes } from "mdast";
 
-function InlineMath({ value, source }: { value: string; source: string }) {
+function StatementMath({
+  value,
+  source,
+  displayMode = false,
+}: {
+  value: string;
+  source: string;
+  displayMode?: boolean;
+}) {
   if (value.length > 4096) return source;
   try {
     const html = katex.renderToString(value, {
-      displayMode: false,
+      displayMode,
       throwOnError: true,
       strict: "error",
       trust: false,
@@ -25,7 +35,8 @@ function InlineMath({ value, source }: { value: string; source: string }) {
       maxExpand: 100,
     });
     // Only KaTeX output enters HTML; authored Markdown never enters this sink.
-    return <span className="statement-math" dangerouslySetInnerHTML={{ __html: html }} />;
+    const Element = displayMode ? "div" : "span";
+    return <Element className="statement-math" dangerouslySetInnerHTML={{ __html: html }} />;
   } catch {
     return source;
   }
@@ -56,7 +67,13 @@ const fenceLanguages: Record<string, EditorLanguage> = {
   pseudocode: "python",
 };
 
-function renderMarkdown(source: string, inline: boolean, language?: EditorLanguage): ReactNode[] {
+function renderMarkdown(
+  source: string,
+  inline: boolean,
+  language?: EditorLanguage,
+  allowFigures = false,
+  exampleArgument?: ExampleArgument,
+): ReactNode[] {
   const tree = fromMarkdown(source, {
     extensions: [math(), gfm()],
     mdastExtensions: [mathFromMarkdown(), gfmFromMarkdown()],
@@ -70,6 +87,10 @@ function renderMarkdown(source: string, inline: boolean, language?: EditorLangua
         return <CodeLiteral key={key} source={node.value} language={language} />;
       case "code": {
         const fence = node.lang?.toLowerCase() ?? "";
+        if (allowFigures && (fence === "grid" || fence === "svg")) {
+          const figure = renderStatementFigure(fence, node.value, node.meta, exampleArgument);
+          if (figure) return <Fragment key={key}>{figure}</Fragment>;
+        }
         return (
           <CodeLiteral
             key={key}
@@ -84,7 +105,9 @@ function renderMarkdown(source: string, inline: boolean, language?: EditorLangua
       case "emphasis":
         return <em key={key}>{node.children.map(render)}</em>;
       case "inlineMath":
-        return <InlineMath key={key} value={node.value} source={literal} />;
+        return <StatementMath key={key} value={node.value} source={literal} />;
+      case "math":
+        return <StatementMath key={key} value={node.value} source={literal} displayMode />;
       case "paragraph":
         return inline ? node.children.map(render) : <p key={key}>{node.children.map(render)}</p>;
       case "break":
@@ -146,14 +169,48 @@ function renderMarkdown(source: string, inline: boolean, language?: EditorLangua
         return literal;
     }
   };
-  return tree.children.map(render);
+  if (!allowFigures) return tree.children.map(render);
+
+  const content: ReactNode[] = [];
+  let grids: ReactNode[] = [];
+  function flushGrids() {
+    if (!grids.length) return;
+    content.push(
+      <div key={`grids-${content.length}`} className="statement-grid-group">
+        {grids}
+      </div>,
+    );
+    grids = [];
+  }
+  tree.children.forEach((node, index) => {
+    const grid =
+      node.type === "code" && node.lang?.toLowerCase() === "grid"
+        ? renderStatementFigure("grid", node.value, node.meta, exampleArgument)
+        : undefined;
+    if (grid) {
+      grids.push(<Fragment key={index}>{grid}</Fragment>);
+    } else {
+      flushGrids();
+      content.push(render(node, index));
+    }
+  });
+  flushGrids();
+  return content;
 }
 
 export function inlineStatement(source: string): ReactNode[] {
   return renderMarkdown(source, true);
 }
 
-export function StatementMarkdown({ source }: { source: string }) {
+export function StatementMarkdown({
+  source,
+  allowFigures = false,
+  exampleArgument,
+}: {
+  source: string;
+  allowFigures?: boolean;
+  exampleArgument?: ExampleArgument;
+}) {
   const language = useQuestionLanguage();
-  return <>{renderMarkdown(source.trim(), false, language)}</>;
+  return <>{renderMarkdown(source.trim(), false, language, allowFigures, exampleArgument)}</>;
 }

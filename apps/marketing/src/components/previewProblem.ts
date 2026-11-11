@@ -1,4 +1,4 @@
-import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import type { PublishedQuestion, PublicCaseResult, Submission } from "@quorem/contracts";
 export const source = `class Solution:
     def twoSum(self, nums, target):
         seen = {}
@@ -6,10 +6,9 @@ export const source = `class Solution:
             seen[num] = i
             if target - num in seen:
                 return [seen[target - num], i]`;
-export const previewProblem: ProblemVersion = {
+export const previewProblem: PublishedQuestion = {
   id: "preview-two-sum",
   slug: "two-sum",
-  version: "1",
   title: "Two Sum",
   difficulty: "easy",
   tags: ["arrays", "hash table"],

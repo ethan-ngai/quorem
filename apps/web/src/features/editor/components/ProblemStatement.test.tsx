@@ -1,6 +1,6 @@
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 /** @file ProblemStatement.test.tsx @description Public inputs retain their declared argument names. @module editor */
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProblemStatement } from "./ProblemStatement";
@@ -16,7 +16,7 @@ describe("topic disclosure", () => {
       examples: [],
       constraints: [],
       signature: { parameters: [] },
-    } as unknown as ProblemVersion;
+    } as unknown as PublishedQuestion;
     const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
     expect(markup).toContain('aria-label="Show topics"');
     expect(markup).toContain('aria-expanded="false"');
@@ -46,13 +46,13 @@ it("renders structured mathematics and literal prose with named examples", () =>
       { kind: "range", target: { parameter: "values", projection: "length" }, min: 1, max: 10000 },
       { kind: "prose", text: "Use the supplied values." },
     ],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(stripSyntaxMarkup(markup)).toMatch(
     /class="parameter-name">values<.*?class="machine-value ">\[3,4\]<.*?class="parameter-name">index<.*?class="machine-value ">0</,
   );
   expect(markup.match(/aria-label="Input"/g)).toHaveLength(2);
-  expect(stripSyntaxMarkup(markup)).toContain('<code class="code-literal">len(values)</code>');
+  expect(stripSyntaxMarkup(markup)).toContain('<code class="code-literal">values.length</code>');
   expect(markup).toContain("<msup><mn>10</mn><mn>4</mn></msup>");
   expect(markup).toContain("<mo>≤</mo>");
   expect(markup).toContain("Use the supplied values.");
@@ -69,7 +69,7 @@ it("removes the topic control and all topic content when the host disables hints
     examples: [],
     constraints: [],
     signature: { parameters: [] },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} allowTopics={false} />);
   expect(markup).not.toContain("Show topics");
   expect(markup).not.toContain("SECRET_TOPIC");
@@ -89,7 +89,7 @@ it("connects example tabs to one visible panel", () => {
       { args: [1], expected: 2, explanation: "First explanation" },
       { args: [3], expected: 4, explanation: "Second explanation" },
     ],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(markup.match(/role="tab"/g)).toHaveLength(2);
   expect(markup.match(/role="tabpanel"/g)).toHaveLength(1);
@@ -115,7 +115,7 @@ it("shows the shared SQL schema and row-only example tables", () => {
       output: [{ name: "id", type: "integer" }],
     },
     examples: [{ args: [{ tables: [{ name: "items", rows: [[1]] }] }], expected: { rows: [[1]] } }],
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(html).toContain('aria-label="SQL schema"');
   expect(html).toContain('aria-label="items"');
@@ -133,8 +133,101 @@ it("preserves uppercase topic labels", () => {
     constraints: [],
     examples: [],
     signature: { className: "Solution", methodName: "solve", parameters: [], returnType: "int" },
-  } as unknown as ProblemVersion;
+  } as unknown as PublishedQuestion;
   const html = renderToStaticMarkup(<ProblemStatement problem={problem} />);
   expect(html).toContain(">SQL</span>");
   expect(html).toContain(">Hash Table</span>");
+});
+
+it("draws a description grid from the named argument of the specified example", () => {
+  const problem = {
+    id: "matrix",
+    title: "Grid",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown:
+      '~~~grid Example grid\n{"example":2,"argument":"grid","highlights":[[0,1]]}\n~~~',
+    signature: {
+      parameters: [
+        { name: "start", type: "int" },
+        { name: "grid", type: "list<list<int>>" },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      { args: [0, [[1, 2]]], expected: 1 },
+      { args: [0, [[41, 42]]], expected: 42 },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup).toContain('aria-label="Example grid"');
+  expect(markup).toContain('aria-label="42, highlighted">42</td>');
+});
+
+it("uses the authored array layout for each example input", () => {
+  const problem = {
+    id: "layout",
+    title: "Grid layout",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Two grids.",
+    signature: {
+      parameters: [
+        { name: "grid", type: "list<list<int>>", input: { preset: "default", layout: "rows" } },
+        { name: "inline", type: "list<list<int>>" },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      {
+        args: [
+          [
+            [5, 2, 4],
+            [3, 0, 5],
+            [0, 7, 2],
+          ],
+          [[1], [2]],
+        ],
+        expected: 0,
+      },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = stripSyntaxMarkup(renderToStaticMarkup(<ProblemStatement problem={problem} />));
+  expect(markup).toContain("[[5,2,4],\n[3,0,5],\n[0,7,2]]</code>");
+  expect(markup).toContain("[[1],[2]]</code>");
+});
+
+it("renders case grids and annotations inside the selected example", () => {
+  const problem = {
+    id: "case-figures",
+    title: "Case figures",
+    difficulty: "easy",
+    tags: [],
+    statementMarkdown: "Return the last cell.",
+    signature: {
+      parameters: [
+        { name: "grid", type: "list<list<int>>", input: { preset: "default", showGrid: true } },
+      ],
+      returnType: "int",
+    },
+    examples: [
+      {
+        args: [[[1, 2]]],
+        expected: 2,
+        explanation: '~~~grid First path\n{"argument":"grid","highlights":[[0,1]]}\n~~~',
+      },
+      {
+        args: [[[3, 4]]],
+        expected: 4,
+        explanation: '~~~grid Second path\n{"argument":"grid","highlights":[[0,1]]}\n~~~',
+      },
+    ],
+    constraints: [],
+  } as unknown as PublishedQuestion;
+  const markup = renderToStaticMarkup(<ProblemStatement problem={problem} />);
+  expect(markup).toMatch(/role="tabpanel".*aria-label="Matrix for grid".*aria-label="First path"/);
+  expect(markup).toContain('aria-label="2, highlighted">2</td>');
+  expect(markup).not.toContain('aria-label="Second path"');
 });

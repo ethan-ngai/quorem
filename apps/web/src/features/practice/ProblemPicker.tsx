@@ -4,13 +4,15 @@ import * as Popover from "../../ui/Popover";
 import { useId, useLayoutEffect, useRef, useState, type UIEvent } from "react";
 import { AlertCircle, Dices, Lightbulb } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
+import type { DevelopmentIdentity, PublishedQuestion } from "@quorem/contracts";
 import { api, requireData } from "../../api/client";
-import { CatalogFilters } from "./CatalogFilters";
+import { CatalogFilters, CatalogKindFilters, topicFilterValues } from "./CatalogFilters";
 import { QuestionIndicators } from "./QuestionIndicators";
 import { catalogKind, catalogKindChange, type CatalogSearch } from "./catalogSearch";
 import "./practice.css";
 import { SearchField } from "../../ui/SearchField";
+import { ScrollViewport } from "../../ui/ScrollViewport";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 import { Icon } from "../../ui/Icon";
@@ -41,19 +43,21 @@ export function ProblemPicker({
   onFiltersChange,
   label = "Problem",
   discloseFilters = false,
+  exclusiveKind = false,
 }: {
   items: readonly { id: string; title: string; difficulty?: string }[];
   value?: string;
-  onChange: (id: string | undefined, problem?: ProblemVersion) => void;
+  onChange: (id: string | undefined, problem?: PublishedQuestion) => void;
   disabled?: boolean;
   automaticSelection?: { mode: AutomaticMode; onChange: (mode: AutomaticMode) => void };
   identity?: DevelopmentIdentity;
   library?: "private" | "global";
   difficulties?: readonly string[];
   filters?: CatalogSearch;
-  onFiltersChange?: (filters: CatalogSearch) => void;
+  onFiltersChange?: (filters: CatalogSearch, topicValues: ReadonlyMap<string, string>) => void;
   label?: string;
   discloseFilters?: boolean;
+  exclusiveKind?: boolean;
 }) {
   const warningId = useId();
   const automatic = automaticSelection ? automaticOptions[automaticSelection.mode] : undefined;
@@ -61,7 +65,11 @@ export function ProblemPicker({
   const [search, setSearch] = useState("");
   const inputSearch = useServerSearch(search, setSearch);
   const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
-  const filters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
+  const savedFilters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
+  const filters: CatalogSearch =
+    exclusiveKind && !savedFilters.type
+      ? { ...savedFilters, type: defaultCatalogFormat }
+      : savedFilters;
   const allowed = difficulties?.join(",");
   const selectedDifficulties = filters.difficulty
     ?.split(",")
@@ -83,6 +91,7 @@ export function ProblemPicker({
           query: {
             ...filters,
             sql,
+            type,
             q: search || undefined,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
@@ -108,6 +117,7 @@ export function ProblemPicker({
           query: {
             ...filters,
             sql,
+            type,
             library,
             difficulty: selectedDifficulties?.join(",") || allowed,
             limit: 1,
@@ -126,11 +136,6 @@ export function ProblemPicker({
           ? "Could not check matching questions. Try again."
           : undefined
       : undefined;
-  const update = (change: Partial<CatalogSearch>) => {
-    if ("type" in change || "sql" in change) change = catalogKindChange(change);
-    if (onFiltersChange) onFiltersChange({ ...filters, ...change });
-    else setLocalFilters((current) => ({ ...current, ...change }));
-  };
   const facets = useQuery({
     queryKey: ["picker-facets", identity, library, sql, type],
     enabled: !disabled,
@@ -143,6 +148,15 @@ export function ProblemPicker({
       return requireData(data, error);
     },
   });
+  const update = (change: Partial<CatalogSearch>) => {
+    if (!exclusiveKind && ("type" in change || "sql" in change)) change = catalogKindChange(change);
+    if (onFiltersChange)
+      onFiltersChange(
+        { ...filters, ...change },
+        topicFilterValues(facets.data?.foundationalTopics, facets.data?.topicAliases),
+      );
+    else setLocalFilters((current) => ({ ...current, ...change }));
+  };
   const [chosen, setChosen] = useState<{ id: string; title: string }>();
   const popover = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -193,11 +207,16 @@ export function ProblemPicker({
       disabled={disabled}
       aria-label="Question filters"
     >
+      {exclusiveKind && <CatalogKindFilters iconOnly search={filters} update={update} />}
       <CatalogFilters
         search={filters}
         update={update}
         topics={facets.data?.topics ?? []}
+        foundationalTopics={exclusiveKind ? facets.data?.foundationalTopics : undefined}
+        topicAliases={facets.data?.topicAliases}
         companies={facets.data?.companies ?? []}
+        companyFacets={facets.data?.companyFacets}
+        showKind={!exclusiveKind}
         showDifficulty={!difficulties}
       />
     </fieldset>
@@ -270,7 +289,7 @@ export function ProblemPicker({
             onChange={(event) => inputSearch.change(event.target.value)}
             refreshing={!noAllowedDifficulty && catalog.isFetching && !!catalog.data}
           />
-          <div
+          <ScrollViewport
             ref={results}
             className="problem-picker-results"
             role="group"
@@ -314,7 +333,10 @@ export function ProblemPicker({
               >
                 {value === item.id && <Icon name="submit" />}
                 <span className="problem-picker-title">{item.title}</span>
-                <QuestionIndicators privateQuestion={!!item.isPrivate} odyssey={!!item.odyssey} />
+                <QuestionIndicators
+                  privateQuestion={!!item.isPrivate}
+                  odyssey={!exclusiveKind && !!item.odyssey}
+                />
                 <small className={`difficulty-${item.difficulty}`}>{item.difficulty}</small>
               </button>
             ))}
@@ -349,7 +371,7 @@ export function ProblemPicker({
                 Load more questions
               </button>
             ) : null}
-          </div>
+          </ScrollViewport>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -359,7 +381,10 @@ export function ProblemPicker({
       {discloseFilters ? (
         <Disclosure
           title="Question filters"
-          highlighted={Object.values(filters).some((value) => value && value !== "false")}
+          highlighted={Object.entries(filters).some(
+            ([key, value]) =>
+              value && !(exclusiveKind && key === "type" && value === defaultCatalogFormat),
+          )}
           header={(trigger) => (
             <div className="settings-disclosure-controls">
               {picker}

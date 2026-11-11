@@ -89,12 +89,12 @@
   z-index: 2;
 }
 .question-authoring .case-browser {
-  --case-rail-width: 104px;
-  --narrow-case-rail-width: 104px;
+  --case-rail-width: 120px;
+  --narrow-case-rail-width: var(--case-rail-width);
   --case-detail-end-padding: 0px;
 }
 .question-authoring .case-rail {
-  padding-inline: 0;
+  padding-inline-start: 0;
 }
 .question-authoring .case-selector.add-case {
   white-space: nowrap;

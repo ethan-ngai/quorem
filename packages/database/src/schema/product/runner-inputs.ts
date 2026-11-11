@@ -15,7 +15,7 @@ import { sql } from "drizzle-orm";
 import { bytea } from "../../core/bytea.ts";
 import {
   interviews,
-  problem_versions,
+  question_publications,
   interview_question_snapshots,
   execution_jobs,
 } from "./index.ts";
@@ -35,27 +35,27 @@ export const runner_input_blobs = pgTable(
     check("runner_input_blobs_hash_check", sql`octet_length(hash)=32 AND hash=sha256(data)`),
   ],
 );
-export const runner_version_inputs = pgTable(
-  "runner_version_inputs",
+export const runner_publication_inputs = pgTable(
+  "runner_publication_inputs",
   {
-    version_id: uuid().primaryKey().notNull(),
+    publication_id: uuid().primaryKey().notNull(),
     metadata_hash: bytea("metadata_hash").notNull(),
     fixture_hash: bytea("fixture_hash").notNull(),
     sealed: boolean().default(false).notNull(),
   },
   (t): PgTableExtraConfigValue[] => [
     foreignKey({
-      columns: [t.version_id],
-      foreignColumns: [problem_versions.id],
-      name: "runner_version_inputs_version_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [question_publications.id],
+      name: "runner_publication_inputs_publication_id_fkey",
     }).onDelete("cascade"),
     foreignKey({
       columns: [t.metadata_hash],
       foreignColumns: [runner_input_blobs.hash],
-      name: "runner_version_inputs_metadata_hash_fkey",
+      name: "runner_publication_inputs_metadata_hash_fkey",
     }),
-    check("runner_version_inputs_fixture_hash_check", sql`octet_length(fixture_hash)=32`),
-    index("runner_version_inputs_metadata_hash_idx").on(t.metadata_hash),
+    check("runner_publication_inputs_fixture_hash_check", sql`octet_length(fixture_hash)=32`),
+    index("runner_publication_inputs_metadata_hash_idx").on(t.metadata_hash),
   ],
 );
 export const runner_snapshot_inputs = pgTable(
@@ -83,10 +83,10 @@ export const runner_snapshot_inputs = pgTable(
     index("runner_snapshot_inputs_metadata_hash_idx").on(t.metadata_hash),
   ],
 );
-export const runner_version_input_cases = pgTable(
-  "runner_version_input_cases",
+export const runner_publication_input_cases = pgTable(
+  "runner_publication_input_cases",
   {
-    version_id: uuid().notNull(),
+    publication_id: uuid().notNull(),
     channel: text().notNull(),
     stage: integer().notNull(),
     ordinal: integer().notNull(),
@@ -94,23 +94,23 @@ export const runner_version_input_cases = pgTable(
   },
   (t): PgTableExtraConfigValue[] => [
     primaryKey({
-      columns: [t.version_id, t.channel, t.stage, t.ordinal],
-      name: "runner_version_input_cases_pkey",
+      columns: [t.publication_id, t.channel, t.stage, t.ordinal],
+      name: "runner_publication_input_cases_pkey",
     }),
     foreignKey({
-      columns: [t.version_id],
-      foreignColumns: [runner_version_inputs.version_id],
-      name: "runner_version_input_cases_version_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [runner_publication_inputs.publication_id],
+      name: "runner_publication_input_cases_publication_id_fkey",
     }).onDelete("cascade"),
     foreignKey({
       columns: [t.blob_hash],
       foreignColumns: [runner_input_blobs.hash],
-      name: "runner_version_input_cases_blob_hash_fkey",
+      name: "runner_publication_input_cases_blob_hash_fkey",
     }),
-    check("runner_version_input_cases_channel_check", sql`channel IN ('example','hidden')`),
-    check("runner_version_input_cases_stage_check", sql`stage >= 0`),
-    check("runner_version_input_cases_ordinal_check", sql`ordinal >= 0`),
-    index("runner_version_input_cases_blob_hash_idx").on(t.blob_hash),
+    check("runner_publication_input_cases_channel_check", sql`channel IN ('example','hidden')`),
+    check("runner_publication_input_cases_stage_check", sql`stage >= 0`),
+    check("runner_publication_input_cases_ordinal_check", sql`ordinal >= 0`),
+    index("runner_publication_input_cases_blob_hash_idx").on(t.blob_hash),
   ],
 );
 export const runner_snapshot_input_cases = pgTable(
@@ -148,7 +148,7 @@ export const runner_job_inputs = pgTable(
   "runner_job_inputs",
   {
     job_id: uuid().primaryKey().notNull(),
-    version_id: uuid(),
+    publication_id: uuid(),
     session_id: uuid(),
     fixture_id: bytea("fixture_id"),
     metadata_hash: bytea("metadata_hash").notNull(),
@@ -168,9 +168,9 @@ export const runner_job_inputs = pgTable(
       name: "runner_job_inputs_job_id_fkey",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.version_id],
-      foreignColumns: [runner_version_inputs.version_id],
-      name: "runner_job_inputs_version_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [runner_publication_inputs.publication_id],
+      name: "runner_job_inputs_publication_id_fkey",
     }),
     foreignKey({
       columns: [t.session_id, t.fixture_id],
@@ -201,7 +201,7 @@ export const runner_job_inputs = pgTable(
     ),
     check(
       "runner_job_inputs_check2",
-      sql`(version_id IS NOT NULL AND session_id IS NULL AND fixture_id IS NULL) OR (version_id IS NULL AND session_id IS NOT NULL AND fixture_id IS NOT NULL)`,
+      sql`(publication_id IS NOT NULL AND session_id IS NULL AND fixture_id IS NULL) OR (publication_id IS NULL AND session_id IS NOT NULL AND fixture_id IS NOT NULL)`,
     ),
     index("runner_job_inputs_metadata_hash_idx").on(t.metadata_hash),
   ],

@@ -1,0 +1,12 @@
+[data-scroll-viewport] {
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: hidden auto;
+  /* Overlay scrollbars do not reserve their own gutter. */
+  padding-inline-end: var(--space-4);
+}
+[data-scroll-viewport="horizontal"] {
+  overflow: auto hidden;
+  padding-inline-end: 0;
+  padding-block-end: var(--space-4);
+}

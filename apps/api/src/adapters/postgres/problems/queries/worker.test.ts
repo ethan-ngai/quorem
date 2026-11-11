@@ -35,27 +35,28 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
         await tx.execute(sql.raw(`GRANT USAGE ON SCHEMA public TO ${role}`));
         const grants: Record<string, string> = {
           users: "id,display_name,role,disabled",
-          problems: "id,slug,current_version_id,owner_id,leetcode_id",
-          problem_versions:
-            "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
-          problem_examples: "version_id,ordinal,args,expected,explanation,calls",
-          runner_version_input_cases: "version_id,channel,stage",
-          problem_tags: "version_id,tag,ordinal",
-          foundational_topics: "slug,label,aliases",
-          question_exposure: "owner_id,version_id,last_seen_at",
+          problems: "id,slug,current_publication_id,owner_id,leetcode_id",
+          question_publications:
+            "id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
+          problem_examples: "publication_id,ordinal,args,expected,explanation,calls,graphs",
+          runner_publication_input_cases: "publication_id,channel,stage",
+          problem_tags: "publication_id,tag,ordinal",
+          foundational_topics: "slug,label,aliases,is_foundational",
+          question_exposure: "owner_id,publication_id,last_seen_at",
           question_learning_events:
-            "submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at,observed_at",
+            "submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at,observed_at",
           question_learning_observations:
-            "submission_id,owner_id,version_id,difficulty,tags,accepted,context,assisted,session_end",
+            "submission_id,owner_id,publication_id,difficulty,tags,accepted,context,assisted,session_end",
           recommendation_impressions:
-            "id,owner_id,version_id,model_id,variant,position,served_at,dismissed_at",
+            "id,owner_id,publication_id,model_id,variant,position,served_at,dismissed_at",
           recommendation_models: "id,model,active,expires_at",
           problem_solution_approaches:
-            "version_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
-          problem_solutions: "version_id,approach_id,language,source",
+            "publication_id,id,ordinal,title,is_canonical,default_language,explanation_markdown,time_complexity,space_complexity,complexity_notes",
+          problem_solutions: "publication_id,approach_id,language,source",
           companies: "id,name",
+          company_tiers: "company_key,tier",
           problem_companies: "problem_id,company_id",
-          matches: "id,problem_version_id,state,rules",
+          matches: "id,publication_id,state,rules",
           match_participants: "match_id,owner_id,forfeited,competitor_id",
           match_rule_events: "match_id,competitor_id,kind,resource_key",
           match_reservations: "match_id,owner_id",
@@ -70,10 +71,10 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           sql`INSERT INTO problems(id,slug,owner_id) VALUES(${problem},${slug},${user})`,
         );
         await tx.execute(
-          sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture,lossless_public) VALUES(${version},${problem},1,'Worker private','easy','statement',${JSON.stringify({ className: "Solution", methodName: "solve", parameters: [], returnType: "int" })}::jsonb,'[]'::jsonb,${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'fixture',convert_to('SECRET HIDDEN','UTF8'),convert_to('{"problem":{"examples":[{"args":["public\\u0000value"],"expected":9007199254740993}]}}','UTF8'))`,
+          sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,lossless_fixture,lossless_public) VALUES(${version},${problem},'Worker private','easy','statement',${JSON.stringify({ className: "Solution", methodName: "solve", parameters: [], returnType: "int" })}::jsonb,'[]'::jsonb,${JSON.stringify({ wallTimeMs: 2000, memoryBytes: 268435456, outputBytes: 65536, maxProcesses: 16, maxCollectionElements: 10000, maxNestingDepth: 100 })}::jsonb,'fixture',convert_to('SECRET HIDDEN','UTF8'),convert_to('{"problem":{"examples":[{"args":["public\\u0000value"],"expected":9007199254740993}]}}','UTF8'))`,
         );
         await tx.execute(
-          sql`UPDATE problems SET current_version_id=${version} WHERE id=${problem}`,
+          sql`UPDATE problems SET current_publication_id=${version} WHERE id=${problem}`,
         );
       }),
     );
@@ -113,7 +114,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
       ),
     );
     expect(active).toBe(0);
-    const detail = await SELF.fetch(`http://localhost/v1/problem-versions/${version}`);
+    const detail = await SELF.fetch(`http://localhost/v1/question-publications/${version}`);
     expect(detail.status).toBe(200);
     expect(detail.headers.get("X-Fixture-Queries")).toBe("2");
     const suggested = await SELF.fetch(`http://localhost/v1/problems?q=${slug}&sort=recommended`);
@@ -130,14 +131,14 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
     await expect(
       withWorkerConnection(restricted.toString(), opts, (scope) =>
         scope.transaction({ ...txopts, readOnly: true }, async (tx) => {
-          await tx.execute(sql`SELECT fixture_identity_hash FROM problem_versions LIMIT 1`);
+          await tx.execute(sql`SELECT fixture_identity_hash FROM question_publications LIMIT 1`);
         }),
       ),
     ).rejects.toThrow();
     await expect(
       withWorkerConnection(restricted.toString(), opts, (scope) =>
         scope.transaction({ ...txopts, readOnly: true }, async (tx) => {
-          await tx.execute(sql`SELECT lossless_fixture FROM problem_versions LIMIT 1`);
+          await tx.execute(sql`SELECT lossless_fixture FROM question_publications LIMIT 1`);
         }),
       ),
     ).rejects.toThrow();
@@ -146,7 +147,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
         await tx.execute(sql`UPDATE users SET disabled=true WHERE id=${user}`);
       }),
     );
-    const response = await SELF.fetch(`http://localhost/v1/problem-versions/${version}`);
+    const response = await SELF.fetch(`http://localhost/v1/question-publications/${version}`);
     expect(response.status).toBe(401);
     expect(response.headers.get("X-Fixture-Queries")).toBe("0");
     expect(response.headers.get("X-Fixture-Pid")).toBe("0");

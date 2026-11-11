@@ -24,6 +24,10 @@ export function prepareContentChangeMotion(
   return () => {
     const { width: nextWidth, height: nextHeight } = surface.getBoundingClientRect();
     const live = surface.firstElementChild;
+    const widthChanged = resizeWidth && width !== nextWidth;
+    // Clip the live content at its final width so it cannot rewrap during the resize.
+    const liveSize =
+      live && widthChanged ? { minWidth: `${live.getBoundingClientRect().width}px` } : {};
     const previousPosition = surface.style.position;
     const previousOverflow = surface.style.overflow;
     surface.style.position = "relative";
@@ -36,12 +40,21 @@ export function prepareContentChangeMotion(
       fill: "both" as const,
     };
     const animations = [outgoing.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
-    if (live) animations.push(live.animate([{ opacity: 0 }, { opacity: 1 }], timing));
+    if (live)
+      animations.push(
+        live.animate(
+          [
+            { ...liveSize, opacity: 0 },
+            { ...liveSize, opacity: 1 },
+          ],
+          timing,
+        ),
+      );
     if (height !== nextHeight)
       animations.push(
         surface.animate([{ height: `${height}px` }, { height: `${nextHeight}px` }], timing),
       );
-    if (resizeWidth && width !== nextWidth)
+    if (widthChanged)
       animations.push(
         surface.animate([{ width: `${width}px` }, { width: `${nextWidth}px` }], timing),
       );

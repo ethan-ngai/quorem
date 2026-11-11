@@ -16,8 +16,8 @@ import {
 } from "@quorem/questions";
 import { object } from "../adapters/postgres/problems/storage.ts";
 import {
-  persistQuestionVersion,
-  resumeQuestionVersion,
+  persistQuestionPublication,
+  resumeQuestionPublication,
 } from "../adapters/postgres/problems/publication.ts";
 const str = (v: JsonValue | undefined): string => {
   if (typeof v !== "string") throw new Error("Invalid fixture");
@@ -48,9 +48,7 @@ export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSign
     const c = object(parseLosslessJson(await readFile(path, "utf8"))),
       p = object(c.problem),
       slug = str(p.slug),
-      versionId = str(p.id),
-      version = Number(str(p.version));
-    if (!Number.isSafeInteger(version) || version < 1) throw new Error("Invalid fixture version");
+      publicationId = str(p.id);
     const raw = stringifyLosslessJson(c);
     validateQuestionPublication(raw, validateQuestionSchema, languageRuntime);
     signal?.throwIfAborted();
@@ -67,21 +65,20 @@ export async function seedCatalog(pool: Pool, local: boolean, signal?: AbortSign
         ).rows;
         if (!problem || problem.owner !== null) throw new Error("Fixture namespace unavailable");
         const [prior] = (
-          await tx.execute<{ problem: string; version: number }>(
-            sql`SELECT problem_id::text AS problem,version FROM problem_versions WHERE id=${versionId}::uuid`,
+          await tx.execute<{ problem: string }>(
+            sql`SELECT problem_id::text AS problem FROM question_publications WHERE id=${publicationId}::uuid`,
           )
         ).rows;
         if (prior) {
-          if (prior.problem !== problem.id || prior.version !== version)
-            throw new Error("Fixture version identity conflict");
-          await resumeQuestionVersion(tx, raw, versionId, languageRuntime);
+          if (prior.problem !== problem.id)
+            throw new Error("Fixture publication identity conflict");
+          await resumeQuestionPublication(tx, raw, publicationId, languageRuntime);
         } else
-          await persistQuestionVersion(
+          await persistQuestionPublication(
             tx,
             raw,
             problem.id,
-            versionId,
-            version,
+            publicationId,
             null,
             languageRuntime,
           );

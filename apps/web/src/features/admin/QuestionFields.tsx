@@ -93,7 +93,11 @@ type AuthoringSection = "question" | "interface" | "tests" | "solutions";
 const languages = [...questionLanguages(false), ...questionLanguages(true)];
 
 function testShape(signature: Signature) {
-  return JSON.stringify([signature.parameters.map(({ type }) => type), signature.returnType]);
+  return JSON.stringify([
+    signature.parameters.map(({ name, type }) => (signature.graphEncodings ? [name, type] : type)),
+    signature.returnType,
+    signature.graphEncodings,
+  ]);
 }
 
 export function QuestionFields({
@@ -406,6 +410,7 @@ export function QuestionFields({
             ) : (
               <QuestionLanguage.Provider value={previewLanguage}>
                 <SignatureFields
+                  graphAuthoring
                   previewControl={previewLanguagePicker}
                   disabled={disabled}
                   value={primarySignature(problem)}

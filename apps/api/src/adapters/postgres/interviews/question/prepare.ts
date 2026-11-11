@@ -82,7 +82,7 @@ export async function preparePublishedInterviewQuestion(
   }
   const found = (
     await tx.execute<{ indexed: boolean; isSql: boolean }>(
-      sql`SELECT COALESCE(r.sealed,false) AS indexed,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM problem_versions v JOIN problems p ON p.id=v.problem_id LEFT JOIN runner_version_inputs r ON r.version_id=v.id WHERE v.id::text=${q.problemVersionId as string} AND v.sealed AND p.current_version_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${actor.userId}) FOR SHARE OF p,v`,
+      sql`SELECT COALESCE(r.sealed,false) AS indexed,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql" FROM question_publications v JOIN problems p ON p.id=v.problem_id LEFT JOIN runner_publication_inputs r ON r.publication_id=v.id WHERE v.id::text=${q.problemVersionId as string} AND v.sealed AND p.current_publication_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${actor.userId}) FOR SHARE OF p,v`,
     )
   ).rows[0];
   if (!found) throw new ApplicationError("not_found", "Question unavailable", 404);
@@ -108,7 +108,7 @@ export async function preparePublishedInterviewQuestion(
     source: "",
     language: q.language,
     fingerprint,
-    versionId: q.problemVersionId as string,
+    publicationId: q.problemVersionId as string,
     published: true,
   };
 }
@@ -117,7 +117,7 @@ export async function preparePublishedInterviewQuestion(
 export async function writePublishedInterviewQuestion(
   tx: Transaction,
   sessionId: string,
-  versionId: string,
+  publicationId: string,
   language: string,
   hints: unknown,
 ): Promise<void> {
@@ -132,20 +132,20 @@ export async function writePublishedInterviewQuestion(
   const result = await tx.execute<{ fixture: string }>(sql`
     WITH chosen AS (
       SELECT jsonb_strip_nulls(jsonb_build_object(
-        'id',v.id,'slug',p.slug,'version',v.version::text,'title',v.title,'difficulty',v.difficulty,
+        'id',v.id,'slug',p.slug,'title',v.title,'difficulty',v.difficulty,
         'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,'sql',v.sql_config,'leetcodeId',p.leetcode_id,
         'tags',${topicProjection(sql`v.id`)},
         'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
         'odyssey',CASE WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN jsonb_set(v.odyssey,'{levels}',COALESCE((SELECT jsonb_agg(stage-'examples' ORDER BY n) FROM jsonb_array_elements(v.odyssey->'levels') WITH ORDINALITY z(stage,n)),'[]'::jsonb)) ELSE NULL END
       )) AS metadata,v.attribution
-      FROM runner_version_inputs r JOIN problem_versions v ON v.id=r.version_id JOIN problems p ON p.id=v.problem_id
-      WHERE r.version_id=${versionId}::uuid AND r.sealed AND v.sealed
+      FROM runner_publication_inputs r JOIN question_publications v ON v.id=r.publication_id JOIN problems p ON p.id=v.problem_id
+      WHERE r.publication_id=${publicationId}::uuid AND r.sealed AND v.sealed
     ), counts AS (
-      SELECT COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY c.ordinal) FROM runner_version_input_cases c WHERE c.version_id=${versionId}::uuid AND c.channel='example' AND c.stage=0),'[]'::jsonb) AS examples,
-      COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY c.ordinal) FROM runner_version_input_cases c WHERE c.version_id=${versionId}::uuid AND c.channel='hidden' AND c.stage=0),'[]'::jsonb) AS hidden
+      SELECT COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY c.ordinal) FROM runner_publication_input_cases c WHERE c.publication_id=${publicationId}::uuid AND c.channel='example' AND c.stage=0),'[]'::jsonb) AS examples,
+      COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY c.ordinal) FROM runner_publication_input_cases c WHERE c.publication_id=${publicationId}::uuid AND c.channel='hidden' AND c.stage=0),'[]'::jsonb) AS hidden
     ), prepared AS (
       SELECT c.*,counts.examples,counts.hidden,CASE WHEN jsonb_typeof(c.metadata->'odyssey'->'levels')='array' THEN
-        (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY q.ordinal) FROM runner_version_input_cases q WHERE q.version_id=${versionId}::uuid AND q.channel='hidden' AND q.stage=n),'[]'::jsonb) ORDER BY n),'[]'::jsonb) FROM generate_series(1,jsonb_array_length(c.metadata->'odyssey'->'levels')) n)
+        (SELECT COALESCE(jsonb_agg(COALESCE((SELECT jsonb_agg('{}'::jsonb ORDER BY q.ordinal) FROM runner_publication_input_cases q WHERE q.publication_id=${publicationId}::uuid AND q.channel='hidden' AND q.stage=n),'[]'::jsonb) ORDER BY n),'[]'::jsonb) FROM generate_series(1,jsonb_array_length(c.metadata->'odyssey'->'levels')) n)
       ELSE '[]'::jsonb END AS suites FROM chosen c CROSS JOIN counts
     )
     SELECT (jsonb_build_object(

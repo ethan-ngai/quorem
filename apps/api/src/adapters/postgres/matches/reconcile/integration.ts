@@ -22,7 +22,7 @@ import { defaultLimits } from "@quorem/execution";
 import { assertRunnerFixture } from "../../judging/worker/test-db.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import { workspaceRepository } from "../../workspace/repository.ts";
-import { persistQuestionVersion } from "../../problems/publication.ts";
+import { persistQuestionPublication } from "../../problems/publication.ts";
 import { languageRuntime } from "@quorem/execution";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
@@ -55,7 +55,7 @@ before(async () => {
   await migrate(pool, "product", resolve("../../apps/api/migrations"));
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,'match-policy')", [problem]);
   await pool.query(
-    "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,1,'T','easy','',$3::jsonb,'[]',$4::jsonb,'test')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'T','easy','',$3::jsonb,'[]',$4::jsonb,'test')",
     [
       version,
       problem,
@@ -72,7 +72,7 @@ before(async () => {
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       indexRunnerFixture(
         tx,
-        { version },
+        { publication: version },
         JSON.stringify({
           problem: {
             signature: {
@@ -105,7 +105,7 @@ async function room(active = true, selectedVersion = version) {
     [a, b],
   );
   await pool.query(
-    `INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,problem_version_id) VALUES($1::uuid,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,${active ? "'active'" : "'waiting'"},ARRAY['easy'],${active ? "clock_timestamp()" : "NULL"},${active ? "clock_timestamp()+interval '1 hour'" : "NULL"},${active ? "$3" : "NULL"})`,
+    `INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties,started_at,deadline,publication_id) VALUES($1::uuid,$2,$1::uuid::text,clock_timestamp()+interval '1 hour',30,${active ? "'active'" : "'waiting'"},ARRAY['easy'],${active ? "clock_timestamp()" : "NULL"},${active ? "clock_timestamp()+interval '1 hour'" : "NULL"},${active ? "$3" : "NULL"})`,
     [id, a, ...(active ? [selectedVersion] : [])],
   );
   await pool.query(
@@ -123,7 +123,7 @@ async function room(active = true, selectedVersion = version) {
   );
   if (active) {
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES($1,$3,$5,'python','match',$6),($2,$4,$5,'python','match',$6)",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES($1,$3,$5,'python','match',$6),($2,$4,$5,'python','match',$6)",
       [wa, wb, a, b, selectedVersion, id],
     );
   }
@@ -448,12 +448,11 @@ void test("verified intermediate match result appears in workspace Odyssey feedb
       await tx.execute(
         sql`INSERT INTO problems(id,slug) VALUES(${problemId}::uuid,${fixture.problem.slug})`,
       );
-      await persistQuestionVersion(
+      await persistQuestionPublication(
         tx,
         JSON.stringify(fixture),
         problemId,
         stageVersion,
-        1,
         null,
         (language) => {
           const value = languageRuntime(language);

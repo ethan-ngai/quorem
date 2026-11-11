@@ -119,7 +119,7 @@ void test(
           const workspace = "00000000-0000-4000-8000-000000000003",
             submission = "00000000-0000-4000-8000-000000000004";
           await client.query(
-            "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,'e91ec728-4597-5dfb-9d19-7c4ba17138b7','python')",
+            "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,'e91ec728-4597-5dfb-9d19-7c4ba17138b7','python')",
             [workspace, user],
           );
           await client.query(
@@ -141,7 +141,7 @@ void test(
           const cases = Number(
             (
               await client.query(
-                "SELECT count(*) FROM runner_version_input_cases WHERE version_id=$1 AND channel='example'",
+                "SELECT count(*) FROM runner_publication_input_cases WHERE publication_id=$1 AND channel='example'",
                 [version],
               )
             ).rows[0].count,
@@ -149,7 +149,7 @@ void test(
           await drizzle(client).transaction((tx) =>
             bindJobInputs(tx, {
               jobId: job,
-              owner: { version },
+              owner: { publication: version },
               level: 0,
               primary: "example",
               custom: [],

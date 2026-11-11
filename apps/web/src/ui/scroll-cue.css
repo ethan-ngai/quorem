@@ -9,9 +9,6 @@
 }
 [data-slot="scroll-cue-viewport"] {
   flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden auto;
 }
 .scroll-cue-content {
   position: relative;
@@ -54,9 +51,6 @@
   .scroll-cue-indicator > svg {
     transition: none;
   }
-}
-.scroll-cue[data-axis="horizontal"] > [data-slot="scroll-cue-viewport"] {
-  overflow: auto hidden;
 }
 .scroll-cue[data-axis="horizontal"] > [data-slot="scroll-cue-viewport"] > .scroll-cue-content {
   display: flex;

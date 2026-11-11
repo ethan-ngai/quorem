@@ -24,11 +24,13 @@ const matchModes = [
   },
 ] as const;
 
+type FilterOption = { value: string; label: string; count?: number };
+export type FilterGroup = { label?: string; options: FilterOption[] };
+
 export function CatalogFilter({
   label,
   selected,
-  options,
-  featuredOptions,
+  groups,
   searchPlaceholder,
   match = "any",
   onMatchChange,
@@ -36,8 +38,7 @@ export function CatalogFilter({
 }: {
   label: string;
   selected: string[];
-  options: { value: string; label: string }[];
-  featuredOptions?: { value: string; label: string }[];
+  groups: FilterGroup[];
   searchPlaceholder?: string;
   match?: FilterMatch;
   onMatchChange?: (match: FilterMatch) => void;
@@ -46,12 +47,6 @@ export function CatalogFilter({
   const [query, setQuery] = useState("");
   const popover = useRef<HTMLDivElement>(null);
   const searchInput = useRef<HTMLInputElement>(null);
-  const groups = featuredOptions?.length
-    ? [
-        { label: "Foundational", options: featuredOptions },
-        { label: "Other topics", options },
-      ]
-    : [{ label: "", options }];
   const firstLabel = groups
     .flatMap((group) => group.options)
     .find((option) => option.value === selected[0])?.label;
@@ -81,6 +76,11 @@ export function CatalogFilter({
             key={option.value}
             type="button"
             className="practice-filter-choice"
+            aria-label={
+              option.count === undefined
+                ? undefined
+                : `${option.label}, ${option.count} ${option.count === 1 ? "question" : "questions"}`
+            }
             aria-pressed={selected.includes(option.value)}
             disabled={selected.length >= 16 && !selected.includes(option.value)}
             onClick={() =>
@@ -92,6 +92,11 @@ export function CatalogFilter({
             }
           >
             {option.label}
+            {option.count !== undefined && (
+              <span className="practice-filter-count" aria-hidden="true">
+                {option.count}
+              </span>
+            )}
           </button>
         ))}
       </div>

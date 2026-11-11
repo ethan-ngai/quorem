@@ -137,7 +137,6 @@ describe("drafts", () => {
     problem: {
       id: "",
       slug: "",
-      version: "",
       title: "",
       difficulty: "easy",
       tags: [],

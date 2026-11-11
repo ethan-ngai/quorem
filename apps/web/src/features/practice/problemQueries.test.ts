@@ -1,6 +1,6 @@
 import { publicQuestionFixture } from "../../test/questionFixture";
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
-import type { DevelopmentIdentity, ProblemVersion } from "@quorem/contracts";
+import type { DevelopmentIdentity, PublishedQuestion } from "@quorem/contracts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import fixture from "../../../../../fixtures/problems/run-widths.json";
 import { publicApi } from "../../api/client";
@@ -21,7 +21,7 @@ const publicProblem = {
   ...publicQuestionFixture(fixture),
   id: "public-version",
   slug: "public-question",
-} as ProblemVersion;
+} as PublishedQuestion;
 const privateProblem = {
   ...publicProblem,
   id: "private-version",
@@ -36,7 +36,7 @@ const client = () => {
   clients.push(value);
   return value;
 };
-const page = (items: ProblemVersion[]) => ({
+const page = (items: PublishedQuestion[]) => ({
   items,
   topics: ["arrays", "strings"],
   companies: [],
@@ -191,7 +191,7 @@ it("does not replace a newer detail response with an older in-flight catalog sna
   clock.mockReturnValue(3000);
   release(Response.json(page([publicProblem])));
   await catalog;
-  expect(cache.getQueryData<ProblemVersion>(options.queryKey)?.title).toBe("Newer detail");
+  expect(cache.getQueryData<PublishedQuestion>(options.queryKey)?.title).toBe("Newer detail");
 });
 
 it("never uses another user's rows as a personalization or private-library placeholder", async () => {

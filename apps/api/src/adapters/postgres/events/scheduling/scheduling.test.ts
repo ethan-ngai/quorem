@@ -194,7 +194,7 @@ describe("deadline scheduling with PostgreSQL", () => {
         item.kind,
       ]);
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspace, user, version],
       );
       await pool.query(
@@ -306,7 +306,7 @@ describe("deadline scheduling with PostgreSQL", () => {
         item.kind,
       ]);
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [workspace, user, version],
       );
       await pool.query(
@@ -325,7 +325,7 @@ describe("deadline scheduling with PostgreSQL", () => {
           ]);
           await bindJobInputs(tx, {
             jobId: job,
-            owner: { version },
+            owner: { publication: version },
             level: 0,
             primary: "custom",
             custom: [hash, shared],
@@ -364,9 +364,10 @@ describe("deadline scheduling with PostgreSQL", () => {
       accountRecent = rows.get("account-recent")!,
       accountOld = rows.get("account-old")!;
     const versionMetadata = (
-      await pool.query("SELECT metadata_hash FROM runner_version_inputs WHERE version_id=$1", [
-        version,
-      ])
+      await pool.query(
+        "SELECT metadata_hash FROM runner_publication_inputs WHERE publication_id=$1",
+        [version],
+      )
     ).rows[0].metadata_hash;
     const session = crypto.randomUUID(),
       fixture = (await pool.query("SELECT sha256(convert_to('{}'::jsonb::text,'UTF8')) AS id"))
@@ -478,7 +479,7 @@ describe("deadline scheduling with PostgreSQL", () => {
       source = `race-source-${crypto.randomUUID()}`;
     await pool.query("INSERT INTO users(id,display_name) VALUES($1,$1)", [user]);
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
     await pool.query(
@@ -504,7 +505,7 @@ describe("deadline scheduling with PostgreSQL", () => {
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
         await bindJobInputs(tx, {
           jobId: job,
-          owner: { version },
+          owner: { publication: version },
           level: 0,
           primary: "custom",
           custom: [],

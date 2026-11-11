@@ -1,0 +1,44 @@
+.graph-demo {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4);
+}
+
+.graph-demo-header,
+.graph-demo-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
+
+.graph-demo-header {
+  justify-content: space-between;
+}
+
+.graph-demo-header h1,
+.graph-demo-header p {
+  margin: 0;
+}
+
+.graph-demo-header p,
+.graph-demo-hint {
+  color: var(--color-text-secondary);
+}
+
+.graph-demo-hint {
+  margin-block: var(--space-3) var(--space-4);
+}
+
+.graph-demo-controls .select-field {
+  max-width: min(100%, 340px);
+}
+
+.graph-demo-controls {
+  flex-wrap: wrap;
+}
+
+.graph-demo-notices {
+  color: var(--color-error);
+  padding-inline-start: var(--space-4);
+}

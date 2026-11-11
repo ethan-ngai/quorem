@@ -6,11 +6,11 @@ import { Trash2 } from "lucide-react";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { Tooltip } from "../../ui/Tooltip";
 import { SearchableTypeSelect } from "./SearchableTypeSelect";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { SelectField } from "../../ui/SelectField";
 import { Field } from "./AuthoringFields";
 
-type SqlSchema = NonNullable<ProblemVersion["sql"]>;
+type SqlSchema = NonNullable<PublishedQuestion["sql"]>;
 type Column = NonNullable<SqlSchema["output"]>[number];
 
 const outputNameConstraint = withMaxBytes({ edit: () => true, schema: z.string().min(1) }, 256);

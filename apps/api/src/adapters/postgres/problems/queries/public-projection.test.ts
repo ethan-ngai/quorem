@@ -1,7 +1,16 @@
 /** @file public-projection.test.ts @description Stage projection preserves interface flags while removing private fields. @module problems */
 import { expect, it } from "vitest";
+import type { JsonValue } from "@quorem/questions";
 import { restorePublicExamples } from "./public-projection.ts";
 it("strips private stage state while retaining node-reference interface semantics", () => {
+  const parameters: Record<string, JsonValue>[] = [
+    { name: "head", type: "ListNode" },
+    {
+      name: "grid",
+      type: "list<list<int>>",
+      input: { preset: "default", layout: "rows", showGrid: true },
+    },
+  ];
   const value = {
     odyssey: {
       levels: [
@@ -12,7 +21,7 @@ it("strips private stage state while retaining node-reference interface semantic
             {
               className: "Solution",
               methodName: "node",
-              parameters: [{ name: "head", type: "ListNode" }],
+              parameters,
               returnType: "ListNode",
               nodeReferences: "return",
               referenceSource: "PRIVATE_CODE",
@@ -27,5 +36,11 @@ it("strips private stage state while retaining node-reference interface semantic
   };
   restorePublicExamples(value, null);
   expect(JSON.stringify(value)).not.toContain("PRIVATE");
-  expect(value.odyssey.levels[0].methods[0].nodeReferences).toBe("return");
+  const method = value.odyssey.levels[0].methods[0];
+  expect(method.nodeReferences).toBe("return");
+  expect(method.parameters[1]?.input).toEqual({
+    preset: "default",
+    layout: "rows",
+    showGrid: true,
+  });
 });

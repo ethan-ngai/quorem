@@ -1,12 +1,13 @@
 import { primarySignature } from "@quorem/questions";
 import { describe, expect, it } from "vitest";
 import {
+  formatMatrixSource,
   inputPresetSchemas,
   InputPreset,
   registerInputPreset,
   resolveInputPreset,
 } from "./inputPresets";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import { createCustomDraft, parseCustomDraft, parseTypedField } from "./customCases";
 
 describe("typed input presets", () => {
@@ -84,10 +85,9 @@ describe("typed input presets", () => {
   });
 
   it("seeds configured structured strings in their stored representation", () => {
-    const problem: ProblemVersion = {
+    const problem: PublishedQuestion = {
       id: "one",
       slug: "echo",
-      version: "1",
       title: "Echo",
       difficulty: "easy",
       tags: [],
@@ -204,4 +204,20 @@ it("guards datetime prefixes and exact long bounds", () => {
   expect(long.accepts("-")).toBe(true);
   expect(long.accepts("9223372036854775807")).toBe(true);
   expect(long.accepts("9223372036854775808")).toBe(false);
+});
+
+it("breaks matrix rows without changing expressions, long values, or quoted delimiters", () => {
+  const source = "[[1,2**3],[400,5]]";
+  const rows = formatMatrixSource(source);
+  expect(rows).toBe("[[1,2**3],\n[400,5]]");
+  expect(parseTypedField("list<list<int>>", rows)).toEqual([
+    [1, 8],
+    [400, 5],
+  ]);
+  expect(formatMatrixSource('[["a, b","]"],["x","y"]]')).toBe('[["a, b","]"],\n["x","y"]]');
+  expect(formatMatrixSource('[[9007199254740993],["9007199254740995"]]')).toBe(
+    '[[9007199254740993],\n["9007199254740995"]]',
+  );
+  expect(formatMatrixSource("[[1],[2,3]]")).toBe("[[1],\n[2,3]]");
+  expect(formatMatrixSource("[[1],")).toBe("[[1],");
 });

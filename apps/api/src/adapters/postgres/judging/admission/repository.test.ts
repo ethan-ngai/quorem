@@ -62,7 +62,7 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [user]);
     await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
     await pool.query(
-      `INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{"wallTimeMs":2000,"memoryBytes":268435456,"outputBytes":65536,"maxProcesses":16,"maxCollectionElements":10000,"maxNestingDepth":100}'::jsonb,'')`,
+      `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{"wallTimeMs":2000,"memoryBytes":268435456,"outputBytes":65536,"maxProcesses":16,"maxCollectionElements":10000,"maxNestingDepth":100}'::jsonb,'')`,
       [
         version,
         problem,
@@ -75,22 +75,22 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       ],
     );
     await pool.query(
-      "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
+      "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,'[1]'::jsonb,'2'::jsonb)",
       [version],
     );
     await pool.query(
-      "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
+      "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
       [version],
     );
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
       [workspace, user, version],
     );
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
         indexRunnerFixture(
           tx,
-          { version },
+          { publication: version },
           JSON.stringify({
             problem: {
               signature: {
@@ -122,9 +122,9 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     await pool.query("DELETE FROM submissions WHERE owner_id=$1", [user]);
     await pool.query("DELETE FROM workspaces WHERE owner_id=$1", [user]);
     await pool.query("DELETE FROM users WHERE id=$1", [user]);
-    await pool.query("DELETE FROM problem_examples WHERE version_id=$1", [version]);
-    await pool.query("DELETE FROM problem_test_cases WHERE version_id=$1", [version]);
-    await pool.query("DELETE FROM problem_versions WHERE id=ANY($1::uuid[])", [
+    await pool.query("DELETE FROM problem_examples WHERE publication_id=$1", [version]);
+    await pool.query("DELETE FROM problem_test_cases WHERE publication_id=$1", [version]);
+    await pool.query("DELETE FROM question_publications WHERE id=ANY($1::uuid[])", [
       [version, version2],
     ]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
@@ -247,7 +247,7 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       [user],
     );
     await pool.query(
-      "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,2,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,$4::jsonb,'')",
+      "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,$4::jsonb,'')",
       [
         version2,
         problem,
@@ -268,14 +268,14 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       ],
     );
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
       [workspace2, user, version2],
     );
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
         indexRunnerFixture(
           tx,
-          { version: version2 },
+          { publication: version2 },
           JSON.stringify({
             problem: {
               signature: {
@@ -365,7 +365,7 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     const prefix = `queue-${crypto.randomUUID()}-`;
     try {
       await pool.query(
-        `WITH u AS (INSERT INTO users(id,display_name) SELECT $1||n,'Queue fixture' FROM generate_series(1,200) n RETURNING id), w AS (INSERT INTO workspaces(id,owner_id,problem_version_id,language) SELECT gen_random_uuid(),id,$2,'python' FROM u RETURNING id,owner_id), s AS (INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) SELECT gen_random_uuid(),owner_id,id,'run','','hash','queued','[]'::jsonb FROM w RETURNING id) INSERT INTO execution_jobs(id,submission_id) SELECT gen_random_uuid(),id FROM s`,
+        `WITH u AS (INSERT INTO users(id,display_name) SELECT $1||n,'Queue fixture' FROM generate_series(1,200) n RETURNING id), w AS (INSERT INTO workspaces(id,owner_id,publication_id,language) SELECT gen_random_uuid(),id,$2,'python' FROM u RETURNING id,owner_id), s AS (INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) SELECT gen_random_uuid(),owner_id,id,'run','','hash','queued','[]'::jsonb FROM w RETURNING id) INSERT INTO execution_jobs(id,submission_id) SELECT gen_random_uuid(),id FROM s`,
         [prefix, version],
       );
       await expect(start("queue-limit", "x")).rejects.toMatchObject({ code: "queue_saturated" });

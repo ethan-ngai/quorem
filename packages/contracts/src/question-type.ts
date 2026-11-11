@@ -45,6 +45,17 @@ function wrapper(type: string) {
   return undefined;
 }
 
+/** Layout applies to two-dimensional arrays, including nullable arrays and rows. */
+export function isMatrixType(type: string): boolean {
+  const unwrap = (value: string) => {
+    while (value.startsWith("optional<")) value = value.slice(9, -1);
+    return value;
+  };
+  const outer = wrapper(unwrap(type));
+  const inner = outer && wrapper(unwrap(outer.inner));
+  return !!inner && !wrapper(unwrap(inner.inner));
+}
+
 function genericNode(type: string) {
   const node = nodeType(type);
   return node && (node.generic || node.kind === "NaryTreeNode") ? node : undefined;

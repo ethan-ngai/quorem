@@ -1,4 +1,4 @@
-import type { CustomCase, ProblemVersion, Signature } from "@quorem/contracts";
+import type { CustomCase, PublishedQuestion, Signature } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import {
   associatedResultIndex,
@@ -43,7 +43,7 @@ describe("typed custom cases", () => {
     const test = createCustomDraft({
       signature: nodeSignature,
       examples: [example],
-    } as unknown as ProblemVersion);
+    } as unknown as PublishedQuestion);
     test.expectedEnabled = true;
     expect(parseCustomDrafts([test], nodeSignature)).toEqual([example]);
     expect(() =>
@@ -62,7 +62,7 @@ describe("typed custom cases", () => {
         tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
         output: [{ name: "id", type: "integer" }],
       },
-    } as unknown as ProblemVersion;
+    } as unknown as PublishedQuestion;
     const drafts = readCustomDrafts("sql", problem);
     expect(parseProblemDrafts(drafts, problem)).toEqual([
       { args: [{ tables: [{ name: "items", rows: [[1]] }] }] },
@@ -77,7 +77,7 @@ describe("typed custom cases", () => {
       odyssey: {
         levels: [{ title: "Step", statementMarkdown: "", methods: [signature], examples: [] }],
       },
-    } as unknown as ProblemVersion;
+    } as unknown as PublishedQuestion;
     const sequence = { ...draft, args: ['[{"methodName":"solve","args":[[1,2],true]}]'] };
     expect(parseProblemDrafts([sequence], problem)).toEqual([
       { args: [], calls: [{ methodName: "solve", args: [[1, 2], true] }] },
@@ -107,7 +107,7 @@ describe("typed custom cases", () => {
           { title: "second", statementMarkdown: "", methods: [later], examples: [] },
         ],
       },
-    } as unknown as ProblemVersion;
+    } as unknown as PublishedQuestion;
     const make = (calls: unknown[]) => [{ ...draft, args: [JSON.stringify(calls)] }];
     expect(() => parseProblemDrafts(make([{ methodName: "add", args: ["😀x"] }]), problem)).toThrow(
       /Constraint \d+:/,
@@ -241,7 +241,7 @@ it("recovers SQL Run inputs without a coding signature and rejects invalid table
       outputOrder: "ordered",
       tables: [{ name: "items", columns: [{ name: "id", type: "integer" }] }],
     },
-  } as ProblemVersion;
+  } as PublishedQuestion;
   const raw = '[{"args":[{"tables":[{"name":"items","rows":[[1]]}]}]}]';
   expect(parseRunSnapshotCases(raw, problem)).toEqual(JSON.parse(raw));
   expect(() => parseRunSnapshotCases(raw.replace("[[1]]", '[["bad"]]'), problem)).toThrow();

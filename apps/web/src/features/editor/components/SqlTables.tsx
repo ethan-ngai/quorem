@@ -1,7 +1,7 @@
 import "./sql-tables.css";
 import "./code-literal.css";
 import { CodeLiteral } from "./CodeLiteral";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 
 type Column = { name: string; type?: string };
 type Table = { name?: string; columns: Column[]; rows: unknown[][] };
@@ -103,7 +103,7 @@ export function SqlTables({
   value: unknown;
   input?: boolean;
   label: string;
-  schema?: ProblemVersion["sql"];
+  schema?: PublishedQuestion["sql"];
   columnTypes?: readonly string[];
   useSchemaTypes?: boolean;
 }) {
@@ -148,7 +148,7 @@ export function SqlTables({
   );
 }
 
-export function SqlSchema({ schema }: { schema: NonNullable<ProblemVersion["sql"]> }) {
+export function SqlSchema({ schema }: { schema: NonNullable<PublishedQuestion["sql"]> }) {
   if (!schema.tables?.length || !schema.output?.length) return null;
   return (
     <section className="problem-section" aria-label="SQL schema">

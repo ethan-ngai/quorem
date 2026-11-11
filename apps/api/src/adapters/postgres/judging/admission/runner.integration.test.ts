@@ -133,7 +133,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [owner]);
     await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
     await pool.query(
-      "INSERT INTO problem_versions(id,version,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,1,$2,'Fixture','easy','',$3::jsonb,'[]',$4::jsonb,'')",
+      "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]',$4::jsonb,'')",
       [
         version,
         problem,
@@ -154,18 +154,18 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       ],
     );
     await pool.query(
-      "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,'[1]','2')",
+      "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,'[1]','2')",
       [version],
     );
     await pool.query(
-      "INSERT INTO problem_test_cases(version_id,ordinal,args,expected) VALUES($1,0,'[3]','4')",
+      "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[3]','4')",
       [version],
     );
     await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
         await indexRunnerFixture(
           tx,
-          { version },
+          { publication: version },
           JSON.stringify({
             problem: {
               id: version,
@@ -217,7 +217,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       timeoutMs: 10000,
     });
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
       [workspace, owner, version],
     );
   }, 30000);
@@ -238,7 +238,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     );
     await pool.query("DELETE FROM submissions WHERE owner_id=$1", [owner]);
     await pool.query("DELETE FROM workspaces WHERE owner_id=$1", [owner]);
-    await pool.query("DELETE FROM problem_versions WHERE id=$1", [version]);
+    await pool.query("DELETE FROM question_publications WHERE id=$1", [version]);
     await pool.query("DELETE FROM problems WHERE id=$1", [problem]);
     await pool.query("DELETE FROM users WHERE id=$1", [owner]);
     verificationServer.close();
@@ -577,7 +577,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
           }
           const tsWorkspace = crypto.randomUUID();
           await pool.query(
-            "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'typescript')",
+            "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'typescript')",
             [tsWorkspace, owner, version],
           );
           await pool.query(
@@ -972,7 +972,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     }
     const typescriptWorkspace = crypto.randomUUID();
     await pool.query(
-      "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'typescript')",
+      "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'typescript')",
       [typescriptWorkspace, owner, version],
     );
     await pool.query(
@@ -1023,22 +1023,22 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     try {
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [sqlProblem, sqlProblem]);
       await pool.query(
-        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,1,'SQL','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config) VALUES($1,$2,'SQL','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
         [sqlVersion, sqlProblem, null, JSON.stringify(limits), JSON.stringify(sqlConfig)],
       );
       await pool.query(
-        "INSERT INTO problem_examples(version_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
+        "INSERT INTO problem_examples(publication_id,ordinal,args,expected) VALUES($1,0,$2::jsonb,$3::jsonb)",
         [sqlVersion, JSON.stringify(sample.args), JSON.stringify(sample.expected)],
       );
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'postgresql')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'postgresql')",
         [sqlWorkspace, owner, sqlVersion],
       );
       await run((scope) =>
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
           indexRunnerFixture(
             tx,
-            { version: sqlVersion },
+            { publication: sqlVersion },
             JSON.stringify({
               problem: {
                 id: sqlVersion,
@@ -1147,7 +1147,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       );
       await pool.query("DELETE FROM submissions WHERE workspace_id=$1", [sqlWorkspace]);
       await pool.query("DELETE FROM workspaces WHERE id=$1", [sqlWorkspace]);
-      await pool.query("DELETE FROM problem_versions WHERE id=$1", [sqlVersion]);
+      await pool.query("DELETE FROM question_publications WHERE id=$1", [sqlVersion]);
       await pool.query("DELETE FROM problems WHERE id=$1", [sqlProblem]);
     }
   }, 90000);
@@ -1262,23 +1262,23 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
     try {
       await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [p, p]);
       await pool.query(
-        "INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,1,'Odyssey','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
+        "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,odyssey) VALUES($1,$2,'Odyssey','easy','',$3::jsonb,'[]',$4::jsonb,'',$5::jsonb)",
         [v, p, null, JSON.stringify(limits), JSON.stringify(odyssey)],
       );
-      await pool.query("UPDATE problems SET current_version_id=$1 WHERE id=$2", [v, p]);
+      await pool.query("UPDATE problems SET current_publication_id=$1 WHERE id=$2", [v, p]);
       await pool.query(
-        "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
         [w, owner, v],
       );
       await pool.query(
-        "INSERT INTO odyssey_progress(scope_id,problem_version_id,level) VALUES($1,$2,1)",
+        "INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,1)",
         [w, v],
       );
       await run((scope) =>
         scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
           indexRunnerFixture(
             tx,
-            { version: v },
+            { publication: v },
             JSON.stringify({
               problem: { id: v, signature, constraints: [], limits, odyssey },
               odysseyHiddenCases: [[hidden]],
@@ -1375,8 +1375,8 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
       await pool.query("DELETE FROM submissions WHERE workspace_id=$1", [w]);
       await pool.query("DELETE FROM odyssey_progress WHERE scope_id=$1", [w]);
       await pool.query("DELETE FROM workspaces WHERE id=$1", [w]);
-      await pool.query("UPDATE problems SET current_version_id=NULL WHERE id=$1", [p]);
-      await pool.query("DELETE FROM problem_versions WHERE id=$1", [v]);
+      await pool.query("UPDATE problems SET current_publication_id=NULL WHERE id=$1", [p]);
+      await pool.query("DELETE FROM question_publications WHERE id=$1", [v]);
       await pool.query("DELETE FROM problems WHERE id=$1", [p]);
     }
   }, 60000);
@@ -1774,7 +1774,7 @@ describe.skipIf(!url || (!socket && !remote))("admission through TypeScript runn
         benchmarkActors.set(id, { ...principal, userId: id, sessionId: id });
         await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Benchmark fixture')", [id]);
         await pool.query(
-          "INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES($1,$2,$3,'python')",
+          "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
           [workspaceId, id, version],
         );
         actors.push({ id, workspaceId, headers: { "x-fixture-actor": id } });

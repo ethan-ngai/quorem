@@ -5,6 +5,9 @@ import { basename, join, resolve } from "node:path";
 import { languageRuntime } from "@quorem/execution";
 import {
   normalizeQuestionDraft,
+  findPrimarySignature,
+  structuredConstraintSuggestion,
+  type QuestionContent,
   validateQuestionPublication,
   validateQuestionSchema,
 } from "@quorem/questions";
@@ -20,11 +23,19 @@ export async function validateDirectory(
       id: basename(path, ".json"),
       sha256: createHash("sha256").update(bytes).digest("hex"),
       error: "",
+      warnings: [] as string[],
     };
     try {
       const raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
       const normalized = normalizeQuestionDraft(raw);
       validateQuestionPublication(normalized, validateQuestionSchema, languageRuntime);
+      const { problem } = JSON.parse(normalized) as QuestionContent;
+      const signature = findPrimarySignature(problem);
+      if (signature)
+        problem.constraints.forEach((rule, index) => {
+          if (rule.kind === "prose" && structuredConstraintSuggestion(signature, rule.text))
+            entry.warnings.push(`constraint ${index + 1}: use a structured rule for this note`);
+        });
     } catch (error) {
       entry.error = error instanceof Error ? error.message : "Invalid question";
     }

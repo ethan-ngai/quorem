@@ -2,14 +2,14 @@
 import type {
   DevelopmentIdentity,
   MatchSnapshot,
-  ProblemVersion,
+  PublishedQuestion,
   Workspace,
 } from "@quorem/contracts";
 
 type ExecutionContext = {
   identity: DevelopmentIdentity;
   contextKey?: string;
-  problem?: Pick<ProblemVersion, "id" | "slug">;
+  problem?: Pick<PublishedQuestion, "id" | "slug">;
   workspace?: Pick<Workspace, "id" | "kind" | "problemVersionId" | "matchId">;
   slug: string;
   match?: Pick<MatchSnapshot, "id" | "state" | "problemVersionId">;

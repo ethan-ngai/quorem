@@ -1,3 +1,4 @@
+import { caseGraphTargets, inferCaseGraph } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
 import { ConstraintViolation } from "../constraintViolation";
@@ -43,6 +44,7 @@ export function TestCases({
   requiredExpected = false,
   caseActions,
   customCaseDetails,
+  renderCaseField,
   caseResults,
   caseStatuses,
   hiddenCaseDetails,
@@ -65,6 +67,7 @@ export function TestCases({
   maximumCases?: number;
   requiredExpected?: boolean;
   caseActions?: (index: number) => ReactNode;
+  renderCaseField?: (index: number, name: string, field: ReactNode) => ReactNode;
   customCaseDetails?: (index: number) => ReactNode;
   caseGroups?: readonly (string | undefined)[];
   currentCaseGroup?: string;
@@ -212,6 +215,21 @@ export function TestCases({
       : !customMode && !submission.customRun)
       ? { index: sampleIndex, status: "syntax_error", diagnostics: submission.diagnostics }
       : undefined;
+  let graphs = customMode ? undefined : example?.graphs;
+  if (!customMode && currentValue && !problem.sql && !problem.odyssey) {
+    const signature = primarySignature(problem);
+    for (const target of caseGraphTargets(signature, currentValue.expected, graphs)) {
+      if (Object.hasOwn(graphs ?? {}, target)) continue;
+      const graph = inferCaseGraph(
+        signature,
+        target,
+        currentValue.args,
+        currentValue.expected,
+        problem.limits.maxCollectionElements,
+      );
+      if (graph) graphs = { ...graphs, [target]: graph };
+    }
+  }
   const combinedPreview = !problem.sql && !problem.odyssey;
   const previewContext = problem.sql
     ? undefined
@@ -416,6 +434,7 @@ export function TestCases({
           enabled={combinedPreview}
           editable={customMode}
           context={previewContext}
+          graphs={graphs}
           expected={result?.expected ?? currentValue?.expected}
           actual={result?.actual}
           expectedSource={customMode && draft?.expectedEnabled ? draft.expected : undefined}
@@ -457,6 +476,9 @@ export function TestCases({
                   signature={primarySignature(problem)}
                   inputErrors={inputErrors}
                   args={draft.args}
+                  renderField={
+                    renderCaseField && ((name, field) => renderCaseField(customIndex, name, field))
+                  }
                   expected={draft.expectedEnabled ? draft.expected : undefined}
                   onChange={updateDraft}
                   preview={!combinedPreview && !result}

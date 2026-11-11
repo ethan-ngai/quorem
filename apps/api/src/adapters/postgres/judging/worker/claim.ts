@@ -33,7 +33,7 @@ function gates(cap: RunnerCapabilities) {
 function lossless(cap: RunnerCapabilities) {
   return sql`${cap.losslessCases && cap.losslessResults} OR (s.lossless_cases IS NULL AND p.lossless_fixture IS NULL AND q.lossless_fixture IS NULL)`;
 }
-const joins = sql`FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN problem_versions p ON p.id=w.problem_version_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id`;
+const joins = sql`FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN question_publications p ON p.id=w.publication_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id`;
 export function postgresClaims(run: Run, cap: RunnerCapabilities) {
   if (cap.inputProtocol !== "manifest-v1") throw new Error("Runner input protocol required");
   return {
@@ -121,7 +121,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
               harness: string;
               previous: string | null;
             }>(
-              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.problem_version_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
+              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
             )
           ).rows[0];
           if (!row) return null;

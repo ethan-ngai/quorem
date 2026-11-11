@@ -1,6 +1,6 @@
 /** @file WorkspaceCompletion.tsx @description Celebrate accepted Submit results once, after Odyssey progress settles. @module completion */
 import { useState } from "react";
-import type { OdysseyProgress, Submission, ProblemVersion } from "@quorem/contracts";
+import type { OdysseyProgress, Submission, PublishedQuestion } from "@quorem/contracts";
 import type { CompletionOutcome } from "../../ui/completionOutcome";
 import { useCompletionEvent } from "./useCompletionEvent";
 import { Celebration } from "../../ui/Celebration";
@@ -23,7 +23,7 @@ export function WorkspaceCompletion({
   submission?: Submission;
   workspaceId: string;
   title: string;
-  difficulty: ProblemVersion["difficulty"];
+  difficulty: PublishedQuestion["difficulty"];
   language: EditorLanguage;
   odyssey?: OdysseyProgress;
   odysseyReady?: boolean;

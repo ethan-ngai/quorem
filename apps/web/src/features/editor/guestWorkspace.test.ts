@@ -1,6 +1,6 @@
 import { publicQuestionFixture } from "../../test/questionFixture";
 import { describe, expect, it } from "vitest";
-import type { ProblemVersion } from "@quorem/contracts";
+import type { PublishedQuestion } from "@quorem/contracts";
 import fixture from "../../../../../fixtures/problems/run-widths.json";
 import { guestWorkspace } from "./guestWorkspace";
 import { browserDraftScope, readBrowserDraft, writeBrowserDraft } from "./recovery";
@@ -11,7 +11,7 @@ describe("guest editing", () => {
   it("creates isolated browser documents in every supported language without a server workspace", () => {
     const problem = {
       ...publicQuestionFixture(fixture),
-    } as ProblemVersion;
+    } as PublishedQuestion;
     const scopes = new Set<string>();
     for (const language of ["python", "java", "typescript", "ocaml"] as const) {
       const workspace = guestWorkspace(problem, language);
@@ -33,7 +33,7 @@ describe("guest editing", () => {
     });
     const problem = {
       ...publicQuestionFixture(fixture),
-    } as ProblemVersion;
+    } as PublishedQuestion;
     const scope = browserDraftScope(guestWorkspace(problem, "java"));
     writeBrowserDraft("anonymous" as DevelopmentIdentity, scope, problem.id, "guest code");
     expect(readBrowserDraft("anonymous" as DevelopmentIdentity, scope, problem.id)).toBe(

@@ -86,7 +86,7 @@ export async function profileReads(url: string): Promise<unknown> {
         },
       },
       { name: "problem_slug", call: () => queries.bySlug(undefined, slug) },
-      { name: "problem_version", call: () => queries.byVersion(undefined, id) },
+      { name: "publication", call: () => queries.byPublication(undefined, id) },
     ];
     for (const op of operations) {
       const samples: number[] = [];

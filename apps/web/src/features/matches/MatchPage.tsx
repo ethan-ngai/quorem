@@ -15,7 +15,7 @@ import {
   participantUserId,
   type DevelopmentIdentity,
   type MatchSnapshot,
-  type ProblemVersion,
+  type PublishedQuestion,
 } from "@quorem/contracts";
 import { useEffect, useRef, useState } from "react";
 import * as Popover from "../../ui/Popover";
@@ -251,7 +251,18 @@ function MatchLedger({
               <ParticipantName participant={player} self={index === 0} />
             )}
           </strong>
-          {player?.forfeited && <span className="score-judging motion-reveal">Forfeited</span>}
+          {player?.forfeited && (
+            <Tooltip content="Forfeited">
+              <span
+                className="match-forfeit-status motion-reveal"
+                role="img"
+                aria-label="Forfeited"
+                tabIndex={0}
+              >
+                <Icon name="flag" width={14} height={14} />
+              </span>
+            </Tooltip>
+          )}
           <ScoreProgress
             score={player?.bestScore}
             color={participantColor(player?.userId ?? "opponent", player?.color)}
@@ -341,7 +352,7 @@ export function MatchPage({
         <MatchRecovery failed={!!error} onRetry={refetch} />
       </main>
     );
-  const concession = (
+  const concession = (saveDraft?: () => Promise<void>) => (
     <ConcessionDialog
       open={conceding}
       pending={pending}
@@ -354,13 +365,14 @@ export function MatchPage({
       onCancel={() => setConceding(false)}
       onConfirm={() =>
         void command(async () => {
+          await saveDraft?.();
           await forfeitMatch(identity, matchId);
           setConceding(false);
         })
       }
     />
   );
-  const ledger = (problem?: ProblemVersion) => (
+  const ledger = (problem?: PublishedQuestion, saveDraft?: () => Promise<void>) => (
     <>
       <MatchLedger
         snapshot={snapshot}
@@ -384,7 +396,7 @@ export function MatchPage({
         </div>
       )}
 
-      {concession}
+      {concession(snapshot.shareFinalCode ? saveDraft : undefined)}
       {finished && (
         <MatchEndView
           snapshot={finished.snapshot}

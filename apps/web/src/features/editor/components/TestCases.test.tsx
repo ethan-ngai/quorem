@@ -1,14 +1,14 @@
 import { publicQuestionFixture } from "../../../test/questionFixture";
 import { stripSyntaxMarkup } from "../../../test/stripSyntaxMarkup";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ProblemVersion, PublicCaseResult, Submission } from "@quorem/contracts";
+import type { PublishedQuestion, PublicCaseResult, Submission } from "@quorem/contracts";
 import { describe, expect, it } from "vitest";
 import fixture from "../../../../../../fixtures/problems/run-widths.json";
 import { createCustomDraft, createRunSnapshot, parseProblemDraft } from "../customCases";
 import { TestCases } from "./TestCases";
 const problem = {
   ...publicQuestionFixture(fixture),
-} as ProblemVersion;
+} as PublishedQuestion;
 describe("sample case selection", () => {
   it("renders a controlled sample in the shared case detail pane", () => {
     const html = renderToStaticMarkup(

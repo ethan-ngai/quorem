@@ -167,6 +167,7 @@ export function CompletionDemo() {
                 compare={compare}
                 diff={diff}
                 original={original}
+                canCompare
                 canDiff
                 onSelect={setParticipant}
                 onCompare={() => setCompare(!compare)}

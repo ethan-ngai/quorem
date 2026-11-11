@@ -1,4 +1,5 @@
 import { FileCode2, Shapes } from "lucide-react";
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
@@ -8,17 +9,19 @@ export function QuestionTypeFilter({
   value,
   onChange,
   exclusive = false,
+  iconOnly = !exclusive,
 }: {
   value?: QuestionType;
   exclusive?: boolean;
+  iconOnly?: boolean;
   onChange: (value: QuestionType | undefined) => void;
 }) {
   return (
     <SegmentedControl<QuestionType | "all">
-      compact={exclusive}
-      iconOnly={!exclusive}
+      compact={exclusive && !iconOnly}
+      iconOnly={iconOnly}
       label={exclusive ? "Question format" : "Question type"}
-      value={value ?? (exclusive ? "classic" : "all")}
+      value={value ?? (exclusive ? defaultCatalogFormat : "all")}
       onChange={(next) => onChange(next === "all" ? undefined : next)}
       options={[
         ...(exclusive

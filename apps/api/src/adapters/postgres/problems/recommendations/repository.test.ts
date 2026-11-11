@@ -43,30 +43,30 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
             await tx.execute(
               sql`INSERT INTO problems(id,slug,owner_id) VALUES(${problem}::uuid,${`${prefix}-${i}`},${i === 2 ? bob : null})`,
             );
-            await tx.execute(sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,attribution)
-            VALUES(${version}::uuid,${problem}::uuid,1,${`${prefix}-${i}`},'easy','public statement','{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"}','[]','{"wallTimeMs":2000,"memoryBytes":268435456,"outputBytes":65536,"maxProcesses":16,"maxCollectionElements":10000,"maxNestingDepth":100}','fixture')`);
+            await tx.execute(sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution)
+            VALUES(${version}::uuid,${problem}::uuid,${`${prefix}-${i}`},'easy','public statement','{"className":"Solution","methodName":"solve","parameters":[],"returnType":"int"}','[]','{"wallTimeMs":2000,"memoryBytes":268435456,"outputBytes":65536,"maxProcesses":16,"maxCollectionElements":10000,"maxNestingDepth":100}','fixture')`);
             await tx.execute(
-              sql`INSERT INTO problem_tags(version_id,tag,ordinal) VALUES(${version}::uuid,${prefix},0)`,
+              sql`INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES(${version}::uuid,${prefix},0)`,
             );
             await tx.execute(
-              sql`UPDATE problems SET current_version_id=${version}::uuid WHERE id=${problem}::uuid`,
+              sql`UPDATE problems SET current_publication_id=${version}::uuid WHERE id=${problem}::uuid`,
             );
             await tx.execute(
-              sql`UPDATE problem_versions SET sealed=true WHERE id=${version}::uuid`,
+              sql`UPDATE question_publications SET sealed=true WHERE id=${version}::uuid`,
             );
           }
           const workspace = crypto.randomUUID();
           await tx.execute(
-            sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${workspace}::uuid,${bob},${versions[0]}::uuid,'python')`,
+            sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${workspace}::uuid,${bob},${versions[0]}::uuid,'python')`,
           );
           const assistedSubmission = crypto.randomUUID();
           await tx.execute(
-            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()-interval '1 minute' WHERE owner_id=${bob} AND version_id=${versions[0]}::uuid`,
+            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()-interval '1 minute' WHERE owner_id=${bob} AND publication_id=${versions[0]}::uuid`,
           );
           await tx.execute(sql`INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases)
             VALUES(${assistedSubmission}::uuid,${bob},${workspace}::uuid,'submit','','hash','running','[]')`);
           await tx.execute(
-            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()+interval '1 minute' WHERE owner_id=${bob} AND version_id=${versions[0]}::uuid`,
+            sql`UPDATE question_exposure SET assisted_at=clock_timestamp()+interval '1 minute' WHERE owner_id=${bob} AND publication_id=${versions[0]}::uuid`,
           );
           await tx.execute(
             sql`UPDATE submissions SET state='completed',result='{"verdict":"accepted"}' WHERE id=${assistedSubmission}::uuid`,
@@ -129,7 +129,7 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
           await queries.recommendationFeedback(alice, [impression], "dismiss");
           await queries.recommendationFeedback(bob, [impression], "view");
           const suggestedWorkspace = crypto.randomUUID();
-          await tx.execute(sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language)
+          await tx.execute(sql`INSERT INTO workspaces(id,owner_id,publication_id,language)
             VALUES(${suggestedWorkspace}::uuid,${bob},${versions[1]}::uuid,'python')`);
           expect(
             (
@@ -187,30 +187,30 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
             random.mockRestore();
           }
           const stagedProblem = crypto.randomUUID(),
-            stagedVersion = crypto.randomUUID(),
+            stagedPublication = crypto.randomUUID(),
             stagedWorkspace = crypto.randomUUID();
           await tx.execute(
             sql`INSERT INTO problems(id,slug) VALUES(${stagedProblem}::uuid,${`${prefix}-odyssey`})`,
           );
-          await tx.execute(sql`INSERT INTO problem_versions(id,problem_id,version,title,difficulty,statement_markdown,constraints,limits,attribution,odyssey)
-            VALUES(${stagedVersion}::uuid,${stagedProblem}::uuid,1,'Staged','easy','statement','[]','{}','fixture','{"levels":[{},{}]}')`);
+          await tx.execute(sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,constraints,limits,attribution,odyssey)
+            VALUES(${stagedPublication}::uuid,${stagedProblem}::uuid,'Staged','easy','statement','[]','{}','fixture','{"levels":[{},{}]}')`);
           await tx.execute(
-            sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${stagedWorkspace}::uuid,${bob},${stagedVersion}::uuid,'python')`,
+            sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${stagedWorkspace}::uuid,${bob},${stagedPublication}::uuid,'python')`,
           );
           await complete("accepted", 0, "submit", false, stagedWorkspace, 1);
           expect(
-            (await learningEvents(tx, [bob])).filter((row) => row.id === stagedVersion),
+            (await learningEvents(tx, [bob])).filter((row) => row.id === stagedPublication),
           ).toHaveLength(0);
           await complete("accepted", 0, "submit", false, stagedWorkspace, 2);
           expect(
-            (await learningEvents(tx, [bob])).find((row) => row.id === stagedVersion),
+            (await learningEvents(tx, [bob])).find((row) => row.id === stagedPublication),
           ).toMatchObject({ accepted: true, context: "practice" });
 
           const match = crypto.randomUUID(),
             review = crypto.randomUUID();
-          await tx.execute(sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,problem_version_id,started_at,deadline,difficulties,outcome)
+          await tx.execute(sql`INSERT INTO matches(id,host_owner_id,invite_hash,expires_at,duration_minutes,state,publication_id,started_at,deadline,difficulties,outcome)
             VALUES(${match}::uuid,${alice},${prefix},now()+interval '1 hour',30,'completed',${versions[0]}::uuid,now()-interval '1 hour',now()-interval '30 minutes',ARRAY['easy'],'{}')`);
-          await tx.execute(sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,review_match_id,review_source_owner_id)
+          await tx.execute(sql`INSERT INTO workspaces(id,owner_id,publication_id,language,kind,review_match_id,review_source_owner_id)
             VALUES(${review}::uuid,${bob},${versions[1]}::uuid,'python','review',${match}::uuid,${alice})`);
           await complete("accepted", 0, "submit", false, review);
           expect((await learningEvents(tx, [bob])).some((row) => row.id === versions[1])).toBe(
@@ -219,7 +219,7 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
 
           const matchWorkspace = crypto.randomUUID();
           await tx.execute(
-            sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language,kind,match_id) VALUES(${matchWorkspace}::uuid,${bob},${versions[0]}::uuid,'python','match',${match}::uuid)`,
+            sql`INSERT INTO workspaces(id,owner_id,publication_id,language,kind,match_id) VALUES(${matchWorkspace}::uuid,${bob},${versions[0]}::uuid,'python','match',${match}::uuid)`,
           );
           await complete("accepted", 0, "submit", false, matchWorkspace, null, match);
           expect(
@@ -247,7 +247,7 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
           expect(await learningEvents(tx, [alice])).toEqual([]);
           const privateWorkspace = crypto.randomUUID();
           await tx.execute(
-            sql`INSERT INTO workspaces(id,owner_id,problem_version_id,language) VALUES(${privateWorkspace}::uuid,${bob},${versions[2]}::uuid,'python')`,
+            sql`INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES(${privateWorkspace}::uuid,${bob},${versions[2]}::uuid,'python')`,
           );
           await complete("accepted", 0, "submit", false, privateWorkspace);
           expect((await learningEvents(tx, [bob])).some((e) => e.id === versions[2])).toBe(true);
@@ -273,10 +273,10 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
           await tx.execute(
             sql`INSERT INTO users(id,display_name) SELECT ${prefix}||'-learner-'||i,'Learner' FROM generate_series(0,19) i`,
           );
-          await tx.execute(sql`INSERT INTO question_learning_events(submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at,observed_at)
+          await tx.execute(sql`INSERT INTO question_learning_events(submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at,observed_at)
             SELECT gen_random_uuid(),${prefix}||'-learner-'||(i%20),v.id,'easy',ARRAY['arrays'],i%3=0,'practice',
               clock_timestamp()-interval '100 days'+i*interval '2.4 hours',clock_timestamp()-interval '100 days'+i*interval '2.4 hours'
-            FROM generate_series(0,999) i JOIN problem_versions v ON v.id=(ARRAY[${versions[0]}::uuid,${versions[1]}::uuid,${stagedVersion}::uuid])[i%3+1]`);
+            FROM generate_series(0,999) i JOIN question_publications v ON v.id=(ARRAY[${versions[0]}::uuid,${versions[1]}::uuid,${stagedPublication}::uuid])[i%3+1]`);
           const eligible = train(await learningEvents(tx, null), prior(), Date.now());
           expect(eligible.eligible).toBe(true);
           expect(eligible.metrics.logLoss).toBeLessThan(eligible.baseline.logLoss);
@@ -347,7 +347,7 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
             WHERE id=${impression}::uuid
           `);
           await tx.execute(sql`
-            INSERT INTO question_learning_events(submission_id,owner_id,version_id,difficulty,tags,accepted,context,attempted_at,observed_at)
+            INSERT INTO question_learning_events(submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at,observed_at)
             VALUES(gen_random_uuid(),${bob},${versions[0]}::uuid,'easy',ARRAY[${prefix}],true,'practice',
               statement_timestamp()-interval '12 days',statement_timestamp()-interval '12 days')
           `);
@@ -356,6 +356,36 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
               expect.objectContaining({ transfer_attempts: 1, transfer_solves: 1 }),
             ]),
           );
+          const stagedTopic = `${prefix}-staged`;
+          await tx.execute(
+            sql`INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES(${stagedPublication}::uuid,${stagedTopic},0)`,
+          );
+          await tx.execute(
+            sql`UPDATE question_publications SET sealed=true WHERE id=${stagedPublication}::uuid`,
+          );
+          await tx.execute(
+            sql`UPDATE problems SET current_publication_id=${stagedPublication}::uuid WHERE id=${stagedProblem}::uuid`,
+          );
+          const stagedSettings = normalizeSettings({
+            difficulties: ["easy"],
+            questionFilters: { topic: stagedTopic },
+          });
+          await expect(
+            selectMatchCandidate(tx, alice, stagedSettings, [alice, bob]),
+          ).rejects.toMatchObject({ code: "no_matching_questions" });
+          expect(
+            (
+              await selectMatchCandidate(
+                tx,
+                alice,
+                {
+                  ...stagedSettings,
+                  questionFilters: { ...stagedSettings.questionFilters, type: "odyssey" },
+                },
+                [alice, bob],
+              )
+            ).id,
+          ).toBe(stagedPublication);
           throw rollback;
         }),
       ).catch((error) => {

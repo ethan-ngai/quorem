@@ -44,7 +44,10 @@ describe("server-rendered match settings", () => {
     ]);
     expect(html.match(/aria-label="Difficulty filter"/g)).toHaveLength(1);
     expect(html).toContain('aria-label="Question filters"');
-    expect(html).toContain('aria-label="SQL questions"');
+    expect(html).toContain('aria-label="Algorithms" aria-checked="true"');
+    expect(html).toContain('aria-label="SQL" aria-checked="false"');
+    expect(html).toContain('aria-label="Classic" aria-checked="true"');
+    expect(html).not.toContain('aria-label="All question types"');
     expect(html).toContain('aria-label="Topics"');
     expect(html).not.toContain("Problem list unavailable");
     expect(html).not.toContain("Guest access");
@@ -97,9 +100,7 @@ it("keeps an eligible lobby question and resets an excluded question to the defa
     await click("Question filters");
     await click("Classic");
     expect(picker()).toBe("Two Sum");
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ selectedProblemVersionId: "example" }),
-    );
+    expect(onChange).not.toHaveBeenCalled();
     await click("Odyssey");
     expect(picker()).toContain("Recommended");
     expect(onChange).toHaveBeenLastCalledWith(
@@ -108,8 +109,13 @@ it("keeps an eligible lobby question and resets an excluded question to the defa
         selectedProblemVersionId: undefined,
       }),
     );
-    await click("All question types");
-    expect(picker()).toContain("Recommended");
+    await click("SQL");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        questionFilters: { sql: "true", type: "odyssey" },
+        selectedProblemVersionId: undefined,
+      }),
+    );
   } finally {
     await act(async () => root.unmount());
     client.clear();

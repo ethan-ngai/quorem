@@ -6,7 +6,7 @@ import { randomUUID } from "../../randomUUID";
 import type {
   CustomCase,
   DevelopmentIdentity,
-  ProblemVersion,
+  PublishedQuestion,
   Submission,
   SubmissionAdmission,
   Workspace,
@@ -17,7 +17,7 @@ export async function fetchProblem(identity: DevelopmentIdentity, slug: string) 
   const { data, error } = await api(identity).GET("/v1/problems/{slug}", {
     params: { path: { slug } },
   });
-  return requireData(data as ProblemVersion | undefined, error);
+  return requireData(data as PublishedQuestion | undefined, error);
 }
 
 /** Creates or reuses the owner's solo workspace for a problem version. */
@@ -103,10 +103,10 @@ export async function cancelSubmission(identity: DevelopmentIdentity, id: string
 
 /** Loads an authorized immutable version, including a started match problem. */
 export async function fetchProblemVersion(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).GET("/v1/problem-versions/{id}", {
+  const { data, error } = await api(identity).GET("/v1/question-publications/{id}", {
     params: { path: { id } },
   });
-  return requireData(data as ProblemVersion | undefined, error);
+  return requireData(data as PublishedQuestion | undefined, error);
 }
 
 /** Switches the active participant's workspace without admitting stale-language source. */

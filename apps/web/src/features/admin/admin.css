@@ -532,9 +532,33 @@
 
 .authoring-signature-fields {
   display: grid;
+  align-items: start;
   gap: var(--space-3);
   grid-template-columns: repeat(2, minmax(0, 1fr));
   max-width: 32rem;
+}
+
+.authoring-signature-fields > .admin-field > .admin-field {
+  margin: 0;
+}
+
+.authoring-signature-fields > .admin-field > input.admin-code {
+  min-height: var(--control-height);
+  padding-block: 0;
+}
+
+.authoring-derived-type {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-height: var(--control-height);
+  overflow-wrap: anywhere;
+}
+
+.authoring-derived-type > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
 }
 
 .authoring-method-section-heading {
@@ -554,6 +578,21 @@
 
 .authoring-parameter-row {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 2fr) 34px;
+}
+
+.authoring-parameter-type {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.authoring-grid-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
 }
 
 .authoring-exception-row {
@@ -778,13 +817,22 @@
   }
 }
 
-.authoring-type-block {
+.authoring-type-block,
+.authoring-type-token {
   display: flex;
   min-width: 0;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-1);
   font-family: var(--font-code);
+}
+
+.authoring-type-block {
+  flex-wrap: wrap;
+}
+
+.authoring-type-token > .code-operator {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .admin-field input.authoring-type-input,
@@ -803,8 +851,8 @@
 }
 
 .authoring-type-menu {
-  width: min(16rem, calc(100vw - 24px));
-  padding: var(--space-2);
+  width: min(11rem, var(--radix-popover-content-available-width));
+  padding: var(--space-1);
   background: var(--color-surface);
 }
 
@@ -814,9 +862,7 @@
 }
 
 .authoring-type-menu [role="option"] {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
+  display: block;
   width: 100%;
   padding: var(--space-2);
   border: 0;
