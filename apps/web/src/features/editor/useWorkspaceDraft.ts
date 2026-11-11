@@ -10,7 +10,6 @@ import {
   readBrowserDraft,
   readLatestRecovery,
   writeBrowserDraft,
-  writeRecovery,
 } from "./recovery";
 
 export function useWorkspaceDraft({
@@ -98,15 +97,6 @@ export function useWorkspaceDraft({
     } catch (error) {
       errorHandler.current(error);
     }
-    if (previousContext && previousContext.key !== nextContext.key && dirtyRef.current) {
-      const snapshot = sourceRef.current;
-      void writeRecovery(
-        previousContext.identity,
-        previousContext.storageId,
-        previousContext.problemVersionId,
-        snapshot,
-      ).catch(() => undefined);
-    }
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = undefined;
     draftContextRef.current = nextContext;
@@ -148,20 +138,19 @@ export function useWorkspaceDraft({
     let active = true;
     const context = draftContextRef.current;
     const generation = editGeneration.current;
+    const hasAutosave = () =>
+      readBrowserDraft(identity, context.storageId, problem.id) !== undefined ||
+      (accountPresent &&
+        readBrowserDraft("anonymous" as DevelopmentIdentity, context.storageId, problem.id) !==
+          undefined);
+    if (hasAutosave()) return;
     const load = async () => {
-      // Preserve older recovery databases without importing server drafts.
       const snapshot =
         (await readLatestRecovery(identity, context.storageId, problem.id)) ??
-        (await readLatestRecovery(identity, workspace.id, problem.id));
-      if (
-        active &&
-        snapshot &&
-        editGeneration.current === generation &&
-        readBrowserDraft(identity, context.storageId, problem.id) === undefined &&
-        (!accountPresent ||
-          readBrowserDraft("anonymous" as DevelopmentIdentity, context.storageId, problem.id) ===
-            undefined)
-      ) {
+        (context.storageId !== workspace.id
+          ? await readLatestRecovery(identity, workspace.id, problem.id)
+          : undefined);
+      if (active && snapshot && editGeneration.current === generation && !hasAutosave()) {
         setSource(snapshot.source);
         editorRef.current?.replaceSource(snapshot.source);
         sourceRef.current = snapshot.source;
@@ -172,7 +161,7 @@ export function useWorkspaceDraft({
     return () => {
       active = false;
     };
-  }, [workspace, problem, identity, accountPresent]);
+  }, [workspace, problem, identity, accountPresent, authoritative, editorRef]);
 
   const updateSource = useCallback((next: string) => {
     if (!editable.current) return;
@@ -212,22 +201,24 @@ export function useWorkspaceDraft({
     }
     setSaveState("saving");
     const persist = matchSourceSaver.current;
-    const task = saveQueue.current.then(async () => {
-      await Promise.all([
-        writeRecovery(context.identity, context.storageId, context.problemVersionId, snapshot),
-        draftContextRef.current === context && sourceRef.current === snapshot
-          ? persist?.(context.workspaceId, snapshot)
-          : undefined,
-      ]);
-    });
-    lastQueuedSourceRef.current = snapshot;
-    saveQueue.current = task.then(
-      () => {},
-      () => {},
-    );
+    const task = persist
+      ? saveQueue.current.then(async () => {
+          if (draftContextRef.current === context && sourceRef.current === snapshot) {
+            await persist(context.workspaceId, snapshot);
+          }
+        })
+      : undefined;
+    if (task) {
+      lastQueuedSourceRef.current = snapshot;
+      saveQueue.current = task.catch(() => {});
+    }
     try {
-      browserWriterRef.current?.flush();
-      await task;
+      try {
+        browserWriterRef.current?.flush();
+      } finally {
+        // Match review still needs the latest code if browser storage fails.
+        if (task) await task;
+      }
       if (draftContextRef.current !== context) return;
       if (sourceRef.current === snapshot) {
         dirtyRef.current = false;
@@ -254,14 +245,6 @@ export function useWorkspaceDraft({
           errorHandler.current(error);
         }
       }
-      const context = draftContextRef.current;
-      if (context && dirtyRef.current)
-        void writeRecovery(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          sourceRef.current,
-        ).catch(() => undefined);
     };
     const onPageHide = () => {
       preserveDraft();
@@ -275,58 +258,6 @@ export function useWorkspaceDraft({
       draftContextRef.current = undefined;
     };
   }, []);
-
-  const restoreHistory = useCallback(
-    async (historicalSource: string) => {
-      if (!workspace || !editable.current) return;
-      const context = draftContextRef.current;
-      const generation = editGeneration.current;
-      await saveCurrentDraft();
-      await saveQueue.current;
-      if (draftContextRef.current !== context || !editable.current) return;
-      if (editGeneration.current !== generation) {
-        dirtyRef.current = true;
-        lastQueuedSourceRef.current = undefined;
-        setSaveState("dirty");
-        saveTimerRef.current = window.setTimeout(() => {
-          saveTimerRef.current = undefined;
-          void saveNowRef.current();
-        }, 750);
-        throw new Error(
-          "Newer local edits were kept. Save to retain them instead of the restored history.",
-        );
-      }
-      if (context)
-        writeBrowserDraft(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          historicalSource,
-        );
-      editorRef.current?.replaceSource(historicalSource);
-      sourceRef.current = historicalSource;
-      const restoredGeneration = editGeneration.current;
-      if (matchSourceSaver.current) {
-        dirtyRef.current = true;
-        await saveCurrentDraft();
-        return;
-      }
-      if (context)
-        await writeRecovery(
-          context.identity,
-          context.storageId,
-          context.problemVersionId,
-          historicalSource,
-        );
-      if (draftContextRef.current === context && editGeneration.current === restoredGeneration) {
-        dirtyRef.current = false;
-        window.clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = undefined;
-        setSaveState("saved");
-      }
-    },
-    [identity, workspace, saveCurrentDraft],
-  );
 
   const changeCustomDrafts = useCallback((drafts: CustomCaseDraft[]) => {
     if (!editable.current) return;
@@ -352,6 +283,5 @@ export function useWorkspaceDraft({
     updateSource,
     saveCurrentDraft,
     saveBeforeSwitch,
-    restoreHistory,
   };
 }

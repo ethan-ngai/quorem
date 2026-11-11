@@ -11,7 +11,6 @@ import { useSubmission } from "./useSubmission";
 vi.mock("./recovery", async (original) => ({
   ...(await original<typeof import("./recovery")>()),
   readLatestRecovery: vi.fn(async () => undefined),
-  writeRecovery: vi.fn(async () => undefined),
 }));
 vi.mock("../../ui/Notifications", () => ({ useErrorNotification: () => {} }));
 vi.mock("./api", () => ({

@@ -2,8 +2,6 @@ packages:
   - apps/*
   - packages/*
 patchedDependencies:
-  # Bound ZIP record copies in the bundled typeshed filesystem; see intelligence-model.md.
-  monaco-pyright-lsp@0.1.7: patches/monaco-pyright-lsp@0.1.7.patch
   # Upstream node-postgres PR 3806: close must not surface its cancelled read.
   pg-cloudflare@1.4.1: patches/pg-cloudflare@1.4.1.patch
 overrides:

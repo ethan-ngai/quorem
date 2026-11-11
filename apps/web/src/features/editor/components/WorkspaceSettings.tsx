@@ -13,6 +13,7 @@ import {
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { ShortcutKeys } from "../../../ui/ShortcutKeys";
 import { Icon } from "../../../ui/Icon";
+
 import { SegmentedControl } from "../../../ui/SegmentedControl";
 
 export type SettingsProps = {
@@ -27,16 +28,12 @@ export type SettingsProps = {
   onTabSizeChange: (size: 2 | 4) => void;
   wrap: boolean;
   onWrapChange: (wrap: boolean) => void;
-  onHistory?: () => void;
-  onClearRecovery?: () => void;
-  onImportDrafts?: (file: File) => Promise<void>;
 };
 
 export const workspaceSections = [
   { id: "appearance", label: "Appearance", icon: "sun" },
   { id: "editor", label: "Editor", icon: "code" },
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
-  { id: "drafts", label: "Drafts", icon: "history" },
 ] as const;
 
 const themes = [
@@ -70,7 +67,7 @@ export type WorkspaceSection = (typeof workspaceSections)[number]["id"];
 export function WorkspaceSettingsContent({
   section,
   ...props
-}: SettingsProps & { section: WorkspaceSection; onClose?: () => void }) {
+}: SettingsProps & { section: WorkspaceSection }) {
   return (
     <>
       {section === "appearance" && (
@@ -149,42 +146,6 @@ export function WorkspaceSettingsContent({
               </div>
             ))}
           </div>
-        </>
-      )}
-      {section === "drafts" && (
-        <>
-          <p className="settings-section-description">
-            Drafts and history stay in this browser. Other windows keep their own active code.
-          </p>
-          <button
-            className="settings-action"
-            onClick={() => {
-              props.onClose?.();
-              props.onHistory?.();
-            }}
-          >
-            <Icon name="history" />
-            Browser history
-            <Icon name="arrow" />
-          </button>
-          <label className="settings-action">
-            <Icon name="history" />
-            Import previous drafts
-            <input
-              type="file"
-              accept="application/json,.json"
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0];
-                if (file) void props.onImportDrafts?.(file);
-                event.currentTarget.value = "";
-              }}
-            />
-          </label>
-          <button className="settings-action destructive-icon" onClick={props.onClearRecovery}>
-            <Icon name="trash" />
-            Clear browser drafts
-          </button>
         </>
       )}
     </>

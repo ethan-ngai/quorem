@@ -140,9 +140,6 @@ describe("global navigation", () => {
       onTabSizeChange: () => {},
       wrap: false,
       onWrapChange: () => {},
-      onHistory: () => {},
-      onClearRecovery: () => {},
-      onImportDrafts: async () => {},
     });
     expect(html).toContain('aria-label="Workspace settings"');
     expect(html.indexOf('aria-label="Workspace settings"')).toBeLessThan(

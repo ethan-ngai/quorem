@@ -105,8 +105,6 @@ const completionExtension = autocompletion({
   updateSyncTime: 0,
   interactionDelay: 0,
   maxRenderedOptions: 40,
-  // Adjacent identical labels merge local suggestions with richer server documentation.
-  compareCompletions: (a, b) => a.label.localeCompare(b.label),
 });
 
 /** Reconfigures editor display preferences without resetting history. */

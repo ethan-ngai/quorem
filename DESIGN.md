@@ -107,6 +107,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Problem left, editor right, results below; support pointer/keyboard resizing. Keep node diagrams and the primary graph to the right of the complete input/output stack. Place additional graphs below the values, and stack all graphs below the values in narrow panels. Show verdicts and diagnostics above case values only for the selected case's admitted result; collapse absent feedback completely and keep full diagnostics scrollable inline. Case selectors use checks/Xs; verdict headings use error-specific symbols. Empty structures use `∅`, variable name and tooltip.
 - Expand desktop navigation in place; use a mobile drawer and retain the logo through transitions.
 - Start with system theme; persist explicit choices and separate light/dark editor schemes. Default to JetBrains Light/Dark.
+- Use severity colors consistently across inline diagnostic marks and tooltip accents. Let long diagnostic messages wrap and scroll. Match IntelliSense signatures to the active editor syntax palette.
 - Use identity colors for participant avatars, remote carets and selections; photo rings and initial backgrounds. Keep the local caret in its editor scheme.
 
 Preset graph bindings replace their concrete case fields with a node and edge editor beside the preview. Show the generated solver values as a read-only preview. Keep custom concrete values editable.

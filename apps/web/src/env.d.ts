@@ -10,3 +10,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 declare module "*.css";
+
+declare module "virtual:quorem-pyright-worker" {
+  const url: string;
+  export default url;
+}

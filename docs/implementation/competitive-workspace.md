@@ -11,7 +11,7 @@ Issue #26 updates the Showdown flow.
 - Matching Copy/Share icon pairs in the invitation and open seat use Web Share from the click gesture, with clipboard fallback when unsupported. Cancellation is silent; Copy remains available. Native targets depend on the browser/device.
 - In-match score, presence and remaining time share a compact bar above the editor. Forfeit requires confirmation.
 - One active competition per owner remains enforced by server reservations; multiple browser windows remain supported.
-- Browser-only drafts/history; see [migration and backup guidance](browser-drafts.md).
+- [Browser autosave](browser-drafts.md).
 - Python assistance follows the focused window. Background windows pause assistance while retaining their editor buffers; indentation guides remain local.
 - CodeMirror draws the caret and selection; desktop Safari no longer depends on its native caret rendering.
 

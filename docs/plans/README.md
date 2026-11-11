@@ -11,7 +11,7 @@ Status: original planning baseline with subsequent implementation updates. Confi
 - Include ListNode and TreeNode in the initial harness and editor declarations.
 - [Browser-first IntelliSense](intelligence-model.md): local engines where viable; paid hosted analysis flagged off, deployment held. Completion, hover, signatures and diagnostics required; navigation/refactoring/formatting deferred.
 - System theme + override; blue accent; Geist Sans/JetBrains Mono; resizable problem-left/editor-right/results-below layout; desktop-first narrow-screen fallback.
-- Drafts: browser-only drafts/history; independent windows, latest local write resumes on reload. Run examples/custom input; Submit safe verdict/counts/error summaries. One active-or-queued job per user; reject additional work.
+- Drafts: browser autosave; independent windows, latest local write resumes on reload. Run examples/custom input; Submit safe verdict/counts/error summaries. One active-or-queued job per user; reject additional work.
 - Development-only identities first. Real 1v1 starts with private invites, not public matchmaking.
 - MVP subsequently includes real 1v1 with a LeetCode-style workspace.
 - Go; Astro marketing; React + TanStack Router; Vite+; modern vanilla CSS; Terraform; GitHub Actions. Better Auth through a small TypeScript auth service, optional Cognito upstream; public email/password and social sign-in.
