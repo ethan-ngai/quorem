@@ -2124,6 +2124,13 @@ export interface components {
             canonicalApproachId: string;
             approaches: components["schemas"]["SolutionApproach"][];
         };
+        QuestionImportDiagnostic: {
+            /** @description JSON Pointer to the affected field, or / for the whole file */
+            path: string;
+            code: string;
+            message: string;
+        };
+        QuestionImportDiagnostics: components["schemas"]["QuestionImportDiagnostic"][];
         QuestionDraft: {
             /** Format: uuid */
             id: string;
@@ -2553,6 +2560,32 @@ export interface components {
                 input?: string;
                 result?: string;
             };
+        };
+        QuestionImportProblem: {
+            /** @description Optional legacy metadata. Publication assigns its own ID. */
+            id?: string;
+            slug: string;
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            companies?: string[];
+            leetcodeId?: number | null;
+            tags: string[];
+            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
+            statementMarkdown: string;
+            examples: components["schemas"]["ProblemExample"][];
+            constraints: components["schemas"]["Constraint"][];
+            signature?: components["schemas"]["Signature"];
+            /** @description Omit to use the default execution limits. */
+            limits?: components["schemas"]["ExecutionLimits"];
+            sql?: components["schemas"]["SqlConfig"];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
+        } & unknown;
+        QuestionImportContent: {
+            problem: components["schemas"]["QuestionImportProblem"];
+            hiddenCases: components["schemas"]["CustomCase"][];
+            attribution: string;
+            canonicalApproachId: string;
+            approaches: components["schemas"]["SolutionApproach"][];
         };
     };
     responses: never;
@@ -3387,7 +3420,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuestionContent"];
+                "application/json": components["schemas"]["QuestionImportContent"];
             };
         };
         responses: {
@@ -3404,6 +3437,22 @@ export interface operations {
                         draftId?: string;
                         message?: string;
                         warning?: string;
+                        diagnostics?: components["schemas"]["QuestionImportDiagnostics"];
+                    };
+                };
+            };
+            /** @description Invalid question file */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"] & {
+                        error?: {
+                            details?: {
+                                diagnostics?: components["schemas"]["QuestionImportDiagnostics"];
+                            };
+                        };
                     };
                 };
             };
@@ -3449,6 +3498,7 @@ export interface operations {
                             draftId?: string;
                             message?: string;
                             warning?: string;
+                            diagnostics?: components["schemas"]["QuestionImportDiagnostics"];
                         }[];
                     };
                 };

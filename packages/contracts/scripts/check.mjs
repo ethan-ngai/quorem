@@ -10,12 +10,16 @@ import assert from "node:assert/strict";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { generateContracts } from "./generate.mjs";
-import { questionSchema, questionValidator } from "./question-schema.mjs";
+import {
+  questionImportSchema,
+  questionImportValidator,
+  questionValidator,
+} from "./question-schema.mjs";
 import { eventSchema as generateEventSchema } from "./event-schema.mjs";
 assert.deepEqual(
   JSON.parse(readFileSync("questions/question-v1.schema.json", "utf8")),
-  questionSchema(),
-  "Question import schema must match OpenAPI",
+  questionImportSchema(),
+  "Question import schema drift",
 );
 
 const api = JSON.parse(readFileSync("openapi/api.json", "utf8"));
@@ -56,6 +60,29 @@ for (const name of Object.keys(authorFields)) {
 const validateQuestion = ajv.compile({ $ref: `${document.$id}#/$defs/QuestionContent` });
 const exampleQuestion = JSON.parse(readFileSync("questions/example-v1.json", "utf8"));
 assert(validateQuestion(exampleQuestion), JSON.stringify(validateQuestion.errors));
+const validateQuestionImport = ajv.compile(questionImportSchema());
+const { id: _id, limits: _limits, ...authoredProblem } = exampleQuestion.problem;
+const authoredImport = { ...exampleQuestion, problem: authoredProblem };
+assert(validateQuestionImport(exampleQuestion));
+assert(validateQuestionImport(authoredImport));
+assert(!validateQuestion(authoredImport));
+for (const invalid of [
+  { version: 1 },
+  { slug: "Invalid_slug" },
+  { slug: "x".repeat(81) },
+  { leetcodeId: 2147483648 },
+  { limits: { wallTimeMs: 2000 } },
+]) {
+  assert(
+    !validateQuestionImport({ ...authoredImport, problem: { ...authoredProblem, ...invalid } }),
+  );
+}
+assert(
+  validateQuestionImport({
+    ...authoredImport,
+    problem: { ...authoredProblem, slug: `private-${"f".repeat(16)}-${"a".repeat(80)}` },
+  }),
+);
 for (const field of [
   "starterSource",
   "runtimeRevision",
@@ -301,6 +328,11 @@ assert.equal(
 assert.equal(
   readFileSync("../questions/src/draft-validator.mjs", "utf8"),
   questionValidator(true),
+  "Run vp run contracts:generate",
+);
+assert.equal(
+  readFileSync("../questions/src/question-import-validator.mjs", "utf8"),
+  questionImportValidator(),
   "Run vp run contracts:generate",
 );
 console.log("Contract fixtures, redaction, decimal sequences and generation verified.");
