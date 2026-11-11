@@ -304,7 +304,10 @@ export function MatchPage({
       ? { snapshot, identity }
       : undefined;
   const [resultsOpen, setResultsOpen] = useState(!reviewEntry);
-  const [reviewing, setReviewing] = useState(reviewEntry);
+  const [reviewRequest, setReviewRequest] = useState<{ participantId?: string } | null>(
+    reviewEntry ? {} : null,
+  );
+  const reviewing = !!reviewRequest;
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
@@ -404,9 +407,9 @@ export function MatchPage({
           identity={finished.identity}
           open={resultsOpen}
           onOpenChange={setResultsOpen}
-          onReview={() => {
+          onReview={(participantId) => {
             setResultsOpen(false);
-            setReviewing(true);
+            setReviewRequest({ participantId });
           }}
         />
       )}
@@ -429,6 +432,7 @@ export function MatchPage({
         identity={identity}
         matchHeader={ledger}
         review={reviewing && !!finished}
+        reviewRequest={reviewRequest ?? undefined}
       />
     );
   return (

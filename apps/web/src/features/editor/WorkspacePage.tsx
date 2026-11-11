@@ -97,6 +97,7 @@ export function WorkspacePage({
   identity: providedIdentity,
   matchHeader,
   review: reviewRequested = false,
+  reviewRequest,
   sharedDocument,
 }: {
   slug?: string;
@@ -107,6 +108,7 @@ export function WorkspacePage({
     | ReactNode
     | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => ReactNode);
   review?: boolean;
+  reviewRequest?: { participantId?: string };
   sharedDocument?: SharedWorkspaceDocument;
 }) {
   const [review, setReview] = useState(false);
@@ -195,7 +197,8 @@ export function WorkspacePage({
   )
     ? selectedLanguage
     : (problemQuery.data?.languages?.[0]?.language ?? selectedLanguage);
-  const [reviewParticipantId, setReviewParticipantId] = useState("");
+  const [appliedReviewRequest, setAppliedReviewRequest] = useState(reviewRequest);
+  const [reviewParticipantId, setReviewParticipantId] = useState(reviewRequest?.participantId);
   const [compareReview, setCompareReview] = useState(false);
   const [diffReview, setDiffReview] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
@@ -221,6 +224,12 @@ export function WorkspacePage({
     reviewQuery.data?.participants.find((person) => person.userId === reviewParticipantId) ??
     reviewQuery.data?.participants.find((person) => person.own);
   const [reviewLanguageOverride, setReviewLanguageOverride] = useState<EditorLanguage>();
+  if (appliedReviewRequest !== reviewRequest) {
+    setAppliedReviewRequest(reviewRequest);
+    setReviewParticipantId(reviewRequest?.participantId);
+    setReviewLanguageOverride(undefined);
+    setShowOriginal(false);
+  }
   const reviewLanguage =
     reviewLanguageOverride ?? reviewCodeLanguage(reviewParticipant) ?? selectedLanguage;
   const reviewCode = reviewParticipant?.finalCode ?? reviewParticipant?.submission;
