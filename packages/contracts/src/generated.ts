@@ -2561,148 +2561,7 @@ export interface components {
                 result?: string;
             };
         };
-        "$defs-WireValue": WireValue;
-        "$defs-QuestionGraph": {
-            directed: boolean;
-            nodes: (components["schemas"]["GraphNodeId"] | {
-                id: components["schemas"]["GraphNodeId"];
-                value: components["schemas"]["$defs-WireValue"];
-            })[];
-            edges: {
-                from: components["schemas"]["GraphNodeId"];
-                to: components["schemas"]["GraphNodeId"];
-                value?: components["schemas"]["$defs-WireValue"];
-            }[];
-        };
-        "$defs-MethodCall": {
-            methodName: string;
-            args: components["schemas"]["$defs-WireValue"][];
-            expected?: components["schemas"]["$defs-WireValue"];
-        };
-        "$defs-ProblemExample": {
-            graphs?: {
-                [key: string]: components["schemas"]["$defs-QuestionGraph"];
-            };
-            args: components["schemas"]["$defs-WireValue"][];
-            expected?: components["schemas"]["$defs-WireValue"];
-            /** @description Example Markdown. Use $...$ for math and backticks for code, array access, and property access. Put example-specific diagrams and fenced code here. */
-            explanation?: string;
-            calls?: components["schemas"]["$defs-MethodCall"][];
-        };
-        "$defs-ConstraintTarget": {
-            parameter: string;
-            /** @enum {string} */
-            projection: "value" | "length" | "elements" | "sum" | "nodeCount" | "nodeValues" | "characters" | "indices" | "diagonal" | "columns" | "graph";
-            /** @description Walk into each element or a zero-based index before measuring. For example, ["each"] with length measures each row; ["each", 0] with value selects the first column. */
-            path?: ("each" | number)[];
-            /** @description Add this integer to each numeric measurement, for bounds such as n - 1. */
-            offset?: number;
-            /** @description Sum all projected numeric measurements into one number, such as the total length of all rows. */
-            total?: boolean;
-            /** @description Apply numeric operations in order after measuring, totaling, and adding the offset. Sequences combine at matching positions; scalars broadcast. */
-            operations?: {
-                /** @enum {string} */
-                operator: "add" | "subtract" | "multiply";
-                operand: number | components["schemas"]["$defs-ConstraintTarget"];
-            }[];
-        };
-        "$defs-Constraint": ({
-            /** @constant */
-            kind: "range";
-            target: components["schemas"]["$defs-ConstraintTarget"];
-            min: number;
-            max?: number;
-            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
-            minInclusive?: boolean;
-            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
-            maxInclusive?: boolean;
-            /**
-             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
-             * @enum {string}
-             */
-            quantifier?: "all" | "any";
-        } | {
-            /** @constant */
-            kind: "range";
-            target: components["schemas"]["$defs-ConstraintTarget"];
-            min?: number;
-            max: number;
-            /** @description Include the lower bound. Omitted is inclusive; false is strict. */
-            minInclusive?: boolean;
-            /** @description Include the upper bound. Omitted is inclusive; false is strict. */
-            maxInclusive?: boolean;
-            /**
-             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
-             * @enum {string}
-             */
-            quantifier?: "all" | "any";
-        }) | {
-            /** @constant */
-            kind: "comparison";
-            left: components["schemas"]["$defs-ConstraintTarget"];
-            right: components["schemas"]["$defs-ConstraintTarget"];
-            /** @enum {string} */
-            operator: "eq" | "le" | "lt" | "ge" | "gt" | "ne";
-            /**
-             * @description all (default): every projected value/pair satisfies the rule; any: at least one does. Empty projections satisfy all and fail any.
-             * @enum {string}
-             */
-            quantifier?: "all" | "any";
-            /**
-             * @description Compare matching positions and require equal projection sizes. Omitted compares all combinations.
-             * @enum {string}
-             */
-            pairing?: "corresponding";
-        } | {
-            /** @constant */
-            kind: "property";
-            target: components["schemas"]["$defs-ConstraintTarget"];
-            /** @enum {string} */
-            property: "sorted" | "nondecreasing" | "unique" | "strictlySorted" | "adjacentDistinct" | "even" | "powerOfTwo" | "symmetric" | "tree" | "binaryTree" | "star" | "acyclic" | "noLoops" | "noParallelEdges";
-            /**
-             * @description Ordering direction. Omitted is asc. Applies only to ordering properties.
-             * @enum {string}
-             */
-            direction?: "asc" | "desc";
-        } | {
-            /** @constant */
-            kind: "membership";
-            target: components["schemas"]["$defs-ConstraintTarget"];
-            values: (number | string | boolean)[];
-            /** @description When true, exclude every listed value. Omitted allows only listed values. */
-            negated?: boolean;
-        } | {
-            /** @constant */
-            kind: "definition";
-            /** @description A name used in the statement for a derived input measurement. */
-            name: string;
-            target: components["schemas"]["$defs-ConstraintTarget"];
-        } | {
-            /** @constant */
-            kind: "prose";
-            /** @description Use only for rules without a structured equivalent. Use Markdown with LaTeX for math and backticks for program accesses. */
-            text: string;
-        };
-        "$defs-CustomCase": {
-            graphs?: {
-                [key: string]: components["schemas"]["$defs-QuestionGraph"];
-            };
-            args: components["schemas"]["$defs-WireValue"][];
-            expected?: components["schemas"]["$defs-WireValue"];
-            calls?: components["schemas"]["$defs-MethodCall"][];
-        };
-        "$defs-AuthoredOdysseyLevel": {
-            title: string;
-            /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
-            statementMarkdown: string;
-            methods: components["schemas"]["Signature"][];
-            examples: components["schemas"]["$defs-ProblemExample"][];
-            hiddenCases: components["schemas"]["$defs-CustomCase"][];
-        };
-        "$defs-AuthoredOdyssey": {
-            levels: components["schemas"]["$defs-AuthoredOdysseyLevel"][];
-        };
-        "$defs-AuthoredQuestionProblem": {
+        QuestionImportProblem: {
             /** @description Optional legacy metadata. Publication assigns its own ID. */
             id?: string;
             slug: string;
@@ -2713,17 +2572,17 @@ export interface components {
             tags: string[];
             /** @description Problem Markdown. Use $...$ for formulas, Big O, numbers, arithmetic, comparisons, and mathematical variables such as n. Use backticks for code identifiers, indexing, and property access such as nums[i] and nums.length, even inside a formula. Example: $1 \le$ `nums[i]` $\le 50$. Use language-tagged fenced blocks for multiline code or pseudocode and $$ on separate lines for display math. */
             statementMarkdown: string;
-            examples: components["schemas"]["$defs-ProblemExample"][];
-            constraints: components["schemas"]["$defs-Constraint"][];
+            examples: components["schemas"]["ProblemExample"][];
+            constraints: components["schemas"]["Constraint"][];
             signature?: components["schemas"]["Signature"];
             /** @description Omit to use the default execution limits. */
             limits?: components["schemas"]["ExecutionLimits"];
             sql?: components["schemas"]["SqlConfig"];
-            odyssey?: components["schemas"]["$defs-AuthoredOdyssey"];
+            odyssey?: components["schemas"]["AuthoredOdyssey"];
         } & unknown;
-        "$defs-QuestionContent": {
-            problem: components["schemas"]["$defs-AuthoredQuestionProblem"];
-            hiddenCases: components["schemas"]["$defs-CustomCase"][];
+        QuestionImportContent: {
+            problem: components["schemas"]["QuestionImportProblem"];
+            hiddenCases: components["schemas"]["CustomCase"][];
             attribution: string;
             canonicalApproachId: string;
             approaches: components["schemas"]["SolutionApproach"][];
@@ -3561,7 +3420,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["$defs-QuestionContent"];
+                "application/json": components["schemas"]["QuestionImportContent"];
             };
         };
         responses: {

@@ -1,24 +1,45 @@
 /** @file generate.mjs @description Generate API types with a valid recursive wire alias. @module contracts */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import ts from "typescript";
 import {
+  questionImportProblem,
   questionImportSchema,
   questionImportValidator,
   questionValidator,
 } from "./question-schema.mjs";
 import { eventSchema } from "./event-schema.mjs";
 
+/**
+ * Keep unchanged file fields on the existing API model types.
+ * @param {object} schema Parsed OpenAPI document.
+ */
+function materializeQuestionImportTypes(schema) {
+  const media =
+    schema.paths["/v1/admin/question-drafts/import"].post.requestBody.content["application/json"];
+  if (media.schema.$ref !== "../questions/question-v1.schema.json")
+    throw new Error("Question import must reference the generated file schema");
+
+  const models = schema.components.schemas;
+  models.QuestionImportProblem = questionImportProblem(models.AuthoredQuestionProblem);
+  models.QuestionImportContent = {
+    ...models.QuestionContent,
+    properties: {
+      ...models.QuestionContent.properties,
+      problem: { $ref: "#/components/schemas/QuestionImportProblem" },
+    },
+  };
+  media.schema = { $ref: "#/components/schemas/QuestionImportContent" };
+}
+
 /** @returns Generated declarations derived entirely from the OpenAPI schema. */
 export async function generateContracts() {
-  const schema = new URL("../openapi/api.json", import.meta.url);
+  const schema = JSON.parse(readFileSync(new URL("../openapi/api.json", import.meta.url), "utf8"));
+  materializeQuestionImportTypes(schema);
   let wireAlias;
   const ast = await openapiTS(schema, {
     postTransform(type, { path }) {
-      // The import request bundles the standalone file schema's copy of WireValue.
-      if (path === "#/components/schemas/$defs-WireValue")
-        return ts.factory.createTypeReferenceNode("WireValue");
       if (path !== "#/components/schemas/WireValue" || !ts.isUnionTypeNode(type)) return;
       // Recursive indexed-access properties become TS2502; a named alias supports recursion.
       const transformed = ts.transform(type, [

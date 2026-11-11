@@ -26,21 +26,40 @@ function questionSchema() {
     $defs: definitions,
   };
 }
+/**
+ * @param {object} problem Full authored problem schema.
+ * @returns {object} Problem shape accepted from a file.
+ */
+export function questionImportProblem(problem) {
+  return {
+    ...problem,
+    required: problem.required.filter((field) => field !== "id" && field !== "limits"),
+    properties: {
+      ...problem.properties,
+      id: {
+        ...problem.properties.id,
+        description: "Optional legacy metadata. Publication assigns its own ID.",
+      },
+      slug: {
+        ...problem.properties.slug,
+        // Match the authored budget and the namespace used by private publications.
+        pattern: "^(?=(?:private-[0-9a-f]{16}-)?[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      },
+      leetcodeId: { type: ["integer", "null"], minimum: 1, maximum: 2147483647 },
+      limits: {
+        ...problem.properties.limits,
+        description: "Omit to use the default execution limits.",
+      },
+    },
+  };
+}
+
 /** @returns File shape with defaults and server-assigned identity omitted. */
 export function questionImportSchema() {
   const schema = questionSchema();
-  const problem = schema.$defs.AuthoredQuestionProblem;
-  problem.required = problem.required.filter((field) => field !== "id" && field !== "limits");
-  problem.properties.id.description = "Optional legacy metadata. Publication assigns its own ID.";
-  // Match the authored budget and the namespace used by private publications.
-  problem.properties.slug.pattern =
-    "^(?=(?:private-[0-9a-f]{16}-)?[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$";
-  problem.properties.leetcodeId = {
-    type: ["integer", "null"],
-    minimum: 1,
-    maximum: 2147483647,
-  };
-  problem.properties.limits.description = "Omit to use the default execution limits.";
+  schema.$defs.AuthoredQuestionProblem = questionImportProblem(
+    schema.$defs.AuthoredQuestionProblem,
+  );
   return schema;
 }
 
