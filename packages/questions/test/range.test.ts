@@ -3,7 +3,7 @@ import {
   rangeContains,
   validateCodingCase,
   validateConstraints,
-  validateQuestionSchema,
+  decodeQuestionImport,
 } from "../src/index.ts";
 import type { Constraint, Signature } from "../src/index.ts";
 import { readFileSync } from "node:fs";
@@ -93,14 +93,12 @@ describe("range endpoint inclusion", () => {
       { ...original, min: 0, max: 1, minInclusive: false, maxInclusive: true },
     ];
     const json = JSON.stringify(content);
-    expect(() => validateQuestionSchema(json)).not.toThrow();
+    expect(() => decodeQuestionImport(json)).not.toThrow();
     expect(JSON.parse(json).problem.constraints[0]).toMatchObject({
       minInclusive: false,
       maxInclusive: true,
     });
     delete content.problem.constraints[0].min;
-    expect(() => validateQuestionSchema(JSON.stringify(content))).toThrow(
-      "invalid question schema",
-    );
+    expect(() => decodeQuestionImport(JSON.stringify(content))).toThrow();
   });
 });

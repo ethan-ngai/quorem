@@ -44,7 +44,7 @@ Graph properties use `projection: "graph"` on a graph preset. The preset supplie
 
 For remaining prose constraints, use the same Markdown conventions as the statement. Escape LaTeX backslashes inside JSON strings.
 
-One UTF-8 JSON document per file, maximum 2 MiB. Use each object key once. Omit `problem.id` for authored files. Existing files may include it, and publication assigns its own ID. Omit `problem.limits` to use the standard execution limits, or supply the complete limits object. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
+One UTF-8 JSON document per file, maximum 2 MiB. Use each object key once. Publication assigns the question ID. Import files exclude `problem.id` and `problem.version`. Omit `problem.limits` to use the standard execution limits, or supply the complete limits object. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
 
 Classic coding owns `problem.signature`. Staged coding owns methods in each `problem.odyssey.levels` entry and derives its primary interface from the first method. SQL omits `signature`. Each authored stage owns `examples` and private `hiddenCases`; staged questions leave top-level examples/hidden cases empty. Reordering a stage moves its tests with it. Public projections remove all private stage cases.
 

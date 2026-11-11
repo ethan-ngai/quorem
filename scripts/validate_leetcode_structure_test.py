@@ -20,10 +20,11 @@ class StructureValidationTest(unittest.TestCase):
                 [sys.executable, str(root / 'scripts/validate-leetcode-structure.py'), directory],
                 check=True, capture_output=True, text=True,
             )
-        rows = {row['id']: row['error'] for row in map(json.loads, result.stdout.splitlines())}
-        self.assertEqual(rows['valid'], '')
-        self.assertIn('invalid question draft shape', rows['unknown'])
-        self.assertIn('malformed value', rows['trailing'])
+        rows = {row['id']: row for row in map(json.loads, result.stdout.splitlines())}
+        self.assertEqual(rows['valid']['error'], '')
+        self.assertEqual(rows['unknown']['diagnostics'][0]['path'], '/problem/starterSource')
+        self.assertEqual(rows['unknown']['diagnostics'][0]['code'], 'additionalProperties')
+        self.assertEqual(rows['trailing']['diagnostics'][0]['code'], 'json')
 
 
 if __name__ == '__main__':

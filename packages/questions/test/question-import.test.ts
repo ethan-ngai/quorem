@@ -23,11 +23,8 @@ function diagnostics(raw: string) {
   throw new Error("Expected invalid import");
 }
 
-it("accepts missing editor ID and limits while preserving a legacy ID when supplied", () => {
+it("assigns the draft ID and defaults omitted limits", () => {
   const content = JSON.parse(fixture);
-  const id = content.problem.id;
-  expect(JSON.parse(decodeQuestionImport(fixture).normalized).problem.id).toBe(id);
-  delete content.problem.id;
   delete content.problem.limits;
 
   const { normalized, problem } = decodeQuestionImport(JSON.stringify(content));
@@ -41,6 +38,11 @@ it("accepts missing editor ID and limits while preserving a legacy ID when suppl
 
 it("reports obsolete and duplicate properties before draft normalization", () => {
   const content = JSON.parse(fixture);
+  content.problem.id = "obsolete-id";
+  expect(diagnostics(JSON.stringify(content))).toMatchObject([
+    { path: "/problem/id", code: "additionalProperties" },
+  ]);
+  delete content.problem.id;
   content.problem.version = "1";
   expect(diagnostics(JSON.stringify(content))).toMatchObject([
     { path: "/problem/version", code: "additionalProperties" },
@@ -84,6 +86,12 @@ it("reports semantic case and approach blockers with authoring paths", () => {
   expect(questionImportReadiness(brokenCase.normalized, runtime)).toEqual([
     { path: "/hiddenCases/0", code: "publication", message: "wrong argument count" },
   ]);
+
+  content.hiddenCases = JSON.parse(fixture).hiddenCases;
+  content.approaches[0].defaultLanguage = "python";
+  expect(
+    questionImportReadiness(decodeQuestionImport(JSON.stringify(content)).normalized, runtime),
+  ).toMatchObject([{ path: "/approaches/0/defaultLanguage", code: "publication" }]);
 
   const noCanonical = JSON.parse(fixture);
   noCanonical.canonicalApproachId = "missing";

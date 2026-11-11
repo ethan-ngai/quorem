@@ -59,14 +59,19 @@ for (const name of Object.keys(authorFields)) {
 }
 const validateQuestion = ajv.compile({ $ref: `${document.$id}#/$defs/QuestionContent` });
 const exampleQuestion = JSON.parse(readFileSync("questions/example-v1.json", "utf8"));
-assert(validateQuestion(exampleQuestion), JSON.stringify(validateQuestion.errors));
+const storedExample = {
+  ...exampleQuestion,
+  problem: { ...exampleQuestion.problem, id: "fixture" },
+};
+assert(validateQuestion(storedExample), JSON.stringify(validateQuestion.errors));
 const validateQuestionImport = ajv.compile(questionImportSchema());
-const { id: _id, limits: _limits, ...authoredProblem } = exampleQuestion.problem;
+const { limits: _limits, ...authoredProblem } = exampleQuestion.problem;
 const authoredImport = { ...exampleQuestion, problem: authoredProblem };
 assert(validateQuestionImport(exampleQuestion));
 assert(validateQuestionImport(authoredImport));
 assert(!validateQuestion(authoredImport));
 for (const invalid of [
+  { id: "fixture" },
   { version: 1 },
   { slug: "Invalid_slug" },
   { slug: "x".repeat(81) },

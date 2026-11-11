@@ -43,10 +43,6 @@
     "AuthoredQuestionProblem": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Optional legacy metadata. Publication assigns its own ID."
-        },
         "slug": {
           "type": "string",
           "pattern": "^(?=(?:private-[0-9a-f]{16}-)?[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"

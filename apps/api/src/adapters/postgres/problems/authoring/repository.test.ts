@@ -226,6 +226,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
             JSON.stringify({ ...parsedContent, problem: authoredProblem }),
             JSON.stringify({
               ...parsedContent,
+              problem: authoredProblem,
               hiddenCases: [{ args: ["invalid input"], expected: [] }],
             }),
           ],
@@ -412,7 +413,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       sq.approaches = [
         {
           ...sq.approaches[0],
-          defaultLanguage: "postgresql",
           implementations: [{ language: "postgresql", source: "select 1" }],
         },
       ];
@@ -613,6 +613,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const d1 = JSON.parse(await repository.create(global, JSON.stringify(duplicate), undefined));
       const first = JSON.parse(await repository.publish(global, d1.id, "1", "global"));
       await pool.query("DELETE FROM question_drafts WHERE id=$1", [d1.id]);
+      delete duplicate.problem.id;
       expect(
         JSON.parse(await repository.importDraft(global, JSON.stringify(duplicate), true)).status,
       ).toBe("unchanged");

@@ -76,13 +76,11 @@ export function normalizeQuestionDraftValue(value: JsonValue): string {
   content.problem = p;
   fields(p, ["id", "slug", "title", "difficulty", "statementMarkdown"]);
   if (p.id === "") p.id = "00000000-0000-4000-8000-000000000000";
-  delete p.version;
   if (p.difficulty === "") p.difficulty = "easy";
   p.tags = array(p.tags).map((v) => (v === null ? "" : v));
   p.companies = array(p.companies).map((v) => (v === null ? "" : v));
   p.examples = cases(p.examples);
   p.constraints = array(p.constraints).map((c) => {
-    if (typeof c === "string") return { kind: "prose", text: c };
     const rule = object(c);
     fields(rule, ["kind"]);
     for (const key of ["target", "left", "right"])
@@ -165,7 +163,6 @@ export function normalizeQuestionDraftValue(value: JsonValue): string {
       id: "",
     }))
       if (key !== "implementations") field(item, key, value);
-    if (item.id === content.canonicalApproachId) delete item.defaultLanguage;
     item.implementations = array(item.implementations).map((value) => {
       const implementation = object(value);
       fields(implementation, ["language", "source"]);

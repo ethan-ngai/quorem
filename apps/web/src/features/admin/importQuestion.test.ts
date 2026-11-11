@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { blankQuestion } from "./content";
 import { decodeQuestionImport, questionImportLimit } from "@quorem/questions";
 
+function authoredQuestion() {
+  const { problem, ...content } = blankQuestion();
+  const { id: _id, ...authoredProblem } = problem;
+  return { ...content, problem: authoredProblem };
+}
+
 describe("question JSON import", () => {
   it("imports the documented example", () => {
     expect(decodeQuestionImport(JSON.stringify(example)).problem).toMatchObject({
@@ -11,7 +17,7 @@ describe("question JSON import", () => {
     });
   });
   it("preserves private judging and editorial content", () => {
-    const content = blankQuestion();
+    const content = authoredQuestion();
     content.problem.slug = "example-import";
     content.hiddenCases = [{ args: [42], expected: 42 }];
     content.approaches[0]!.implementations[0]!.source = "canonical reference";
@@ -20,7 +26,7 @@ describe("question JSON import", () => {
     expect(imported.approaches[0].implementations).toEqual(content.approaches[0]!.implementations);
   });
   it("imports SQL tables, numeric results, and method-free stages", () => {
-    const content = blankQuestion();
+    const content = authoredQuestion();
     content.problem.slug = "example-import";
     delete content.problem.signature;
     content.problem.sql = {
@@ -62,7 +68,7 @@ describe("question JSON import", () => {
     },
   );
   it("rejects malformed nested structures and unknown fields", () => {
-    const content = blankQuestion();
+    const content = authoredQuestion();
     content.problem.slug = "example-import";
     expect(() =>
       decodeQuestionImport(JSON.stringify({ ...content, hiddenCases: [{ args: "bad" }] })),
@@ -72,7 +78,7 @@ describe("question JSON import", () => {
     );
   });
   it("rejects obsolete duplicate solution ownership", () => {
-    const content = blankQuestion();
+    const content = authoredQuestion();
     content.problem.slug = "example-import";
     expect(() => decodeQuestionImport(JSON.stringify({ ...content, solutions: [] }))).toThrow(
       /unknown|additional|property/i,

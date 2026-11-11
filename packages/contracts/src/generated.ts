@@ -2562,8 +2562,6 @@ export interface components {
             };
         };
         QuestionImportProblem: {
-            /** @description Optional legacy metadata. Publication assigns its own ID. */
-            id?: string;
             slug: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];

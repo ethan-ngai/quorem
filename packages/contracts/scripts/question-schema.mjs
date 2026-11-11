@@ -31,15 +31,13 @@ function questionSchema() {
  * @returns {object} Problem shape accepted from a file.
  */
 export function questionImportProblem(problem) {
+  const properties = { ...problem.properties };
+  delete properties.id;
   return {
     ...problem,
     required: problem.required.filter((field) => field !== "id" && field !== "limits"),
     properties: {
-      ...problem.properties,
-      id: {
-        ...problem.properties.id,
-        description: "Optional legacy metadata. Publication assigns its own ID.",
-      },
+      ...properties,
       slug: {
         ...problem.properties.slug,
         // Match the authored budget and the namespace used by private publications.
@@ -106,10 +104,9 @@ export function questionValidator(draft = false) {
     };
     collect(schema.$defs.Constraint);
     schema.$defs.Constraint = {
-      anyOf: [
-        { type: "string" },
-        { type: "object", properties: constraintProperties, additionalProperties: false },
-      ],
+      type: "object",
+      properties: constraintProperties,
+      additionalProperties: false,
     };
   }
   return standaloneValidator(schema);

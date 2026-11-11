@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import {
   withCanonicalApproach,
+  decodeQuestionImport,
   blankApproach,
   approachCode,
   approachTitle,
@@ -15,7 +16,9 @@ import {
 import type { QuestionContent } from "../src/model.ts";
 const example = (): QuestionContent =>
   JSON.parse(
-    readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
+    decodeQuestionImport(
+      readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
+    ).normalized,
   );
 const runtime = () => ({ revision: "python-3.12-v1", harness: "quorem-harness-v2" });
 const publish = (content: QuestionContent) =>

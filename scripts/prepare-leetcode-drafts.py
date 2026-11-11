@@ -159,7 +159,7 @@ def draft(staged, corpus):
     if not statement or not reference or len(statement) > 65536 or len(reference) > 65536:
         raise ValueError("missing or oversized content")
     return {
-        "problem": {"id": "00000000-0000-4000-8000-000000000000", "slug": "lc-" + source["problem_slug"], "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": source.get("topics", []), "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 100000, "maxNestingDepth": 100}},
+        "problem": {"slug": "lc-" + source["problem_slug"], "title": source["title"], "difficulty": source["difficulty"].lower(), "tags": source.get("topics", []), "companies": staged["companies"], "leetcodeId": staged["leetcode_id"], "statementMarkdown": statement, "examples": [], "constraints": [], "signature": sig, "limits": {"wallTimeMs": 2000, "memoryBytes": 268435456, "outputBytes": 65536, "maxProcesses": 16, "maxCollectionElements": 100000, "maxNestingDepth": 100}},
         "hiddenCases": cases[:20], "attribution": "LeetCode; reference and cases from newfacade/LeetCodeDataset.",
         "canonicalApproachId": "default", "approaches": [{"id": "default", "title": "", "explanationMarkdown": "", "timeComplexity": "", "spaceComplexity": "", "complexityNotes": "", "implementations": [{"language": "python", "source": reference}]}]}
 
