@@ -9,9 +9,9 @@ import { resolveEditorPalette } from "./editorPalettes";
 import type { EditorScheme } from "./editorSchemes";
 
 const diagnosticColors = {
-  error: "var(--color-error)",
-  warning: `color-mix(in oklch, var(--color-warning) 70%, ${color("foreground")})`,
-  info: "var(--color-info)",
+  error: color("diagnosticError"),
+  warning: color("diagnosticWarning"),
+  info: color("diagnosticInfo"),
   hint: color("comment"),
 };
 
@@ -101,7 +101,7 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           backgroundColor: `color-mix(in oklab, ${color("selection")} 45%, transparent)`,
         },
         ".cm-searchMatch .cm-selectionMatch": { backgroundColor: "transparent" },
-        ".cm-nonmatchingBracket": { textDecoration: "underline wavy var(--color-error)" },
+        ".cm-nonmatchingBracket": { textDecoration: `underline wavy ${diagnosticColors.error}` },
         ".cm-searchMatch": {
           backgroundColor: color("selection"),
           outline: `1px solid ${color("border")}`,
