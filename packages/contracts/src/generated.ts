@@ -1989,6 +1989,7 @@ export interface components {
         MatchRules: {
             /** @enum {string} */
             victory: "race" | "high_score";
+            automaticImports?: boolean;
             /** @enum {string} */
             settingsEditors: "host" | "everyone";
             /** @enum {string} */

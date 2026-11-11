@@ -20,6 +20,7 @@ export interface ExecutionAdmissionSnapshot {
   sourceHash: string;
   customRun: boolean;
   language: string;
+  automaticImports?: boolean;
   runtimeRevision: string;
   harnessRevision: string;
   sponsorId: string | null;
@@ -86,8 +87,8 @@ export async function insertAdmittedExecution(
         INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL)
         RETURNING id,admitted_at
       ), enqueued AS (
-        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision)
-        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision} FROM admitted
+        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports)
+        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision},${s.automaticImports ?? null} FROM admitted
         RETURNING id
       ), intent AS (
         INSERT INTO execution_dispatch_intents(id,job_id) SELECT ${crypto.randomUUID()}::uuid,id FROM enqueued

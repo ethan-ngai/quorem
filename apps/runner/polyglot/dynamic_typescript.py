@@ -57,7 +57,19 @@ function invoke(types:string[], raw:any[], fn:(...args:any[])=>any, returnType:s
 }
 '''
 
-def source(r,h):
+def automatic_imports(common):
+    if not common:
+        return ''
+    types = '\n'.join(f'var {name}: {entry["type"]};' for name, entry in common.items())
+    modules = ','.join(
+        f'{name}: process.getBuiltinModule({json.dumps(entry["module"])})'
+        for name, entry in common.items()
+    )
+    # Module scope lets a solution shadow any implicit global with its own binding.
+    return f'export {{}};\ndeclare global {{ {types} }}\nObject.assign(globalThis, {{{modules}}});\n'
+
+
+def source(r,h,common=None):
     signatures=dict(r.get('methods') or {})
     signatures[r['signature']['methodName']]=r['signature']
     branches=[]
@@ -73,4 +85,4 @@ function call(name:string,args:any[]):any{count=0;seen.clear();switch(name){BRAN
 try{const result=request.calls?.length?request.calls.map((c:any)=>call(c.methodName,c.args)):call(METHOD,request.args);process.stderr.write('\\nQUOREM_RESULT:'+JSON.stringify(result));}
 catch(e){if(e instanceof Error&&e.message==='invalid_output')process.exit(42);throw e;}
 '''.replace('CLASS',r['signature']['className']).replace('BRANCHES',''.join(branches)).replace('METHOD',json.dumps(r['signature']['methodName']))
-    return 'declare const process:any;\n'+h['TS_TYPES']+r['source']+'\n'+h['TS_ENCODER']+DECODER+body
+    return 'declare const process:any;\n'+automatic_imports(common)+h['TS_TYPES']+r['source']+'\n'+h['TS_ENCODER']+DECODER+body

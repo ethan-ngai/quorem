@@ -49,7 +49,7 @@ export const legalDocuments: Record<"privacy" | "terms", LegalDocument> = {
         id: "storage",
         title: "Cookies & browser storage",
         paragraphs: [
-          "Cookies support sign-in, account verification, and secure sessions. Browser storage remembers appearance and editor settings and stores local recovery copies and history. In individual practice, draft recovery is stored in your browser; running or submitting code sends the relevant code snapshot to the service. Collaborative editing also transmits shared code to support the session.",
+          "Cookies support sign-in, account verification, and secure sessions. Browser storage remembers appearance and editor settings and stores the latest local editor autosave. In individual practice, draft recovery is stored in your browser; running or submitting code sends the relevant code snapshot to the service. Collaborative editing also transmits shared code to support the session.",
           "You can block or clear cookies and site storage in your browser. This may sign you out, reset preferences, or remove unsaved recovery data. Clearing browser storage does not delete server records. Quorem does not use cross-site behavioral advertising; browser Do Not Track signals do not change essential sign-in and storage behavior.",
         ],
       },

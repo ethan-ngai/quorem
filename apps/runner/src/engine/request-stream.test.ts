@@ -69,11 +69,13 @@ void test("projects only active Odyssey methods and excludes all expected values
       level: 1,
       operation: "direct",
       language: "python",
+      automaticImports: true,
     });
     const wire = await text(result.input.open()),
       parsed = JSON.parse(wire);
     assert.deepEqual(Object.keys(parsed.methods), ["a"]);
     assert.equal(parsed.signature.methodName, "a");
+    assert.equal(parsed.automaticImports, true);
     assert.doesNotMatch(wire, /SECRET|private text|statementMarkdown/);
     assert.equal(parsed.calls[0].methodName, "a");
     assert.equal(parsed.methods.a.nodeReferences, "return");

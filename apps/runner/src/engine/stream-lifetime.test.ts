@@ -7,7 +7,6 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { caseSpans } from "./case-spans.ts";
-import type { spoolInput } from "../checkpoints/input-spool.ts";
 
 void test("large-span peeks and rejected projections close every real read stream", async () => {
   const directory = await mkdtemp(join(tmpdir(), "quorem-stream-lifetime-"));
@@ -33,7 +32,7 @@ void test("large-span peeks and rejected projections close every real read strea
       streams.push(stream);
       return stream;
     },
-  } as Awaited<ReturnType<typeof spoolInput>>;
+  };
   try {
     for (let i = 0; i < 3; i++) {
       await writeFile(path, JSON.stringify({ args: ["x".repeat(200000)], expected: [] }));

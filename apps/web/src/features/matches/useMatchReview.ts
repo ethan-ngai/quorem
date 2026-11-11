@@ -5,6 +5,10 @@ import type { EditorLanguage } from "../editor/editorLanguages";
 
 type ReviewParticipant = MatchReview["participants"][number];
 
+export function hasReviewCode(participant: ReviewParticipant) {
+  return !!(participant.finalCode ?? participant.submission);
+}
+
 export function reviewCodeLanguage(participant?: ReviewParticipant) {
   return (participant?.finalCode?.language ??
     (participant?.submission?.winning ? participant.submission.language : undefined) ??

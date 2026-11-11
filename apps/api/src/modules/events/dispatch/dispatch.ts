@@ -7,14 +7,14 @@ import type {
   Wake,
 } from "./ports.ts";
 
-export async function dispatchBatch(
+export async function publishBatch(
   store: DispatchStore,
   notices: NoticePublisher,
   wakes: ExecutionWakePublisher,
   stream: Stream,
   limit = 32,
   leaseMs = 30_000,
-): Promise<{ published: number; pending: boolean }> {
+): Promise<number> {
   const claims = await store.claim(stream, limit, leaseMs);
   for (const claim of claims) {
     if (claim.stream === "execution") {
@@ -27,7 +27,20 @@ export async function dispatchBatch(
     // A lost or expired claim may publish twice; it must never acknowledge a successor.
     await store.acknowledge(claim);
   }
-  return { published: claims.length, pending: await store.pending(stream) };
+  return claims.length;
+}
+
+/** Callers that schedule a continuation also check for work left behind. */
+export async function dispatchBatch(
+  store: DispatchStore,
+  notices: NoticePublisher,
+  wakes: ExecutionWakePublisher,
+  stream: Stream,
+  limit?: number,
+  leaseMs?: number,
+): Promise<{ published: number; pending: boolean }> {
+  const published = await publishBatch(store, notices, wakes, stream, limit, leaseMs);
+  return { published, pending: await store.pending(stream) };
 }
 
 /** Admission must await this before opening the transaction that creates the job. */

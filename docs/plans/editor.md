@@ -1,6 +1,6 @@
 # Editor — first milestone
 
-Confirmed: solo practice, Python, CodeMirror 6, scoped Python IntelliSense, real judge, browser-only drafts and history, mocked multiplayer state. System theme + override, restrained blue, Geist Sans/JetBrains Mono. Desktop-first with usable narrow-screen fallback.
+Confirmed: solo practice, Python, CodeMirror 6, scoped Python IntelliSense, real judge, browser autosave, mocked multiplayer state. System theme + override, restrained blue, Geist Sans/JetBrains Mono. Desktop-first with usable narrow-screen fallback.
 
 ## Workspace
 
@@ -18,7 +18,7 @@ TanStack Router owns URLs/navigation. TanStack Query owns remote snapshots and r
 6. Edits after dispatch do not alter that job; results identify the evaluated snapshot. Preserve source on errors.
 7. Recover completion by polling/snapshot after disconnect or reload. Prevent duplicate dispatch with idempotency.
 
-Browser draft keys include owner, immutable problem version and language; match drafts additionally include their private workspace ID. Practice drafts survive replacement server workspace IDs. Latest source writes coalesce after cursor paint, with synchronous flush on page closure, context changes and explicit save; IndexedDB history retains 100 snapshots for 30 days. Other windows never replace the active buffer or require takeover; latest local write resumes on reload. Preserve empty drafts, old recovery data, identity isolation and newer edits during restore. No server draft endpoints or draft tables.
+Browser draft keys include owner, immutable problem version and language; match drafts additionally include their private workspace ID. Practice drafts survive replacement server workspace IDs. Latest source writes coalesce after cursor paint, with synchronous flush on page closure, context changes and explicit save. Other windows never replace the active buffer or require takeover; latest local write resumes on reload. Preserve empty drafts, old autosaves and identity isolation. No server draft endpoints or draft tables.
 
 ## States
 

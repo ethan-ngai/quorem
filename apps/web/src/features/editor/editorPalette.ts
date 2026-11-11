@@ -8,9 +8,19 @@ import { editorColor as color, editorColorVariable, type EditorColorRole } from 
 import { resolveEditorPalette } from "./editorPalettes";
 import type { EditorScheme } from "./editorSchemes";
 
+const diagnosticColors = {
+  error: color("diagnosticError"),
+  warning: color("diagnosticWarning"),
+  info: color("diagnosticInfo"),
+  hint: color("comment"),
+};
+
 /** Builds visual extensions only; a Compartment switch retains document, cursor and undo. */
 export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"): Extension {
   const palette = resolveEditorPalette(scheme, theme);
+  const activeLine = palette.dark
+    ? color("activeLine")
+    : `color-mix(in oklab, ${color("activeLine")} 84%, ${color("foreground")})`;
   return [
     EditorView.theme(
       {
@@ -44,7 +54,10 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection": {
           backgroundColor: `${color("selection")} !important`,
         },
-        ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: color("activeLine") },
+        // The active line sits above CodeMirror's selection layer.
+        "& .cm-activeLine, & .cm-gutterElement.cm-activeLineGutter": {
+          backgroundColor: `color-mix(in oklab, ${activeLine} 45%, transparent)`,
+        },
         ".cm-gutters": {
           color: color("gutterText"),
           backgroundColor: color("gutter"),
@@ -83,8 +96,12 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           transform: "translateX(-1px) rotate(-45deg)",
         },
         ".cm-foldGutter span:hover": { opacity: "1" },
-        ".cm-matchingBracket, .cm-selectionMatch": { backgroundColor: color("selection") },
-        ".cm-nonmatchingBracket": { textDecoration: "underline wavy var(--color-error)" },
+        ".cm-matchingBracket": { backgroundColor: color("selection") },
+        ".cm-selectionMatch": {
+          backgroundColor: `color-mix(in oklab, ${color("selection")} 45%, transparent)`,
+        },
+        ".cm-searchMatch .cm-selectionMatch": { backgroundColor: "transparent" },
+        ".cm-nonmatchingBracket": { textDecoration: `underline wavy ${diagnosticColors.error}` },
         ".cm-searchMatch": {
           backgroundColor: color("selection"),
           outline: `1px solid ${color("border")}`,
@@ -101,10 +118,15 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           lineHeight: "1.5",
           maxWidth: "calc(100vw - 32px)",
         },
-        ".cm-completionInfo, .cm-lsp-hover-tooltip, .cm-lsp-signature-tooltip": {
-          maxHeight: "min(260px, 40vh)",
-          overflow: "auto",
-        },
+        ".cm-completionInfo, .cm-lsp-hover-tooltip, .cm-lsp-signature-tooltip, .cm-tooltip-lint, .cm-typescript-hover":
+          {
+            maxHeight: "min(260px, 40vh)",
+            overflow: "auto",
+          },
+        ".cm-typescript-hover": { padding: "6px 8px", overflowWrap: "anywhere" },
+        ".cm-typescript-hover pre": { margin: "0", whiteSpace: "pre-wrap", font: "inherit" },
+        ".cm-typescript-hover-doc": { marginTop: "6px", whiteSpace: "pre-wrap" },
+        ".cm-lsp-documentation pre": { whiteSpace: "pre-wrap", overflowWrap: "anywhere" },
         ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
           backgroundColor: color("selection"),
           color: color("foreground"),
@@ -118,8 +140,28 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           backgroundColor: color("activeLine"),
           borderColor: color("border"),
         },
-        ".cm-diagnostic-error": { borderLeftColor: "var(--color-error)" },
-        ".cm-diagnostic-warning": { borderLeftColor: "var(--color-warning)" },
+        ".cm-diagnostic": {
+          padding: "5px 8px",
+          overflowWrap: "anywhere",
+        },
+        ".cm-diagnostic + .cm-diagnostic": { borderTop: `1px solid ${color("border")}` },
+        ".cm-diagnosticSource": { fontSize: "0.875em", color: color("comment"), opacity: "1" },
+        ".cm-lintRange": {
+          paddingBottom: "0",
+          textDecorationLine: "underline",
+          textDecorationStyle: "wavy",
+          textDecorationThickness: "1px",
+          textUnderlineOffset: "2px",
+          textDecorationSkipInk: "none",
+        },
+        ".cm-lintRange-active": { backgroundColor: color("selection") },
+        ...Object.fromEntries(
+          Object.entries(diagnosticColors).flatMap(([severity, tint]) => [
+            [`.cm-diagnostic-${severity}`, { borderLeft: `2px solid ${tint}` }],
+            [`.cm-lintRange-${severity}`, { backgroundImage: "none", textDecorationColor: tint }],
+            [`.cm-lintPoint-${severity}::after`, { borderBottomColor: tint }],
+          ]),
+        ),
       },
       { dark: palette.dark },
     ),

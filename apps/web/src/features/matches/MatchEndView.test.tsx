@@ -17,6 +17,14 @@ const partyState = vi.hoisted(() => ({
   refetch: vi.fn(),
   command: vi.fn(),
 }));
+const reviewState = vi.hoisted(() => ({
+  data: undefined as Pick<import("@quorem/contracts").MatchReview, "participants"> | undefined,
+  isError: false,
+}));
+vi.mock("./useMatchReview", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./useMatchReview")>()),
+  useMatchReview: () => reviewState,
+}));
 vi.mock("./party", () => ({ useParty: () => partyState, partyCommand: partyState.command }));
 vi.mock("./useActiveMatch", () => ({ usePartyRoundNavigation: vi.fn() }));
 vi.mock("../completion/CompletionDialog", () => ({
@@ -55,15 +63,15 @@ const snapshot: MatchSnapshot = {
   startedAt: "2026-11-06T11:00:00Z",
   outcome: { kind: "draw", reason: "deadline", completedAt: "2026-11-06T11:30:00Z" },
 };
-function view() {
+function view(match = snapshot, onReview: (participantId?: string) => void = () => {}) {
   return (
     <QueryClientProvider client={new QueryClient()}>
       <MatchEndView
-        snapshot={snapshot}
+        snapshot={match}
         identity="alice"
         open
         onOpenChange={() => {}}
-        onReview={() => {}}
+        onReview={onReview}
       />
     </QueryClientProvider>
   );
@@ -72,6 +80,7 @@ function render() {
   return renderToStaticMarkup(view());
 }
 beforeEach(() => {
+  reviewState.data = undefined;
   partyState.command.mockReset();
   localStorage.clear();
   partyState.data = undefined;
@@ -227,6 +236,44 @@ it.each([false, true])("delays the readiness spinner (%s)", async (ready) => {
     vi.useRealTimers();
     await act(async () => root.unmount());
     delete snapshot.partyId;
+    vi.unstubAllGlobals();
+  }
+});
+
+it("offers direct review only for players with available code", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const players = ["Alice", "Bob", "Casey"].map((displayName) => ({
+    userId: displayName.toLowerCase(),
+    displayName,
+    ready: true,
+    presence: "online" as const,
+  }));
+  reviewState.data = {
+    participants: players.slice(0, 2).map((player) => ({
+      ...player,
+      own: false,
+      workspace: null,
+      submission: null,
+      finalCode: player.userId === "bob" ? { language: "python", source: "pass" } : null,
+    })),
+  };
+  const onReview = vi.fn();
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () => root.render(view({ ...snapshot, participants: players }, onReview)));
+    const buttons = [
+      ...container.querySelectorAll<HTMLButtonElement>('button[aria-label^="Review code for"]'),
+    ];
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Review code for Bob",
+    ]);
+    await act(async () => buttons[0]!.click());
+    expect(onReview).toHaveBeenCalledWith("bob");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
     vi.unstubAllGlobals();
   }
 });

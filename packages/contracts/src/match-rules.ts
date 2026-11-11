@@ -12,6 +12,7 @@ export const assistancePolicySchema = z.strictObject({
 export const matchRulesSchema = z.strictObject({
   victory: z.enum(["race", "high_score"]),
   settingsEditors: z.enum(["host", "everyone"]),
+  automaticImports: z.boolean().optional(),
   clipboard: z.enum(["off", "warning", "announce", "penalty"]),
   copy: z.enum(["off", "warning", "announce", "penalty"]),
   focus: z.enum(["off", "warning", "announce", "penalty"]),
@@ -36,7 +37,7 @@ export type MatchRuleSettings = z.infer<typeof matchRulesSchema>;
 /** Compare round settings without lobby permissions or reduced code visibility. */
 export function readinessSettings<
   Settings extends {
-    rules?: Pick<MatchRuleSettings, "settingsEditors">;
+    rules?: Pick<MatchRuleSettings, "settingsEditors" | "automaticImports">;
     admissionLocked?: boolean;
     factionChangesLocked?: boolean;
     shareCodeAfterMatch?: boolean;
@@ -47,7 +48,11 @@ export function readinessSettings<
     admissionLocked: undefined,
     factionChangesLocked: undefined,
     shareCodeAfterMatch: nextSharesCode ? settings.shareCodeAfterMatch : undefined,
-    rules: settings.rules && { ...settings.rules, settingsEditors: undefined },
+    rules: settings.rules && {
+      ...settings.rules,
+      settingsEditors: undefined,
+      automaticImports: settings.rules.automaticImports === true,
+    },
   };
 }
 
@@ -63,6 +68,7 @@ export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings
   return {
     victory: "race",
     settingsEditors: "host",
+    automaticImports: false,
     clipboard:
       preset === "casual"
         ? "off"
@@ -100,7 +106,12 @@ export function selectedMatchPreset(rules: MatchRuleSettings): MatchPreset | "cu
       const preset = matchPreset(name);
       return (
         JSON.stringify(
-          matchRulesSchema.parse({ ...rules, victory: "race", settingsEditors: "host" }),
+          matchRulesSchema.parse({
+            ...rules,
+            victory: "race",
+            settingsEditors: "host",
+            automaticImports: false,
+          }),
         ) === JSON.stringify(matchRulesSchema.parse(preset))
       );
     }) ?? "custom"

@@ -1,13 +1,25 @@
 /** @file MatchCompletionActions.tsx @description Shared post-match navigation and quick readiness. @module matches */
-import { FileCode2, Plus, RotateCcw, Users, X, Zap } from "lucide-react";
+import { FileSearch, Plus, RotateCcw, Users, X, Zap } from "lucide-react";
+import { Tooltip } from "../../ui/Tooltip";
 import { SpinnerSwap } from "../../ui/Spinner";
+
+export function PlayerCodeReviewButton({ name, onClick }: { name: string; onClick: () => void }) {
+  const label = `Review code for ${name}`;
+  return (
+    <Tooltip content={label}>
+      <button type="button" className="icon-button" aria-label={label} onClick={onClick}>
+        <FileSearch size={16} aria-hidden="true" />
+      </button>
+    </Tooltip>
+  );
+}
 
 export function MatchCompletionActions({
   review,
   lobby,
   readiness,
 }: {
-  review?: { onClick: () => void; disabled: boolean };
+  review?: { onClick: () => void; disabled: boolean; hasCode: boolean };
   lobby?: "return" | "create";
   readiness?: {
     ready: boolean;
@@ -26,7 +38,7 @@ export function MatchCompletionActions({
           disabled={review.disabled}
           title={review.disabled ? "Review is available after judging finishes." : undefined}
         >
-          <FileCode2 size={16} aria-hidden="true" />
+          {review.hasCode && <FileSearch size={16} aria-hidden="true" />}
           Review code
         </button>
       )}

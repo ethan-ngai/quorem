@@ -239,6 +239,7 @@ export async function executeAndStage(
               level: manifest.level,
               operation,
               language: job.language,
+              automaticImports: job.automaticImports,
               artifact,
               signal,
             });

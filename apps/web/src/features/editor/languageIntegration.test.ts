@@ -220,11 +220,11 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
       });
       client.connect(transport);
       await client.initializing;
-      const source = (prefix: string) =>
-        publicQuestionFixture(runWidths).starterSource.replace(
-          "        raise NotImplementedError",
-          `        ${prefix}`,
-        );
+      const starter = publicQuestionFixture(runWidths).starterSource;
+      const placeholder = "        raise NotImplementedError";
+      const line = starter.split("\n").indexOf(placeholder);
+      expect(line).toBeGreaterThanOrEqual(0);
+      const source = (prefix: string) => starter.replace(placeholder, `        ${prefix}`);
       client.didOpen({
         uri,
         languageId: "python",
@@ -242,7 +242,7 @@ it.skipIf(process.env.QUOREM_LANGUAGE_TEST !== "true")(
           "textDocument/completion",
           {
             textDocument: { uri },
-            position: { line: 5, character: 8 + prefix.length },
+            position: { line, character: 8 + prefix.length },
             context: { triggerKind: 1 },
           },
         );

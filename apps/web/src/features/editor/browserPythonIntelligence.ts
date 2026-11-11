@@ -7,17 +7,19 @@ import {
 } from "@codemirror/lsp-client";
 import { pythonLanguage } from "@codemirror/lang-python";
 import DOMPurify from "dompurify";
-import workerURL from "monaco-pyright-lsp/dist/worker.js?url";
+import workerURL from "virtual:quorem-pyright-worker";
+import automaticImports from "../../../../../internal/execution/public/automatic_imports.json";
 import publicTypes from "../../../../../internal/execution/public/quorem_types.py?raw";
 import { PythonLanguageClient } from "./pythonLanguageClient";
 
 const rootUri = "file:///typings";
 const documentUri = `${rootUri}/main.py`;
 
-/** Load only the upstream Worker asset; Monaco's editor/provider code is not imported. */
+/** Start the local Python language server and attach its CodeMirror extensions. */
 export async function browserPythonIntelligence(
   signal: AbortSignal,
   onUnavailable: () => void = () => {},
+  imports: "none" | "datetime" | "common" = "none",
 ) {
   if (signal.aborted) throw new Error("Python session cancelled");
   const worker = new Worker(workerURL);
@@ -82,14 +84,29 @@ export async function browserPythonIntelligence(
           type: "initServer",
           userFiles: {
             "main.py": "",
-            "quorem_types.pyi": publicTypes,
+            "quorem_types.py": publicTypes,
+            ...(imports === "none"
+              ? {}
+              : {
+                  // Pyright reads these globals without modifying the editor's document.
+                  "__builtins__.pyi": [
+                    "from builtins import *",
+                    "from quorem_types import ListNode as ListNode, TreeNode as TreeNode, NaryTreeNode as NaryTreeNode",
+                    ...(imports === "common" ? automaticImports.python : ["datetime"]).map(
+                      (name) => `import ${name} as ${name}`,
+                    ),
+                  ].join("\n"),
+                }),
             "pyrightconfig.json": JSON.stringify({
               pythonVersion: "3.12",
               typeCheckingMode: "basic",
+              functionSignatureDisplay: "compact",
               include: ["main.py"],
             }),
           },
         });
+      } else if (message.type === "serverFailed") {
+        onError();
       } else if (message.type === "serverInitialized") {
         clearBoot();
         failed = undefined;
@@ -124,8 +141,19 @@ export async function browserPythonIntelligence(
     const transport: Transport = {
       send: (text) => {
         if (disposed) return;
-        const message = JSON.parse(text) as { id?: string | number; method?: string };
+        const message = JSON.parse(text) as {
+          id?: string | number;
+          method?: string;
+          params?: Record<string, unknown>;
+        };
         if (message.id !== undefined && message.method) pending.set(message.id, message.method);
+        if (message.method === "initialize") {
+          // Pyright discovers pyrightconfig.json through the workspace folder list.
+          message.params = {
+            ...message.params,
+            workspaceFolders: [{ uri: rootUri, name: "Python" }],
+          };
+        }
         worker.postMessage(message);
       },
       subscribe: (handler) => {

@@ -37,7 +37,9 @@ vi.mock("../editor/WorkspacePage", async () => {
   return {
     WorkspacePage: ({
       matchHeader,
+      review,
     }: {
+      review?: boolean;
       matchHeader:
         | React.ReactNode
         | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => React.ReactNode);
@@ -46,7 +48,7 @@ vi.mock("../editor/WorkspacePage", async () => {
         state.mounts++;
       }, []);
       return (
-        <div data-workspace="true">
+        <div data-workspace="true" data-review={review}>
           {typeof matchHeader === "function"
             ? matchHeader({ title: "Two Sum" } as PublishedQuestion, state.saveDraft)
             : matchHeader}
@@ -110,6 +112,7 @@ it("keeps the workspace mounted when the match finishes and results reopen", asy
   const root = createRoot(container);
   await act(async () => root.render(<MatchPage matchId="match" />));
   const workspace = container.querySelector("[data-workspace]");
+  expect(workspace?.getAttribute("data-review")).toBe("false");
   expect(container.textContent).not.toContain("Reconnecting…");
   state.status = "reconnecting";
   await act(async () => root.render(<MatchPage matchId="match" />));
@@ -118,8 +121,15 @@ it("keeps the workspace mounted when the match finishes and results reopen", asy
   state.snapshot = {
     ...state.snapshot,
     state: "completed",
+    reviewPending: true,
     outcome: { kind: "draw", reason: "deadline", completedAt: "2026-11-06T12:30:00Z" },
   };
+  await act(async () => root.render(<MatchPage matchId="match" />));
+  expect(container.querySelector("[data-workspace]")).toBe(workspace);
+  expect(state.mounts).toBe(1);
+  expect(workspace?.getAttribute("data-review")).toBe("true");
+  expect(container.textContent).toContain("Review code");
+  state.snapshot = { ...state.snapshot, reviewPending: false };
   await act(async () => root.render(<MatchPage matchId="match" />));
   expect(container.querySelector("[data-workspace]")).toBe(workspace);
   expect(state.mounts).toBe(1);
@@ -140,7 +150,7 @@ it("keeps the workspace mounted when the match finishes and results reopen", asy
   vi.unstubAllGlobals();
 });
 
-it("opens a finished match directly into results and loads the workspace only for review", async () => {
+it("opens finished match results over the review workspace", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   state.mounts = 0;
   state.notify.mockClear();
@@ -155,7 +165,9 @@ it("opens a finished match directly into results and loads the workspace only fo
   const root = createRoot(container);
   try {
     await act(async () => root.render(<MatchPage matchId="match" />));
-    expect(state.mounts).toBe(0);
+    expect(state.mounts).toBe(1);
+    const workspace = container.querySelector('[data-review="true"]');
+    expect(workspace?.textContent).toContain("Review code");
     expect(state.notify).not.toHaveBeenCalledWith(expect.any(String));
     await act(async () =>
       Array.from(container.querySelectorAll("button"))
@@ -163,6 +175,7 @@ it("opens a finished match directly into results and loads the workspace only fo
         .click(),
     );
     expect(state.mounts).toBe(1);
+    expect(container.querySelector('[data-review="true"]')).toBe(workspace);
   } finally {
     await act(async () => root.unmount());
     container.remove();

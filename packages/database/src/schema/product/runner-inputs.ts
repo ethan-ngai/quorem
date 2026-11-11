@@ -20,6 +20,10 @@ import {
   execution_jobs,
 } from "./index.ts";
 
+export const runner_blob_rechecks = pgTable("runner_blob_rechecks", {
+  hash: bytea("hash").primaryKey().notNull(),
+});
+
 export const runner_input_gc_state = pgTable(
   "runner_input_gc_state",
   { id: integer().primaryKey().notNull(), cursor: bytea("cursor") },

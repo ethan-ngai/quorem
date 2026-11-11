@@ -21,7 +21,7 @@ import type {
 } from "@quorem/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, requireData } from "../../api/client";
-import { Swords, Gauge, BookOpen, Clock, Users, Code2, Info } from "lucide-react";
+import { Swords, Gauge, BookOpen, Clock, Users, PackagePlus, Code2, Info } from "lucide-react";
 import { matchModeLabels, ModeIcon } from "./ModeIcon";
 
 export function useAccountIdentity() {
@@ -202,6 +202,20 @@ export function MatchSettings({
               ...value,
               rules: { ...rules, settingsEditors: enabled ? "everyone" : "host" },
             })
+          }
+        />
+      </div>
+      <div className="match-option">
+        <span>
+          <PackagePlus size={16} aria-hidden="true" />
+          Auto-import common libraries
+        </span>
+        <ToggleSwitch
+          label="Auto-import common libraries"
+          checked={rules.automaticImports === true}
+          disabled={disabled}
+          onChange={(automaticImports) =>
+            onChange?.({ ...value, rules: { ...rules, automaticImports } })
           }
         />
       </div>

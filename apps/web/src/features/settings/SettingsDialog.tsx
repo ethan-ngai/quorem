@@ -109,18 +109,16 @@ export function SettingsDialog({
               )}
               <div className="settings-category-group">
                 <span>On this device</span>
-                {workspaceSections
-                  .filter((item) => item.id !== "drafts" || workspace?.onHistory)
-                  .map((item) => (
-                    <button
-                      key={item.id}
-                      aria-current={section === item.id ? "page" : undefined}
-                      onClick={() => onSectionChange(item.id)}
-                    >
-                      <Icon name={item.icon} />
-                      {item.label}
-                    </button>
-                  ))}
+                {workspaceSections.map((item) => (
+                  <button
+                    key={item.id}
+                    aria-current={section === item.id ? "page" : undefined}
+                    onClick={() => onSectionChange(item.id)}
+                  >
+                    <Icon name={item.icon} />
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </nav>
             <section
@@ -149,12 +147,8 @@ export function SettingsDialog({
                     ...local,
                     theme,
                     onThemeChange,
-                    onHistory: () => {},
-                    onClearRecovery: () => {},
-                    onImportDrafts: async () => {},
                   })}
                   section={section}
-                  onClose={onClose}
                 />
               )}
             </section>

@@ -55,25 +55,6 @@ summary::-webkit-details-marker {
   background: var(--color-field);
   font-size: 12px;
 }
-.settings-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 32px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text-secondary);
-  text-align: left;
-  font-size: 12px;
-}
-.settings-action:hover {
-  color: var(--color-primary);
-}
-.settings-action svg:last-child {
-  margin-left: auto;
-}
 kbd {
   font-family: var(--font-code);
   font-size: 10px;
@@ -250,59 +231,6 @@ kbd {
   position: fixed;
   inset: 0;
   z-index: 20;
-}
-.competitive-dialog.history-dialog {
-  display: grid;
-  width: min(760px, calc(100vw - 32px));
-  max-height: min(700px, 90dvh);
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  grid-template-rows: auto minmax(0, 1fr);
-}
-.history-dialog .competitive-dialog-heading {
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--color-border);
-}
-.history-list {
-  margin: 0;
-  padding: 0 24px;
-  overflow: auto;
-  list-style: none;
-}
-.history-list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 20px;
-  padding: 18px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-.history-list li > div {
-  display: grid;
-  gap: 4px;
-}
-.history-list strong {
-  font-size: 13px;
-  font-weight: 550;
-}
-.history-list time {
-  color: var(--color-text-secondary);
-  font: 10px var(--font-code);
-}
-.history-list pre {
-  max-height: 70px;
-  overflow: hidden;
-  margin: 6px 0 0;
-  white-space: pre-wrap;
-  font: 11px/1.5 var(--font-code);
-  color: var(--color-text-secondary);
-}
-.dialog-state {
-  margin: 20px 24px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
 }
 .match-dialog {
   width: min(460px, calc(100% - 32px));
@@ -1109,8 +1037,7 @@ kbd {
 .setting-row:last-child {
   border-bottom: 0;
 }
-.setting-row p,
-.settings-section-description {
+.setting-row p {
   margin: 5px 0 0;
   font-size: 12px;
   line-height: 1.5;
@@ -1140,21 +1067,6 @@ kbd {
 }
 .workspace-tooltip .shortcut-keys {
   zoom: 0.5;
-}
-.settings-section .settings-action {
-  padding: 14px 0;
-  min-height: 44px;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-.settings-section .settings-action.destructive-icon {
-  color: var(--color-error);
-}
-.settings-section .settings-action:hover {
-  background: var(--color-overlay);
-}
-.settings-action svg:first-child {
-  margin-left: 0;
 }
 .settings-dialog :is(button, a) {
   transition:

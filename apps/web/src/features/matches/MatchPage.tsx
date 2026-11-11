@@ -304,7 +304,8 @@ export function MatchPage({
       ? { snapshot, identity }
       : undefined;
   const [resultsOpen, setResultsOpen] = useState(!reviewEntry);
-  const [reviewing, setReviewing] = useState(reviewEntry);
+  const [reviewRequest, setReviewRequest] = useState<{ participantId: string }>();
+  const reviewing = terminal && !!snapshot?.startedAt && !!snapshot.outcome && !!finished;
   const [pending, setPending] = useState(false);
   const [actionError, setActionError] = useState<string>();
   useErrorNotification(actionError);
@@ -404,9 +405,9 @@ export function MatchPage({
           identity={finished.identity}
           open={resultsOpen}
           onOpenChange={setResultsOpen}
-          onReview={() => {
+          onReview={(participantId) => {
             setResultsOpen(false);
-            setReviewing(true);
+            if (participantId) setReviewRequest({ participantId });
           }}
         />
       )}
@@ -419,8 +420,20 @@ export function MatchPage({
         <section className="match-page-content">{ledger()}</section>
       </main>
     );
-  if (snapshot.mode === "factions" && ownWorkspaceId && !reviewing)
-    return <FactionWorkspace match={snapshot} identity={identity} header={ledger} />;
+  if (
+    snapshot.mode === "factions" &&
+    ownWorkspaceId &&
+    (!reviewing || liveWorkspaceMatch === matchId)
+  )
+    return (
+      <FactionWorkspace
+        match={snapshot}
+        identity={identity}
+        header={ledger}
+        review={reviewing}
+        reviewRequest={reviewRequest}
+      />
+    );
   if (ownWorkspaceId && snapshot.problemVersionId)
     return (
       <WorkspacePage
@@ -428,7 +441,8 @@ export function MatchPage({
         matchWorkspaceId={ownWorkspaceId}
         identity={identity}
         matchHeader={ledger}
-        review={reviewing && !!finished}
+        review={reviewing}
+        reviewRequest={reviewRequest}
       />
     );
   return (

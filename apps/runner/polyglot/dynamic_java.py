@@ -1,5 +1,6 @@
 """Input-independent Java wrapper; each process reads only its current case."""
 import json
+import re
 
 PARSER = r'''
 static class Json {
@@ -128,7 +129,22 @@ static Object decode(String t,Object v){
 }
 '''
 
-def source(r, h):
+def java_imports(request, signatures, common):
+    # Practice and pre-existing attempts retain their original import environment.
+    if request.get('automaticImports') is None:
+        return ('java.util.*', 'java.time.LocalDateTime')
+    if common is not None:
+        return common
+    kinds = {
+        part
+        for sig in signatures
+        for kind in [sig['returnType'], *(p['type'] for p in sig['parameters'])]
+        for part in re.split('[<>]', kind)
+    }
+    return [name for kind, name in (('list', 'java.util.List'), ('datetime', 'java.time.LocalDateTime')) if kind in kinds]
+
+
+def source(r, h, common=None):
     signatures = dict(r.get('methods') or {})
     signatures[r['signature']['methodName']] = r['signature']
     branches = []
@@ -146,4 +162,6 @@ def source(r, h):
  else output=call(solution,METHOD,(java.util.List<Object>)request.get("args"));
  System.err.print("\\nQUOREM_RESULT:"+output);
 }'''.replace('CLASS',r['signature']['className']).replace('METHOD',json.dumps(r['signature']['methodName']))
-    return 'import java.util.*;\nimport java.time.LocalDateTime;\n'+h['JAVA_TYPES']+r['source']+'\nclass Main {\n'+h['JAVA_ENCODER']+PARSER+call+main+'\n}'
+    prelude = ''.join(f'import {name};\n' for name in java_imports(r, signatures.values(), common))
+    # User imports must precede both the solution and judge-supplied class declarations.
+    return prelude+r['source']+'\n'+h['JAVA_TYPES']+'class Main {\n'+h['JAVA_ENCODER']+PARSER+call+main+'\n}'

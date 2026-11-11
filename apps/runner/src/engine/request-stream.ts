@@ -15,6 +15,7 @@ export async function streamedCaseRequest(options: {
   level: number | null;
   operation: "direct" | "compile-execute" | "execute";
   language: string;
+  automaticImports?: boolean;
   artifact?: string;
   signal?: AbortSignal;
 }) {
@@ -59,6 +60,8 @@ export async function streamedCaseRequest(options: {
         yield encoder.encode(",");
       }
     }
+    if (options.operation !== "execute" && options.automaticImports !== undefined)
+      yield encoder.encode(`"automaticImports":${options.automaticImports},`);
     yield encoder.encode('"args":');
     yield* testcase.args();
     yield encoder.encode(',"calls":');

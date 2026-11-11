@@ -19,13 +19,16 @@ def command(lang):
 def prepare(r,lang,h):
     # Compiler operation deliberately receives no current or future case data.
     if any(k in r for k in ('args','calls','cases','expected','artifact')):raise ValueError('case data in compiler request')
+    imports = None
+    if r.get('automaticImports') is True:
+        imports = json.loads(Path(__file__).with_name('automatic_imports.json').read_text())[lang]
     if lang=='java':
-        Path('/tmp/Main.java').write_text(dynamic_java.source(r,h))
+        Path('/tmp/Main.java').write_text(dynamic_java.source(r,h,imports))
         return ['javac','-J-Xmx128m','-J-XX:ActiveProcessorCount=1','-J-XX:+UseSerialGC','-J-XX:-UsePerfData','/tmp/Main.java']
     if lang=='typescript':
-        Path('/tmp/main.ts').write_text(dynamic_typescript.source(r,h))
+        Path('/tmp/main.ts').write_text(dynamic_typescript.source(r,h,imports))
         return ['tsc','--strict','--target','ES2022','--module','commonjs','--skipLibCheck','--outDir','/tmp','/tmp/main.ts']
-    Path('/tmp/main.ml').write_text(dynamic_ocaml.source(r,h))
+    Path('/tmp/main.ml').write_text(dynamic_ocaml.source(r,h,imports))
     return ['ocamlc','-I','+unix','-o','/tmp/main.byte','unix.cma','/tmp/main.ml']
 
 def valid_name(name,lang):

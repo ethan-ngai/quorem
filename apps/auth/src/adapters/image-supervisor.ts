@@ -1,3 +1,4 @@
+/** @file image-supervisor.ts @description Supervises the isolated image process. @module auth */
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -28,7 +29,7 @@ child.on("close", (code) => {
   process.exitCode = stopping ? 1 : (code ?? 1);
   if (process.connected) {
     process.send?.({ kind: "image-child-terminated" }, () => {
-      if (process.connected) process.disconnect();
+      if (process.connected) process.disconnect?.();
     });
   }
 });

@@ -238,7 +238,18 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       ),
     ),
   );
-  await worker.scheduled({}, env as unknown as Env);
+  // Stale production cron events cannot reach even a database binding.
+  await worker.scheduled({}, { APP_ENV: "production" } as unknown as Env);
+  const maintenanceNamespace = (env as unknown as Env).EXECUTION_RECOVERY;
+  const maintenance = maintenanceNamespace.get(
+    maintenanceNamespace.idFromName("activity-maintenance"),
+  );
+  await maintenance.scheduleMaintenance();
+  expect(
+    await runDurableObjectAlarm(
+      maintenance as unknown as Parameters<typeof runDurableObjectAlarm>[0],
+    ),
+  ).toBe(true);
   const retained = await run((scope) =>
     scope.transaction(
       { statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true },

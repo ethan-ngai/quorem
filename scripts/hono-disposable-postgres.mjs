@@ -60,7 +60,7 @@ export async function withDisposablePostgres(
         "POSTGRES_PASSWORD=fixture",
         "--env",
         `POSTGRES_DB=${database}`,
-        "postgres:17.6-alpine",
+        "postgres:17.11-alpine",
         "-c",
         "max_prepared_transactions=10",
       ],

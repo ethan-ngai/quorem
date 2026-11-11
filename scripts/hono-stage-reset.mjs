@@ -143,6 +143,10 @@ async function fixtureTables(client) {
     "public.runner_input_blobs",
     `NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE NOT EXISTS (SELECT 1 FROM runner_publication_inputs v WHERE b.hash IN (v.metadata_hash,v.fixture_hash)) AND NOT EXISTS (SELECT 1 FROM runner_publication_input_cases c WHERE c.blob_hash=b.hash) AND NOT EXISTS (SELECT 1 FROM runner_job_inputs j WHERE b.hash IN (j.metadata_hash,j.source_hash)) AND NOT EXISTS (SELECT 1 FROM runner_job_input_cases c WHERE c.blob_hash=b.hash))`,
   );
+  checks.set(
+    "public.runner_blob_rechecks",
+    `NOT EXISTS (SELECT 1 FROM runner_blob_rechecks r WHERE NOT EXISTS (SELECT 1 FROM runner_input_blobs b WHERE b.hash=r.hash))`,
+  );
   for (const name of [
     "problems",
     "question_publications",
