@@ -5,6 +5,25 @@
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
 }
+@media (prefers-reduced-motion: no-preference) {
+  .review-toolbar {
+    animation: review-toolbar-enter var(--motion-standard) var(--motion-easing);
+  }
+  .review-toolbar + .review-editor-grid > .editor-frame > .python-editor > .cm-editor {
+    animation: review-code-enter var(--motion-standard) var(--motion-easing);
+  }
+  @keyframes review-toolbar-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  @keyframes review-code-enter {
+    from {
+      opacity: 0.65;
+    }
+  }
+}
 .review-view-controls {
   display: flex;
   align-items: center;

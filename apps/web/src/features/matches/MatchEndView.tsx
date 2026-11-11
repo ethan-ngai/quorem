@@ -4,7 +4,8 @@ import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScorePenalty } from "./ScorePenalty";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
-import { MatchCompletionActions } from "./MatchCompletionActions";
+import { hasReviewCode, useMatchReview } from "./useMatchReview";
+import { MatchCompletionActions, PlayerCodeReviewButton } from "./MatchCompletionActions";
 import { MatchWinnerMetadata } from "./MatchWinnerMetadata";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { MatchDurationRing } from "./MatchDurationRing";
@@ -58,7 +59,7 @@ export function MatchEndView({
   identity: DevelopmentIdentity;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onReview: () => void;
+  onReview: (participantId?: string) => void;
   problemTitle?: string;
 }) {
   const [celebrate, setCelebrate] = useState(open);
@@ -112,16 +113,24 @@ export function MatchEndView({
     !!snapshot.outcome &&
     !!snapshot.startedAt;
   const reviewPending = !!snapshot.startedAt && (!settled || !!snapshot.reviewPending);
+  const review = useMatchReview(identity, snapshot.id, open && settled && !reviewPending);
+  const reviewableIds = new Set(
+    settled && !reviewPending && !review.isError
+      ? review.data?.participants.filter(hasReviewCode).map((player) => player.userId)
+      : undefined,
+  );
+  const openReview = (participantId?: string) => {
+    setCelebrate(false);
+    onReview(participantId);
+  };
   const actions = (
     <MatchCompletionActions
       review={
         settled || reviewPending
           ? {
               disabled: reviewPending,
-              onClick: () => {
-                setCelebrate(false);
-                onReview();
-              },
+              hasCode: reviewableIds.size > 0,
+              onClick: () => openReview(),
             }
           : undefined
       }
@@ -175,52 +184,61 @@ export function MatchEndView({
   );
   const standings = (
     <ol className="match-result-players" aria-label="Match results">
-      {players.map((player) => (
-        <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
-          <span>
-            <strong>
-              {snapshot.mode === "factions" ? (
-                <span>
-                  {player.displayName} ·{" "}
-                  {player.members.map((member) => member.displayName).join(", ")}
-                </span>
-              ) : (
-                <ParticipantName
-                  participant={player}
-                  self={player.userId === participantUserId(identity)}
-                  nameSuffix={isMatchWinner(snapshot, player) && <MatchWinnerMetadata />}
-                />
-              )}
-            </strong>
-            {snapshot.mode === "factions" && isMatchWinner(snapshot, player) && (
-              <MatchWinnerMetadata />
-            )}
-          </span>
-          <span className="match-result-score">
-            {party && snapshot.mode !== "factions" && (
-              <PartyReadinessIndicator
-                member={party.members.find((member) => member.userId === player.userId)}
-              />
-            )}
-            {!player.forfeited && highScore && (
-              <span>{player.adjustedScore ?? player.bestScore?.passed ?? 0} points</span>
-            )}
-            <span className="match-result-score-stack">
-              <ScoreProgress
-                score={player.forfeited ? undefined : player.bestScore}
-                color={participantColor(player.userId, player.color)}
-                unavailableLabel={player.forfeited ? "Forfeited" : undefined}
-              />
-              {!player.forfeited && highScore && !!player.penaltyPoints && (
-                <ScorePenalty unit="points" value={player.penaltyPoints} />
-              )}
-              {!player.forfeited && !highScore && !!player.penaltySeconds && (
-                <ScorePenalty unit="seconds" value={player.penaltySeconds} />
+      {players.map((player) => {
+        const reviewPlayer = player.members.find((member) => reviewableIds.has(member.userId));
+        return (
+          <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
+            <span>
+              <strong>
+                {snapshot.mode === "factions" ? (
+                  <span>
+                    {player.displayName} ·{" "}
+                    {player.members.map((member) => member.displayName).join(", ")}
+                  </span>
+                ) : (
+                  <ParticipantName
+                    participant={player}
+                    self={player.userId === participantUserId(identity)}
+                    nameSuffix={isMatchWinner(snapshot, player) && <MatchWinnerMetadata />}
+                  />
+                )}
+              </strong>
+              {snapshot.mode === "factions" && isMatchWinner(snapshot, player) && (
+                <MatchWinnerMetadata />
               )}
             </span>
-          </span>
-        </li>
-      ))}
+            <span className="match-result-score">
+              {party && snapshot.mode !== "factions" && (
+                <PartyReadinessIndicator
+                  member={party.members.find((member) => member.userId === player.userId)}
+                />
+              )}
+              {!player.forfeited && highScore && (
+                <span>{player.adjustedScore ?? player.bestScore?.passed ?? 0} points</span>
+              )}
+              <span className="match-result-score-stack">
+                <ScoreProgress
+                  score={player.forfeited ? undefined : player.bestScore}
+                  color={participantColor(player.userId, player.color)}
+                  unavailableLabel={player.forfeited ? "Forfeited" : undefined}
+                />
+                {!player.forfeited && highScore && !!player.penaltyPoints && (
+                  <ScorePenalty unit="points" value={player.penaltyPoints} />
+                )}
+                {!player.forfeited && !highScore && !!player.penaltySeconds && (
+                  <ScorePenalty unit="seconds" value={player.penaltySeconds} />
+                )}
+              </span>
+              {reviewPlayer && (
+                <PlayerCodeReviewButton
+                  name={player.displayName}
+                  onClick={() => openReview(reviewPlayer.userId)}
+                />
+              )}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
   const readyStatus = party && !partyQuery.isError && (

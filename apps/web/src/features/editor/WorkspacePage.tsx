@@ -22,7 +22,6 @@ import { userFacingErrorMessage } from "../../ui/errors";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
 import {
-  participantUserId,
   type DevelopmentIdentity,
   type MatchSnapshot,
   type PublishedQuestion,
@@ -37,6 +36,7 @@ import { fetchWorkspace, createWorkspace, switchMatchLanguage } from "./api";
 import { HistoryDialog } from "./components/HistoryDialog";
 import { EditorialPanel, type EditorialComplexity } from "./components/EditorialPanel";
 import { ProblemStatement } from "./components/ProblemStatement";
+import { PersistentNotice } from "../../ui/PersistentNotice";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { SaveIndicator } from "./components/SaveIndicator";
@@ -96,7 +96,8 @@ export function WorkspacePage({
   matchWorkspaceId: providedMatchWorkspaceId,
   identity: providedIdentity,
   matchHeader,
-  review: reviewRequested = false,
+  review = false,
+  reviewRequest,
   sharedDocument,
 }: {
   slug?: string;
@@ -107,9 +108,9 @@ export function WorkspacePage({
     | ReactNode
     | ((problem: PublishedQuestion, saveDraft: () => Promise<void>) => ReactNode);
   review?: boolean;
+  reviewRequest?: { participantId: string };
   sharedDocument?: SharedWorkspaceDocument;
 }) {
-  const [review, setReview] = useState(false);
   const originalSource = useRef<string | undefined>(undefined);
   const account = useSession();
   const identity = (account.data?.user.id ??
@@ -187,7 +188,7 @@ export function WorkspacePage({
   const mode = match ? matchModeLabels[match.mode] : "Practice";
   usePageTitle(
     currentQuestion && question?.title
-      ? `${question.title} - ${mode}${reviewRequested || review ? " Review" : ""}`
+      ? `${question.title} - ${mode}${review ? " Review" : ""}`
       : undefined,
   );
   const activeLanguage = problemQuery.data?.languages?.some(
@@ -195,7 +196,8 @@ export function WorkspacePage({
   )
     ? selectedLanguage
     : (problemQuery.data?.languages?.[0]?.language ?? selectedLanguage);
-  const [reviewParticipantId, setReviewParticipantId] = useState("");
+  const [appliedReviewRequest, setAppliedReviewRequest] = useState(reviewRequest);
+  const [reviewParticipantId, setReviewParticipantId] = useState(reviewRequest?.participantId);
   const [compareReview, setCompareReview] = useState(false);
   const [diffReview, setDiffReview] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
@@ -204,7 +206,12 @@ export function WorkspacePage({
     language: EditorLanguage;
     source: string;
   }>();
-  const reviewQuery = useMatchReview(identity, match?.id, review);
+  const reviewSettling = review && !!match?.reviewPending;
+  const reviewQuery = useMatchReview(identity, match?.id, review && !reviewSettling);
+  const own = match && ownParticipant(match, identity);
+  const reviewToolbar = reviewQuery.data ?? {
+    participants: own ? [{ ...own, own: true, workspace: null, submission: null }] : [],
+  };
   const [reviewExpired, setReviewExpired] = useState(false);
   useEffect(() => {
     if (!reviewQuery.data) return;
@@ -221,6 +228,12 @@ export function WorkspacePage({
     reviewQuery.data?.participants.find((person) => person.userId === reviewParticipantId) ??
     reviewQuery.data?.participants.find((person) => person.own);
   const [reviewLanguageOverride, setReviewLanguageOverride] = useState<EditorLanguage>();
+  if (appliedReviewRequest !== reviewRequest) {
+    setAppliedReviewRequest(reviewRequest);
+    setReviewParticipantId(reviewRequest?.participantId);
+    setReviewLanguageOverride(undefined);
+    setShowOriginal(false);
+  }
   const reviewLanguage =
     reviewLanguageOverride ?? reviewCodeLanguage(reviewParticipant) ?? selectedLanguage;
   const reviewCode = reviewParticipant?.finalCode ?? reviewParticipant?.submission;
@@ -232,16 +245,17 @@ export function WorkspacePage({
   const reviewReference = reviewQuery.data?.participants.find(
     (person) => person.userId !== reviewParticipant?.userId && !!reviewCodeLanguage(person),
   );
+  const loadReviewWorkspace = review && !reviewSettling;
   const workspaceQuery = useQuery({
     queryKey: [
       "workspace",
       identity,
-      review ? match?.id : (matchWorkspaceId ?? problemQuery.data?.id),
-      review ? reviewParticipant?.userId : null,
-      review ? reviewLanguage : activeLanguage,
+      loadReviewWorkspace ? match?.id : (matchWorkspaceId ?? problemQuery.data?.id),
+      loadReviewWorkspace ? reviewParticipant?.userId : null,
+      loadReviewWorkspace ? reviewLanguage : activeLanguage,
     ],
     queryFn: () =>
-      review
+      loadReviewWorkspace
         ? createReviewWorkspace(match!.id, reviewParticipant!.userId, reviewLanguage)
         : match
           ? fetchWorkspace(identity, matchWorkspaceId!)
@@ -249,7 +263,11 @@ export function WorkspacePage({
     enabled:
       !!account.data &&
       (account.data.kind !== "guest" || !!match) &&
-      (review ? !!reviewParticipant : match ? !!matchWorkspaceId : !!problemQuery.data),
+      (loadReviewWorkspace
+        ? !!reviewParticipant && !reviewExpired
+        : match
+          ? !!matchWorkspaceId
+          : !!problemQuery.data),
     staleTime: 0,
     gcTime: 5 * 60_000,
   });
@@ -281,10 +299,10 @@ export function WorkspacePage({
   const submitClosed = matchTimeEnded || personalTimeEnded;
   const frozenMatch =
     !!match &&
-    !review &&
-    (match.state !== "active" ||
-      !!match.participants.find((person) => person.userId === participantUserId(identity))
-        ?.forfeited);
+    (review
+      ? reviewSettling || !loadedWorkspace || reviewExpired
+      : match.state !== "active" || !!own?.forfeited);
+  const sharedDraft = loadedWorkspace?.kind === "match" ? sharedDocument : undefined;
   const frozenRef = useRef(frozenMatch);
   frozenRef.current = frozenMatch;
   const {
@@ -309,9 +327,9 @@ export function WorkspacePage({
     queriedProblem: problemQuery.data,
     loadedWorkspace,
     editorRef,
-    authoritative: !!sharedDocument,
+    authoritative: !!sharedDraft,
     initialSource:
-      sharedDocument?.source ??
+      sharedDraft?.source ??
       (review && reviewParticipant
         ? initialReviewSource(
             reviewParticipant,
@@ -332,13 +350,7 @@ export function WorkspacePage({
     onError: (error) => setActionError(errorMessage(error)),
   });
 
-  if (!review && workspace?.kind === "match") originalSource.current = sourceRef.current;
-  useEffect(() => {
-    if (reviewRequested && !review && workspace?.kind === "match") {
-      setSelectedLanguage(workspace.language as EditorLanguage);
-      setReview(true);
-    }
-  }, [reviewRequested, review, workspace]);
+  if (workspace?.kind === "match") originalSource.current = sourceRef.current;
 
   const dataMatchesRoute =
     (match ? problemQuery.data?.id === match.problemVersionId : problemQuery.data?.slug === slug) &&
@@ -347,7 +359,7 @@ export function WorkspacePage({
     problem?.id === problemQuery.data?.id && workspace?.id === loadedWorkspace?.id;
   const serverWorkspace = !!account.data && (account.data.kind !== "guest" || !!match);
   const loading =
-    (review && (reviewExpired || reviewQuery.isPending || !reviewParticipant)) ||
+    (review && (reviewSettling || reviewExpired || reviewQuery.isPending || !reviewParticipant)) ||
     problemQuery.isPending ||
     account.isPending ||
     (serverWorkspace && workspaceQuery.isPending) ||
@@ -355,6 +367,9 @@ export function WorkspacePage({
     !dataMatchesState ||
     !problem ||
     !workspace;
+  const [visibleAuthor, setVisibleAuthor] = useState<string>();
+  if (review && !loading && visibleAuthor !== reviewParticipant?.userId)
+    setVisibleAuthor(reviewParticipant?.userId);
   const matchRules = useMatchRules(identity, review ? undefined : match);
   const documentLanguage = (workspace?.language ?? activeLanguage) as EditorLanguage;
   const odyssey = useQuery({
@@ -371,7 +386,7 @@ export function WorkspacePage({
   const displayedOdyssey = odyssey.data ?? previewOdyssey;
   useEffect(() => {
     if (loading || !displayedOdyssey || frozenMatch) return;
-    if (sharedDocument) {
+    if (sharedDocument && !review) {
       sharedDocument.updateOdyssey(displayedOdyssey, documentLanguage);
       return;
     }
@@ -392,7 +407,7 @@ export function WorkspacePage({
     return () => {
       cancelled = true;
     };
-  }, [loading, displayedOdyssey, documentLanguage, workspace?.id, frozenMatch]);
+  }, [loading, displayedOdyssey, documentLanguage, workspace?.id, frozenMatch, review]);
   const [resettingOdyssey, setResettingOdyssey] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState<number>();
   const runExamples = useMemo(
@@ -400,8 +415,8 @@ export function WorkspacePage({
     [odyssey.data],
   );
   const execution = useSubmission({
-    beforeExecution: sharedDocument?.beforeExecution,
-    sharedSubmissionId: sharedDocument?.latestSubmissionId,
+    beforeExecution: review ? undefined : sharedDocument?.beforeExecution,
+    sharedSubmissionId: review ? undefined : sharedDocument?.latestSubmissionId,
     runExamples,
     level: odyssey.data?.level,
     identity,
@@ -712,9 +727,11 @@ export function WorkspacePage({
     );
   };
 
+  // A review draft can load independently while the previous editor stays visible.
+  const blockWorkspace = loading && (!review || reviewExpired);
   const renderWorkspace = (controls?: MatchDisclosureControls) => (
     <>
-      {loading && (
+      {blockWorkspace && (
         <div className="workspace-loading workspace-transition">
           {loadError ? (
             <p role="alert">{errorMessage(loadError)}</p>
@@ -730,7 +747,7 @@ export function WorkspacePage({
       )}
       <WorkspaceLayout
         language={documentLanguage}
-        pending={loading}
+        pending={blockWorkspace}
         navigation={
           <GlobalNav
             identity={identity}
@@ -838,15 +855,17 @@ export function WorkspacePage({
         problem={renderProblem(controls)}
         editor={
           <>
-            {review && reviewQuery.data && (
+            {review && (
               <ReviewToolbar
-                review={reviewQuery.data}
-                participantId={reviewParticipant?.userId ?? ""}
-                disabled={languageSwitching || submissionBusy || admissionPending}
+                review={reviewToolbar}
+                participantId={
+                  (loading ? (visibleAuthor ?? own?.userId) : reviewParticipant?.userId) ?? ""
+                }
+                disabled={loading || languageSwitching || submissionBusy || admissionPending}
                 compare={compareReview}
                 diff={diffReview}
                 original={showOriginal}
-                canCompare={!!reviewReference}
+                canCompare={!loading && !!reviewReference}
                 canDiff={reviewCodeLanguage(reviewReference) === documentLanguage}
                 originalLabel={originalLabel}
                 onSelect={selectReviewParticipant}
@@ -854,6 +873,7 @@ export function WorkspacePage({
                 onDiff={() => setDiffReview(!diffReview)}
                 onOriginal={() => setShowOriginal(!showOriginal)}
                 originalContent={
+                  !loading &&
                   reviewCode && (
                     <>
                       <ReviewPaneHeader
@@ -873,11 +893,16 @@ export function WorkspacePage({
                 }
               >
                 {solutionControls}
+                <PersistentNotice
+                  message={
+                    loading && !blockWorkspace && loadError ? errorMessage(loadError) : undefined
+                  }
+                  label="Review unavailable"
+                  actions={[{ label: "Retry", onClick: retryLoading }]}
+                />
               </ReviewToolbar>
             )}
-            {!(review && reviewQuery.data) && (
-              <div className="code-toolbar">{solutionControls}</div>
-            )}
+            {!review && <div className="code-toolbar">{solutionControls}</div>}
             <div className="review-editor-grid">
               <div className="editor-frame">
                 {review && compareReview && !diffReview && (
@@ -903,7 +928,8 @@ export function WorkspacePage({
                   wrap={wrap}
                   readOnly={
                     languageSwitching ||
-                    (!!match && !review && (match.state !== "active" || matchRules.blocked))
+                    frozenMatch ||
+                    (review ? loading : !!match && matchRules.blocked)
                   }
                   mergeOriginal={
                     review &&
@@ -918,7 +944,7 @@ export function WorkspacePage({
                   intelligenceExtensions={
                     browserIntelligenceAvailable ? intelligence.extensions : undefined
                   }
-                  collaborationExtension={sharedDocument?.extension}
+                  collaborationExtension={!review ? sharedDocument?.extension : undefined}
                   onSourceChange={updateSource}
                 />
               </div>
@@ -1083,15 +1109,15 @@ export function WorkspacePage({
     </>
   );
 
-  return match && !review ? (
+  return match ? (
     <MatchAssistance
-      key={`${match.id}:${identity}:${workspace.id}`}
+      key={`${match.id}:${identity}:${matchWorkspaceId}`}
       match={match}
       identity={identity}
       submission={submission}
       onPaidAction={sharedDocument?.requestPaidAction}
     >
-      {renderWorkspace}
+      {(controls) => renderWorkspace(review ? undefined : controls)}
     </MatchAssistance>
   ) : (
     renderWorkspace()

@@ -15,7 +15,8 @@ import { CompletionDialog } from "./CompletionDialog";
 import { Celebration } from "../../ui/Celebration";
 import { MatchDurationRing } from "../matches/MatchDurationRing";
 import { MatchSummaryMetadata } from "../matches/MatchSummaryMetadata";
-import { MatchCompletionActions } from "../matches/MatchCompletionActions";
+import { PlayerCodeReviewButton, MatchCompletionActions } from "../matches/MatchCompletionActions";
+import { hasReviewCode } from "../matches/useMatchReview";
 import { MatchWinnerMetadata } from "../matches/MatchWinnerMetadata";
 import { LeaveLobbyButton } from "../matches/LeaveLobbyButton";
 import { PartyReadinessIndicator, MatchLobbyReadiness } from "../matches/PartyReadyStatus";
@@ -60,8 +61,12 @@ const demoReview = {
 
 export function CompletionDemo() {
   usePageTitle("Completion Demo - Quorem");
-  const [review, setReview] = useState(false);
   const [participant, setParticipant] = useState("you");
+  const openReview = (participantId: string) => {
+    setParticipant(participantId);
+    setOriginal(false);
+    setOpen(false);
+  };
   const [drafts, setDrafts] = useState<Record<string, string>>({
     you: source,
     alex: opponentSource,
@@ -80,6 +85,7 @@ export function CompletionDemo() {
   const { theme, setPreference } = useTheme();
   const { editorSchemes, fontSize, tabSize, wrap } = useLocalEditorPreferences();
   const competitive = mode.startsWith("Competition");
+  const review = competitive;
   const lost = mode === "Competition loss";
   const lobbyMembers = [
     ...demoReview.participants.map((person) => ({
@@ -112,7 +118,8 @@ export function CompletionDemo() {
               className="button button-secondary"
               onClick={() => {
                 setMode(value);
-                setReview(false);
+                setParticipant("you");
+                setOriginal(false);
                 setInLobby(true);
                 setReady(false);
                 setReplay((n) => n + 1);
@@ -297,10 +304,8 @@ export function CompletionDemo() {
               <MatchCompletionActions
                 review={{
                   disabled: false,
-                  onClick: () => {
-                    setOpen(false);
-                    setReview(true);
-                  },
+                  hasCode: demoReview.participants.some(hasReviewCode),
+                  onClick: () => setOpen(false),
                 }}
                 lobby={inLobby ? "return" : "create"}
                 readiness={
@@ -329,49 +334,38 @@ export function CompletionDemo() {
           {competitive && (
             <>
               <ol className="match-result-players" aria-label="Match results">
-                <li data-you="true">
-                  <span>
-                    <strong>
-                      <ParticipantName
-                        participant={demoReview.participants[lost ? 1 : 0]!}
-                        self={!lost}
-                        nameSuffix={<MatchWinnerMetadata />}
-                      />
-                    </strong>
-                  </span>
-                  <span className="match-result-score">
-                    {inLobby && (
-                      <PartyReadinessIndicator
-                        member={{ ready: lost ? true : ready, online: true }}
-                      />
-                    )}
-                    <ScoreProgress
-                      score={{ passed: 24, total: 24 }}
-                      color={participantColor(lost ? "alex" : "you", lost ? 5 : 18)}
-                    />
-                  </span>
-                </li>
-                <li>
-                  <span>
-                    <strong>
-                      <ParticipantName
-                        participant={demoReview.participants[lost ? 0 : 1]!}
-                        self={lost}
-                      />
-                    </strong>
-                  </span>
-                  <span className="match-result-score">
-                    {inLobby && (
-                      <PartyReadinessIndicator
-                        member={{ ready: lost ? ready : true, online: true }}
-                      />
-                    )}
-                    <ScoreProgress
-                      score={{ passed: 18, total: 24 }}
-                      color={participantColor(lost ? "you" : "alex", lost ? 18 : 5)}
-                    />
-                  </span>
-                </li>
+                {(lost ? [...demoReview.participants].reverse() : demoReview.participants).map(
+                  (player, index) => (
+                    <li key={player.userId} data-you={player.own}>
+                      <span>
+                        <strong>
+                          <ParticipantName
+                            participant={player}
+                            self={player.own}
+                            nameSuffix={index === 0 && <MatchWinnerMetadata />}
+                          />
+                        </strong>
+                      </span>
+                      <span className="match-result-score">
+                        {inLobby && (
+                          <PartyReadinessIndicator
+                            member={{ ready: player.own ? ready : true, online: true }}
+                          />
+                        )}
+                        <ScoreProgress
+                          score={{ passed: index === 0 ? 24 : 18, total: 24 }}
+                          color={participantColor(player.userId, player.color)}
+                        />
+                        {hasReviewCode(player) && (
+                          <PlayerCodeReviewButton
+                            name={player.displayName}
+                            onClick={() => openReview(player.userId)}
+                          />
+                        )}
+                      </span>
+                    </li>
+                  ),
+                )}
               </ol>
               {inLobby && (
                 <MatchLobbyReadiness
