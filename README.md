@@ -78,7 +78,7 @@ Hosting, guest admission and authoring depend on [account permissions](docs/impl
 
 ## Run locally
 
-Requires **[Vite+](https://viteplus.dev) (`vp`), Node.js 24.22.2, Python 3, and Docker with Compose**. Keep Docker running. Local development uses fixtures and requires no cloud provider credentials.
+Requires **[Vite+](https://viteplus.dev) (`vp`), Node.js 26.13.0, Python 3, and Docker with Compose**. Keep Docker running. Local development uses fixtures and requires no cloud provider credentials.
 
 ```sh
 git clone https://github.com/ethan-ngai/quorem.git
