@@ -18,6 +18,9 @@ const diagnosticColors = {
 /** Builds visual extensions only; a Compartment switch retains document, cursor and undo. */
 export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"): Extension {
   const palette = resolveEditorPalette(scheme, theme);
+  const activeLine = palette.dark
+    ? color("activeLine")
+    : `color-mix(in oklab, ${color("activeLine")} 84%, ${color("foreground")})`;
   return [
     EditorView.theme(
       {
@@ -52,10 +55,9 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           backgroundColor: `${color("selection")} !important`,
         },
         // The active line sits above CodeMirror's selection layer.
-        ".cm-activeLine": {
-          backgroundColor: `color-mix(in oklab, ${color("activeLine")} 45%, transparent)`,
+        "& .cm-activeLine, & .cm-gutterElement.cm-activeLineGutter": {
+          backgroundColor: `color-mix(in oklab, ${activeLine} 45%, transparent)`,
         },
-        ".cm-activeLineGutter": { backgroundColor: color("activeLine") },
         ".cm-gutters": {
           color: color("gutterText"),
           backgroundColor: color("gutter"),
