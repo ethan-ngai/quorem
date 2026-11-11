@@ -37,7 +37,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           users: "id,display_name,role,disabled",
           problems: "id,slug,current_publication_id,owner_id,leetcode_id",
           question_publications:
-            "id,problem_id,version,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
+            "id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
           problem_examples: "publication_id,ordinal,args,expected,explanation,calls,graphs",
           runner_publication_input_cases: "publication_id,channel,stage",
           problem_tags: "publication_id,tag,ordinal",

@@ -332,6 +332,12 @@
       "registration": "apps/api/src/modules/matches/review/routes.ts"
     },
     {
+      "method": "PUT",
+      "path": "/v1/matches/{id}/review/code",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/src/modules/matches/review/routes.ts"
+    },
+    {
       "method": "POST",
       "path": "/v1/matches/{id}/review/workspaces",
       "registration": "apps/api/src/modules/matches/review/routes.ts"
