@@ -104,44 +104,38 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     );
   const collected = await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-      collectInputBlobs(tx, 4096, Math.min(limit, 128)),
+      collectInputBlobs(tx, Math.min(limit, 128)),
     ),
   );
-  return changed + collected.deleted;
+  return changed + collected;
 }
 
-/** Advance one serialized keyset page; locks and cursor commit with the deletions. */
-export async function collectInputBlobs(
-  tx: Transaction,
-  scanLimit = 4096,
-  deleteLimit = 128,
-): Promise<{ examined: number; deleted: number; wrapped: boolean }> {
-  if (
-    !Number.isSafeInteger(scanLimit) ||
-    scanLimit < 1 ||
-    scanLimit > 4096 ||
-    !Number.isSafeInteger(deleteLimit) ||
-    deleteLimit < 1 ||
-    deleteLimit > 128
-  )
+/** Check only changed hashes; locked writers leave their candidates queued. */
+export async function collectInputBlobs(tx: Transaction, limit = 128): Promise<number> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 128)
     throw new RangeError("Invalid collection budget");
-  const row = (
-    await tx.execute<{ examined: number; deleted: number; wrapped: boolean }>(sql`
-    WITH state AS MATERIALIZED (SELECT cursor FROM runner_input_gc_state WHERE id=1 FOR UPDATE SKIP LOCKED),
-    candidates AS MATERIALIZED (SELECT b.hash FROM runner_input_blobs b,state WHERE b.hash>COALESCE(state.cursor,''::bytea) ORDER BY b.hash FOR UPDATE OF b SKIP LOCKED LIMIT ${scanLimit}),
-    -- Anti-joins let PostgreSQL hash small reference tables once per page.
-    eligible AS MATERIALIZED (SELECT c.hash FROM candidates c WHERE
-      NOT EXISTS (SELECT 1 FROM runner_publication_inputs x WHERE x.metadata_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_snapshot_inputs x WHERE x.metadata_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_publication_input_cases x WHERE x.blob_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_snapshot_input_cases x WHERE x.blob_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_job_inputs x WHERE x.metadata_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_job_inputs x WHERE x.source_hash=c.hash) AND
-      NOT EXISTS (SELECT 1 FROM runner_job_input_cases x WHERE x.blob_hash=c.hash) ORDER BY c.hash LIMIT ${deleteLimit}),
-    deleted AS (DELETE FROM runner_input_blobs b USING eligible e WHERE b.hash=e.hash RETURNING b.hash),
-    advanced AS (UPDATE runner_input_gc_state SET cursor=CASE WHEN (SELECT count(*) FROM eligible)=${deleteLimit} THEN (SELECT hash FROM eligible ORDER BY hash DESC LIMIT 1) ELSE (SELECT hash FROM candidates ORDER BY hash DESC LIMIT 1) END WHERE id=1 AND EXISTS(SELECT 1 FROM state) RETURNING cursor)
-    SELECT (SELECT count(*)::int FROM candidates) AS examined,(SELECT count(*)::int FROM deleted) AS deleted,(SELECT cursor IS NULL FROM advanced) AS wrapped
-  `)
-  ).rows[0];
-  return row?.wrapped === null ? { examined: 0, deleted: 0, wrapped: false } : row;
+  const { rows } = await tx.execute<{ hash: Uint8Array }>(sql`
+    WITH queued AS MATERIALIZED (
+      SELECT hash FROM runner_blob_rechecks ORDER BY hash FOR UPDATE SKIP LOCKED LIMIT ${limit}
+    )
+    SELECT q.hash FROM queued q
+    WHERE NOT EXISTS (SELECT FROM runner_input_blobs b WHERE b.hash=q.hash)
+      OR EXISTS (SELECT FROM runner_input_blobs b WHERE b.hash=q.hash FOR UPDATE SKIP LOCKED)`);
+  if (!rows.length) return 0;
+  const hashes = sql`ARRAY[${sql.join(
+    rows.map(({ hash }) => sql`${hash}::bytea`),
+    sql`, `,
+  )}]`;
+  // Take a fresh snapshot after locking blobs; FK key-share locks fence new references.
+  const deleted = await tx.execute(sql`
+    DELETE FROM runner_input_blobs b WHERE b.hash=ANY(${hashes})
+      AND NOT EXISTS (SELECT FROM runner_publication_inputs x WHERE x.metadata_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_snapshot_inputs x WHERE x.metadata_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_job_inputs x WHERE x.metadata_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_job_inputs x WHERE x.source_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_publication_input_cases x WHERE x.blob_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_snapshot_input_cases x WHERE x.blob_hash=b.hash)
+      AND NOT EXISTS (SELECT FROM runner_job_input_cases x WHERE x.blob_hash=b.hash)`);
+  await tx.execute(sql`DELETE FROM runner_blob_rechecks WHERE hash=ANY(${hashes})`);
+  return deleted.rowCount ?? 0;
 }

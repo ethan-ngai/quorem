@@ -128,7 +128,7 @@ void test("production places sequential database work in the production database
   resources.stage_hostname.value = "api-hono.quorem.app";
   const config = workerConfig(publicInput, resources, "/tmp/wrangler.json", "production");
   assert.deepEqual(config.placement, { region: "aws:us-east-1" });
-  assert.deepEqual(config.triggers.crons, ["*/10 * * * *"]);
+  assert.deepEqual(config.triggers.crons, []);
   assert.equal(stageConfig(input(), outputs(), "/tmp/wrangler.json").placement, undefined);
 });
 

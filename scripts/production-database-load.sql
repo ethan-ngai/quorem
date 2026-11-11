@@ -9,7 +9,7 @@ SELECT EXISTS (SELECT FROM pg_extension WHERE extname = 'pg_stat_statements') AS
 SELECT queryid, calls, round(total_exec_time::numeric) AS total_ms,
        round(mean_exec_time::numeric, 2) AS mean_ms, shared_blks_read, shared_blks_hit,
        CASE
-         WHEN query ILIKE '%runner_input_gc_state%' THEN 'input blob GC'
+         WHEN query ILIKE '%runner_blob_rechecks%' OR query ILIKE '%runner_input_gc_state%' THEN 'input blob reclamation'
          WHEN query ILIKE '%execution_dispatch_intents%' THEN 'execution dispatch'
          WHEN query ILIKE '%outbox%' THEN 'outbox'
          WHEN query ILIKE '%deadline_prearms%' THEN 'deadline prearms'

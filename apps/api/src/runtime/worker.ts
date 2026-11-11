@@ -4,6 +4,7 @@ import { judgingCapacity, CASE_LANES, JUDGING_DEFAULTS } from "@quorem/execution
 // @ts-expect-error Workerd supplies this module.
 import { DurableObject } from "cloudflare:workers";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
+import { sql } from "drizzle-orm";
 import { workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
 import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
 import {
@@ -25,7 +26,10 @@ import {
   type AdmissionAlarmStorage,
 } from "../modules/judging/admission/recovery.ts";
 import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts";
-import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadlines.ts";
+import {
+  occupiedDeadlineShards,
+  postgresDeadlines,
+} from "../adapters/postgres/events/scheduling/deadlines.ts";
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
 import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
@@ -52,6 +56,7 @@ import {
 } from "./composition/config.ts";
 import { requestBudget, unavailable } from "./composition/budget.ts";
 import { privateResponse } from "./composition/private-response.ts";
+import { ActivityMaintenance } from "./composition/activity-maintenance.ts";
 import { recoverAll } from "./composition/recovery.ts";
 import { health } from "./composition/health.ts";
 import { consumeWakeBatch, type WakeMessage } from "./composition/wake-consumer.ts";
@@ -77,7 +82,10 @@ interface CoordinatorNamespace {
 export interface Env extends AuthWorkerEnv {
   SOCKETS: SocketNamespace;
   DEADLINES: CoordinatorNamespace;
-  EXECUTION_RECOVERY: CoordinatorNamespace;
+  EXECUTION_RECOVERY: {
+    idFromName(name: string): unknown;
+    get(id: unknown): CoordinatorStub & { scheduleMaintenance(): Promise<void> };
+  };
   EXECUTION_QUEUE: QueueBinding;
   RUNNER_WAKE?: { fetch(request: Request): Promise<Response> };
   CASE_EXECUTION?: { fetch(request: Request): Promise<Response> };
@@ -96,6 +104,21 @@ const runFor =
       { connectionTimeoutMs: 5000, lifetimeMs: 30000, signal },
       fn,
     );
+/** A separate instance reuses the execution binding without sharing admission alarm state. */
+function scheduleMaintenance(env: Env): Promise<void> {
+  const namespace = env.EXECUTION_RECOVERY;
+  return namespace.get(namespace.idFromName("activity-maintenance")).scheduleMaintenance();
+}
+
+function trackActivity(env: Env, run: ReturnType<typeof runFor>): ReturnType<typeof runFor> {
+  if (env.APP_ENV !== "production") return run;
+  let armed: Promise<void> | undefined;
+  return async (fn) => {
+    await (armed ??= scheduleMaintenance(env));
+    return run(fn);
+  };
+}
+
 function socketStub(env: Env, stream: NoticeStream, id: string) {
   return env.SOCKETS.get(env.SOCKETS.idFromName(`socket:${stream}:${id}`));
 }
@@ -256,6 +279,8 @@ function socketAuthority(env: Env) {
     verifier: security.verifier,
     sessions: security.sessions,
     matches: composed.matches,
+    beforeInterviewCommand:
+      env.APP_ENV === "production" ? () => scheduleMaintenance(env) : undefined,
     afterInterviewCommand: async () => {
       await publishBatch(postgresDispatch(run), notices(env), wake(env), "interview");
     },
@@ -329,10 +354,65 @@ export class DeadlineCoordinator extends DurableObject {
     return this.actor.alarm();
   }
 }
+async function repairWorker(
+  env: Env,
+  activity: boolean,
+  retain: boolean,
+  trackPending: boolean,
+): Promise<boolean> {
+  const run = runFor(env);
+  const store = postgresDispatch(run);
+  const publisher = notices(env);
+  const queue = wake(env);
+  const deadlines = cloudflareCoordinator(env.DEADLINES);
+  let pending = false;
+  const streams = [...realtimeStreams, "execution"] as const;
+  await recoverAll([
+    ...streams.map((stream) => async () => {
+      if (stream === "execution") await recoverExecutionIntents(run);
+      if (trackPending) {
+        if ((await dispatchBatch(store, publisher, queue, stream)).pending) pending = true;
+        if (stream === "execution") {
+          const unfinished = await run((scope) =>
+            scope.transaction(
+              { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
+              async (tx) =>
+                (
+                  await tx.execute(
+                    sql`SELECT EXISTS(SELECT FROM execution_jobs WHERE NOT finished) AS pending`,
+                  )
+                ).rows[0]?.pending === true,
+            ),
+          );
+          if (unfinished) pending = true;
+        }
+      } else {
+        await publishBatch(store, publisher, queue, stream);
+      }
+    }),
+    ...(activity
+      ? [
+          async () => {
+            const count = boundedInt(env.DEADLINE_SHARDS, 1, 256);
+            const shards = await occupiedDeadlineShards(run, count);
+            await recoverAll(shards.map((shard) => () => deadlines.wake(shard)));
+          },
+          () => cloudflareCoordinator(env.EXECUTION_RECOVERY).wake(0),
+        ]
+      : []),
+    ...(retain ? [() => retainBatch(run)] : []),
+  ]);
+  return pending;
+}
+
 export class ExecutionRecovery extends DurableObject {
   private actor: AdmissionRecovery;
+  private maintenance: ActivityMaintenance;
   constructor(state: { storage: AdmissionAlarmStorage }, env: Env) {
     super(state, env);
+    this.maintenance = new ActivityMaintenance(state.storage, (activity, retain) =>
+      repairWorker(env, activity, retain, true),
+    );
     const run = runFor(env);
     this.actor = new AdmissionRecovery(state.storage, prearmReceipts(run, "execution"), () =>
       dispatchBatch(postgresDispatch(run), notices(env), wake(env), "execution"),
@@ -341,7 +421,11 @@ export class ExecutionRecovery extends DurableObject {
   wake(shard: number) {
     return this.actor.wake(shard);
   }
-  alarm() {
+  async scheduleMaintenance() {
+    await this.maintenance.request();
+  }
+  async alarm() {
+    if (await this.maintenance.initialized()) return this.maintenance.alarm();
     return this.actor.alarm();
   }
 }
@@ -397,11 +481,16 @@ export default {
         : budget;
       return await guard(request, async () => {
         const run = runFor(env, request.signal);
+        const mutation = !["GET", "HEAD", "OPTIONS"].includes(request.method);
         if (privatePath) {
           const profile = judgingProfile();
           const execute = async (privateRun: ReturnType<typeof runFor>) => {
             const handlers = await composePrivate(
-              profile.connection(privateRun),
+              profile.connection(
+                /^\/internal\/runner\/(drain|promote|claim|yield)$/.test(path)
+                  ? trackActivity(env, privateRun)
+                  : privateRun,
+              ),
               {
                 ...privateConfig(env),
                 wakeMatchDeadline: (id) =>
@@ -442,13 +531,20 @@ export default {
           return execute(run);
         }
         const handle = async (publicRun?: ReturnType<typeof runFor>) => {
-          const composed = makeHttp(env, request, undefined, defer, publicRun);
+          const shouldTrack =
+            path.startsWith("/v1/") && (mutation || path.startsWith("/v1/parties"));
+          const composed = makeHttp(
+            env,
+            request,
+            undefined,
+            defer,
+            shouldTrack ? trackActivity(env, publicRun ?? run) : publicRun,
+          );
           const incoming = path.startsWith("/api/auth/")
             ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
             : request;
           const response = await composed.app.fetch(incoming);
-          if (response.status < 400 && !["GET", "HEAD", "OPTIONS"].includes(request.method))
-            await publish(realtimeStreams);
+          if (response.status < 400 && mutation) await publish(realtimeStreams);
           return response;
         };
         if (
@@ -493,23 +589,7 @@ export default {
     await consumeWakeBatch(batch.messages, { publisher: wake(env), ...drainConfig(env) });
   },
   async scheduled(_event: unknown, env: Env): Promise<void> {
-    const run = runFor(env),
-      store = postgresDispatch(run),
-      publisher = notices(env);
-    const deadlines = cloudflareCoordinator(env.DEADLINES),
-      recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
-    await recoverAll([
-      ...realtimeStreams.map((stream) => () => publishBatch(store, publisher, wake(env), stream)),
-      async () => {
-        await recoverExecutionIntents(run);
-        await publishBatch(store, publisher, wake(env), "execution");
-      },
-      ...Array.from(
-        { length: boundedInt(env.DEADLINE_SHARDS, 1, 256) },
-        (_, shard) => () => deadlines.wake(shard),
-      ),
-      () => recovery.wake(0),
-      () => retainBatch(run),
-    ]);
+    if (env.APP_ENV === "production") return;
+    await repairWorker(env, true, true, false);
   },
 };
