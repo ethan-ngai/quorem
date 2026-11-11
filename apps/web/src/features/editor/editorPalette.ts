@@ -9,15 +9,18 @@ import { resolveEditorPalette } from "./editorPalettes";
 import type { EditorScheme } from "./editorSchemes";
 
 const diagnosticColors = {
-  error: "var(--color-error)",
-  warning: `color-mix(in oklch, var(--color-warning) 70%, ${color("foreground")})`,
-  info: "var(--color-info)",
+  error: color("diagnosticError"),
+  warning: color("diagnosticWarning"),
+  info: color("diagnosticInfo"),
   hint: color("comment"),
 };
 
 /** Builds visual extensions only; a Compartment switch retains document, cursor and undo. */
 export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"): Extension {
   const palette = resolveEditorPalette(scheme, theme);
+  const activeLine = palette.dark
+    ? color("activeLine")
+    : `color-mix(in oklab, ${color("activeLine")} 84%, ${color("foreground")})`;
   return [
     EditorView.theme(
       {
@@ -51,7 +54,10 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection": {
           backgroundColor: `${color("selection")} !important`,
         },
-        ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: color("activeLine") },
+        // The active line sits above CodeMirror's selection layer.
+        "& .cm-activeLine, & .cm-gutterElement.cm-activeLineGutter": {
+          backgroundColor: `color-mix(in oklab, ${activeLine} 45%, transparent)`,
+        },
         ".cm-gutters": {
           color: color("gutterText"),
           backgroundColor: color("gutter"),
@@ -90,8 +96,12 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
           transform: "translateX(-1px) rotate(-45deg)",
         },
         ".cm-foldGutter span:hover": { opacity: "1" },
-        ".cm-matchingBracket, .cm-selectionMatch": { backgroundColor: color("selection") },
-        ".cm-nonmatchingBracket": { textDecoration: "underline wavy var(--color-error)" },
+        ".cm-matchingBracket": { backgroundColor: color("selection") },
+        ".cm-selectionMatch": {
+          backgroundColor: `color-mix(in oklab, ${color("selection")} 45%, transparent)`,
+        },
+        ".cm-searchMatch .cm-selectionMatch": { backgroundColor: "transparent" },
+        ".cm-nonmatchingBracket": { textDecoration: `underline wavy ${diagnosticColors.error}` },
         ".cm-searchMatch": {
           backgroundColor: color("selection"),
           outline: `1px solid ${color("border")}`,

@@ -7,14 +7,21 @@ import {
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { bracketMatching, foldGutter, foldKeymap, indentUnit } from "@codemirror/language";
+import {
+  bracketMatching,
+  foldGutter,
+  foldKeymap,
+  indentOnInput,
+  indentUnit,
+} from "@codemirror/language";
 import { lintKeymap } from "@codemirror/lint";
-import { searchKeymap } from "@codemirror/search";
+import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { unifiedMergeView } from "@codemirror/merge";
 import { Compartment, EditorState, Facet, Prec, type Extension } from "@codemirror/state";
 import {
   EditorView,
   drawSelection,
+  dropCursor,
   keymap,
   lineNumbers,
   rectangularSelection,
@@ -86,6 +93,8 @@ const baseExtensions: Extension[] = [
   lineNumbers(),
   // Keep cursor placement under editor control instead of Safari's native caret.
   drawSelection(),
+  dropCursor(),
+  highlightSelectionMatches({ wholeWords: true, minSelectionLength: 2 }),
   indentationGuides,
   commentAnnotations,
   documentationComments,
@@ -93,6 +102,7 @@ const baseExtensions: Extension[] = [
   highlightActiveLine(),
   highlightActiveLineGutter(),
   foldGutter(),
+  indentOnInput(),
   bracketMatching(),
   rectangularSelection(),
   closeBrackets(),

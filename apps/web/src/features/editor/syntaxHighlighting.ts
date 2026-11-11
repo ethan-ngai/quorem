@@ -41,5 +41,5 @@ export const editorSyntaxStyle = HighlightStyle.define([
   { tag: tags.inserted, color: "var(--color-success)" },
   { tag: tags.deleted, color: "var(--color-error)" },
   { tag: tags.changed, color: "var(--color-warning)" },
-  { tag: tags.invalid, textDecoration: "underline wavy var(--color-error)" },
+  { tag: tags.invalid, textDecoration: `underline wavy ${syntaxColor("diagnosticError")}` },
 ]);

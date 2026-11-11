@@ -181,6 +181,16 @@ export function pythonTypeIdentifier(
   return false;
 }
 
+/** Resolve contextual and lexical accents for an identifier in any Python syntax tree. */
+export function pythonIdentifierClass(
+  node: SyntaxNode,
+  source: (from: number, to: number) => string,
+): string | undefined {
+  if (pythonTypeIdentifier(node, source)) return "cm-python-type";
+  if (node.name === "VariableName")
+    return identifierAccent(source(node.from, node.to), node.parent?.name ?? "");
+}
+
 /** Limits contextual and lexical accents to visible identifiers; strings and comments retain grammar colors. */
 function visibleIdentifiers(view: EditorView): DecorationSet {
   const ranges: Array<ReturnType<Decoration["range"]>> = [];
@@ -196,14 +206,9 @@ function visibleIdentifiers(view: EditorView): DecorationSet {
           node.to > visible.to
         )
           return;
-        const name = view.state.doc.sliceString(node.from, node.to);
-        const className = pythonTypeIdentifier(node.node, (from, to) =>
+        const className = pythonIdentifierClass(node.node, (from, to) =>
           view.state.sliceDoc(from, to),
-        )
-          ? "cm-python-type"
-          : node.name === "VariableName"
-            ? identifierAccent(name, node.node.parent?.name ?? "")
-            : undefined;
+        );
         if (className) ranges.push(Decoration.mark({ class: className }).range(node.from, node.to));
       },
     });
