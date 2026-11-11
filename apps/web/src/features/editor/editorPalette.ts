@@ -51,7 +51,11 @@ export function editorColorTheme(scheme: EditorScheme, theme: "light" | "dark"):
         ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection": {
           backgroundColor: `${color("selection")} !important`,
         },
-        ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: color("activeLine") },
+        // The active line sits above CodeMirror's selection layer.
+        ".cm-activeLine": {
+          backgroundColor: `color-mix(in oklab, ${color("activeLine")} 45%, transparent)`,
+        },
+        ".cm-activeLineGutter": { backgroundColor: color("activeLine") },
         ".cm-gutters": {
           color: color("gutterText"),
           backgroundColor: color("gutter"),
