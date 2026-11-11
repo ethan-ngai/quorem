@@ -4,7 +4,22 @@ Ledger: [#139](https://github.com/ethan-ngai/quorem/issues/139).
 
 Question editor → Bulk import checks each file and creates a draft for new content. An unchanged publication is skipped. Changed content with a matching LeetCode ID creates an update draft for review. Ambiguous matches require review. Applying an update checks that the target publication is still current and has not changed since import.
 
-Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.schema.json) and [complete example](../../packages/contracts/questions/example-v1.json). The schema is JSON Schema 2020-12, generated from the reachable OpenAPI `QuestionContent` definitions. `vp -C packages/contracts run generate` refreshes it; contract checks detect drift.
+Use [question v1 JSON Schema](../../packages/contracts/questions/question-v1.schema.json) and [complete example](../../packages/contracts/questions/example-v1.json). The schema is JSON Schema 2020-12, generated from the OpenAPI import contract and shared question definitions. `vp -C packages/contracts run generate` refreshes it; contract checks detect drift.
+
+## Identity and catalog tags
+
+Use a descriptive title, a stable lowercase kebab-case `problem.slug` starting with a letter (up to 80 characters), and `easy`, `medium`, or `hard` for difficulty. Set `problem.leetcodeId` to the public numeric problem number for a verified LeetCode import. Omit it for original questions. Record the source and applicable attribution in the top-level `attribution` field.
+
+| Field               | Authoring standard                                                                                                                                                                                                                                                      | Validation                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `problem.tags`      | Choose the concepts the question teaches or materially uses. Prefer existing catalog labels such as `Arrays`, `Hash Tables`, and `Binary Search`. Use one label per concept and an empty array when no topic applies.                                                   | Up to 32 nonblank tags, 64 UTF-8 bytes each. Publication rejects exact duplicates. Avoid aliases or case variants of tags already listed. |
+| `problem.companies` | Include companies only when the source supports the association. Preserve source spelling and match imported associations by verified problem identity. Omit the field or use an empty array when there is no source. Treat historical tags as historical associations. | Up to 64 nonempty, trimmed names, 80 UTF-8 bytes each. Commas and case-insensitive duplicates are rejected.                               |
+
+Use topic labels in fixtures. Values such as `foundational:arrays` are catalog filter identifiers. See the [catalog filters](practice-gallery.md) and [LeetCode staging rules](leetcode-staging.md) for alias and source matching details.
+
+## Statement and examples
+
+Define every input, the return value, indexing conventions, tie-breaking, and permitted output order. Check these against the source for adaptations. Explain why each public example produces its expected result. Put example-specific figures in the example explanation and use the shared [grid and SVG formats](problem-metadata.md#problem-and-example-figures).
 
 Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, strings, and serialized arrays in backticks, including literals repeated in example explanations. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
 
@@ -17,6 +32,8 @@ Write the statement and example explanations as Markdown. Use LaTeX between `$` 
 | Complexity in a sentence     | `$O(n \log n)$`                   |
 
 Before importing, preview the statement and each example. Check that code blocks have a distinct surface, serialized values render as code, and equations render as math.
+
+## Constraints
 
 Use structured constraints for input facts. The statement renders them automatically. Reserve `prose` for guarantees outside the supported rules, such as promises about the answer or a problem-specific grammar. The editor offers conversions for recognizable notes. The fixture validator reports the same suggestions as warnings so older drafts can still be reviewed.
 
@@ -42,21 +59,38 @@ Use `["each"]` with `length` for row lengths, `["each", 0]` with `value` for a t
 
 Graph properties use `projection: "graph"` on a graph preset. The preset supplies direction and node count where configured. For a parent array, the binary-tree rule checks that each node has at most two children.
 
-For remaining prose constraints, use the same Markdown conventions as the statement. Escape LaTeX backslashes inside JSON strings.
+Preserve the full meaning when structuring a rule. Use strict endpoints for strict bounds and matching-position comparisons for fields on the same row. Keep conditional details in prose if only part of a rule can be expressed. For example, a rule against leading zeros in multi-digit strings still permits the string `"0"`. Escape LaTeX backslashes inside JSON strings.
 
-One UTF-8 JSON document per file, maximum 2 MiB. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
+## File, signature, and cases
 
-Classic coding owns `problem.signature`. Staged coding owns methods in each `problem.odyssey.levels` entry and derives its primary interface from the first method. SQL omits `signature`. Each authored stage owns `examples` and private `hiddenCases`; staged questions leave top-level examples/hidden cases empty. Reordering a stage moves its tests with it. Public projections remove all private stage cases.
+One UTF-8 JSON document per file, maximum 2 MiB. Use each object key once. Publication assigns the question ID. Import files exclude `problem.id` and `problem.version`. Omit `problem.limits` to use the standard execution limits, or supply the complete limits object. Top-level fields: `problem`, `hiddenCases`, `attribution`, `canonicalApproachId`, `approaches`. Coding questions automatically support Python, Java, TypeScript and OCaml; SQL supports PostgreSQL. Imports cannot configure submission languages, starters or runtime pins.
 
-`approaches` owns explanation, complexity and notes per algorithm; its implementations contain language and code only. `canonicalApproachId` chooses the Python judging reference (PostgreSQL for SQL), with an optional name and no configurable default language. Alternatives require names and an explicit `defaultLanguage`. Unknown properties fail validation. Repository question fixtures use the same schema. Structured constraints apply to every call of the primary coding method; other methods require their own documented rules.
+| Question kind  | Signature and case placement                                                                                                                                                                                                                                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Classic coding | Set `problem.signature` with `className: "Solution"`, the method name, ordered parameters, and return type. Put public cases in `problem.examples` and private cases in root `hiddenCases`.                                                                                                                                         |
+| Odyssey        | Declare methods, examples, and hidden cases on each `problem.odyssey.levels` entry. Leave `problem.examples` and root `hiddenCases` empty. Coding cases use `args: []` and ordered `calls` to methods available through that level. Put expected returns on their calls. SQL levels use an empty methods array and SQL case format. |
+| SQL            | Set `problem.sql` with PostgreSQL table and output schemas and an explicit row order policy. Omit `problem.signature`. Each case has one `args` entry containing `{ "tables": [...] }`, with rows in declared column order. Put result rows in `expected.rows`. SQL constraints are informational prose.                            |
 
-Store each solution source once, under its approach. Do not include `solutions` or implementation-level `referenceSource`. Languages sharing an explanation and complexity share an approach; differing algorithms or complexity need separate approaches. The canonical approach owns the judging reference. Compact JSON reduces upload size without changing case numbers. The browser importer reuses the generated standalone validator from `@quorem/questions`, avoiding runtime schema compilation.
+Coding `args` follow signature order. A single list input is `"args": [[1, 2]]`. Match `expected` to the declared return type. Use JSON numbers for `int` and `float`, decimal strings for `long`, and `null` for absent optional values. A void Odyssey call may omit its expected return. Use `outputOrder: "unordered"` only when the statement permits any outer list order. Duplicates and order within nested lists remain significant.
 
-Treat import files as private: they contain hidden cases and reference solutions. Public preview includes authored approaches but excludes hidden inputs and expectations. Imported IDs/version metadata are replaced by server publication metadata. Provisioning compares authored content without assigned IDs and versions; unchanged current seeds reuse their published version.
+Include at least one public example and hidden case per question or Odyssey level. Choose distinct hidden inputs that cover legal boundaries, ties and duplicates where permitted, and cases that expose common wrong solutions. Check every case against every stated rule, including prose guarantees. Recompute expected outputs whenever inputs change.
 
-[JSON Schema](https://json-schema.org/overview/what-is-jsonschema) standardizes describing and validating JSON structures. It does not define coding-question semantics. [QTI](https://www.1edtech.org/standards/qti) standardizes assessment interchange using XML packages. This importer supports Quorem's JSON format; QTI conversion is not included.
+## Solutions
 
-Classic coding questions can add `signature.graphEncodings` for graph authoring. Keys are argument names, `$return`, or slots such as `$return[0]` in an ordered collection return. Cases supply a matching `graphs` map. Each graph has `directed`, explicit `nodes`, and ordered `edges` with `from`, `to`, and optional `value`. Keep distinct entries for parallel edges. Custom graphs can use integer or string node labels.
+`approaches` owns the explanation, complexity, and notes per algorithm. Explain why the algorithm works and define the variables in its LaTeX time and auxiliary space bounds. Each implementation contains `language` and `source`. `canonicalApproachId` chooses the approach with the Python judging reference, or PostgreSQL for SQL. Its title is optional and its default language is inferred. Alternatives require a title and a `defaultLanguage` present in their implementations.
+
+Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`.
+
+## Preflight and import
+
+1. Compare the signature, statement, constraints, and metadata with the source for adaptations. Resolve disagreements before changing a source guarantee to fit a case.
+2. Run `node apps/api/src/cli/validate.ts /path/to/question-files` and review each fixture’s diagnostics and warnings. Publication checks validate the schema, case types, and structured input rules. Review prose guarantees manually, including rules for Odyssey methods other than the primary method.
+3. Verify new or changed expected outputs with a hand calculation or independent implementation. Run the reference and affected alternatives against the cases. Use the [sandboxed staging workflow](leetcode-staging.md) for imported LeetCode solutions.
+4. Preview the rendered statement and examples, then create drafts with **Question editor → Bulk import** and review any publication blockers. Keep fixture files private because they include hidden tests and reference code.
+
+## Graphs
+
+Classic coding questions can add `signature.graphEncodings`. Use argument names for inputs, `$return` for a single return graph, or `$return[*]` for an ordered list whose graphs share one representation. Cases supply a matching `graphs` map. For a graph list, use case keys such as `$return[0]`. Each graph has `directed`, explicit `nodes`, and ordered `edges` with `from`, `to`, and optional `value`. Keep distinct entries for parallel edges. Custom graphs can use integer or string node labels.
 
 For example, set `graphEncodings.times` to `{"kind":"edgeList","directed":true,"countParameter":"n","firstNode":1,"edgeValue":"Weight"}`. A graph with nodes `[1,2,3]` and edge `{"from":2,"to":1,"value":7}` generates `times = [[2,1,7]]` and `n = 3`. Supply unrelated arguments normally. Use `args: []` when all arguments are generated, or `null` placeholders for generated arguments before other arguments. A preset return graph supplies `expected`; partial return graphs fill their indexed slots. Explicit values in generated slots must match the projection.
 

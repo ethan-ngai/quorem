@@ -1,10 +1,11 @@
 /** @file draft-normalize.ts @description Normalize incomplete authoring drafts without losing case values. @module questions */
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
 import { blankApproach } from "./editorial.ts";
-import { validateQuestionDraft } from "./draft.ts";
+import { questionContentLimit, validateQuestionDraft } from "./draft.ts";
 import type { QuestionContent } from "./model.ts";
 import { compileGraphCase } from "./graph.ts";
 import validateDraft from "./draft-validator.mjs";
+import { validateField } from "./validation-error.ts";
 
 type Obj = { [key: string]: JsonValue };
 function object(value: JsonValue | undefined): Obj {
@@ -63,20 +64,23 @@ function cases(value: JsonValue | undefined): JsonValue[] {
 }
 /** Match the Go draft defaults while retaining numeric JSON lexemes. */
 export function normalizeQuestionDraft(rawJson: string): string {
-  if (new TextEncoder().encode(rawJson).length > 2 * 1024 * 1024)
+  if (new TextEncoder().encode(rawJson).length > questionContentLimit)
     throw new Error("question content exceeds 2 MiB");
-  const content = object(parseLosslessJson(rawJson)),
+  return normalizeQuestionDraftValue(parseLosslessJson(rawJson));
+}
+
+/** Normalize the parsed draft in place and return its lossless JSON. */
+export function normalizeQuestionDraftValue(value: JsonValue): string {
+  const content = object(value),
     p = object(content.problem);
   content.problem = p;
   fields(p, ["id", "slug", "title", "difficulty", "statementMarkdown"]);
   if (p.id === "") p.id = "00000000-0000-4000-8000-000000000000";
-  delete p.version;
   if (p.difficulty === "") p.difficulty = "easy";
   p.tags = array(p.tags).map((v) => (v === null ? "" : v));
   p.companies = array(p.companies).map((v) => (v === null ? "" : v));
   p.examples = cases(p.examples);
   p.constraints = array(p.constraints).map((c) => {
-    if (typeof c === "string") return { kind: "prose", text: c };
     const rule = object(c);
     fields(rule, ["kind"]);
     for (const key of ["target", "left", "right"])
@@ -159,7 +163,6 @@ export function normalizeQuestionDraft(rawJson: string): string {
       id: "",
     }))
       if (key !== "implementations") field(item, key, value);
-    if (item.id === content.canonicalApproachId) delete item.defaultLanguage;
     item.implementations = array(item.implementations).map((value) => {
       const implementation = object(value);
       fields(implementation, ["language", "source"]);
@@ -178,12 +181,15 @@ export function normalizeQuestionDraft(rawJson: string): string {
     >;
     const limit = Number(stringifyLosslessJson(object(p.limits).maxCollectionElements));
     let graphCaseBytes = 0;
-    for (const group of [p.examples, content.hiddenCases])
-      for (const test of array(group)) {
+    for (const [path, group] of [
+      ["/problem/examples", p.examples],
+      ["/hiddenCases", content.hiddenCases],
+    ] as const)
+      for (const [index, test] of array(group).entries()) {
         if (object(test).graphs === undefined) continue;
-        compileGraphCase(sig, object(test), limit);
+        validateField(`${path}/${index}/graphs`, () => compileGraphCase(sig, object(test), limit));
         graphCaseBytes += new TextEncoder().encode(stringifyLosslessJson(test)).length;
-        if (graphCaseBytes > 2 * 1024 * 1024)
+        if (graphCaseBytes > questionContentLimit)
           throw new Error("Generated graph cases exceed the question size limit");
       }
   }

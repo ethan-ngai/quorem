@@ -113,7 +113,6 @@ describe("operator CLI contracts", () => {
     p.approaches = [
       {
         ...p.approaches[0],
-        defaultLanguage: "postgresql",
         implementations: [{ language: "postgresql", source: "select 1" }],
       },
     ];
@@ -129,12 +128,13 @@ describe("operator CLI contracts", () => {
         join(dir, "valid.json"),
         await readFile(resolve("../../fixtures/odyssey/balance-ledger.json")),
       );
-      await writeFile(join(dir, "bad.json"), '{"problem":{}}');
+      await writeFile(join(dir, "bad.json"), '{"problem":{},"problem":{}}');
       const output: string[] = [];
       await validateDirectory(dir, (line) => output.push(line));
       const rows = output.map((line) => JSON.parse(line));
       expect(rows.map((row) => row.id)).toEqual(["bad", "valid"]);
       expect(rows[0].error).toBeTruthy();
+      expect(rows[0].diagnostics).toMatchObject([{ path: "/problem" }]);
       expect(rows[1].error).toBe("");
       expect(rows[1].sha256).toMatch(/^[a-f0-9]{64}$/);
     } finally {
@@ -394,8 +394,10 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
           "utf8",
         ),
       );
+      delete fixture.problem.id;
       fixture.problem.slug = `interop-${crypto.randomUUID().slice(0, 8)}`;
       if (mode.startsWith("sql")) {
+        delete fixture.problem.signature;
         fixture.problem.sql = {
           dialect: "postgresql",
           outputOrder: "ordered",
@@ -413,7 +415,6 @@ it.skipIf(!url).each(["escaped", "sql", "sql-overflow"])(
         fixture.approaches = [
           {
             ...fixture.approaches[0],
-            defaultLanguage: "postgresql",
             implementations: [{ language: "postgresql", source: "select 1" }],
           },
         ];
@@ -532,6 +533,7 @@ it.skipIf(!url)(
       const draft = JSON.parse(
         await readFile(resolve("../../fixtures/problems/mirror-letters.json"), "utf8"),
       );
+      delete draft.problem.id;
       draft.problem.slug = `import-fixture-${crypto.randomUUID().slice(0, 8)}`;
       const raw = JSON.stringify(draft);
       const preview = JSON.parse(await repo.importDraft(actor, raw, true));

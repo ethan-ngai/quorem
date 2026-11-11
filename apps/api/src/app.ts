@@ -49,6 +49,7 @@ export function createApp(dependencies: Dependencies): Hono<{ Variables: Variabl
           code: expected ? error.code : "temporarily_unavailable",
           message: expected ? error.message : "Service unavailable",
           requestId: c.get("requestId"),
+          details: expected ? error.details : undefined,
         },
       },
       { status },

@@ -17,10 +17,17 @@ export type ApplicationStatus =
 export class ApplicationError extends Error {
   readonly code: string;
   readonly status: ApplicationStatus;
-  constructor(code: string, message: string, status: ApplicationStatus) {
+  readonly details?: Readonly<Record<string, unknown>>;
+  constructor(
+    code: string,
+    message: string,
+    status: ApplicationStatus,
+    details?: Readonly<Record<string, unknown>>,
+  ) {
     super(message);
     this.code = code;
     this.status = status;
+    this.details = details;
   }
 }
 

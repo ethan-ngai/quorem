@@ -3,12 +3,40 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import openapiTS, { astToString, COMMENT_HEADER } from "openapi-typescript";
 import ts from "typescript";
-import { questionSchema, questionValidator } from "./question-schema.mjs";
+import {
+  questionImportProblem,
+  questionImportSchema,
+  questionImportValidator,
+  questionValidator,
+} from "./question-schema.mjs";
 import { eventSchema } from "./event-schema.mjs";
+
+/**
+ * Keep unchanged file fields on the existing API model types.
+ * @param {object} schema Parsed OpenAPI document.
+ */
+function materializeQuestionImportTypes(schema) {
+  const media =
+    schema.paths["/v1/admin/question-drafts/import"].post.requestBody.content["application/json"];
+  if (media.schema.$ref !== "../questions/question-v1.schema.json")
+    throw new Error("Question import must reference the generated file schema");
+
+  const models = schema.components.schemas;
+  models.QuestionImportProblem = questionImportProblem(models.AuthoredQuestionProblem);
+  models.QuestionImportContent = {
+    ...models.QuestionContent,
+    properties: {
+      ...models.QuestionContent.properties,
+      problem: { $ref: "#/components/schemas/QuestionImportProblem" },
+    },
+  };
+  media.schema = { $ref: "#/components/schemas/QuestionImportContent" };
+}
 
 /** @returns Generated declarations derived entirely from the OpenAPI schema. */
 export async function generateContracts() {
   const schema = JSON.parse(readFileSync(new URL("../openapi/api.json", import.meta.url), "utf8"));
+  materializeQuestionImportTypes(schema);
   let wireAlias;
   const ast = await openapiTS(schema, {
     postTransform(type, { path }) {
@@ -45,6 +73,14 @@ export async function generateContracts() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  writeFileSync(
+    new URL("../questions/question-v1.schema.json", import.meta.url),
+    JSON.stringify(questionImportSchema(), null, 2) + "\n",
+  );
+  writeFileSync(
+    new URL("../../questions/src/question-import-validator.mjs", import.meta.url),
+    questionImportValidator(),
+  );
   writeFileSync(new URL("../src/generated.ts", import.meta.url), await generateContracts());
   writeFileSync(
     new URL("../events/envelope.schema.json", import.meta.url),
@@ -57,9 +93,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   writeFileSync(
     new URL("../../questions/src/draft-validator.mjs", import.meta.url),
     questionValidator(true),
-  );
-  writeFileSync(
-    new URL("../questions/question-v1.schema.json", import.meta.url),
-    JSON.stringify(questionSchema(), null, 2) + "\n",
   );
 }

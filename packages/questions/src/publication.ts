@@ -10,6 +10,7 @@ import { validateConstraints } from "./constraints.ts";
 import { validateCodingCase, validateCodingSequence } from "./coding-case.ts";
 import { validateSqlCase, validateSqlSchema } from "./sql-case.ts";
 import { JsonNumber, parseLosslessJson, stringifyLosslessJson, type JsonValue } from "./json.ts";
+import { QuestionFieldError, validateField } from "./validation-error.ts";
 
 export type SchemaValidator = (rawJson: string) => void;
 export type RuntimeResolver = (
@@ -64,11 +65,16 @@ function core(
     validateSqlSchema(p.sql);
   } else {
     if (!levels) {
-      validateSignature(primarySignature(p), false);
-      for (const [target, encoding] of Object.entries(primarySignature(p).graphEncodings ?? {}))
-        graphParameters(primarySignature(p), target, encoding);
+      validateField("/problem/signature", () => {
+        const signature = primarySignature(p);
+        validateSignature(signature, false);
+        for (const [target, encoding] of Object.entries(signature.graphEncodings ?? {}))
+          graphParameters(signature, target, encoding);
+      });
     }
-    validateConstraints(primarySignature(p), p.constraints);
+    validateField("/problem/constraints", () =>
+      validateConstraints(primarySignature(p), p.constraints),
+    );
   }
   const limits = p.limits;
   if (p.sql && (limits.memoryBytes < 268435456 || limits.maxProcesses < 16))
@@ -105,6 +111,11 @@ function core(
       validateCodingSequence(primarySignature(p), p.constraints, methods, json, true, limit);
     else validateCodingCase(primarySignature(p), p.constraints, json, true, limit);
   };
+  const validateCases = (path: string, values: JsonValue[], methods?: Signature[]) => {
+    values.forEach((value, index) =>
+      validateField(`${path}/${index}`, () => validateCase(value, methods)),
+    );
+  };
   if (levels) {
     const rawOdyssey = object(rawProblem.odyssey),
       rawLevels = array(rawOdyssey.levels),
@@ -129,20 +140,22 @@ function core(
         (p.sql ? level.methods.length !== 0 : level.methods.length < 1 || level.methods.length > 16)
       )
         throw new Error(`invalid Odyssey level ${i + 1}`);
-      for (const method of level.methods) {
-        validateSignature(method, true);
+      for (const [methodIndex, method] of level.methods.entries()) {
+        validateField(`/problem/odyssey/levels/${i}/methods/${methodIndex}`, () =>
+          validateSignature(method, true),
+        );
         if (method.graphEncodings)
           throw new Error("Graph authoring requires a classic coding question");
         if (names.has(method.methodName)) throw new Error("duplicate Odyssey method");
         names.add(method.methodName);
         methods = [...methods, method];
       }
-      for (const ex of array(rawLevel.examples)) validateCase(ex, methods);
-      for (const test of array(rawSuites[i])) validateCase(test, methods);
+      validateCases(`/problem/odyssey/levels/${i}/examples`, array(rawLevel.examples), methods);
+      validateCases(`/problem/odyssey/levels/${i}/hiddenCases`, array(rawSuites[i]), methods);
     }
   } else {
-    for (const ex of array(rawProblem.examples)) validateCase(ex);
-    for (const test of array(raw.hiddenCases)) validateCase(test);
+    validateCases("/problem/examples", array(rawProblem.examples));
+    validateCases("/hiddenCases", array(raw.hiddenCases));
   }
   return content;
 }
@@ -169,28 +182,36 @@ export function validateQuestionPublication(
   const languages = new Set<string>(generated.map((item) => item.language));
   const canonicalLanguage = c.problem.sql ? "postgresql" : "python";
   if (options.requireCanonicalSource !== false && !canonicalCode(c)?.source.trim())
-    throw new Error(`${canonicalLanguage} canonical solution required`);
+    throw new QuestionFieldError(
+      "/canonicalApproachId",
+      `${canonicalLanguage} canonical solution required`,
+    );
   if (c.approaches.length && !c.approaches.some((item) => item.id === c.canonicalApproachId))
-    throw new Error("canonical approach required");
-  if (!c.approaches.length && c.canonicalApproachId) throw new Error("invalid canonical approach");
+    throw new QuestionFieldError("/canonicalApproachId", "canonical approach required");
+  if (!c.approaches.length && c.canonicalApproachId)
+    throw new QuestionFieldError("/canonicalApproachId", "invalid canonical approach");
   const ids = new Set<string>();
-  for (const approach of c.approaches) {
+  for (const [index, approach] of c.approaches.entries()) {
+    const path = `/approaches/${index}`;
     const canonical = approach.id === c.canonicalApproachId;
     if (
       !/^[a-z][a-z0-9-]*$/.test(approach.id) ||
       ids.has(approach.id) ||
       (!canonical && !approach.title?.trim())
     )
-      throw new Error("unique approach ID and name required");
+      throw new QuestionFieldError(path, "unique approach ID and name required");
     ids.add(approach.id);
     const variants = new Set<string>();
-    for (const implementation of approach.implementations) {
+    for (const [implementationIndex, implementation] of approach.implementations.entries()) {
       if (
         !languages.has(implementation.language) ||
         variants.has(implementation.language) ||
         !implementation.source.trim()
       )
-        throw new Error("unique supported approach language and code required");
+        throw new QuestionFieldError(
+          `${path}/implementations/${implementationIndex}`,
+          "unique supported approach language and code required",
+        );
       variants.add(implementation.language);
     }
     if (
@@ -198,6 +219,9 @@ export function validateQuestionPublication(
         ? approach.defaultLanguage !== undefined
         : !approach.defaultLanguage || !variants.has(approach.defaultLanguage)
     )
-      throw new Error("valid approach default language required");
+      throw new QuestionFieldError(
+        `${path}/defaultLanguage`,
+        "valid approach default language required",
+      );
   }
 }

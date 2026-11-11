@@ -8,7 +8,7 @@ import {
   rangeMatches,
   validateCodingCase,
   validateConstraints,
-  validateQuestionSchema,
+  decodeQuestionImport,
 } from "../src/index.ts";
 import type { Constraint, Signature } from "../src/index.ts";
 
@@ -104,9 +104,9 @@ it("retains quantifiers and direction in canonical import validation", () => {
     { ...comparison, quantifier: "any" },
     { kind: "property", target: comparison.left, property: "sorted", direction: "desc" },
   ];
-  expect(() => validateQuestionSchema(JSON.stringify(content))).not.toThrow();
+  expect(() => decodeQuestionImport(JSON.stringify(content))).not.toThrow();
   content.problem.constraints[0].quantifier = "unknown";
-  expect(() => validateQuestionSchema(JSON.stringify(content))).toThrow(/schema/);
+  expect(() => decodeQuestionImport(JSON.stringify(content))).toThrow();
 });
 
 it("compares every or some node value against its tree's node count", () => {

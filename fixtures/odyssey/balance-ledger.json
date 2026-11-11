@@ -22,7 +22,6 @@
     "constraints": [],
     "difficulty": "easy",
     "examples": [],
-    "id": "00000000-0000-4000-8000-000000000115",
     "limits": {
       "maxCollectionElements": 10000,
       "maxNestingDepth": 100,

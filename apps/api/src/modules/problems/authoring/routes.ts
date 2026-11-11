@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   JsonNumber,
   parseLosslessJson,
+  questionImportLimit,
   stringifyLosslessJson,
   type JsonValue,
 } from "@quorem/questions";
@@ -143,7 +144,7 @@ export function authoringRoutes(deps: AuthoringDependencies) {
   app.post("/v1/admin/question-drafts/import", async (c) => {
     const p = await principal(c.req.raw),
       preview = parse(previewFlag, c.req.query("preview"), "Invalid import preview");
-    const raw = stringifyLosslessJson(await body(c.req.raw, 2 << 20));
+    const raw = await boundedUtf8Body(c.req.raw, questionImportLimit);
     return json(c, await deps.authoring.importDraft(p, raw, preview === "1"));
   });
   app.post("/v1/admin/question-drafts/import-batch", async (c) => {
@@ -155,7 +156,7 @@ export function authoringRoutes(deps: AuthoringDependencies) {
       "Choose 1 to 16 questions per request",
     );
     const encoder = new TextEncoder();
-    if (items.reduce((bytes, item) => bytes + encoder.encode(item).length, 0) > 2 << 20)
+    if (items.reduce((bytes, item) => bytes + encoder.encode(item).length, 0) > questionImportLimit)
       throw new ApplicationError("payload_too_large", "Question batch exceeds 2 MiB", 413);
     return json(c, await deps.authoring.importDraftBatch(p, items, preview === "1"));
   });
