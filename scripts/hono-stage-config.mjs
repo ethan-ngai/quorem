@@ -216,7 +216,8 @@ export function workerConfig(input, outputs, output, scope) {
         new_sqlite_classes: ["BrowserSockets", "DeadlineCoordinator", "ExecutionRecovery"],
       },
     ],
-    triggers: { crons: ["* * * * *"] },
+    // Durable alarms handle live deadlines. Space the production fallback beyond Neon autosuspend.
+    triggers: { crons: [scope === "production" ? "*/10 * * * *" : "* * * * *"] },
     ...(profileBucket
       ? { r2_buckets: [{ binding: "PROFILE_BUCKET", bucket_name: profileBucket }] }
       : {}),

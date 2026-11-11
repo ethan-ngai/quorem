@@ -26,7 +26,7 @@ import { postgresDeadlines } from "../adapters/postgres/events/scheduling/deadli
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
-import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
+import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
 import { startNodeNotifications } from "./composition/node-notifications.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { composeHttp } from "./composition/http.ts";
@@ -193,11 +193,11 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const dispatch = async () => {
       await recoverAll([
         ...(["interview", "match", "submission"] as const).map(
-          (name) => () => dispatchBatch(store, notices, wake, name),
+          (name) => () => publishBatch(store, notices, wake, name),
         ),
         async () => {
           await recoverExecutionIntents(run);
-          await dispatchBatch(store, notices, wake, "execution");
+          await publishBatch(store, notices, wake, "execution");
         },
       ]);
     };

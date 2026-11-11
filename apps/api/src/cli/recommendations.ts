@@ -52,7 +52,7 @@ async function main() {
     );
     const result = train(snapshot.events, snapshot.active.model, Date.now());
     const saved =
-      action === "evaluate"
+      action === "evaluate" || result.reason === "insufficient_evidence"
         ? undefined
         : await transact((tx) => saveTraining(tx, result, snapshot.active.id));
     const { model: _model, ...report } = result;

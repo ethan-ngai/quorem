@@ -129,14 +129,15 @@ export async function collectInputBlobs(
     await tx.execute<{ examined: number; deleted: number; wrapped: boolean }>(sql`
     WITH state AS MATERIALIZED (SELECT cursor FROM runner_input_gc_state WHERE id=1 FOR UPDATE SKIP LOCKED),
     candidates AS MATERIALIZED (SELECT b.hash FROM runner_input_blobs b,state WHERE b.hash>COALESCE(state.cursor,''::bytea) ORDER BY b.hash FOR UPDATE OF b SKIP LOCKED LIMIT ${scanLimit}),
+    -- Anti-joins let PostgreSQL hash small reference tables once per page.
     eligible AS MATERIALIZED (SELECT c.hash FROM candidates c WHERE
-      (SELECT 1 FROM runner_publication_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_snapshot_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_publication_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_snapshot_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_job_inputs x WHERE x.metadata_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_job_inputs x WHERE x.source_hash=c.hash LIMIT 1) IS NULL AND
-      (SELECT 1 FROM runner_job_input_cases x WHERE x.blob_hash=c.hash LIMIT 1) IS NULL ORDER BY c.hash LIMIT ${deleteLimit}),
+      NOT EXISTS (SELECT 1 FROM runner_publication_inputs x WHERE x.metadata_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_snapshot_inputs x WHERE x.metadata_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_publication_input_cases x WHERE x.blob_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_snapshot_input_cases x WHERE x.blob_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_job_inputs x WHERE x.metadata_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_job_inputs x WHERE x.source_hash=c.hash) AND
+      NOT EXISTS (SELECT 1 FROM runner_job_input_cases x WHERE x.blob_hash=c.hash) ORDER BY c.hash LIMIT ${deleteLimit}),
     deleted AS (DELETE FROM runner_input_blobs b USING eligible e WHERE b.hash=e.hash RETURNING b.hash),
     advanced AS (UPDATE runner_input_gc_state SET cursor=CASE WHEN (SELECT count(*) FROM eligible)=${deleteLimit} THEN (SELECT hash FROM eligible ORDER BY hash DESC LIMIT 1) ELSE (SELECT hash FROM candidates ORDER BY hash DESC LIMIT 1) END WHERE id=1 AND EXISTS(SELECT 1 FROM state) RETURNING cursor)
     SELECT (SELECT count(*)::int FROM candidates) AS examined,(SELECT count(*)::int FROM deleted) AS deleted,(SELECT cursor IS NULL FROM advanced) AS wrapped

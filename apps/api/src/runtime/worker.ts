@@ -30,7 +30,7 @@ import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
 import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
-import { dispatchBatch } from "../modules/events/dispatch/dispatch.ts";
+import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
 import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
@@ -116,7 +116,7 @@ async function publishNotices(
     queue = wake(env);
   for (const stream of streams) {
     try {
-      await dispatchBatch(store, publisher, queue, stream);
+      await publishBatch(store, publisher, queue, stream);
     } catch {
       // The scheduled dispatcher retries retained notices.
     }
@@ -257,7 +257,7 @@ function socketAuthority(env: Env) {
     sessions: security.sessions,
     matches: composed.matches,
     afterInterviewCommand: async () => {
-      await dispatchBatch(postgresDispatch(run), notices(env), wake(env), "interview");
+      await publishBatch(postgresDispatch(run), notices(env), wake(env), "interview");
     },
   });
 }
@@ -499,10 +499,10 @@ export default {
     const deadlines = cloudflareCoordinator(env.DEADLINES),
       recovery = cloudflareCoordinator(env.EXECUTION_RECOVERY);
     await recoverAll([
-      ...realtimeStreams.map((stream) => () => dispatchBatch(store, publisher, wake(env), stream)),
+      ...realtimeStreams.map((stream) => () => publishBatch(store, publisher, wake(env), stream)),
       async () => {
         await recoverExecutionIntents(run);
-        await dispatchBatch(store, publisher, wake(env), "execution");
+        await publishBatch(store, publisher, wake(env), "execution");
       },
       ...Array.from(
         { length: boundedInt(env.DEADLINE_SHARDS, 1, 256) },

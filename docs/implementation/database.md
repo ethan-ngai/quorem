@@ -48,3 +48,5 @@ SELECT
 ```
 
 Published versions and interview snapshots can outlive submissions. There is no general safe deletion cascade or automated conversion for these records; retain byte-aware readers until those records are deliberately resolved. A zero result alone does not prove old processes have stopped writing.
+
+Production Workers use Durable Object alarms and queue delivery for live work. The production cron sweeps every 10 minutes so idle Neon compute can suspend between sweeps. Work missed by immediate delivery and alarm retries can wait until the next sweep. Staging keeps the minute cadence to exercise recovery. Compare Neon active time and CU-hours across equivalent traffic windows after rollout; the sweeper change does not guarantee suspension during active traffic.

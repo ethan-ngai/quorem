@@ -73,9 +73,9 @@ vp -C apps/api exec node src/cli/recommendations.ts activate <validated-model-uu
 vp -C apps/api exec node src/cli/recommendations.ts activate prior
 ```
 
-`train` evaluates the tags-and-outcomes predictor and conditionally activates it. Incompatible predictor artifacts fall back to the prior until retraining. `evaluate` reports without writing artifacts. Failures preserve the active model. The existing retention scheduler removes aged learning data in bounded batches.
+`train` evaluates the tags-and-outcomes predictor and conditionally activates it. Incompatible predictor artifacts fall back to the prior until retraining. `evaluate` reports without writing artifacts. Runs with insufficient evidence skip artifact writes. Failures preserve the active model. The existing retention scheduler removes aged learning data in bounded batches.
 
-`.github/workflows/recommendations.yaml` provides daily tags-based training and manual evaluation, training and rollback. It runs only on `main`, with repository variable `QUOREM_LEARNED_RECOMMENDATIONS=true` and production-environment secret `QUOREM_RECOMMENDATION_DATABASE_URL`. Configure these through the normal deployment process after migrations. This feature work does not enable the production schedule, add cloud infrastructure or deploy.
+`.github/workflows/recommendations.yaml` provides weekly tags-based training and manual evaluation, training and rollback. It runs only on `main`, with repository variable `QUOREM_LEARNED_RECOMMENDATIONS=true` and production-environment secret `QUOREM_RECOMMENDATION_DATABASE_URL`. Configure these through the normal deployment process after migrations.
 
 ## Validation
 
