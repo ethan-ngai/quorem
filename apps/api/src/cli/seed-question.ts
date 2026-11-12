@@ -5,11 +5,12 @@ import type { Pool } from "pg";
 import { withNodeConnection } from "@quorem/database/core";
 import { languageRuntime } from "@quorem/execution";
 import {
+  decodeQuestionImport,
   normalizeQuestionDraft,
+  QuestionImportError,
+  questionImportReadiness,
   parseLosslessJson,
   stringifyLosslessJson,
-  validateQuestionPublication,
-  validateQuestionSchema,
   JsonNumber,
   type JsonValue,
 } from "@quorem/questions";
@@ -42,9 +43,10 @@ export async function seedQuestion(
   visibility: "global" | "private",
   path: string,
 ): Promise<string> {
-  const original = await readFile(path, "utf8");
-  const raw = normalizeQuestionDraft(original);
-  validateQuestionPublication(raw, validateQuestionSchema, languageRuntime);
+  const original = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(path));
+  const { normalized: raw } = decodeQuestionImport(original);
+  const diagnostics = questionImportReadiness(raw, languageRuntime);
+  if (diagnostics.length) throw new QuestionImportError(diagnostics);
   const input = key(raw, actor),
     prefix = `seed:question:${actor}:${visibility}:`,
     operation = prefix + seedFingerprint(original, actor).fingerprint;

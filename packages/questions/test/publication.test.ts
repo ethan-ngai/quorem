@@ -1,30 +1,18 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { expect, it } from "vitest";
 import {
   validateQuestionDefinition,
   validateQuestionPublication,
   validateSqlCase,
+  normalizeQuestionDraft,
+  validateQuestionSchema as checkSchema,
 } from "../src/index.ts";
 import type { components } from "@quorem/contracts/schema";
 
-const require = createRequire(new URL("../../contracts/package.json", import.meta.url));
-const Ajv = require("ajv/dist/2020.js").default;
-const addFormats = require("ajv-formats").default;
-const ajv = new Ajv({ strict: true, allErrors: true });
-addFormats(ajv);
-const schema = JSON.parse(
-  readFileSync(
-    new URL("../../contracts/questions/question-v1.schema.json", import.meta.url),
-    "utf8",
-  ),
-);
-const validate = ajv.compile(schema);
-const checkSchema = (raw: string) => {
-  if (!validate(JSON.parse(raw))) throw new Error(JSON.stringify(validate.errors));
-};
 const example = JSON.parse(
-  readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
+  normalizeQuestionDraft(
+    readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
+  ),
 );
 const runtime = () => ({ revision: "runtime", harness: "harness" });
 
@@ -60,9 +48,8 @@ it("validates SQL schema-bound fixtures without numeric precision loss", () => {
   expect(() => validateSqlCase(config, good.replace('"users"', '"wrong"'))).toThrow();
 });
 it("validates the existing staged fixture and rejects calls to future methods", () => {
-  const raw = readFileSync(
-    new URL("../../../fixtures/odyssey/balance-ledger.json", import.meta.url),
-    "utf8",
+  const raw = normalizeQuestionDraft(
+    readFileSync(new URL("../../../fixtures/odyssey/balance-ledger.json", import.meta.url), "utf8"),
   );
   const fixture = JSON.parse(raw);
   const resolve = runtime;
@@ -113,9 +100,8 @@ it("accepts published coding fixture corpus", () => {
   }
 });
 it("accepts eight valid Odyssey levels with twenty hidden cases each", () => {
-  const raw = readFileSync(
-    new URL("../../../fixtures/odyssey/balance-ledger.json", import.meta.url),
-    "utf8",
+  const raw = normalizeQuestionDraft(
+    readFileSync(new URL("../../../fixtures/odyssey/balance-ledger.json", import.meta.url), "utf8"),
   );
   const fixture = JSON.parse(raw);
   const level = fixture.problem.odyssey.levels[0];

@@ -43,11 +43,9 @@
     "AuthoredQuestionProblem": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "slug": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^(?=(?:private-[0-9a-f]{16}-)?[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
         },
         "title": {
           "type": "string"
@@ -63,9 +61,12 @@
           "maxItems": 64
         },
         "leetcodeId": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1,
-          "nullable": true
+          "maximum": 2147483647
         },
         "tags": {
           "type": "array",
@@ -93,7 +94,8 @@
           "$ref": "#/$defs/Signature"
         },
         "limits": {
-          "$ref": "#/$defs/ExecutionLimits"
+          "$ref": "#/$defs/ExecutionLimits",
+          "description": "Omit to use the default execution limits."
         },
         "sql": {
           "$ref": "#/$defs/SqlConfig"
@@ -104,15 +106,13 @@
       },
       "additionalProperties": false,
       "required": [
-        "id",
         "slug",
         "title",
         "difficulty",
         "tags",
         "statementMarkdown",
         "examples",
-        "constraints",
-        "limits"
+        "constraints"
       ],
       "allOf": [
         {

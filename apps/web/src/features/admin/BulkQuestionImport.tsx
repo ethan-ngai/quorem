@@ -3,15 +3,19 @@ import { toast } from "sonner";
 import { notifyBatchResult, notificationAction } from "../../ui/Notifications";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { useId, useRef, useState } from "react";
-import type { QuestionContent } from "@quorem/contracts";
+import {
+  decodeQuestionImport,
+  QuestionImportError,
+  questionImportLimit,
+  type QuestionImportDiagnostic,
+} from "@quorem/questions";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
 import { importDraftBatch } from "./api";
-import { parseQuestionImport, questionImportLimit } from "./importQuestion";
 
 type Row = {
   name: string;
-  content?: QuestionContent;
+  problem?: ReturnType<typeof decodeQuestionImport>["problem"];
   file?: File;
   status:
     | "pending"
@@ -24,6 +28,8 @@ type Row = {
     | "failed";
   selected: boolean;
   message?: string;
+  warning?: string;
+  diagnostics?: readonly QuestionImportDiagnostic[];
   draftId?: string;
 };
 type ManifestEntry = { file: string; sha256: string; leetcodeId?: number };
@@ -68,13 +74,15 @@ async function fileText(file: File, entry?: ManifestEntry) {
 }
 
 function downloadReport(rows: Row[]) {
-  const summary = rows.map(({ name, content, status, draftId, message }) => ({
+  const summary = rows.map(({ name, problem, status, draftId, message, warning, diagnostics }) => ({
     file: name,
-    slug: content?.problem.slug,
-    leetcodeId: content?.problem.leetcodeId,
+    slug: problem?.slug,
+    leetcodeId: problem?.leetcodeId,
     status,
     draftId,
     message,
+    warning,
+    diagnostics,
   }));
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(summary, null, 2)], { type: "application/json" }),
@@ -84,6 +92,14 @@ function downloadReport(rows: Row[]) {
   link.download = "question-import-results.json";
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function importMessages(row: Row): string[] {
+  const messages = row.diagnostics?.map(({ path, message }) => `${path || "/"}: ${message}`) ?? [];
+  if (row.warning) messages.unshift(row.warning);
+  if (row.message && (row.status !== "invalid" || !row.diagnostics?.length))
+    messages.unshift(row.message);
+  return messages;
 }
 
 const eligible = (row: Row) =>
@@ -132,21 +148,27 @@ export function BulkQuestionImport({
           names.add(file.name);
           const entry = manifest ? manifest.get(file.name) : undefined;
           if (manifest && !entry) throw new Error("File is missing from the selected manifest.");
-          const content = parseQuestionImport(await fileText(file, entry));
-          const { slug, leetcodeId } = content.problem;
+          const { problem } = decodeQuestionImport(await fileText(file, entry));
+          const { slug, leetcodeId } = problem;
           if (entry?.leetcodeId !== undefined && entry.leetcodeId !== leetcodeId)
             throw new Error("LeetCode ID does not match the manifest.");
           if (slugs.has(slug) || (leetcodeId != null && sourceIds.has(leetcodeId)))
             throw new Error("Duplicate slug or LeetCode ID in this selection.");
           slugs.add(slug);
           if (leetcodeId != null) sourceIds.add(leetcodeId);
-          next.push({ name: file.name, content, file, status: "pending", selected: true });
+          next.push({ name: file.name, problem, file, status: "pending", selected: true });
         } catch (error) {
           next.push({
             name: file.name,
             status: "invalid",
             selected: false,
-            message: error instanceof Error ? error.message : "Could not read the file.",
+            message:
+              error instanceof QuestionImportError
+                ? "Invalid question file."
+                : error instanceof Error
+                  ? error.message
+                  : "Could not read the file.",
+            diagnostics: error instanceof QuestionImportError ? error.diagnostics : undefined,
           });
         }
       }
@@ -245,7 +267,9 @@ export function BulkQuestionImport({
             results.set(readable[index], {
               status: outcome.status,
               draftId: outcome.draftId,
-              message: outcome.message ?? outcome.warning,
+              message: outcome.message,
+              warning: outcome.warning,
+              diagnostics: outcome.diagnostics,
             });
             created ||= outcome.status === "created";
           });
@@ -331,7 +355,7 @@ export function BulkQuestionImport({
                 (row) =>
                   row.status === "failed" || row.status === "invalid" || row.status === "conflict",
               )
-              .map((row) => `${row.name}: ${row.message ?? "Import failed."}`),
+              .flatMap((row) => importMessages(row).map((message) => `${row.name}: ${message}`)),
           ]}
           open={resultsOpen}
           onOpenChange={setResultsOpen}
@@ -355,19 +379,17 @@ export function BulkQuestionImport({
                 }}
               />
               <div>
-                <strong>{row.content?.problem.title ?? row.name}</strong>
-                {row.content && (
+                <strong>{row.problem?.title ?? row.name}</strong>
+                {row.problem && (
                   <small className="mono-text">
-                    {row.name} · {row.content.problem.slug}
-                    {row.content.problem.leetcodeId != null
-                      ? ` · #${row.content.problem.leetcodeId}`
-                      : ""}
+                    {row.name} · {row.problem.slug}
+                    {row.problem.leetcodeId != null ? ` · #${row.problem.leetcodeId}` : ""}
                   </small>
                 )}
               </div>
               <PersistentNotice
                 label={`${row.name}: import details`}
-                message={row.message}
+                message={importMessages(row)}
                 severity={
                   row.status === "failed" || row.status === "invalid" || row.status === "conflict"
                     ? "error"

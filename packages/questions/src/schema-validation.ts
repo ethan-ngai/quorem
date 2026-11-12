@@ -1,16 +1,5 @@
 /** @file schema-validation.ts @description Worker-safe canonical question schema validation. @module questions */
 import validate from "./question-validator.mjs";
-import type { QuestionContent } from "./model.ts";
-
-/** Check imported content with the generated, CSP-safe contract validator. */
-export function assertQuestionContent(value: unknown): asserts value is QuestionContent {
-  if (!validate(value)) {
-    const error = validate.errors?.[0];
-    throw new Error(
-      `Invalid question at ${error?.instancePath || "/"}: ${error?.message || "check the question schema"}.`,
-    );
-  }
-}
 
 type Obj = { [key: string]: unknown };
 function object(value: unknown): Obj | undefined {
@@ -40,6 +29,11 @@ function caseShape(value: unknown): void {
 }
 /** Validate publication shape without rounding or bounding raw case numbers. */
 export function validateQuestionSchema(rawJson: string): void {
+  if (!validate(questionSchemaValue(rawJson))) throw new Error("invalid question schema");
+}
+
+/** Project numeric case payloads for schema checks. Typed codecs read the original JSON. */
+export function questionSchemaValue(rawJson: string): unknown {
   let value: unknown;
   try {
     value = JSON.parse(rawJson) as unknown;
@@ -59,5 +53,5 @@ export function validateQuestionSchema(rawJson: string): void {
       apply(object(level)?.examples);
       apply(object(level)?.hiddenCases);
     }
-  if (!validate(value)) throw new Error("invalid question schema");
+  return value;
 }

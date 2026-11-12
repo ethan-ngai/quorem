@@ -1,22 +1,22 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import {
+  decodeQuestionImport,
   normalizeQuestionDraft,
   validateQuestionSchema,
   validateQuestionPublication,
   normalizeQuestionJson,
 } from "../src/index.ts";
-const fixture = readFileSync(
-  new URL("../../contracts/questions/example-v1.json", import.meta.url),
-  "utf8",
-);
+const fixture = decodeQuestionImport(
+  readFileSync(new URL("../../contracts/questions/example-v1.json", import.meta.url), "utf8"),
+).normalized;
 it("validates generated publication schema and bounded draft defaults", () => {
   expect(() => validateQuestionSchema(fixture)).not.toThrow();
   const legacy = JSON.parse(fixture);
   legacy.problem.version = "3";
-  const imported = normalizeQuestionDraft(JSON.stringify(legacy));
-  expect(JSON.parse(imported).problem).not.toHaveProperty("version");
-  expect(() => validateQuestionSchema(imported)).not.toThrow();
+  expect(() => normalizeQuestionDraft(JSON.stringify(legacy))).toThrow();
+  legacy.problem = { constraints: ["obsolete prose constraint"] };
+  expect(() => normalizeQuestionDraft(JSON.stringify(legacy))).toThrow();
   const draft = JSON.parse(
     normalizeQuestionDraft(
       '{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}',

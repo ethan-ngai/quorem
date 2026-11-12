@@ -99,10 +99,7 @@ export function validateCodingSequence(
   for (const entry of data.calls) {
     const call = object(entry);
     const sig = byName.get(typeof call.methodName === "string" ? call.methodName : "");
-    if (!sig)
-      throw new Error(
-        `unknown method ${typeof call.methodName === "string" ? call.methodName : ""}`,
-      );
+    if (!sig) throw new Error("unknown method in call");
     const effective = sig.returnType === "void" ? { ...sig, returnType: "optional<int>" } : sig;
     const args = rawCase(
       effective,

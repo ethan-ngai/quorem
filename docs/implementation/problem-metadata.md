@@ -1,26 +1,6 @@
 # Problem metadata
 
-Constraints belong to the published question. The API publishes a discriminated union; prose is informational, structured constraints are enforced before execution.
-
-| Kind         | Shape                          | Meaning                                                  |
-| ------------ | ------------------------------ | -------------------------------------------------------- |
-| `range`      | `target`, optional `min`/`max` | Inclusive numeric bounds                                 |
-| `comparison` | `left`, `right`, `operator`    | Scalar relation between parameter values or measurements |
-| `property`   | `target`, `property`           | Sequence property: sorted/nondecreasing or unique        |
-| `prose`      | `text`                         | Statement guidance without executable validation         |
-
-A target identifies a signature `parameter` and a `projection`: `value`, `length`, `sum`, `elements`, `nodeCount`, or `nodeValues`. Metadata validation rejects unknown names and projections incompatible with the declared codec. Element and node-value ranges apply to every projected value; `sum` measures a numeric list total. Comparisons use `eq`, `le`, `lt`, `ge`, or `gt`; equality compares scalar measurements, not arbitrary structures.
-
-```json
-{
-  "kind": "range",
-  "target": { "parameter": "values", "projection": "length" },
-  "min": 0,
-  "max": 10000
-}
-```
-
-Nullable wrapper projections require an explicit future null policy; metadata currently rejects them. Node codecs retain their defined empty/null semantics. String length counts Unicode codepoints.
+See the [authoring guide](question-import.md#constraints) for the current constraint vocabulary and how to encode rules. Structured constraints are enforced before execution. Nullable wrapper projections require an explicit null policy and are currently rejected. Node codecs retain their defined empty and null semantics. String length counts Unicode code points.
 
 The frontend composes inline Markdown from structured shapes: parameter references use code, numbers/operators use KaTeX. Authored prose supports inline code, bold, italics and `$...$` math. Block Markdown, raw HTML, links and images stay literal; invalid or oversized math falls back to its source. Display formatting never changes numeric bounds. Prose uses ordinary statement typography. Backend enforcement is authoritative; browser checks give early feedback. Runtime codec resource ceilings remain independent safety limits.
 

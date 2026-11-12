@@ -207,6 +207,43 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           now: () => 100,
         }),
       );
+      const repeatedSlug = raw.replace('"slug":', '"slug":"duplicate","slug":');
+      const importPath = "/v1/admin/question-drafts/import";
+      const invalidImport = await http.request(importPath, {
+        method: "POST",
+        body: repeatedSlug,
+      });
+      expect(invalidImport.status).toBe(400);
+      expect(await invalidImport.json()).toMatchObject({
+        error: { code: "invalid_input", details: { diagnostics: [{ path: "/problem/slug" }] } },
+      });
+      const { id: _id, limits: _limits, ...authoredProblem } = parsedContent.problem;
+      const importBatch = await http.request(`${importPath}-batch?preview=1`, {
+        method: "POST",
+        body: JSON.stringify({
+          items: [
+            repeatedSlug,
+            JSON.stringify({ ...parsedContent, problem: authoredProblem }),
+            JSON.stringify({
+              ...parsedContent,
+              problem: authoredProblem,
+              hiddenCases: [{ args: ["invalid input"], expected: [] }],
+            }),
+          ],
+        }),
+      });
+      expect(importBatch.status).toBe(200);
+      expect(await importBatch.json()).toMatchObject({
+        items: [
+          { status: "invalid", diagnostics: [{ path: "/problem/slug" }] },
+          { status: "ready" },
+          {
+            status: "ready",
+            warning: "Draft needs edits before publication.",
+            diagnostics: [{ path: "/hiddenCases/0" }],
+          },
+        ],
+      });
       const createResponse = await http.request("/v1/admin/question-drafts", {
         method: "POST",
         body: '{"content":{"problem":{},"hiddenCases":[],"attribution":"","approaches":[],"canonicalApproachId":""}}',
@@ -376,7 +413,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       sq.approaches = [
         {
           ...sq.approaches[0],
-          defaultLanguage: "postgresql",
           implementations: [{ language: "postgresql", source: "select 1" }],
         },
       ];
@@ -577,6 +613,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       const d1 = JSON.parse(await repository.create(global, JSON.stringify(duplicate), undefined));
       const first = JSON.parse(await repository.publish(global, d1.id, "1", "global"));
       await pool.query("DELETE FROM question_drafts WHERE id=$1", [d1.id]);
+      delete duplicate.problem.id;
       expect(
         JSON.parse(await repository.importDraft(global, JSON.stringify(duplicate), true)).status,
       ).toBe("unchanged");
