@@ -5,6 +5,7 @@ import { SHARED_CASE_CONCURRENCY } from "../packages/execution/src/scheduling.ts
 
 const MAX_INPUT = 8 * 1024 * 1024;
 const FRAME_LIMIT = 64 * 1024;
+const PYTHON_ALLOCATION_RETRY_MS = 4000;
 const languages = new Set(["python", "java", "typescript", "ocaml", "postgresql"]);
 
 async function input(request) {
@@ -181,11 +182,33 @@ export class CaseSandbox extends DurableObject {
     await this.ctx.storage.put({ started: language, deadline });
     await this.ctx.storage.setAlarm(deadline);
     if (this.cancelled) throw new Error("Attempt cancelled");
-    container.start({
-      image,
-      instance: { vcpu: SHARED_CASE_CONCURRENCY, memoryMib: 3072, diskMb: 4000 },
-      enableInternet: false,
-    });
+    const start = () =>
+      container.start({
+        image,
+        instance: { vcpu: SHARED_CASE_CONCURRENCY, memoryMib: 3072, diskMb: 4000 },
+        enableInternet: false,
+      });
+    start();
+    if (language !== "python") return;
+
+    // All lanes wait for boot, so an allocation can be replaced before any child starts.
+    this.phase = "allocation";
+    const retryAt = Date.now() + PYTHON_ALLOCATION_RETRY_MS;
+    let pause = 25;
+    for (;;) {
+      const allocation = await container.inspect();
+      if (this.cancelled) throw new Error("Attempt cancelled");
+      if (allocation?.image === image) return;
+      if (allocation?.image) throw new Error("Case image changed");
+      const remaining = retryAt - Date.now();
+      if (remaining <= 0) break;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(pause, remaining)));
+      pause = Math.min(pause * 2, 250);
+    }
+    await container.destroy();
+    if (this.cancelled) throw new Error("Attempt cancelled");
+    console.log("case-lifecycle allocation-retry python");
+    start();
   }
 
   async executeCase(request, active, language, memory, processes) {

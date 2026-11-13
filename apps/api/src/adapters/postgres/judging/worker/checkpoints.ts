@@ -17,6 +17,8 @@ import {
 } from "@quorem/execution";
 import { inputBundleInTransaction, inputCheckpoint, postgresInputReader } from "../inputs/read.ts";
 
+import { retryJudgingLock } from "./frame-lock.ts";
+
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 async function lockAndLive(tx: Transaction, job: Job): Promise<{ cancelled: boolean } | null> {
@@ -32,6 +34,7 @@ async function lockAndLive(tx: Transaction, job: Job): Promise<{ cancelled: bool
   return row?.live ? { cancelled: row.cancelled } : null;
 }
 export function postgresCheckpoints(run: Run) {
+  const retryLocked: Run = (operation) => retryJudgingLock(() => run(operation));
   const api: Pick<
     ExecutionRepository,
     "loadCheckpoint" | "replayCheckpoint" | "saveCheckpoint" | "yield"
@@ -115,7 +118,7 @@ export function postgresCheckpoints(run: Run) {
       const envelope = decodeManifestCheckpointFrame(item.frame);
       if (envelope.frame.artifact !== undefined) throw new Error("Invalid checkpoint frame");
       const compressed = await compressCheckpointFrame(new TextEncoder().encode(item.frame));
-      await run((scope) =>
+      await retryLocked((scope) =>
         scope.transaction(options, async (tx) => {
           const live = await lockAndLive(tx, job);
           if (!live || live.cancelled) throw new Error("Checkpoint lease unavailable");

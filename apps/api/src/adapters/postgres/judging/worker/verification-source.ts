@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { decodeJob } from "@quorem/execution";
 import { inputBundleInTransaction } from "../inputs/read.ts";
+import { retryJudgingLock } from "./frame-lock.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const opts = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 /** Each page and write rechecks the live attempt and wall clock after acquiring its locks. */
@@ -32,7 +33,7 @@ export async function lockVerificationChallenge(tx: Transaction, id: string) {
 }
 export function postgresVerificationSource(run: Run) {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
-    run((scope) => scope.transaction(opts, fn));
+    retryJudgingLock(() => run((scope) => scope.transaction(opts, fn)));
   const frozenCase = (id: string, includePages: boolean) =>
     transact(async (tx) => {
       const row = await lockVerificationChallenge(tx, id);
