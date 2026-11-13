@@ -61,7 +61,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     b.toString(16).padStart(2, "0"),
   ).join("");
   const scoped = new TextEncoder().encode(
-    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint, "case-lanes-v3"]),
+    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint, "attempt-vm-v1"]),
   );
   const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const body = "case bytes",
@@ -163,7 +163,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
   ).TEST_CASES;
   const actualNamespace = actualCases.idFromName("quorem-sandbox-namespace-v1").toString();
   const actualScopeBytes = new TextEncoder().encode(
-    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint, "case-lanes-v3"]),
+    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint, "attempt-vm-v1"]),
   );
   const actualScope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", actualScopeBytes)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const actualEnv = { ...env, CASES: actualCases, QUOREM_CASE_NAMESPACE_ID: actualNamespace };
@@ -280,7 +280,7 @@ it("real control objects block paused case posts and unactivated drains", async 
     ).join("");
   const origin = "https://case-stage.example.test";
   const scope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki)])))}`;
-  const executionScope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki), "case-lanes-v3"])))}`;
+  const executionScope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki), "attempt-vm-v1"])))}`;
   const control = bindings.CASE_CONTROL.getByName("case-control"),
     operation = crypto.randomUUID();
   const controlPost = (path: string, body: unknown) =>

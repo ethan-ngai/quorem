@@ -60,6 +60,7 @@ export type { VerificationReceipt } from "./verification-receipt.ts";
 
 export {
   CASE_LANES,
+  SHARED_CASE_CONCURRENCY,
   CASE_WINDOW_BYTES,
   CASE_SCOPE_REVISION,
   JUDGING_DEFAULTS,

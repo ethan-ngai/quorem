@@ -2,12 +2,7 @@
 import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
 import { Readable } from "node:stream";
 import { checkedInput } from "./input.ts";
-import {
-  CASE_LANES,
-  CASE_SCOPE_REVISION,
-  decodeCaseFrames,
-  type AttemptFence,
-} from "@quorem/execution";
+import { CASE_SCOPE_REVISION, decodeCaseFrames, type AttemptFence } from "@quorem/execution";
 import { CaseOutputLimit, readinessBudget } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
 import {
@@ -208,7 +203,6 @@ export function remoteSandbox(config: {
             "x-quorem-owner-scope": scope,
             "x-case-token": token,
             "x-case-language": request.language,
-            "x-quorem-case-lanes": String(CASE_LANES),
             "x-case-memory": String(request.limits.memoryBytes),
             "x-case-processes": String(request.limits.maxProcesses),
             "x-quorem-case-binding": request.binding,
@@ -248,6 +242,7 @@ export function remoteSandbox(config: {
           combined,
           budget.close,
         );
+        if (code === 125) throw new Error("Case isolation or cleanup failed");
         if (!budget.ready()) throw new Error("Sandbox did not become ready");
         complete = true;
         return confirmCaseOutput(request, {

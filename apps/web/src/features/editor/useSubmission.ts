@@ -158,10 +158,8 @@ export function useSubmission({
     refetchOnWindowFocus: (query) => query.state.status === "error",
     refetchOnReconnect: (query) => query.state.status === "error",
     refetchInterval: ({ state }) =>
-      ((abortingId &&
-        abortingId === activeSubmissionId &&
-        (state.data?.state === "queued" || state.data?.state === "running")) ||
-        (state.data?.kind === "submit" && state.data.state === "running")) &&
+      (state.data?.state === "running" ||
+        (abortingId === activeSubmissionId && state.data?.state === "queued")) &&
       !(state.error instanceof SubmissionReadError && [401, 403, 404].includes(state.error.status))
         ? 1000
         : false,

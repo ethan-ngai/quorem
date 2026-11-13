@@ -6,7 +6,7 @@ const url = base + "/internal/case/workerd-" + crypto.randomUUID();
 const headers = {
   Authorization: "Bearer local-contract-fixture-token-at-least-32-chars",
   "X-Case-Language": "python",
-  "X-Case-Token": "case-token-123456",
+  "X-Case-Token": crypto.randomUUID(),
   "X-Case-Memory": "268435456",
   "X-Case-Processes": "16",
 };
