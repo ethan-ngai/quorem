@@ -1,4 +1,3 @@
-import { caseGrowth } from "./case-growth.ts";
 /** @file publication.ts @description Definition and publication semantics over raw question JSON. @module questions */
 import { compileGraphCase, graphParameters } from "./graph.ts";
 import { generateQuestionImplementations } from "./starter.ts";
@@ -117,23 +116,6 @@ function core(
       validateField(`${path}/${index}`, () => validateCase(value, methods)),
     );
   };
-  if (p.caseBudget) {
-    if (p.sql || levels)
-      throw new QuestionFieldError(
-        "/problem/caseBudget",
-        "Case budgets require a classic coding question",
-      );
-    validateField("/problem/caseBudget", () => {
-      for (const value of [...array(rawProblem.examples), ...array(raw.hiddenCases)]) {
-        const test = object(value);
-        if (signature && (test.graphs !== undefined || requiresGraph))
-          compileGraphCase(signature, test, limit, true);
-        const args = array(test.args);
-        caseGrowth(p.caseBudget!.time, args);
-        caseGrowth(p.caseBudget!.space, args);
-      }
-    });
-  }
   if (p.acceptance) {
     const { small, efficient } = p.acceptance;
     if (

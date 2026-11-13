@@ -8,7 +8,6 @@ export function publicQuestionProblem(problem: QuestionContent["problem"]): Ques
   const {
     signature: _signature,
     acceptance: _acceptance,
-    caseBudget: _caseBudget,
     odyssey,
     ...metadata
   } = problem;

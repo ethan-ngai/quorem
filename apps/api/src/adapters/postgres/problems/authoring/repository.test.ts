@@ -172,10 +172,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "utf8",
       );
       const parsedContent = JSON.parse(content);
-      parsedContent.problem.caseBudget = {
-        time: [[{ argument: 0, measure: "length", growth: "linear" }]],
-        space: [[]],
-      };
       parsedContent.problem.acceptance = {
         small: {
           caseCount: 6,
@@ -367,7 +363,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
       expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
       expect(fork.content.approaches).toEqual(parsedContent.approaches);
-      expect(fork.content.problem.caseBudget).toEqual(parsedContent.problem.caseBudget);
       expect(fork.content.problem.acceptance).toEqual(parsedContent.problem.acceptance);
       expect(fork.content).not.toHaveProperty("implementations");
       expect(
@@ -382,6 +377,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(JSON.parse(complexity)).toEqual({
         optimal: { timeComplexity: "O(n)", spaceComplexity: "O(1)" },
         accepted: parsedContent.problem.acceptance.efficient.complexity,
+      });
+
+      const budgetMetadata = await pool.query(
+        "SELECT convert_from(b.data,'UTF8')::jsonb->'caseBudget' AS budget FROM runner_publication_inputs i JOIN runner_input_blobs b ON b.hash=i.metadata_hash WHERE i.publication_id=$1",
+        [published.publishedVersionId],
+      );
+      expect(budgetMetadata.rows[0].budget).toEqual({
+        time: [[{ argument: 0, measure: "length", growth: "quadratic" }]],
+        space: [[]],
       });
 
       const practice = await pool.connect();
@@ -423,7 +427,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
 
       const nul = structuredClone(parsedContent);
       delete nul.problem.acceptance;
-      delete nul.problem.caseBudget;
       nul.problem.slug = `nul-${crypto.randomUUID().slice(0, 8)}`;
       nul.problem.signature = {
         className: "Solution",
@@ -452,7 +455,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       ).rejects.toMatchObject({ status: 404 });
       const sq = structuredClone(parsedContent);
       delete sq.problem.acceptance;
-      delete sq.problem.caseBudget;
       sq.problem.slug = `sql-${crypto.randomUUID().slice(0, 8)}`;
       sq.problem.sql = {
         dialect: "postgresql",

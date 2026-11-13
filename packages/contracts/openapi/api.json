@@ -7669,34 +7669,6 @@
           }
         }
       },
-      "CaseBudget": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["time", "space"],
-        "properties": {
-          "time": { "$ref": "#/components/schemas/CaseGrowth" },
-          "space": { "$ref": "#/components/schemas/CaseGrowth" }
-        }
-      },
-      "CaseGrowth": {
-        "type": "array",
-        "minItems": 1,
-        "maxItems": 8,
-        "items": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["argument", "measure", "growth"],
-            "properties": {
-              "argument": { "type": "integer", "minimum": 0, "maximum": 15 },
-              "measure": { "type": "string", "enum": ["length", "value"] },
-              "growth": { "type": "string", "enum": ["linear", "logarithmic", "linearithmic", "quadratic"] }
-            }
-          }
-        }
-      },
       "AcceptanceProfile": {
         "type": "object",
         "additionalProperties": false,
@@ -8837,7 +8809,6 @@
       "AuthoredQuestionProblem": {
         "type": "object",
         "properties": {
-          "caseBudget": { "$ref": "#/components/schemas/CaseBudget" },
           "acceptance": { "$ref": "#/components/schemas/QuestionAcceptance" },
           "id": {
             "type": "string"

@@ -43,8 +43,14 @@ export async function nativeCaseLimits(
   if (raw === undefined) return job.limits;
   const values = parseLosslessJson(raw);
   if (!Array.isArray(values)) throw new Error("Invalid budget arguments");
-  const time = Number(caseGrowth(budget.time, values));
-  const space = Number(caseGrowth(budget.space, values));
+  let time: number, space: number;
+  try {
+    time = Number(caseGrowth(budget.time, values));
+    space = Number(caseGrowth(budget.space, values));
+  } catch {
+    // Optional or out-of-domain dimensions cannot justify tightening limits.
+    return job.limits;
+  }
   return {
     ...job.limits,
     wallTimeMs: Math.min(job.limits.wallTimeMs, cost.startupMs + Math.ceil(time / cost.unitsPerMs)),

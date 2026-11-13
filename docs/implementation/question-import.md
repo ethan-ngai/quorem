@@ -87,16 +87,9 @@ Every Submit uses the full hidden suite, regardless of lobby preset. High Score 
 
 ## Native case budgets
 
-Classic coding questions can declare `problem.caseBudget` with `time` and `space` growth expressions. Each expression is a sum of products. An empty product represents constant growth. Each factor references a zero-based argument index and measures its collection length or nonnegative integer value.
+The runner derives native time and memory budgets from the existing accepted complexity bounds, or the canonical editorial bounds when an accepted bound is absent. Use structured constraint definitions to bind complexity variables to an input length or nonnegative integer parameter. For a single array or string input, the judge can infer `n` from its length.
 
-```json
-{
-  "time": [[{ "argument": 0, "measure": "length", "growth": "linearithmic" }]],
-  "space": [[{ "argument": 0, "measure": "length", "growth": "linear" }]]
-}
-```
-
-Submit still judges every case. The runner derives time and memory allowances from the case dimensions and shared runtime coefficients, bounded by the question's existing execution limits. The attempt reserves the derived memory before each case launches. Questions without this metadata and inputs too large for bounded dimension parsing use their admitted limits. Native time and memory enforcement can vary near the cutoff across hosts.
+The judge recognizes constant, linear, logarithmic and quadratic bounds and simple sums and products. Unresolved bounds use the publication's execution limits. Republishing a question seals the inferred budget with its tests. Submit runs the full suite.
 
 ## Preflight and import
 
