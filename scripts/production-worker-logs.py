@@ -93,9 +93,13 @@ for event in events.get("events", []):
         if not 0 <= (stamp - start).total_seconds() < 180:
             continue
         application = identifiers.get("applicationId")
-        deployment = identifiers.get("deploymentId")
-        if application and deployment:
-            path = f"accounts/{account}/containers/applications/{application}/instances/{deployment}"
+        actor = next(
+            (identifiers[key] for key in ("durableObjectId", "actorId", "instanceId")
+             if re.fullmatch(r"[a-f0-9]{64}", identifiers.get(key, ""))),
+            None,
+        )
+        if application and actor:
+            path = f"accounts/{account}/containers/applications/{application}/instances/{actor}"
             try:
                 request = urllib.request.Request(
                     f"https://api.cloudflare.com/client/v4/{path}", headers=headers,
