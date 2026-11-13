@@ -106,7 +106,7 @@ function request(method = "POST", headers = {}) {
   });
 }
 
-void test("parallel cases reuse one VM and publish before the slow case completes", async () => {
+void test("four cases share one VM and report independently", async () => {
   const f = fixture();
   const sandbox = newSandbox(f.context);
   const container = f.context.container;
@@ -116,36 +116,41 @@ void test("parallel cases reuse one VM and publish before the slow case complete
     starts++;
     start(options);
   };
-  let release;
-  let entered;
-  const blocked = new Promise((resolve) => {
-    release = resolve;
-  });
-  const enteredExec = new Promise((resolve) => {
-    entered = resolve;
-  });
+  const { promise: blocked, resolve: release } = Promise.withResolvers();
+  const { promise: fourActive, resolve: reachedCapacity } = Promise.withResolvers();
+  const { promise: fastReady, resolve: releaseFast } = Promise.withResolvers();
   const exec = container.exec.bind(container);
+  const tokens = Array.from({ length: 5 }, () => crypto.randomUUID());
+  let active = 0;
   container.exec = async (command, options) => {
-    if (command.at(-1).startsWith("1111")) {
-      entered();
-      await blocked;
+    if (++active === 4) reachedCapacity();
+    try {
+      await (command.at(-1) === tokens[3] ? fastReady : blocked);
+      return await exec(command, options);
+    } finally {
+      active--;
     }
-    return exec(command, options);
   };
-  const slow = await sandbox.fetch(request());
-  const slowResult = slow.arrayBuffer();
-  await enteredExec;
-  const fast = await sandbox.fetch(
-    request("POST", {
-      "x-case-token": "22222222-2222-4222-8222-222222222222",
+  const results = await Promise.all(
+    tokens.slice(0, 4).map(async (token) => {
+      const response = await sandbox.fetch(request("POST", { "x-case-token": token }));
+      assert.equal(response.status, 200);
+      return { body: response.arrayBuffer() };
     }),
   );
-  const bytes = new Uint8Array(await fast.arrayBuffer());
+  await fourActive;
+  const fifth = await sandbox.fetch(request("POST", { "x-case-token": tokens[4] }));
+  assert.equal(fifth.status, 409);
+  releaseFast();
+  const bytes = new Uint8Array(await results[3].body);
   assert.equal(bytes.at(-8), 4);
+  assert.equal(active, 3);
   assert.equal(starts, 1);
+  assert.equal(f.context.options.instance.vcpu, 4);
+  assert.equal(f.context.options.instance.memoryMib, 3072);
   assert.equal(container.running, true);
   release();
-  await slowResult;
+  await Promise.all(results.map(({ body }) => body));
   assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
   assert.equal(container.running, false);
   assert.equal((await sandbox.fetch(request())).status, 503);
