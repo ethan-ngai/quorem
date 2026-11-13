@@ -562,6 +562,7 @@ void test("four native lanes overlap verification while checkpoints remain order
   const seal = fixture.port.sealCompletionFrame.bind(fixture.port);
   fixture.port.sealCompletionFrame = async (...args) => {
     verifying++;
+    overlap ||= running > 0;
     peakVerification = Math.max(peakVerification, verifying);
     try {
       await delay(80);
@@ -569,6 +570,11 @@ void test("four native lanes overlap verification while checkpoints remain order
     } finally {
       verifying--;
     }
+  };
+  const save = fixture.port.saveCheckpoint.bind(fixture.port);
+  fixture.port.saveCheckpoint = async (...args) => {
+    assert.equal(verifying, 0, "checkpoint must not compete with active verification");
+    await save(...args);
   };
   const sandbox = {
     teardownAttempt: async () => {},
@@ -578,7 +584,6 @@ void test("four native lanes overlap verification while checkpoints remain order
       lanes.add(lane);
       running++;
       peak = Math.max(peak, running);
-      overlap ||= verifying > 0;
       try {
         await delay(request.ordinal % 4 === 0 ? 30 : 5, undefined, { signal });
         return confirmCaseOutput(request, {

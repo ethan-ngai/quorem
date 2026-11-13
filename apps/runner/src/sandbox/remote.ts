@@ -32,6 +32,7 @@ export function remoteSandbox(config: {
   ownerPublicKey: string;
   cleanupMs: number;
   fetch?: typeof fetch;
+  recordTiming?: (name: "case.launcherReady" | "case.afterLauncherReady", ms: number) => void;
 }): IsolatedSandbox & { readonly scope: string; readonly controlScope: string } {
   let base: URL;
   try {
@@ -155,6 +156,8 @@ export function remoteSandbox(config: {
     },
     async runCase(request, signal): Promise<CaseOutput> {
       validateCaseRequest(request, scope);
+      const started = performance.now();
+      let launcherReady: number | undefined;
       const token = randomUUID(),
         nonce = randomUUID(),
         controller = new AbortController(),
@@ -232,6 +235,8 @@ export function remoteSandbox(config: {
             const copy = new Uint8Array(data);
             if (channel === "stdout") {
               budget.observe(copy);
+              if (launcherReady === undefined && copy.length && copy[0] === 0)
+                launcherReady = performance.now();
               stdout.push(copy);
               out += copy.length;
             } else {
@@ -258,6 +263,10 @@ export function remoteSandbox(config: {
             ? new CaseOutputLimit()
             : error);
       } finally {
+        if (launcherReady !== undefined) {
+          config.recordTiming?.("case.launcherReady", launcherReady - started);
+          config.recordTiming?.("case.afterLauncherReady", performance.now() - launcherReady);
+        }
         clearTimeout(timer);
         budget.close();
         if (!complete) await remove(request.fence, token);
