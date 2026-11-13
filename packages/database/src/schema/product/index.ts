@@ -735,7 +735,7 @@ export const matches = pgTable(
     publication_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
-    draw_offer_owner_id: text().references(() => users.id, { onDelete: "set null" }),
+    draw_offer_owner_id: text(),
     rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),
@@ -779,6 +779,11 @@ export const matches = pgTable(
       foreignColumns: [users.id],
       name: "matches_host_owner_id_fkey",
     }),
+    foreignKey({
+      columns: [table.draw_offer_owner_id],
+      foreignColumns: [users.id],
+      name: "matches_draw_offer_owner_id_fkey",
+    }).onDelete("set null"),
     foreignKey({
       columns: [table.publication_id],
       foreignColumns: [question_publications.id],
