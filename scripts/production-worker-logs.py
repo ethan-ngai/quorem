@@ -79,8 +79,16 @@ for event in events.get("events", []):
         message or "",
     )
     if category:
+        # Keep provider correlation IDs without printing raw container messages.
+        metadata = event.get("$containers") or {}
+        identifiers = {
+            key: value for key, value in metadata.items()
+            if re.search(r"id$", key, re.IGNORECASE)
+            and isinstance(value, str)
+            and re.fullmatch(r"[a-f0-9-]{32,64}", value, re.IGNORECASE)
+        }
         print(datetime.datetime.fromtimestamp(event["timestamp"] / 1000, datetime.timezone.utc),
-              category.group())
+              category.group(), json.dumps(identifiers))
 
 for worker in workers:
     # Analytics aggregates invocation outcomes independently of retained console logs.
