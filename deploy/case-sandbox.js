@@ -1,6 +1,7 @@
-import { decodeCaseFrames, encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
+/** @file case-sandbox.js @description Disposable native case lifecycle. @module judging */
+import { encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
 import { DurableObject } from "cloudflare:workers";
-import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
+import { SHARED_CASE_CONCURRENCY } from "../packages/execution/src/scheduling.ts";
 
 const MAX_INPUT = 8 * 1024 * 1024;
 const FRAME_LIMIT = 64 * 1024;
@@ -30,17 +31,13 @@ async function input(request) {
   return result;
 }
 
-async function usedLanes(storage) {
-  const used = (await storage.get("used-lanes")) ?? 0;
-  if (!Number.isInteger(used) || used < 0 || used >= 2 ** CASE_LANES)
-    throw new Error("Invalid case lane inventory");
-  return used;
-}
-
-/** One trusted launcher and one disposable container per execution case. */
+/** Owns one container and the isolated case processes for an execution attempt. */
 export class CaseSandbox extends DurableObject {
+  active = new Map();
+
   stop() {
     this.stopping ??= (async () => {
+      await this.boot?.catch(() => {});
       this.phase = "stop-begin";
       console.log("case-lifecycle stop-begin");
       const started = await this.ctx.storage.get("started");
@@ -65,159 +62,32 @@ export class CaseSandbox extends DurableObject {
       await this.ctx.storage.setAlarm(deadline);
       return;
     }
-    this.generation = (this.generation ?? 0) + 1;
+    this.cancelled = true;
     await this.ctx.storage.put("cancelled", true);
     await this.stop();
   }
 
-  child(request, lane) {
-    const attempt = new URL(request.url).pathname.split("/").pop();
-    if (!this.env.CASES || !attempt) throw new Error("Case lane namespace unavailable");
-    return this.env.CASES.getByName(`${attempt}-lane-${lane}`, {
-      locationHint: this.env.APP_LOCATION_HINT || "enam",
-    });
-  }
-
-  async usedChildren(request, pendingOnly = false) {
-    const used = await usedLanes(this.ctx.storage);
-    const completed = pendingOnly ? ((await this.ctx.storage.get("completed-lanes")) ?? 0) : 0;
-    return Array.from({ length: CASE_LANES - 1 }, (_, index) => index + 1)
-      .filter((lane) => used & ~completed & (1 << lane))
-      .map((lane) => this.child(request, lane));
-  }
-
-  async registerLane(request, lane) {
-    const token = request.headers.get("x-case-token");
-    if (!/^[A-Za-z0-9-]{16,128}$/.test(token ?? "")) return false;
-    // Publish routing intent before delegation; cancellation and inventory cannot cross.
-    return this.ctx.storage.transaction(async (tx) => {
-      if ((await tx.get("cancelled")) || (await tx.get(`cancel:${token}`))) return false;
-      const used = await usedLanes(tx);
-      if (!(used & (1 << lane))) await tx.put("used-lanes", used | (1 << lane));
-      const generation = ((await tx.get(`lane:${lane}`)) ?? 0) + 1;
-      await tx.put(`lane:${lane}`, generation);
-      const completed = (await tx.get("completed-lanes")) ?? 0;
-      if (completed & (1 << lane)) await tx.put("completed-lanes", completed & ~(1 << lane));
-      return generation;
-    });
-  }
-
-  async completedLane(response, lane, generation) {
-    if (!response.ok || !response.body) return response;
-    const stream = new TransformStream();
-    const writer = stream.writable.getWriter();
-    this.ctx.waitUntil(
-      (async () => {
-        try {
-          // A receipt requires canonical exit, confirmed teardown, and EOF; output cannot forge it.
-          const reader = response.body.getReader();
-          async function* source() {
-            try {
-              for (;;) {
-                const next = await reader.read();
-                if (next.done) return;
-                yield next.value;
-              }
-            } finally {
-              await reader.cancel().catch(() => {});
-            }
-          }
-          await writer.write(frame(1, new Uint8Array()));
-          await decodeCaseFrames(
-            source(),
-            { stdoutBytes: Number.MAX_SAFE_INTEGER, stderrBytes: Number.MAX_SAFE_INTEGER },
-            (channel, bytes) => writer.write(frame(channel === "stdout" ? 1 : 2, bytes)),
-            undefined,
-            async (code) => {
-              const exit = new Uint8Array(4);
-              new DataView(exit.buffer).setInt32(0, code);
-              await writer.write(frame(3, exit));
-            },
-          );
-          await this.ctx.storage.transaction(async (tx) => {
-            // An older response must never certify a later launch on the same lane.
-            if ((await tx.get(`lane:${lane}`)) !== generation) return;
-            const completed = (await tx.get("completed-lanes")) ?? 0;
-            await tx.put("completed-lanes", completed | (1 << lane));
-          });
-          await writer.write(frame(4, new Uint8Array()));
-          await writer.close();
-        } catch (error) {
-          await writer.abort(error).catch(() => {});
-        }
-      })(),
-    );
-    return new Response(stream.readable, { status: response.status, headers: response.headers });
-  }
-
-  childControlRequest(request) {
-    const headers = new Headers(request.headers);
-    headers.set("x-quorem-child-lane", "true");
-    // DELETE may arrive with an empty stream. Reusing its Request transfers that body once.
-    return new Request(request.url, { method: request.method, headers, signal: request.signal });
-  }
-
-  async visitChildren(request, visit, pendingOnly = false) {
-    const children = await this.usedChildren(request, pendingOnly),
-      outcomes = [];
-    // Leave connection headroom for the ingress and each lane's container RPCs.
-    for (let start = 0; start < children.length; start += 3)
-      outcomes.push(...(await Promise.allSettled(children.slice(start, start + 3).map(visit))));
-    return outcomes;
-  }
-
   async fetch(request) {
-    const child = request.headers.get("x-quorem-child-lane") === "true";
-    if (!child && request.method === "POST") {
-      const raw = request.headers.get("x-quorem-case-ordinal");
-      const ordinal = /^(0|[1-9][0-9]{0,9})$/.test(raw ?? "") ? Number(raw) : 0;
-      const lane =
-        request.headers.get("x-quorem-case-lanes") === String(CASE_LANES)
-          ? ordinal % CASE_LANES
-          : 0;
-      const generation = await this.registerLane(request, lane);
-      if (!generation) return new Response(null, { status: 503 });
-      if (lane) {
-        const headers = new Headers(request.headers);
-        headers.set("x-quorem-child-lane", "true");
-        const response = await this.child(request, lane).fetch(new Request(request, { headers }));
-        return this.completedLane(response, lane, generation);
-      }
-    }
     if (request.method === "GET" && request.headers.get("x-quorem-case-probe") === "lifecycle") {
       if (this.env.CASE_DIAGNOSTICS !== "true") return new Response(null, { status: 404 });
-      if (!child) {
-        const outcomes = await this.visitChildren(request, async (stub) => {
-          const response = await stub.fetch(this.childControlRequest(request));
-          if (!response.ok) {
-            await response.body?.cancel();
-            throw new Error("Case lane probe unavailable");
-          }
-          return response.json();
-        });
-        if (outcomes.some((value) => value.status === "rejected"))
-          throw new Error("Case lane probe unavailable");
-        const active = outcomes.map((value) => value.value).find((value) => value.active);
-        if (active) return Response.json(active);
-      }
       const running = this.ctx.container?.running === true;
-      const active =
+      const entry =
         running &&
-        this.phase === "exec-ready" &&
-        !!this.active?.token &&
-        Number.isSafeInteger(this.active.ordinal);
-      const tokenHash = active
+        [...this.active.values()].find(
+          (value) => value.ready && Number.isSafeInteger(value.ordinal),
+        );
+      const tokenHash = entry
         ? Array.from(
             new Uint8Array(
-              await crypto.subtle.digest("SHA-256", new TextEncoder().encode(this.active.token)),
+              await crypto.subtle.digest("SHA-256", new TextEncoder().encode(entry.token)),
             ),
-            (b) => b.toString(16).padStart(2, "0"),
+            (byte) => byte.toString(16).padStart(2, "0"),
           ).join("")
         : null;
       return Response.json({
-        active,
+        active: !!entry,
         running,
-        ordinal: active ? this.active.ordinal : null,
+        ordinal: entry ? entry.ordinal : null,
         tokenHash,
       });
     }
@@ -229,63 +99,51 @@ export class CaseSandbox extends DurableObject {
         ...(this.timing ? { timing: this.timing } : {}),
       });
     if (request.method === "DELETE") {
-      console.log("case-lifecycle delete-begin");
-      if (request.body) console.log("case-lifecycle delete-streamed");
-      console.log(`case-lifecycle delete-${child ? "child" : "root"}`);
       const token = request.headers.get("x-case-token");
-      if (token && !/^[A-Za-z0-9-]{16,128}$/.test(token))
-        return new Response(null, { status: 400 });
-      if (!token || this.active?.token === token) this.generation = (this.generation ?? 0) + 1;
+      if (token && !/^[a-f0-9-]{36}$/.test(token)) return new Response(null, { status: 400 });
       try {
-        await this.ctx.storage.put(token ? `cancel:${token}` : "cancelled", true);
-        const stops = [];
-        if (!child) {
-          stops.push(
-            (async () => {
-              const outcomes = await this.visitChildren(
-                request,
-                async (stub) => {
-                  const response = await stub.fetch(this.childControlRequest(request));
-                  await response.body?.cancel();
-                  if (response.status !== 204) {
-                    console.log(`case-lifecycle child-status-${response.status}`);
-                    throw new Error("Case lane teardown unconfirmed");
-                  }
-                },
-                true,
-              );
-              if (outcomes.some((value) => value.status === "rejected")) {
-                for (const result of outcomes)
-                  if (result.status === "rejected") {
-                    const message = String(result.reason?.message ?? "");
-                    console.log(
-                      `case-lifecycle child-failure-${/Too many|limit/i.test(message) ? "limit" : /time|cancel|abort/i.test(message) ? "timeout" : "other"}`,
-                    );
-                  }
-                throw new Error("Case lane teardown unconfirmed");
-              }
-            })(),
-          );
+        if (token) {
+          const entry = this.active.get(token);
+          if (entry) {
+            entry.cancelled = true;
+            void entry.writer.abort(new Error("Case cancelled")).catch(() => {});
+          }
+          await this.ctx.storage.put(`cancel:${token}`, true);
+          if (entry?.launched) {
+            const cleanup = await this.ctx.container.exec(
+              ["/usr/bin/env", "python3", "-B", "/opt/quorem/launcher.py", "cancel", token],
+              { user: "0:0", stdout: "ignore", stderr: "ignore" },
+            );
+            if ((await cleanup.exitCode) !== 0) throw new Error("Case cleanup unconfirmed");
+            this.active.delete(token);
+          } else if (!entry && !this.boot && (await this.ctx.storage.get("started"))) {
+            // An evicted owner cannot certify individual process cleanup.
+            throw new Error("Case owner unavailable");
+          }
+        } else {
+          this.cancelled = true;
+          for (const entry of this.active.values())
+            void entry.writer.abort(new Error("Attempt cancelled")).catch(() => {});
+          await this.ctx.storage.put("cancelled", true);
+          await this.stop();
         }
-        if (!token || (await this.ctx.storage.get("started")) === token) stops.push(this.stop());
-        const outcomes = await Promise.allSettled(stops);
-        if (outcomes.some((value) => value.status === "rejected"))
-          throw new Error("Case teardown unconfirmed");
-        console.log("case-lifecycle delete-complete");
         return new Response(null, { status: 204 });
       } catch {
         return new Response(null, { status: 503 });
       }
     }
     if (request.method !== "POST") return new Response(null, { status: 405 });
-    if (this.active || this.stopping) return new Response(null, { status: 409 });
+    if (this.cancelled || (await this.ctx.storage.get("cancelled")))
+      return new Response(null, { status: 503 });
+    if (this.stopping || this.active.size >= SHARED_CASE_CONCURRENCY)
+      return new Response(null, { status: 409 });
     const language = request.headers.get("x-case-language");
     const token = request.headers.get("x-case-token");
     const memory = Number(request.headers.get("x-case-memory"));
     const processes = Number(request.headers.get("x-case-processes"));
     if (
       !languages.has(language) ||
-      !/^[A-Za-z0-9-]{16,128}$/.test(token ?? "") ||
+      !/^[a-f0-9-]{36}$/.test(token ?? "") ||
       !Number.isSafeInteger(memory) ||
       memory < 1 ||
       memory > 268435456 ||
@@ -299,18 +157,12 @@ export class CaseSandbox extends DurableObject {
       /^(-1|0|[1-9][0-9]{0,9})$/.test(rawOrdinal ?? "") && Number(rawOrdinal) <= 2147483646
         ? Number(rawOrdinal)
         : undefined;
-    const active = { token, ordinal };
-    this.phase = "admitted";
-    this.failure = undefined;
-    this.failureSource = undefined;
-    this.active = active;
-    const generation = this.generation ?? 0;
+    if (this.active.has(token)) return new Response(null, { status: 409 });
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
-    // Flush admission before startup; only the final frame certifies completed teardown.
-    this.ctx.waitUntil(
-      this.executeCase(request, active, generation, language, memory, processes, writer),
-    );
+    const active = { token, ordinal, writer, cancelled: false, launched: false, ready: false };
+    this.active.set(token, active);
+    this.ctx.waitUntil(this.executeCase(request, active, language, memory, processes));
     return new Response(stream.readable, {
       headers: {
         "Content-Type": "application/octet-stream",
@@ -319,17 +171,31 @@ export class CaseSandbox extends DurableObject {
     });
   }
 
-  async executeCase(request, active, generation, language, memory, processes, writer) {
+  async startAttempt(language) {
+    const container = this.ctx.container;
+    const image = container.images?.[language];
+    if (!image || container.running || (await this.ctx.storage.get("started")))
+      throw new Error("Case container unavailable");
+    if (await this.ctx.storage.get("cancelled")) throw new Error("Attempt cancelled");
+    const deadline = Date.now() + 180_000;
+    await this.ctx.storage.put({ started: language, deadline });
+    await this.ctx.storage.setAlarm(deadline);
+    if (this.cancelled) throw new Error("Attempt cancelled");
+    container.start({
+      image,
+      instance: { vcpu: SHARED_CASE_CONCURRENCY, memoryMib: 3072, diskMb: 4000 },
+      enableInternet: false,
+    });
+  }
+
+  async executeCase(request, active, language, memory, processes) {
+    const { token, writer } = active;
     const admitted = performance.now();
     const timing = (this.timing = {});
-    const token = active.token;
-    let source;
     let step = "setup";
-    const observe = (promise, name) =>
-      promise.catch((error) => {
-        source ??= name;
-        throw error;
-      });
+    const check = () => {
+      if (this.cancelled || active.cancelled) throw new Error("Case cancelled");
+    };
     try {
       await writer.write(frame(1, new Uint8Array()));
       if (
@@ -338,33 +204,21 @@ export class CaseSandbox extends DurableObject {
       )
         throw new Error("Case cancelled");
       const bytes = await input(request);
-      if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
-      const container = this.ctx.container;
-      if (
-        container.running ||
-        (await this.ctx.storage.get("started")) ||
-        !container.images?.[language]
-      )
-        throw new Error("Case container unavailable");
-      const deadline = Date.now() + 180_000;
-      await this.ctx.storage.put({ started: token, deadline });
-      await this.ctx.storage.setAlarm(deadline);
-      if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
+      check();
       const started = performance.now();
       timing.inputMs = Math.round(started - admitted);
-      container.start({
-        image: container.images[language],
-        instance: language === "python" ? "basic" : { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
-        enableInternet: false,
-      });
-      this.phase = "started";
-      // exec waits for native readiness; metadata polling adds control-plane calls.
+      this.language ??= language;
+      if (language !== this.language) throw new Error("Case language changed");
+      this.boot ??= this.startAttempt(language);
+      await this.boot;
+      check();
+      const container = this.ctx.container;
       // The live response keeps this invocation active; the durable alarm fences abandoned runs.
       this.phase = "exec-begin";
       const stdin = new ReadableStream(
         {
           pull: (controller) => {
-            if ((this.generation ?? 0) !== generation) {
+            if (this.cancelled || active.cancelled) {
               controller.error(new Error("Case cancelled"));
               return;
             }
@@ -374,6 +228,7 @@ export class CaseSandbox extends DurableObject {
         },
         { highWaterMark: 0 },
       );
+      active.launched = true;
       const process = await container.exec(
         [
           "/usr/bin/env",
@@ -383,10 +238,12 @@ export class CaseSandbox extends DurableObject {
           language,
           String(memory),
           String(processes),
+          token,
         ],
         { user: "0:0", stdin, stdout: "pipe", stderr: "pipe" },
       );
-      if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
+      check();
+      active.ready = true;
       this.phase = "exec-ready";
       const ready = performance.now();
       timing.startupMs = Math.round(ready - started);
@@ -408,42 +265,33 @@ export class CaseSandbox extends DurableObject {
       };
       step = "streams";
       const [, , exitCode] = await Promise.all([
-        observe(pump(process.stdout, 1), "stdout"),
-        observe(pump(process.stderr, 2), "stderr"),
-        observe(process.exitCode, "exit"),
+        pump(process.stdout, 1),
+        pump(process.stderr, 2),
+        process.exitCode,
       ]);
       this.phase = "streams-complete";
       timing.executionMs = Math.round(performance.now() - ready);
       console.log(`case-lifecycle streams-complete ${language}`);
       const exit = new Uint8Array(4);
       new DataView(exit.buffer).setInt32(0, exitCode);
-      // All native streams and the process have ended; exit delivery can overlap VM destruction.
-      const destroy = performance.now();
-      const stopped = this.stop();
-      void stopped.catch(() => {});
+      check();
+
       step = "exit-frame";
       await writer.write(frame(3, exit));
-      step = "destroy";
-      await stopped;
-      timing.teardownMs = Math.round(performance.now() - destroy);
       step = "terminal-frame";
       await writer.write(frame(4, new Uint8Array()));
       step = "close";
       timing.totalMs = Math.round(performance.now() - admitted);
+      this.active.delete(token);
       await writer.close();
     } catch (error) {
       this.failure = this.phase;
-      this.failureSource = source ?? step;
+      this.failureSource = step;
       console.log(`case-lifecycle stream-failed ${language}`);
-      try {
-        await this.stop();
-      } catch {
-        /* No terminal frame without confirmed teardown. */
-      }
       await writer.abort(error).catch(() => {});
     } finally {
       timing.totalMs = Math.round(performance.now() - admitted);
-      if (this.active === active) this.active = undefined;
+      if (!active.launched) this.active.delete(token);
     }
   }
 }

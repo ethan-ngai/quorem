@@ -1,5 +1,5 @@
 /** Execute a release-gated drain using the API's PostgreSQL repository. */
-import { judgingCapacity } from "@quorem/execution";
+import { judgingCapacity, SHARED_CASE_CONCURRENCY } from "@quorem/execution";
 import { createRepositoryRunner } from "../../../../runner/src/orchestration/runner.ts";
 import { checkpointedEngine } from "../../../../runner/src/orchestration/engine.ts";
 import { remoteSandbox } from "../../../../runner/src/sandbox/remote.ts";
@@ -76,7 +76,7 @@ export function localJudgingDrain(
             commands,
             isolated,
             capacity.sliceMs,
-            capacity.caseLanes,
+            Math.min(capacity.caseLanes, SHARED_CASE_CONCURRENCY),
             async () => (await commands.queueState()).queued > 0,
           ),
           inputProtocol: "manifest-v1",

@@ -7,6 +7,7 @@ import { checkpointedEngine } from "../orchestration/engine.ts";
 import { drainHandler } from "../drains/http.ts";
 import { createRunner } from "../orchestration/runner.ts";
 import { runnerConfig } from "./config.ts";
+import { SHARED_CASE_CONCURRENCY } from "@quorem/execution";
 import { accessFetch } from "@quorem/execution/transport/access";
 import { listenPrivate } from "./server.ts";
 
@@ -36,7 +37,9 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
         repository,
         isolated,
         config.sliceMs,
-        config.caseConcurrency,
+        config.sandbox.provider === "docker"
+          ? config.caseConcurrency
+          : Math.min(config.caseConcurrency, SHARED_CASE_CONCURRENCY),
         async () => (await repository.queueState()).queued > 0,
       ),
       inputProtocol: "manifest-v1",
