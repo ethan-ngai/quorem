@@ -1,6 +1,6 @@
 /** @file service.ts @description Compose the trusted private result verifier. @module runner */
 import { verificationHandler, verificationFetch } from "./http.ts";
-import { httpVerificationSource } from "./source-http.ts";
+import { httpVerificationSource, type VerificationBundle } from "./source-http.ts";
 import { nodeResultVerifier, type VerificationSource } from "./verifier.ts";
 /** The listener is provisioned privately; all credentials are separate from sandbox execution. */
 type VerificationConfig = {
@@ -34,7 +34,13 @@ function verificationOptions(options: VerificationConfig) {
   return {
     credential: options.serviceCredential,
     timeoutMs: options.timeoutMs,
-    async verify(challenge: string, signal: AbortSignal, inlineFields = false) {
+    inlineBundle: options.bundle,
+    async verify(
+      challenge: string,
+      signal: AbortSignal,
+      inlineFields = false,
+      inlineBundle?: VerificationBundle,
+    ) {
       const source = httpVerificationSource({
         origin: options.sourceOrigin,
         credential: options.sourceCredential,
@@ -42,6 +48,7 @@ function verificationOptions(options: VerificationConfig) {
         timeoutMs: options.timeoutMs,
         fetch: options.fetch,
         bundle: options.bundle,
+        inlineBundle,
       });
       let fields: Parameters<NonNullable<VerificationSource["putFields"]>>[1] | undefined;
       if (options.bundle && inlineFields)

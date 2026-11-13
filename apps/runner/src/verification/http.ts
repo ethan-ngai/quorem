@@ -1,6 +1,7 @@
 /** @file http.ts @description Private authenticated result verification transports. @module runner */
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { VerificationBundle } from "./source-http.ts";
 import type { VerificationReceipt } from "@quorem/execution";
 
 /** The listener is private; its dedicated secret is distinct from runner command credentials. */
@@ -10,27 +11,32 @@ type VerificationOptions = {
     challenge: string,
     signal: AbortSignal,
     inlineFields?: boolean,
+    bundle?: VerificationBundle,
   ) => Promise<{
     receipt: VerificationReceipt;
     signature: Uint8Array;
     fields?: readonly { field: "actual" | "expected"; bytes: Uint8Array }[];
   }>;
   timeoutMs: number;
+  inlineBundle?: boolean;
 };
 
-function challengeFrom(body: string): string {
+function verificationRequest(body: string, allowBundle = false) {
   const data: unknown = JSON.parse(body);
   if (
     !data ||
     typeof data !== "object" ||
     Array.isArray(data) ||
-    Object.keys(data).length !== 1 ||
+    Object.keys(data).some((key) => key !== "challenge" && !(allowBundle && key === "bundle")) ||
     !("challenge" in data) ||
     typeof data.challenge !== "string" ||
     !/^[a-zA-Z0-9-]{1,128}$/.test(data.challenge)
   )
     throw new Error("Invalid request");
-  return data.challenge;
+  const bundle = "bundle" in data ? (data.bundle as VerificationBundle) : undefined;
+  if ("bundle" in data && bundle?.frozen?.challenge !== data.challenge)
+    throw new Error("Invalid verification bundle");
+  return { challenge: data.challenge, bundle };
 }
 
 function verificationJSON(result: Awaited<ReturnType<VerificationOptions["verify"]>>) {
@@ -85,7 +91,7 @@ export function verificationHandler(options: VerificationOptions) {
         if (size > 256) throw new Error("Invalid request");
         body += (chunk as Buffer).toString("utf8");
       }
-      const challenge = challengeFrom(body);
+      const { challenge } = verificationRequest(body);
       abort.signal.throwIfAborted();
       const result = await Promise.race([
         options.verify(challenge, abort.signal),
@@ -143,14 +149,15 @@ export function verificationFetch(options: VerificationOptions) {
         const part = await reader.read();
         if (part.done) break;
         size += part.value.length;
-        if (size > 256) {
+        if (size > (options.inlineBundle ? 360256 : 256)) {
           cancel();
           throw new Error("Invalid request");
         }
         parts.push(part.value);
       }
-      const challenge = challengeFrom(
+      const { challenge, bundle } = verificationRequest(
         new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(parts)),
+        options.inlineBundle,
       );
       signal.throwIfAborted();
       const body = new ReadableStream<Uint8Array>({
@@ -169,6 +176,7 @@ export function verificationFetch(options: VerificationOptions) {
                 challenge,
                 signal,
                 request.headers.get("x-quorem-verification-fields") === "inline",
+                bundle,
               ),
               expired,
             ]);

@@ -21,14 +21,21 @@ void test("genesis, pause and bounded authenticated inventory survive recreation
     ["verify"],
   );
   const values = new Map();
-  let writes = 0;
+  let writes = 0,
+    transactions = 0;
   const storage = {
-    get: async (k) => values.get(k),
+    get: async (k) =>
+      Array.isArray(k)
+        ? new Map(k.filter((key) => values.has(key)).map((key) => [key, values.get(key)]))
+        : values.get(k),
     put: async (k, v) => {
       writes++;
       return values.set(k, structuredClone(v));
     },
-    transaction: async (fn) => fn(storage),
+    transaction: async (fn) => {
+      transactions++;
+      return fn(storage);
+    },
     list: async ({ prefix, startAfter = "", limit }) =>
       new Map(
         [...values]
@@ -68,10 +75,12 @@ void test("genesis, pause and bounded authenticated inventory survive recreation
   assert.equal((await call("/activate", activation)).status, 204);
   for (const attempt of ["a", "b", "c", "d", "e"])
     assert.equal((await call("/register", registration(attempt))).status, 204);
-  const registeredWrites = writes;
+  const registeredWrites = writes,
+    registeredTransactions = transactions;
   for (let index = 0; index < 20; index++)
     assert.equal((await call("/register", registration("a"))).status, 204);
   assert.equal(writes, registeredWrites);
+  assert.equal(transactions, registeredTransactions);
   assert.equal((await call("/pause", pause)).status, 204);
   assert.equal((await call("/pause", { ...pause, expectedGeneration: 0 })).status, 409);
   assert.equal((await call("/register", registration("a"))).status, 503);

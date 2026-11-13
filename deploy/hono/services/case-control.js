@@ -29,6 +29,44 @@ const objectKeys = (v, keys) =>
 const equalFields = (a, b) => Object.keys(b).every((key) => a[key] === b[key]);
 /** Inventory persists across explicitly activated generations. */
 export class CaseControl extends DurableObject {
+  async register(value) {
+    if (
+      !objectKeys(value, "attempt,generation,release") ||
+      typeof value.attempt !== "string" ||
+      !attemptPattern.test(value.attempt) ||
+      !generationValid(value.generation) ||
+      typeof value.release !== "string" ||
+      !/^[a-f0-9]{40}$/.test(value.release)
+    )
+      return 400;
+    const storage = this.ctx.storage;
+    const { attempt, generation, release } = value;
+    const key = `attempt:${attempt}`;
+    const check = async (store) => {
+      const records = await store.get(["state", key]);
+      const state = records.get("state");
+      if (
+        !state?.genesis ||
+        !state.active ||
+        state.generation !== generation ||
+        state.release !== release
+      )
+        return 503;
+      const prior = records.get(key);
+      if (prior) return prior.generation === generation && prior.release === release ? 204 : 409;
+    };
+    // Existing attempts can check the release fence in one atomic read.
+    return (
+      (await check(storage)) ??
+      storage.transaction(async (tx) => {
+        const status = await check(tx);
+        if (status !== undefined) return status;
+        await tx.put(key, { generation, release });
+        return 204;
+      })
+    );
+  }
+
   async fetch(request) {
     try {
       const url = new URL(request.url),
@@ -39,6 +77,11 @@ export class CaseControl extends DurableObject {
       ) {
         if (url.search) return new Response(null, { status: 400 });
         const value = await readControlJson(request);
+        if (path === "/register")
+          return new Response(null, {
+            status: await this.register(value),
+            headers: { "cache-control": "no-store" },
+          });
         const result = await this.ctx.storage.transaction(async (tx) => {
           const state = (await tx.get("state")) ?? {
             genesis: null,
@@ -112,34 +155,7 @@ export class CaseControl extends DurableObject {
             await tx.put("state", state);
             return 204;
           }
-          if (
-            !value ||
-            typeof value !== "object" ||
-            Array.isArray(value) ||
-            Object.keys(value).sort().join() !== "attempt,generation,release" ||
-            typeof value.attempt !== "string" ||
-            !attemptPattern.test(value.attempt) ||
-            !generationValid(value.generation) ||
-            typeof value.release !== "string" ||
-            !/^[a-f0-9]{40}$/.test(value.release)
-          )
-            return 400;
-          if (
-            !state.genesis ||
-            !state.active ||
-            state.generation !== value.generation ||
-            state.release !== value.release
-          )
-            return 503;
-          const prior = await tx.get(`attempt:${value.attempt}`);
-          if (prior && (prior.generation !== value.generation || prior.release !== value.release))
-            return 409;
-          if (prior) return 204;
-          await tx.put(`attempt:${value.attempt}`, {
-            generation: value.generation,
-            release: value.release,
-          });
-          return 204;
+          return 404;
         });
         return new Response(null, { status: result, headers: { "cache-control": "no-store" } });
       }

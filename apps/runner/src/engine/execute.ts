@@ -172,8 +172,8 @@ export async function executeAndStage(
         };
         const append = async (name: CompletionFieldChunk["field"], raw: string) => {
           for (const chunk of field(channel, index, name, raw)) {
-            chunks.push(chunk);
             if (chunks.length === 16) await flush();
+            chunks.push(chunk);
           }
         };
         if (frame.actual !== undefined && frame.status === "executed")
@@ -189,8 +189,19 @@ export async function executeAndStage(
         if (diagnostics.length) await append("diagnostics", JSON.stringify(diagnostics));
         if (frame.sqlTypes?.length && frame.status === "executed")
           await append("sqlTypes", JSON.stringify(frame.sqlTypes));
-        await flush();
-        await repository.sealCompletionFrame(job, channel, index, frame.status, signal);
+        if (chunks.length && repository.sealCompletionFrameWithChunks)
+          await repository.sealCompletionFrameWithChunks(
+            job,
+            channel,
+            index,
+            frame.status,
+            chunks,
+            signal,
+          );
+        else {
+          await flush();
+          await repository.sealCompletionFrame(job, channel, index, frame.status, signal);
+        }
       }
       if (checkpoint.nextOrdinal > 0)
         await repository.replayCheckpoint(

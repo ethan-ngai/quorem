@@ -1,10 +1,12 @@
 /** @file verification-prepare.ts @description Freeze raw result chunks before external verification. @module judging */
 import { sql } from "drizzle-orm";
-import type { ConnectionScope } from "@quorem/database/core";
+import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { encodeJob, manifestCaseBinding, type Job } from "@quorem/execution";
 import { inputBundleInTransaction } from "../inputs/read.ts";
 import { validateFieldChunks } from "./field-validation.ts";
 import { lockCompletionFrame } from "./frame-lock.ts";
+import { encodeVerificationBundle } from "./verification-http.ts";
+import { frozenResultFields } from "./verification-source.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const statuses = new Set([
   "accepted",
@@ -24,6 +26,8 @@ export function postgresVerificationPrepare(run: Run) {
     channel: "public" | "sample" | "private",
     localOrdinal: number,
     status: string,
+    writeChunks?: (tx: Transaction) => Promise<void>,
+    inlineBundle = false,
   ) => {
     if (
       !statuses.has(status) ||
@@ -36,14 +40,16 @@ export function postgresVerificationPrepare(run: Run) {
     const challenge = await run((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
         await lockCompletionFrame(tx, job, channel, localOrdinal);
-        const { manifest, ref } = await inputBundleInTransaction(
+        await writeChunks?.(tx);
+        const bundle = await inputBundleInTransaction(
           tx,
           job,
           localOrdinal,
           false,
-          false,
+          inlineBundle,
           channel === "sample",
         );
+        const { manifest, ref } = bundle;
         const ordinal = channel === "sample" ? manifest.caseCount + localOrdinal : localOrdinal;
         if (
           (channel === "public" && manifest.kind !== "run") ||
@@ -110,7 +116,19 @@ export function postgresVerificationPrepare(run: Run) {
           sql`WITH frame AS (SELECT sha256(convert_to(${status}||':'||${channel}||':'||${localOrdinal}::text||':'||COALESCE(string_agg(field||':'||chunk_ordinal::text||':'||encode(chunk_hash,'hex')||';','' ORDER BY field,chunk_ordinal),''),'UTF8')) AS digest FROM execution_completion_field_chunks WHERE job_id=${job.jobId}::uuid AND channel=${channel} AND ordinal=${localOrdinal}), inserted AS (INSERT INTO execution_verification_challenges(id,job_id,attempt_id,sandbox_scope,job_data,result_channel,result_ordinal,ordinal,channel,frame_hash,raw_status) SELECT ${id}::uuid,${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},${wire},${channel},${localOrdinal},${ordinal},${ref.channel},digest,${status} FROM frame ON CONFLICT(job_id,ordinal) DO UPDATE SET id=execution_verification_challenges.id WHERE execution_verification_challenges.attempt_id=EXCLUDED.attempt_id AND execution_verification_challenges.sandbox_scope=EXCLUDED.sandbox_scope AND execution_verification_challenges.job_data=EXCLUDED.job_data AND execution_verification_challenges.result_channel=EXCLUDED.result_channel AND execution_verification_challenges.result_ordinal=EXCLUDED.result_ordinal AND execution_verification_challenges.channel=EXCLUDED.channel AND execution_verification_challenges.frame_hash=EXCLUDED.frame_hash AND execution_verification_challenges.raw_status=EXCLUDED.raw_status RETURNING id,frame_hash) SELECT id::text,encode(frame_hash,'hex') AS frame_hash FROM inserted`,
         );
         if (!result.rows.length) throw new Error("Verification frame conflict");
-        return { ...result.rows[0], manifest, ref, ordinal };
+        const row = result.rows[0];
+        const fieldsForVerifier = inlineBundle
+          ? await frozenResultFields(
+              tx,
+              {
+                job_id: job.jobId,
+                result_channel: channel,
+                result_ordinal: localOrdinal,
+              },
+              true,
+            )
+          : undefined;
+        return { ...row, manifest, ref, ordinal, bundle, fieldsForVerifier };
       }),
     );
     return {
@@ -119,6 +137,21 @@ export function postgresVerificationPrepare(run: Run) {
       job,
       ordinal: challenge.ordinal,
       channel: challenge.ref.channel,
+      bundle:
+        challenge.fieldsForVerifier &&
+        encodeVerificationBundle({
+          bundle: challenge.bundle,
+          frozen: {
+            challenge: challenge.id,
+            frameHash: challenge.frame_hash,
+            job,
+            ordinal: challenge.ordinal,
+            status,
+            actual: challenge.fieldsForVerifier.actual,
+            sqlTypes: challenge.fieldsForVerifier.sqlTypes,
+          },
+          ...challenge.fieldsForVerifier.pages,
+        }),
       binding: await manifestCaseBinding(
         job,
         challenge.manifest,
