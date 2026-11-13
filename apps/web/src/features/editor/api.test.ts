@@ -23,13 +23,11 @@ it("returns the finished result when cancellation races with completion", async 
   );
 });
 
-it("surfaces a rejected competitive cancellation", async () => {
+it("surfaces an unauthorized cancellation", async () => {
   get.mockClear();
   post.mockResolvedValue({
-    response: { status: 409 },
-    error: {
-      error: { code: "invalid_transition", message: "Match submissions cannot be cancelled" },
-    },
+    response: { status: 404 },
+    error: { error: { code: "not_found", message: "Submission not found" } },
   });
 
   await expect(cancelSubmission("alice", "match-submit")).rejects.toThrow();

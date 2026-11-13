@@ -168,7 +168,7 @@ export function useSubmission({
   const canAbort =
     !admissionPending &&
     (submission?.state === "queued" || submission?.state === "running") &&
-    !(submission.kind === "submit" && workspace?.kind === "match");
+    submission.canCancel !== false;
   const abortPending = canAbort && abortingId === submission.id;
   const streaming =
     !!activeSubmissionId &&

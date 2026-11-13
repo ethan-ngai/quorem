@@ -22,7 +22,7 @@ Browser draft keys include owner, immutable problem version and language; match 
 
 ## States
 
-Loading, empty template, editing, dirty, saving, saved, offline, recovery available, queued, running, accepted, wrong answer, syntax/runtime error, time/memory/output limit, invalid output, cancelled, judge unavailable. Submit: verdict, passed/total, safe summary; no hidden inputs/expected outputs. Run: bounded public/custom diagnostics. One queued/running job per user. Run/solo Submit cancellable; admitted match Submit irrevocable. Cancellation reflects actual fencing/teardown.
+Loading, empty template, editing, dirty, saving, saved, offline, recovery available, queued, running, accepted, wrong answer, syntax/runtime error, time/memory/output limit, invalid output, cancelled, judge unavailable. Submit: verdict, passed/total, safe summary; no hidden inputs/expected outputs. Run: bounded public/custom diagnostics. One queued/running job per user. Players can cancel their own queued or running Runs and Submits. Cancellation reflects actual fencing/teardown.
 
 ## Editor engine and language intelligence
 

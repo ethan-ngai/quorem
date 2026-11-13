@@ -286,8 +286,11 @@ void test("generic and interview reads enforce role, reveal and epoch", async ()
 void test("guest credentials and scope are live on reads and cancellation", async () => {
   assert.equal(JSON.parse(await repo.read(guest, guestSubmission)).state, "queued");
   await pool.query("UPDATE submissions SET kind='submit' WHERE id=$1", [guestSubmission]);
-  await assert.rejects(repo.cancel(guest, guestSubmission, "match-submit"));
-  await pool.query("UPDATE submissions SET kind='run' WHERE id=$1", [guestSubmission]);
+  await assert.rejects(repo.cancel(alice, guestSubmission, "other-player"));
+  assert.equal(
+    JSON.parse(await repo.cancel(guest, guestSubmission, "match-submit")).state,
+    "cancelled",
+  );
   await assert.rejects(
     repo.read(
       { ...guest, scope: { kind: "match" as const, matchId: crypto.randomUUID() } },

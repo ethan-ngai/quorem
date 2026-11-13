@@ -6605,6 +6605,10 @@
       "Submission": {
         "type": "object",
         "properties": {
+          "canCancel": {
+            "type": "boolean",
+            "description": "False when the viewer can read the submission but does not own it."
+          },
           "practiceTarget": { "type": "string", "enum": ["small", "efficient"] },
           "customRun": {
             "type": "boolean"

@@ -1761,6 +1761,8 @@ export interface components {
             status: "accepted" | "wrong_answer" | "time_limit";
         };
         Submission: {
+            /** @description False when the viewer can read the submission but does not own it. */
+            canCancel?: boolean;
             /** @enum {string} */
             practiceTarget?: "small" | "efficient";
             customRun?: boolean;
