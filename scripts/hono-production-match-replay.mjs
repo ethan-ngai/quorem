@@ -183,6 +183,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
       );
       let nextProfile = Date.now() + 12000;
       const seenFailures = new Set();
+      const lastProgress = new Map();
       const attempts = await wait(
         async () => {
           await Promise.allSettled(
@@ -192,13 +193,21 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
             `SELECT s.id, s.state, s.result->>'verdict' AS verdict, j.language, i.case_count, i.sample_count,
                   array_agg(a.attempt_id ORDER BY a.claimed_at)
                     FILTER (WHERE a.attempt_id IS NOT NULL) AS attempts,
-                  round(1000 * extract(epoch FROM s.updated_at - s.admitted_at))::int AS elapsed_ms
+                  round(1000 * extract(epoch FROM s.updated_at - s.admitted_at))::int AS elapsed_ms,
+                  round(1000 * extract(epoch FROM min(a.claimed_at) - s.admitted_at))::int AS claim_ms,
+                  (SELECT count(*)::int FROM execution_verified_cases v WHERE v.job_id=j.id) AS verified
            FROM submissions s JOIN execution_jobs j ON j.submission_id=s.id
            JOIN runner_job_inputs i ON i.job_id=j.id
            LEFT JOIN execution_attempt_inventory a ON a.job_id=j.id
-           WHERE s.id=ANY($1::uuid[]) GROUP BY s.id, j.language, i.case_count, i.sample_count ORDER BY s.id`,
+           WHERE s.id=ANY($1::uuid[]) GROUP BY s.id, j.id, i.case_count, i.sample_count ORDER BY s.id`,
             [submissions.map(({ id }) => id)],
           );
+          for (const { id, state, verified } of rows) {
+            const progress = `${state}:${verified}`;
+            if (lastProgress.get(id) === progress) continue;
+            lastProgress.set(id, progress);
+            console.log(JSON.stringify({ replayProgress: { id, state, verified } }));
+          }
           if (Date.now() >= nextProfile) {
             nextProfile = Date.now() + 5000;
             const profile = await readProfile().catch(() => null);
@@ -221,6 +230,16 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
         120000,
       );
       console.log(JSON.stringify({ replayRound: round + 1, attempts }));
+      // Completed drains publish their timings after the submission becomes terminal.
+      const profile = await readProfile().catch(() => null);
+      console.log(
+        JSON.stringify({
+          replayRound: round + 1,
+          drainTimings: (profile?.shards ?? [])
+            .filter(({ metrics }) => metrics?.["sandbox.runCase"]?.calls)
+            .map(({ elapsedMs, metrics }) => ({ elapsedMs, metrics })),
+        }),
+      );
       if (attempts.some(({ verdict }) => verdict === "accepted")) {
         const outcome = await wait(
           async () =>

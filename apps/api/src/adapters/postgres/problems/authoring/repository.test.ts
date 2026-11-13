@@ -172,6 +172,16 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "utf8",
       );
       const parsedContent = JSON.parse(content);
+      parsedContent.problem.acceptance = {
+        small: {
+          caseCount: 6,
+          complexity: { timeComplexity: "$O(n^2)$", spaceComplexity: "$O(n)$" },
+        },
+        efficient: {
+          caseCount: 19,
+          complexity: { timeComplexity: "$O(n^2)$", spaceComplexity: "$O(1)$" },
+        },
+      };
       parsedContent.approaches.push({
         id: "grouping",
         title: "Grouping",
@@ -227,7 +237,10 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
             JSON.stringify({
               ...parsedContent,
               problem: authoredProblem,
-              hiddenCases: [{ args: ["invalid input"], expected: [] }],
+              hiddenCases: [
+                { args: ["invalid input"], expected: [] },
+                ...parsedContent.hiddenCases.slice(1),
+              ],
             }),
           ],
         }),
@@ -350,6 +363,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
       expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
       expect(fork.content.approaches).toEqual(parsedContent.approaches);
+      expect(fork.content.problem.acceptance).toEqual(parsedContent.problem.acceptance);
       expect(fork.content).not.toHaveProperty("implementations");
       expect(
         JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
@@ -360,14 +374,59 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         published.publishedVersionId,
         true,
       );
-      expect(JSON.parse(complexity).items.map((item: { id: string }) => item.id)).toEqual([
-        "default",
-        "grouping",
-      ]);
-      expect(complexity).not.toContain("implementations");
-      expect(complexity).not.toContain("explanationMarkdown");
+      expect(JSON.parse(complexity)).toEqual({
+        optimal: { timeComplexity: "O(n)", spaceComplexity: "O(1)" },
+        accepted: parsedContent.problem.acceptance.efficient.complexity,
+      });
+
+      const budgetMetadata = await pool.query(
+        "SELECT convert_from(b.data,'UTF8')::jsonb->'caseBudget' AS budget FROM runner_publication_inputs i JOIN runner_input_blobs b ON b.hash=i.metadata_hash WHERE i.publication_id=$1",
+        [published.publishedVersionId],
+      );
+      expect(budgetMetadata.rows[0].budget).toEqual({
+        time: [[{ argument: 0, measure: "length", growth: "quadratic" }]],
+        space: [[]],
+      });
+
+      const practice = await pool.connect();
+      try {
+        await practice.query("BEGIN");
+        const workspace = crypto.randomUUID();
+        await practice.query(
+          "INSERT INTO workspaces(id,owner_id,publication_id,language,kind) VALUES($1,$2,$3,'python','solo')",
+          [workspace, owner, published.publishedVersionId],
+        );
+        for (const [target, tier] of [
+          ["small", 1],
+          ["efficient", 2],
+          ["small", 2],
+        ] as const) {
+          const submission = crypto.randomUUID();
+          await practice.query(
+            "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,practice_target,cases) VALUES($1,$2,$3,'submit','','','queued',$4,'[]')",
+            [submission, owner, workspace, target],
+          );
+          await practice.query("SELECT set_config('quorem.lossless_result_write','v1',true)");
+          await practice.query(
+            `UPDATE submissions SET state='completed',result='{"verdict":"accepted"}' WHERE id=$1`,
+            [submission],
+          );
+          expect(
+            (
+              await practice.query(
+                "SELECT tier,EXISTS(SELECT 1 FROM practice_solves WHERE workspace_id=$1) AS solved FROM practice_target_progress WHERE workspace_id=$1",
+                [workspace],
+              )
+            ).rows,
+          ).toEqual([{ tier, solved: tier > 1 }]);
+        }
+      } finally {
+        await practice.query("ROLLBACK");
+        practice.release();
+      }
 
       const nul = structuredClone(parsedContent);
+      delete nul.problem.acceptance;
       nul.problem.slug = `nul-${crypto.randomUUID().slice(0, 8)}`;
       nul.problem.signature = {
         className: "Solution",
@@ -395,6 +454,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         repository.create({ userId: other, admin: false }, undefined, np.publishedVersionId),
       ).rejects.toMatchObject({ status: 404 });
       const sq = structuredClone(parsedContent);
+      delete sq.problem.acceptance;
       sq.problem.slug = `sql-${crypto.randomUUID().slice(0, 8)}`;
       sq.problem.sql = {
         dialect: "postgresql",

@@ -88,7 +88,7 @@ export function matchLifecycleRoutes(deps: {
       await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", input.kind),
     );
   });
-  for (const action of ["leave", "forfeit"] as const)
+  for (const action of ["leave", "forfeit", "offer-draw", "accept-draw"] as const)
     app.post(`/v1/matches/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         operation = key(c.req.raw),

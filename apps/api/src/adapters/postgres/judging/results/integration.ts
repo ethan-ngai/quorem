@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import type { LocalPrincipal, GuestPrincipal } from "../../../../modules/identity/model.ts";
+import { postgresCheckpoints } from "../worker/checkpoints.ts";
 import { submissionSnapshots } from "./repository.ts";
 import { verifyBufferedResultArrays } from "./array-stream.integration.ts";
 const url = process.env.QUOREM_RESULTS_TEST_DATABASE_URL;
@@ -285,8 +286,11 @@ void test("generic and interview reads enforce role, reveal and epoch", async ()
 void test("guest credentials and scope are live on reads and cancellation", async () => {
   assert.equal(JSON.parse(await repo.read(guest, guestSubmission)).state, "queued");
   await pool.query("UPDATE submissions SET kind='submit' WHERE id=$1", [guestSubmission]);
-  await assert.rejects(repo.cancel(guest, guestSubmission, "match-submit"));
-  await pool.query("UPDATE submissions SET kind='run' WHERE id=$1", [guestSubmission]);
+  await assert.rejects(repo.cancel(alice, guestSubmission, "other-player"));
+  assert.equal(
+    JSON.parse(await repo.cancel(guest, guestSubmission, "match-submit")).state,
+    "cancelled",
+  );
   await assert.rejects(
     repo.read(
       { ...guest, scope: { kind: "match" as const, matchId: crypto.randomUUID() } },
@@ -418,23 +422,18 @@ void test("a cancellation preceding completion remains authoritative", async () 
     [job, id, attempt],
   );
   await repo.cancel(alice, id, "race-cancel-first");
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SELECT pg_advisory_xact_lock(740020)");
-    const live = await client.query(
-      "SELECT s.cancel_requested FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id WHERE j.id=$1 AND j.attempt_id=$2 AND NOT j.finished AND j.lease_until>clock_timestamp() AND s.state='running' FOR UPDATE OF j,s",
-      [job, attempt],
-    );
-    assert.equal(live.rows[0].cancel_requested, true);
-    await client.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [id]);
-    await client.query("UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE id=$1", [
-      job,
-    ]);
-    await client.query("COMMIT");
-  } finally {
-    client.release();
-  }
+  const acknowledge = postgresCheckpoints(run).acknowledgeCancellation!;
+  const stale = { attemptId: crypto.randomUUID(), sandboxScope: "cancellation-fixture" };
+  await acknowledge(
+    { jobId: job, submissionId: id, ...stale } as Parameters<typeof acknowledge>[0],
+    stale,
+  );
+  assert.equal(JSON.parse(await repo.read(alice, id)).state, "running");
+  const fence = { ...stale, attemptId: attempt };
+  await acknowledge(
+    { jobId: job, submissionId: id, ...fence } as Parameters<typeof acknowledge>[0],
+    fence,
+  );
   assert.equal(JSON.parse(await repo.read(alice, id)).state, "cancelled");
 });
 void test("database failures become a safe unavailable transport response", async () => {

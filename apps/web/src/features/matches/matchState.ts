@@ -62,6 +62,7 @@ export function matchCompletionOutcome(
   identity: DevelopmentIdentity,
 ): CompletionOutcome {
   const own = ownParticipant(snapshot, identity);
+  if (snapshot.state === "completed" && snapshot.outcome?.kind === "draw") return "draw";
   if (own?.forfeited) return "loss";
   if (snapshot.state !== "completed") return snapshot.state === "cancelled" ? "neutral" : "pending";
   if (snapshot.outcome?.kind !== "win") return "neutral";

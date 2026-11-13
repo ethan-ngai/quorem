@@ -251,6 +251,9 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
             headers: { "content-type": "application/octet-stream" },
           });
         }
+        case "cancelled":
+          await repository.acknowledgeCancellation?.(job(), fence()!);
+          break;
         case "yield":
           await repository.yield(job(), fence()!);
           break;

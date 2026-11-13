@@ -39,6 +39,7 @@ export function PersistentActionToast({
       </div>,
       {
         id,
+        icon,
         className: "app-toast persistent-action-toast-shell",
         duration: Infinity,
         dismissible: false,
@@ -46,7 +47,7 @@ export function PersistentActionToast({
         description: <div className="persistent-action-toast">{children}</div>,
       },
     );
-  }, [id, title, children, minimized, noun]);
+  }, [id, title, children, minimized, noun, icon]);
   useEffect(
     () => () => {
       toast.dismiss(id);

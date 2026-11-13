@@ -147,7 +147,12 @@ function ResultSummary({
       </div>
     );
   if (submission.state === "failed") return null;
-  if (submission.state === "cancelled") return <p className="result-message">Run cancelled</p>;
+  if (submission.state === "cancelled")
+    return (
+      <p className="result-message">
+        {submission.kind === "run" ? "Run aborted" : "Submission aborted"}
+      </p>
+    );
   const diagnostics = showCases ? submission.diagnostics : undefined;
   if (!showVerdict && !diagnostics?.length && (!showCases || !submission.publicCases?.length))
     return null;

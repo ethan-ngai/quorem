@@ -3,6 +3,9 @@ import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import {
   JsonNumber,
+  inferCaseBudget,
+  type Signature,
+  type Constraint,
   parseLosslessJson,
   stringifyLosslessJson,
   type JsonValue,
@@ -32,7 +35,7 @@ function wireCase(value: JsonValue): Obj {
 export function fixtureMetadata(value: JsonValue): Obj {
   const problem = object(value),
     metadata: Obj = {};
-  for (const key of ["id", "signature", "constraints", "limits", "sql"])
+  for (const key of ["id", "signature", "constraints", "limits", "sql", "caseBudget"])
     if (problem[key] !== undefined && problem[key] !== null) metadata[key] = problem[key];
   if (problem.odyssey !== undefined && problem.odyssey !== null)
     metadata.odyssey = {
@@ -69,13 +72,41 @@ export async function indexRunnerFixture(
   const root = object(parseLosslessJson(raw)),
     problem = object(root.problem);
   const levels = problem.odyssey ? list(object(problem.odyssey).levels) : [];
-  const metadataHash = await storeFixtureBlob(tx, await encodeFixtureMetadata(tx, problem));
+  const baseMetadata = await encodeFixtureMetadata(tx, problem);
+  let budget = problem.caseBudget;
+  if (!budget && "publication" in parent && problem.signature && !problem.sql && !problem.odyssey) {
+    const row = (
+      await tx.execute<{ time: string; space: string }>(sql`
+      SELECT COALESCE(p.acceptance->'efficient'->'complexity'->>'timeComplexity',a.time_complexity) AS time,
+             COALESCE(p.acceptance->'efficient'->'complexity'->>'spaceComplexity',a.space_complexity) AS space
+      FROM question_publications p
+      LEFT JOIN problem_solution_approaches a ON a.publication_id=p.id AND a.is_canonical
+      WHERE p.id=${parent.publication}::uuid
+    `)
+    ).rows[0];
+    if (row?.time && row.space) {
+      const inferred = inferCaseBudget(
+        { timeComplexity: row.time, spaceComplexity: row.space },
+        problem.signature as unknown as Signature,
+        list(problem.constraints) as unknown as Constraint[],
+      );
+      if (inferred) budget = parseLosslessJson(JSON.stringify(inferred));
+    }
+  }
+  const metadataHash = await storeFixtureBlob(
+    tx,
+    budget ? await encodeFixtureMetadata(tx, { ...problem, caseBudget: budget }) : baseMetadata,
+  );
   const fixtureHash = await fixtureSourceHash(tx, parent);
   let existing: { sealed: boolean; same: boolean } | undefined;
   if ("publication" in parent) {
     existing = (
       await tx.execute<{ sealed: boolean; same: boolean }>(
-        sql`SELECT sealed,(metadata_hash=${metadataHash}::bytea AND fixture_hash=${fixtureHash}::bytea) AS same FROM runner_publication_inputs WHERE publication_id=${parent.publication}::uuid`,
+        sql`SELECT i.sealed,(i.fixture_hash=${fixtureHash}::bytea AND
+          (i.metadata_hash=${metadataHash}::bytea OR
+           convert_from(b.data,'UTF8')::jsonb-'caseBudget'=convert_from(${baseMetadata}::bytea,'UTF8')::jsonb-'caseBudget')) AS same
+          FROM runner_publication_inputs i JOIN runner_input_blobs b ON b.hash=i.metadata_hash
+          WHERE i.publication_id=${parent.publication}::uuid`,
       )
     ).rows[0];
     if (existing && (!existing.sealed || !existing.same))

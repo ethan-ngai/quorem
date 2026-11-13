@@ -11,9 +11,7 @@ it("pairs an exact score with its identity-colored fraction", () => {
   expect(html).toContain("--score-color:oklch(0.53 0.13 255)");
 });
 it("keeps absent and empty scores distinct from zero passed", () => {
-  expect(
-    renderToStaticMarkup(<ScoreProgress color="blue" unavailableLabel="Forfeited" />),
-  ).toContain('aria-label="Forfeited"');
+  expect(renderToStaticMarkup(<ScoreProgress color="blue" />)).toContain('aria-label="No score"');
   const zero = renderToStaticMarkup(
     <ScoreProgress score={{ passed: 0, total: 24 }} color="blue" />,
   );

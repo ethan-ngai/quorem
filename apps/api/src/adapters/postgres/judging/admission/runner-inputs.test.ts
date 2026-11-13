@@ -686,6 +686,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               origin: "https://verifier.fixture",
               credential: verifierCredential,
               timeoutMs: 5000,
+              inlineBundle: true,
               fetch: async (input, init) => verify(new Request(input, init)),
             });
             const verified = await verifier.verify(challenge.id);
@@ -694,6 +695,22 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               "/internal/verification/field",
             );
             expect(verified.fields?.map(({ field }) => field)).toEqual(["actual", "expected"]);
+            const inline = await postgresVerificationPrepare(scoped)(
+              fence,
+              "sample",
+              0,
+              "accepted",
+              undefined,
+              true,
+            );
+            expect(inline.bundle).toBeDefined();
+            sourceCalls.length = 0;
+            const verifiedInline = await verifier.verify(inline.id, undefined, inline.bundle);
+            expect(verifiedInline.receipt).toEqual(verified.receipt);
+            expect(verifiedInline.fields).toEqual(verified.fields);
+            expect(sourceCalls.map(({ path }) => path)).not.toContain(
+              "/internal/verification/bundle",
+            );
             await tx.execute(sql`SAVEPOINT mismatch_assembly`);
             const mismatch = { ...verified.receipt, typeMismatch: true };
             const mismatchSignature = new Uint8Array(
@@ -725,6 +742,9 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               verifier,
               verificationPublicKey: keys.publicKey,
             }).seal(fence, "sample", 0, "accepted");
+            expect(sourceCalls.map(({ path }) => path)).not.toContain(
+              "/internal/verification/bundle",
+            );
             expect(verified.receipt.status).toBe("wrong_answer");
             expect(
               await verifyResultReceipt(verified.receipt, verified.signature, keys.publicKey),

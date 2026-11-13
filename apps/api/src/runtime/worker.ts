@@ -514,6 +514,7 @@ export default {
               env.RESULT_VERIFIER
                 ? (input, init) => env.RESULT_VERIFIER!.fetch(new Request(input, init))
                 : undefined,
+              !!env.RESULT_VERIFIER,
             );
             const response = path.startsWith("/internal/runner/")
               ? await handlers.runner(request)

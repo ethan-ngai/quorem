@@ -29,7 +29,7 @@
 | D25 | Match selection: random within host difficulty filter, revealed at start | Confirmed |
 | D26 | Finalization: up to two minutes; no contest if unresolved judging could alter outcome | Confirmed |
 | D27 | Explicit forfeit is immediate concession; pending jobs cannot reverse completed outcome | Confirmed |
-| D28 | Run cancellable; match Submit irrevocable | Confirmed |
+| D28 | Run and Submit cancellable while queued or running | Confirmed |
 | D29 | Six original seeds: two easy, two medium, two hard; array/string/list/tree coverage | Confirmed |
 | D30 | Python standard library; no third-party packages | Confirmed |
 | D31 | AWS AppSync Events; native local WebSocket adapter | Confirmed |
@@ -48,7 +48,7 @@ User delegated routine technical choices. Defaults below are implementation requ
 - Local durable PostgreSQL job queue; cloud SQS queue adapter. Transactional outbox for durable updates; realtime remains nondurable fanout with snapshots.
 - Python language-service capability spike chooses maintained server against the four required features; pin the supported runtime and stubs together.
 - Browser IndexedDB recovery; autosave after 750ms idle; latest server-accepted revision wins. Retain at most 100 accepted revisions for 30 days, plus bounded local recovery. Offline code is preserved for explicit restore/save rather than automatically replacing remote code on reconnect.
-- Solo and match drafts have separate namespaces; match starts from a clean starter template. Solo submissions cancellable; admitted match submissions cannot be cancelled. One user cannot participate in multiple active matches.
+- Solo and match drafts have separate namespaces; match starts from a clean starter template. Players can cancel their own queued or running submissions in solo and match workspaces. One user cannot participate in multiple active matches.
 - Match admission uses locked aggregate sequence and database time, eligible only before deadline. Equal timestamps ordered by sequence; no-submission score zero; best score is maximum over eligible submissions. Explicit forfeit takes precedence while outcome is uncommitted.
 - Local containers only for trusted development. Public runner target: isolated Linux sandbox with gVisor on a dedicated EC2 worker host, bounded per-job/per-case resources and no sandbox network/secrets. Host/controller separation and isolation checks are release gates; microVM adapter remains an upgrade seam.
 - Cognito owns passwords/verification/reset; Better Auth owns application sessions and JWT issuance. Start social federation with Google through Cognito. GitHub can use Better Auth's direct adapter later; no new OIDC bridge solely for GitHub. Account linking is explicit and verified, never based only on equal email strings.

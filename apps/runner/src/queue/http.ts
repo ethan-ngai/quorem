@@ -355,6 +355,9 @@ export function privateRunnerCommands(options: {
         "x-runner-job": j(job),
       });
     },
+    async acknowledgeCancellation(job, fence, signal) {
+      await ack("cancelled", { job: j(job), attemptId: proof(options.scope, fence) }, signal);
+    },
     async yield(job, fence, signal) {
       await ack("yield", { job: j(job), attemptId: proof(options.scope, fence) }, signal);
     },

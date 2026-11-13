@@ -9,8 +9,12 @@ export const assistancePolicySchema = z.strictObject({
   seconds: amount,
   points,
 });
+export const acceptancePolicySchema = z.enum(["small", "efficient"]);
+export type AcceptancePolicy = z.infer<typeof acceptancePolicySchema>;
+
 export const matchRulesSchema = z.strictObject({
   victory: z.enum(["race", "high_score"]),
+  acceptance: acceptancePolicySchema.optional(),
   settingsEditors: z.enum(["host", "everyone"]),
   automaticImports: z.boolean().optional(),
   clipboard: z.enum(["off", "warning", "announce", "penalty"]),
@@ -108,6 +112,7 @@ export function selectedMatchPreset(rules: MatchRuleSettings): MatchPreset | "cu
         JSON.stringify(
           matchRulesSchema.parse({
             ...rules,
+            acceptance: undefined,
             victory: "race",
             settingsEditors: "host",
             automaticImports: false,

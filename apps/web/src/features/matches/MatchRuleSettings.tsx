@@ -80,7 +80,7 @@ const assistanceIcons = {
   hiddenCase: <EyeOff size={16} aria-hidden="true" />,
 };
 const descriptions = {
-  casual: "Assistance without penalties; no submission cooldown.",
+  casual: "Free assistance and no submission cooldown.",
   balanced:
     "Assistance adds a penalty. Submissions have a cooldown. Paste and focus loss are announced.",
   strict:

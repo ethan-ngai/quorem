@@ -120,6 +120,8 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
     validDate(value.expiresAt) &&
     (value.partyId === undefined ||
       (typeof value.partyId === "string" && uuidPattern.test(value.partyId))) &&
+    (value.drawOfferUserId === undefined ||
+      (typeof value.drawOfferUserId === "string" && participantIds.has(value.drawOfferUserId))) &&
     (value.reviewPending === undefined || typeof value.reviewPending === "boolean") &&
     (value.startedAt === undefined || validDate(value.startedAt)) &&
     (value.deadline === undefined || validDate(value.deadline)) &&

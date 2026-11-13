@@ -89,6 +89,9 @@ export async function detachPublication(tx: Transaction, publicationId: string) 
     sql`DELETE FROM practice_case_feedback f USING workspaces w WHERE w.id=f.workspace_id AND w.publication_id=${publicationId}::uuid`,
   );
   await tx.execute(
+    sql`DELETE FROM practice_target_progress f USING workspaces w WHERE w.id=f.workspace_id AND w.publication_id=${publicationId}::uuid`,
+  );
+  await tx.execute(
     sql`DELETE FROM practice_solves f USING workspaces w WHERE w.id=f.workspace_id AND w.publication_id=${publicationId}::uuid`,
   );
   await tx.execute(

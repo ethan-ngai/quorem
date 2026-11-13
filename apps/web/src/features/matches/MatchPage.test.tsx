@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   notify: vi.fn(),
   saveDraft: vi.fn<() => Promise<void>>(),
   forfeit: vi.fn(),
+  draw: vi.fn(),
 }));
 vi.mock("./MatchControls", () => ({
   useAccountIdentity: () => ({
@@ -68,11 +69,13 @@ vi.mock("../../ui/Notifications", () => ({ useErrorNotification: state.notify })
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
   forfeitMatch: state.forfeit,
+  matchDraw: state.draw,
 }));
 vi.mock("./ConcessionDialog", () => ({
   ConcessionDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) =>
     open ? <button onClick={onConfirm}>Confirm forfeit</button> : null,
 }));
+import { Toaster } from "sonner";
 import { MatchPage } from "./MatchPage";
 
 const activeMatch: MatchSnapshot = {
@@ -211,6 +214,58 @@ it("flushes the shared draft before forfeiting a Race", async () => {
     expect(state.forfeit).not.toHaveBeenCalled();
     await act(async () => finishSave());
     expect(state.forfeit).toHaveBeenCalledWith("alice", "match");
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+it("collapses equal penalty clocks and accepts the opponent's offer from a toast", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const opponent = {
+    userId: "00000000-0000-4000-8000-000000000002",
+    displayName: "Bob",
+    ready: true,
+    presence: "online" as const,
+  };
+  state.snapshot = {
+    ...activeMatch,
+    rules: matchPreset(),
+    participants: [{ ...activeMatch.participants[0]!, penaltySeconds: 30 }, opponent],
+    submissionDeadline: "2026-11-06T12:29:30Z",
+    drawOfferUserId: opponent.userId,
+  };
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        <>
+          <Toaster />
+          <MatchPage matchId="match" />
+        </>,
+      ),
+    );
+    expect(container.querySelector(".match-clock-personal")).toBeNull();
+    expect(container.textContent).toContain("Bob offered a draw");
+    await act(async () =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "Accept draw")!
+        .click(),
+    );
+    expect(state.draw).toHaveBeenCalledWith("alice", "match", "accept");
+    state.snapshot = { ...state.snapshot, submissionDeadline: undefined };
+    await act(async () =>
+      root.render(
+        <>
+          <Toaster />
+          <MatchPage matchId="match" />
+        </>,
+      ),
+    );
+    expect(container.querySelector(".match-clock-personal")).not.toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();

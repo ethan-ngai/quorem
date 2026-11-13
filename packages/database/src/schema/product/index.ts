@@ -735,6 +735,7 @@ export const matches = pgTable(
     publication_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
+    draw_offer_owner_id: text(),
     rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),
@@ -778,6 +779,11 @@ export const matches = pgTable(
       foreignColumns: [users.id],
       name: "matches_host_owner_id_fkey",
     }),
+    foreignKey({
+      columns: [table.draw_offer_owner_id],
+      foreignColumns: [users.id],
+      name: "matches_draw_offer_owner_id_fkey",
+    }).onDelete("set null"),
     foreignKey({
       columns: [table.publication_id],
       foreignColumns: [question_publications.id],
@@ -1056,6 +1062,7 @@ export const question_publications = pgTable(
     fixture_identity_hash: bytea("fixture_identity_hash"),
     lossless_fixture: bytea("lossless_fixture"),
     lossless_public: bytea("lossless_public"),
+    acceptance: jsonb("acceptance"),
     lossless_stages: bytea("lossless_stages"),
   },
   (table): PgTableExtraConfigValue[] => [
@@ -1153,6 +1160,7 @@ export const submissions = pgTable(
     match_id: uuid(),
     match_sequence: bigint({ mode: "bigint" }),
     odyssey_level: integer(),
+    practice_target: text(),
     custom_run: boolean().default(false).notNull(),
     practice_assisted: boolean().default(false).notNull(),
     interview_id: uuid(),
@@ -1229,6 +1237,10 @@ export const submissions = pgTable(
     }),
     unique("submission_interview_identity").on(table.id, table.interview_id),
     check("submissions_kind_check", sql`kind = ANY (ARRAY['run'::text, 'submit'::text])`),
+    check(
+      "submissions_practice_target_check",
+      sql`${table.practice_target} IN ('small', 'efficient')`,
+    ),
     check(
       "submissions_state_check",
       sql`state = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'cancelled'::text, 'failed'::text])`,
@@ -2100,6 +2112,22 @@ export const practice_case_feedback = pgTable(
       columns: [table.workspace_id],
       foreignColumns: [workspaces.id],
       name: "practice_case_feedback_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const practice_target_progress = pgTable(
+  "practice_target_progress",
+  {
+    workspace_id: uuid().primaryKey(),
+    tier: integer().notNull(),
+  },
+  (table) => [
+    check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 2`),
+    foreignKey({
+      columns: [table.workspace_id],
+      foreignColumns: [workspaces.id],
+      name: "practice_target_progress_workspace_id_fkey",
     }).onDelete("cascade"),
   ],
 );

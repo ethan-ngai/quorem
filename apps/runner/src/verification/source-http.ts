@@ -7,6 +7,12 @@ import {
   type InputPage,
 } from "@quorem/execution";
 import type { FrozenCase, VerificationSource } from "./verifier.ts";
+export type VerificationBundle = {
+  frozen: FrozenCase;
+  manifest: Awaited<ReturnType<ExecutionInputReader["inputManifest"]>>;
+  ref: Awaited<ReturnType<ExecutionInputReader["inputCaseRef"]>>;
+  pages?: Record<"metadata" | "case" | "actual" | "sqlTypes", unknown>;
+};
 /** Every request is bound to one API-created challenge and uses a purpose-specific credential. */
 export function httpVerificationSource(options: {
   origin: string;
@@ -15,6 +21,7 @@ export function httpVerificationSource(options: {
   timeoutMs: number;
   fetch?: typeof fetch;
   bundle?: boolean;
+  inlineBundle?: VerificationBundle;
 }): VerificationSource {
   let origin: URL;
   try {
@@ -90,13 +97,7 @@ export function httpVerificationSource(options: {
     const result = value as Record<string, unknown>;
     return { ...result, bytes: Buffer.from(value.bytes, "base64") } as unknown as InputPage;
   }
-  type Bundle = {
-    frozen: FrozenCase;
-    manifest: Awaited<ReturnType<ExecutionInputReader["inputManifest"]>>;
-    ref: Awaited<ReturnType<ExecutionInputReader["inputCaseRef"]>>;
-    pages?: Record<"metadata" | "case" | "actual" | "sqlTypes", unknown>;
-  };
-  let bundle: Bundle | undefined;
+  let bundle = options.inlineBundle;
   const inputs: ExecutionInputReader = {
     async inputManifest(job, signal) {
       encodeJob(job);
@@ -120,7 +121,8 @@ export function httpVerificationSource(options: {
     async frozenCase(challenge, signal) {
       if (challenge !== options.challenge) throw new Error("Invalid challenge");
       if (!options.bundle) return (await call("frozen", {}, signal)) as FrozenCase;
-      bundle = (await call("bundle", {}, signal)) as Bundle;
+      bundle ??= (await call("bundle", {}, signal)) as VerificationBundle;
+      if (bundle.frozen.challenge !== challenge) throw new Error("Invalid verification bundle");
       return bundle.frozen;
     },
     async fieldPage(challenge, field, offset, signal) {

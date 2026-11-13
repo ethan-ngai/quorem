@@ -81,6 +81,16 @@ Include at least one public example and hidden case per question or Odyssey leve
 
 Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`.
 
+## Acceptance profiles
+
+Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Existing acceptance profile metadata can supply the efficient complexity shown in the hint. Its case counts do not select tests.
+
+## Native case budgets
+
+The runner derives native time and memory budgets from the existing accepted complexity bounds, or the canonical editorial bounds when an accepted bound is absent. Use structured constraint definitions to bind complexity variables to an input length or nonnegative integer parameter. For a single array or string input, the judge can infer `n` from its length.
+
+The judge recognizes constant, linear, logarithmic and quadratic bounds and simple sums and products. Unresolved bounds use the publication's execution limits. Republishing a question seals the inferred budget with its tests. Submit runs the full suite.
+
 ## Preflight and import
 
 1. Compare the signature, statement, constraints, and metadata with the source for adaptations. Resolve disagreements before changing a source guarantee to fit a case.

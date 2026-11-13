@@ -1,7 +1,36 @@
 .run-actions {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  justify-items: end;
   align-items: center;
+}
+.run-action-group,
+.run-action-state {
+  grid-area: 1 / 1;
+}
+.run-action-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.run-action-group:last-child {
+  display: inline-grid;
+  justify-items: end;
+}
+.run-action-status {
+  color: var(--color-text-secondary);
+}
+.run-action-group[data-active="false"],
+.run-action-state[data-active="false"] {
+  opacity: 0;
+  visibility: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .run-action-group,
+  .run-action-state {
+    transition:
+      opacity var(--motion-fast) var(--motion-easing),
+      visibility var(--motion-fast) allow-discrete;
+  }
 }
 .disabled-action-hint {
   display: inline-flex;
@@ -80,11 +109,6 @@
   mask-repeat: no-repeat;
 }
 @media (max-width: 560px) {
-  .run-actions .quiet-button {
-    max-width: 40px;
-    padding: 0;
-    font-size: 10px;
-  }
   .code-toolbar {
     padding-inline: 12px;
   }
@@ -100,20 +124,12 @@
   border-radius: 0;
   background: var(--color-field);
 }
-.execution-bar .run-actions {
-  gap: 8px;
-}
 .execution-bar .button {
   min-height: 32px;
 }
 @media (max-width: 560px) {
   .execution-bar .button {
     min-height: 36px;
-  }
-  .execution-bar .run-actions .quiet-button {
-    max-width: none;
-    padding: 0 8px;
-    font-size: 12px;
   }
 }
 .python-editor .cm-scroller::-webkit-scrollbar {

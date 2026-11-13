@@ -21,6 +21,7 @@ const topNames = new Set([
   "constraints",
   "signature",
   "limits",
+  "caseBudget",
   "sql",
   "odyssey",
   "languages",
@@ -136,5 +137,10 @@ export async function metadataSpans(spool: Spool, level: number | null) {
     sql && (await withStreamingJsonReader(reader(spool, sql), (input) => input.peek())) !== "n";
   const primary = signature ?? methods[0]?.span;
   if (!primary && !isSql) throw new Error("Missing signature");
-  return { signature: isSql ? undefined : primary, sql, methods };
+  return {
+    signature: isSql ? undefined : primary,
+    sql,
+    methods,
+    caseBudget: fields.get("caseBudget"),
+  };
 }

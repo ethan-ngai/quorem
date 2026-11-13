@@ -64,7 +64,7 @@ export function matchGuestRouteAllowed(
   if (principal.scope.kind === "party")
     return (
       ["GET", "POST", "PUT"].includes(method) &&
-      /^\/v1\/(parties|matches)\/[0-9a-f-]+(?:\/(?:review(?:\/workspaces)?|events|ready|leave|forfeit|rule-events|workspace-language|settings))?$/i.test(
+      /^\/v1\/(parties|matches)\/[0-9a-f-]+(?:\/(?:review(?:\/workspaces)?|events|ready|leave|forfeit|offer-draw|accept-draw|rule-events|workspace-language|settings))?$/i.test(
         path,
       )
     );
@@ -78,6 +78,8 @@ export function matchGuestRouteAllowed(
       "/ready",
       "/leave",
       "/forfeit",
+      "/offer-draw",
+      "/accept-draw",
       "/rule-events",
       "/workspace-language",
     ].some((suffix) => path === base + suffix)

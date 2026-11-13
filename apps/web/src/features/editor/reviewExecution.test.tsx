@@ -103,6 +103,8 @@ it("runs the selected participant copy in its language and retains the other dra
     undefined,
     expect.any(String),
     undefined,
+    undefined,
+    undefined,
   );
   expect(draft.workspace?.language).toBe("java");
   await act(async () => {

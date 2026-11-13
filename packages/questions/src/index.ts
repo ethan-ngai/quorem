@@ -109,3 +109,4 @@ export {
   type GraphNode,
   type GraphNodeId,
 } from "./graph.ts";
+export { caseGrowth, inferCaseBudget, type CaseBudget } from "./case-growth.ts";

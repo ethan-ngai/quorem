@@ -50,6 +50,7 @@ export async function createSubmission(
   idempotencyKey: string = randomUUID(),
   level?: number,
   matchApproval?: import("@quorem/contracts/match-rules").RuleApproval,
+  practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy,
 ) {
   if (source.includes("\0")) throw new UserFacingError("Source cannot contain NUL characters.");
   const { data, error } = await api(identity).POST("/v1/submissions", {
@@ -61,6 +62,7 @@ export async function createSubmission(
       customCases,
       ...(matchApproval ? { matchApproval: ruleApproval(matchApproval) } : {}),
       ...(level !== undefined ? { level } : {}),
+      ...(practiceTarget ? { practiceTarget } : {}),
     },
   });
   return requireData(data as SubmissionAdmission | undefined, error);
@@ -92,12 +94,18 @@ export async function fetchSubmission(
 
 /** Requests cancellation where the workspace contract allows it. */
 export async function cancelSubmission(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).POST("/v1/submissions/{id}/cancel", {
+  const { data, error, response } = await api(identity).POST("/v1/submissions/{id}/cancel", {
     params: {
       path: { id },
       header: { "Idempotency-Key": randomUUID() },
     },
   });
+  if (
+    response.status === 409 &&
+    error?.error?.code === "invalid_transition" &&
+    error.error.message === "Execution already finished"
+  )
+    return fetchSubmission(identity, id);
   return requireData(data as Submission | undefined, error);
 }
 
