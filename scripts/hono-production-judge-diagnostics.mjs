@@ -174,10 +174,8 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
   const { rows } = await database.query(
     `SELECT a.attempt_id, a.claimed_at FROM execution_attempt_inventory a
      JOIN execution_jobs j ON j.id=a.job_id JOIN submissions s ON s.id=j.submission_id
-     WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2 AND j.attempt_id<>a.attempt_id
-       AND NOT EXISTS (SELECT 1 FROM execution_completion_receipts r
-         WHERE r.job_id=j.id AND r.attempt_id=a.attempt_id)
-     ORDER BY a.claimed_at LIMIT 20`,
+     WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2
+     ORDER BY a.claimed_at DESC LIMIT 20`,
     [matchId, namespace.scope],
   );
   const diagnostics = [];
@@ -194,6 +192,11 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
     });
     const value = await response.json().catch(() => null);
     const field = (name) => (/^[a-z-]{1,40}$/.test(value?.[name] ?? "") ? value[name] : undefined);
+    const timing = Object.fromEntries(
+      ["inputMs", "startupMs", "executionMs", "totalMs"]
+        .map((name) => [name, value?.timing?.[name]])
+        .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
+    );
     diagnostics.push({
       attemptId: attempt_id,
       claimedAt: claimed_at,
@@ -201,6 +204,7 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
       phase: field("phase"),
       failure: field("failure"),
       source: field("source"),
+      timing,
     });
   }
   return { attempts: diagnostics, runnerProfile: await productionRunnerProfile(keys) };
