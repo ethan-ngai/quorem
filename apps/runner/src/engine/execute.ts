@@ -405,6 +405,11 @@ export async function executeAndStage(
           const failed = outcomes.find((value) => value.status === "rejected");
           if (failed?.status === "rejected") throw failed.reason;
           if (start + orderedWidth === total) onFinalCase?.();
+          if (!atomicFinal) {
+            // Checkpoint writes need exclusive job locks also held by frame verification.
+            await Promise.all(pending);
+            pending.length = 0;
+          }
           for (let index = 0; index < orderedWidth; index++) {
             const ordinal = start + index;
             const { frame, ref } = results[index];
@@ -446,11 +451,6 @@ export async function executeAndStage(
             earlyBytes += Buffer.byteLength(encodeJudgeFrame(sample.frame));
           }
           start += orderedWidth;
-          // At most two windows of result staging can overlap native execution.
-          if (pending.length >= caseConcurrency * 2) {
-            await Promise.all(pending.slice(0, width));
-            void pending.splice(0, width);
-          }
         }
         await Promise.all(pending);
         return header;

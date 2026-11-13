@@ -35,6 +35,7 @@ export function localJudgingDrain(
         namespaceId,
         ownerPublicKey,
         cleanupMs: 30000,
+        recordTiming: profile.record,
         fetch: profile.wrap(
           {
             headers: async (input: RequestInfo | URL, init?: RequestInit) => {
