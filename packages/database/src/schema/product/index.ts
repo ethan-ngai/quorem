@@ -1057,6 +1057,7 @@ export const question_publications = pgTable(
     fixture_identity_hash: bytea("fixture_identity_hash"),
     lossless_fixture: bytea("lossless_fixture"),
     lossless_public: bytea("lossless_public"),
+    acceptance: jsonb("acceptance"),
     lossless_stages: bytea("lossless_stages"),
   },
   (table): PgTableExtraConfigValue[] => [
@@ -1154,6 +1155,7 @@ export const submissions = pgTable(
     match_id: uuid(),
     match_sequence: bigint({ mode: "bigint" }),
     odyssey_level: integer(),
+    practice_target: text(),
     custom_run: boolean().default(false).notNull(),
     practice_assisted: boolean().default(false).notNull(),
     interview_id: uuid(),
@@ -2103,6 +2105,17 @@ export const practice_case_feedback = pgTable(
       name: "practice_case_feedback_workspace_id_fkey",
     }).onDelete("cascade"),
   ],
+);
+
+export const practice_target_progress = pgTable(
+  "practice_target_progress",
+  {
+    workspace_id: uuid()
+      .primaryKey()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    tier: integer().notNull(),
+  },
+  (table) => [check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 3`)],
 );
 
 export const practice_solves = pgTable(

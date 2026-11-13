@@ -101,12 +101,16 @@ export async function admitWorkspaceInTransaction(
       language: string;
       isSql: boolean;
       stages: number;
+      acceptance:
+        | import("@quorem/contracts/schema").components["schemas"]["QuestionAcceptance"]
+        | null;
     }>(
-      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
+      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages,v.acceptance FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw failure("not_found", "Workspace not found", 404);
   const runtime = questionRuntime(row.language, row.isSql);
+  let acceptance: MatchRuleSettings["acceptance"] = "efficient";
   let rulePlan: Awaited<ReturnType<typeof prepareRuleAction>> | undefined;
   let matchSequence: string | null = null,
     admissionTime: string | null = null,
@@ -115,6 +119,7 @@ export async function admitWorkspaceInTransaction(
   if (row.reviewMatchId && row.reviewSourceOwnerId) {
     const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
     automaticImports = review.automaticImports ?? undefined;
+    acceptance = review.acceptance ?? "efficient";
     if (review.problemId !== row.version) throw failure("not_found", "Workspace not found", 404);
     if (principal.kind === "guest") {
       if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
@@ -159,6 +164,7 @@ export async function admitWorkspaceInTransaction(
     if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
     admissionTime = match.admittedAt;
     automaticImports = match.rules.automaticImports === true;
+    acceptance = match.rules.acceptance ?? "efficient";
     if (command.kind === "submit") {
       rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
         kind: "submission",
@@ -203,6 +209,11 @@ export async function admitWorkspaceInTransaction(
     }
   } else if (principal.kind === "guest")
     throw failure("forbidden", "Guests can execute only in their match", 403);
+  if (command.practiceTarget) {
+    if (row.matchId || row.reviewMatchId || !row.acceptance?.[command.practiceTarget])
+      throw failure("invalid_input", "Practice target unavailable", 400);
+    acceptance = command.practiceTarget;
+  }
   if (prior) return replay();
   if (!config.losslessCases)
     throw failure("temporarily_unavailable", "Runner input protocol unavailable", 503);
@@ -240,6 +251,7 @@ export async function admitWorkspaceInTransaction(
     command.customCases,
     false,
     odyssey,
+    (row.acceptance?.[acceptance] ?? row.acceptance?.efficient)?.caseCount,
   );
   const inserted = await insertAdmittedExecution(tx, {
     ownerId: principal.userId,
@@ -257,6 +269,7 @@ export async function admitWorkspaceInTransaction(
     context: {
       kind: "workspace",
       workspaceId: command.workspaceId,
+      practiceTarget: command.practiceTarget,
       matchId: row.matchId,
       matchSequence,
       admittedAt: admissionTime,

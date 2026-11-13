@@ -5,7 +5,7 @@ import { primarySignature } from "./signature.ts";
 
 /** Strip private stage cases; materialize the coding interface from its authored owner. */
 export function publicQuestionProblem(problem: QuestionContent["problem"]): QuestionProblem {
-  const { signature: _signature, odyssey, ...metadata } = problem;
+  const { signature: _signature, acceptance: _acceptance, odyssey, ...metadata } = problem;
   return {
     ...metadata,
     ...(!problem.sql ? { signature: primarySignature(problem) } : {}),

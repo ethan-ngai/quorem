@@ -3,7 +3,11 @@ import { publicExampleJson } from "./public-projection.ts";
 import { impressionIds, recordFeedback } from "../recommendations/feedback.ts";
 import { rankPractice } from "../../../../modules/problems/recommendations/ranking.ts";
 import { recommendationContext, learningQuestions } from "../recommendations/repository.ts";
-import { canonicalApproachProjection, approachesProjection } from "../editorial-storage.ts";
+import {
+  canonicalApproachProjection,
+  approachesProjection,
+  complexityProjection,
+} from "../editorial-storage.ts";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -48,12 +52,13 @@ const projection = sql`jsonb_build_object(
 'sql',v.sql_config,'odyssey',CASE WHEN v.odyssey IS NOT NULL THEN jsonb_build_object('levels',jsonb_build_array(v.odyssey->'levels'->0)) ELSE NULL END,
 'statementMarkdown',v.statement_markdown,'signature',COALESCE(v.signature,v.odyssey->'levels'->0->'methods'->0),'constraints',v.constraints,'limits',v.limits,
 'hasSolutions',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE publication_id=v.id),
-'hasComplexity',v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches WHERE publication_id=v.id AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>''),
+'hasComplexity',v.odyssey IS NULL AND (${complexityProjection(sql`v`)} ? 'optimal'),
 'leetcodeId',p.leetcode_id,'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
 'tags',${topicProjection(sql`v.id`)},
 'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb))`;
 const from = sql.raw(` FROM question_publications v JOIN problems p ON p.id=v.problem_id `);
 const detailProjection = sql`(${projection} || jsonb_build_object(
+  'practiceTargets', ARRAY(SELECT key FROM unnest(ARRAY['small','efficient','optimal']) AS target(key) WHERE v.acceptance ? key),
   'hiddenCaseCounts', COALESCE((
     SELECT jsonb_object_agg(stage,n) FROM (
       SELECT stage,count(*) AS n FROM runner_publication_input_cases
@@ -332,19 +337,28 @@ async function readEditorials(
       staged: boolean | null;
       active: boolean;
       allowComplexity: boolean;
+      acceptance: string | null;
     }>(sql`SELECT
  (SELECT v.odyssey IS NOT NULL FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND ${visible(actor, true)} LIMIT 1) AS staged,
  EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing')) AS active,
- EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity"`)
+ EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity",
+ (SELECT m.rules->>'acceptance' FROM match_reservations r JOIN matches m ON m.id=r.match_id
+  WHERE r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') LIMIT 1) AS acceptance`)
   ).rows;
   const state = rows[0];
   if (state.active && !(complexityOnly && state.allowComplexity))
     throw new ApplicationError("forbidden", "Editorial unavailable during an active match", 403);
   if (state.staged === null) throw new ApplicationError("not_found", "Problem not found", 404);
-  if (state.staged) return '{"canonicalApproachId":"","items":[]}';
+  if (state.staged) return complexityOnly ? "{}" : '{"canonicalApproachId":"","items":[]}';
+  if (complexityOnly) {
+    const { rows } = await tx.execute<{ value: string }>(
+      sql`SELECT ${complexityProjection(sql`v`, sql`${state.acceptance}::text`)}::text AS value FROM question_publications v WHERE v.id=${id}::uuid`,
+    );
+    return rows[0].value;
+  }
   const row = (
     await tx.execute<{ value: string }>(
-      sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`${id}::uuid`)},'items',${approachesProjection(sql`${id}::uuid`, !complexityOnly)})::text AS value`,
+      sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`${id}::uuid`)},'items',${approachesProjection(sql`${id}::uuid`)})::text AS value`,
     )
   ).rows[0];
   if (

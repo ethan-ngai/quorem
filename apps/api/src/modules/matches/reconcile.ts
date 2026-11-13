@@ -33,7 +33,7 @@ export function reconcile(
     p.bestPassed = Math.max(p.bestPassed, s.score.passed);
     p.bestPercentage = Math.max(
       p.bestPercentage,
-      s.score.total ? (100 * s.score.passed) / s.score.total : 0,
+      s.points ?? (s.score.total ? (100 * s.score.passed) / s.score.total : 0),
     );
     percentages.set(s.owner, p.bestPercentage);
     if (

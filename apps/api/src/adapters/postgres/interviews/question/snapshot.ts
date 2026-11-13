@@ -1,3 +1,4 @@
+import { complexityProjection } from "../../problems/editorial-storage.ts";
 /** @file snapshot.ts @description Authorized interview snapshot public projection. @module interviews */
 import { projectQuestionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
@@ -203,7 +204,7 @@ export async function prepareInterviewSnapshot(
   if (!row.total && typeof problem.id === "string") {
     const rows = (
       await tx.execute<{ available: boolean }>(
-        sql`SELECT EXISTS(SELECT 1 FROM problem_solution_approaches WHERE publication_id=${problem.id}::uuid AND btrim(time_complexity)<>'' AND btrim(space_complexity)<>'') AS available`,
+        sql`SELECT ${complexityProjection(sql`v`)} ? 'optimal' AS available FROM question_publications v WHERE v.id=${problem.id}::uuid`,
       )
     ).rows;
     if (rows[0]?.available) problem.hasComplexity = true;

@@ -5,7 +5,8 @@ import {
   type MatchDisclosureControls,
 } from "../matches/MatchAssistance";
 import { matchRuleAction } from "../matches/api";
-import type { RuleActionQuote } from "@quorem/contracts/match-rules";
+import { SelectField } from "../../ui/SelectField";
+import type { AcceptancePolicy, RuleActionQuote } from "@quorem/contracts/match-rules";
 import {
   matchCompletionOutcome,
   ownParticipant,
@@ -73,6 +74,8 @@ import { SolutionControls } from "./components/SolutionToolbar";
 import { WorkspaceTests } from "./components/WorkspaceTests";
 import { ExecutionActions } from "./components/ExecutionActions";
 import "../../styles/workspace.css";
+
+const practiceTiers = { small: 1, efficient: 2, optimal: 3 };
 
 type Panel = "problem" | "code" | "results";
 
@@ -412,7 +415,20 @@ export function WorkspacePage({
     () => odyssey.data?.levels.flatMap((level) => level.examples),
     [odyssey.data],
   );
+  const [practiceSelection, setPracticeSelection] = useState<{
+    workspaceId: string;
+    target: AcceptancePolicy;
+  }>();
+  const practiceTargets = match ? undefined : problem?.practiceTargets;
+  const practiceTarget =
+    practiceSelection?.workspaceId === workspace?.id ? practiceSelection?.target : undefined;
+  const [practicePass, setPracticePass] = useState<{ workspaceId: string; tier: number }>();
+  const practiceTier = Math.max(
+    workspace?.practiceTier ?? 0,
+    practicePass?.workspaceId === workspace?.id ? (practicePass?.tier ?? 0) : 0,
+  );
   const execution = useSubmission({
+    practiceTarget,
     beforeExecution: review ? undefined : sharedDocument?.beforeExecution,
     sharedSubmissionId: review ? undefined : sharedDocument?.latestSubmissionId,
     runExamples,
@@ -442,6 +458,24 @@ export function WorkspacePage({
         loaded: !loading,
       }),
   });
+  const practiceSubmission = execution.submission;
+  const practiceWorkspaceId = workspace?.kind === "solo" ? workspace.id : undefined;
+  useEffect(() => {
+    if (
+      !practiceWorkspaceId ||
+      practiceSubmission?.kind !== "submit" ||
+      practiceSubmission.state !== "completed" ||
+      practiceSubmission.verdict !== "accepted"
+    )
+      return;
+    const tier = practiceTiers[practiceSubmission.practiceTarget ?? "efficient"];
+    setPracticePass((previous) =>
+      previous?.workspaceId === practiceWorkspaceId && previous.tier >= tier
+        ? previous
+        : { workspaceId: practiceWorkspaceId, tier },
+    );
+  }, [practiceSubmission, practiceWorkspaceId]);
+
   const [settledOdysseySubmission, setSettledOdysseySubmission] = useState<string>();
   const completedWorkspace = execution.submission?.workspaceId;
   const completedSubmission = execution.submission?.id;
@@ -686,6 +720,7 @@ export function WorkspacePage({
         solutionAvailable={!problem.odyssey && (!match || review) && !!problem.hasSolutions}
         identity={identity}
         versionId={problem.id}
+        contextId={match?.id}
         language={documentLanguage}
         inMatch={!!assistance && assistance.complexity.access !== "free"}
         complexityDisabled={controls?.disabled}
@@ -780,11 +815,33 @@ export function WorkspacePage({
           </GlobalNav>
         }
         header={
-          matchHeader || odyssey.data ? (
+          matchHeader || odyssey.data || (practiceTargets?.length ?? 0) > 1 ? (
             <>
               {typeof matchHeader === "function"
                 ? matchHeader(problem, saveCurrentDraft)
                 : matchHeader}
+              {workspace && practiceTargets && practiceTargets.length > 1 && (
+                <SelectField
+                  label="Practice target"
+                  value={practiceTarget ?? "efficient"}
+                  disabled={execution.busy || execution.admissionPending}
+                  options={practiceTargets.map((value) => ({
+                    value,
+                    label:
+                      {
+                        small: "Small inputs",
+                        efficient: "Full constraints",
+                        optimal: "Optimization",
+                      }[value] + (practiceTier >= practiceTiers[value] ? " ✓" : ""),
+                  }))}
+                  onChange={(target) =>
+                    setPracticeSelection({
+                      workspaceId: workspace.id,
+                      target: target as AcceptancePolicy,
+                    })
+                  }
+                />
+              )}
               {(!matchHeader || review) && odyssey.data && (
                 <OdysseyStepper
                   progress={odyssey.data}

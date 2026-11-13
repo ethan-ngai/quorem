@@ -82,7 +82,7 @@ async function fixtureTables(client) {
       `public.${name}`,
       `NOT EXISTS (SELECT 1 FROM public.${quote(name)} x LEFT JOIN question_publications v ON v.id=x.publication_id WHERE v.id IS NULL)`,
     );
-  for (const name of ["practice_case_feedback", "practice_solves"])
+  for (const name of ["practice_case_feedback", "practice_solves", "practice_target_progress"])
     checks.set(
       `public.${name}`,
       `NOT EXISTS (SELECT 1 FROM public.${quote(name)} x LEFT JOIN workspaces w ON w.id=x.workspace_id WHERE w.id IS NULL)`,

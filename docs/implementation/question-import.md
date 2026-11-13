@@ -81,6 +81,16 @@ Include at least one public example and hidden case per question or Odyssey leve
 
 Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`.
 
+## Acceptance profiles
+
+Classic coding questions can set `problem.acceptance`. Each profile contains a `caseCount` and a `complexity` object with LaTeX `timeComplexity` and `spaceComplexity`. Put tests in order: small inputs first, then full constraints, then optimization stress cases. Each profile runs the first `caseCount` hidden cases. Include correctness edge cases in the first group. Counts must strictly increase, and the final count must equal the number of hidden cases.
+
+- `small` is optional. Choose inputs that a straightforward exhaustive solution can handle. State the small-input range in the problem statement.
+- `efficient` is required when declaring profiles. Include full-range cases and verify that practical alternatives pass.
+- `optimal` is optional. Include stress cases that reliably separate the target from slower approaches. Verify representative implementations in each enabled language.
+
+Tournament uses questions with an optimal profile. Casual uses small inputs when authored. Balanced and Strict use full constraints. With Optimal Only and High Score, the milestones are 40 for small, 80 for efficient, and 100 for optimization. Full constraints awards 100 for efficient, with 40 for small when available. Practice defaults to efficient, with optional small and optimization targets.
+
 ## Preflight and import
 
 1. Compare the signature, statement, constraints, and metadata with the source for adaptations. Resolve disagreements before changing a source guarantee to fit a case.

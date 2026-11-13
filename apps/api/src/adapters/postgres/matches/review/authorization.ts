@@ -33,8 +33,9 @@ export async function authorizeReview(
       host: string;
       hostEnabled: boolean;
       automaticImports: boolean | null;
+      acceptance: import("@quorem/contracts/match-rules").AcceptancePolicy | null;
     }>(sql`
-    SELECT to_char(m.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.publication_id::text AS "problemId",m.outcome,m.host_owner_id AS host,NOT host.disabled AS "hostEnabled", (m.rules->>'automaticImports')::boolean AS "automaticImports"
+    SELECT to_char(m.completed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "completedAt",m.share_code_after_match AS "shareCodeAfterMatch",m.publication_id::text AS "problemId",m.outcome,m.host_owner_id AS host,NOT host.disabled AS "hostEnabled", (m.rules->>'automaticImports')::boolean AS "automaticImports",m.rules->>'acceptance' AS acceptance
     FROM matches m JOIN match_participants viewer ON viewer.match_id=m.id AND viewer.owner_id=${principal.userId}
     JOIN users u ON u.id=viewer.owner_id AND NOT u.disabled JOIN users host ON host.id=m.host_owner_id
     WHERE m.id=${matchId}::uuid AND m.started_at IS NOT NULL AND m.state IN ('completed','cancelled')

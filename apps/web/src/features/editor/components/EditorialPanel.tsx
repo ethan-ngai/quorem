@@ -1,12 +1,10 @@
 /** @file EditorialPanel.tsx @description Opt-in authored complexity and solutions. @module editor */
-import { selectApproach } from "@quorem/questions";
 import { userFacingErrorMessage } from "../../../ui/errors";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { Braces, Clock3 } from "lucide-react";
-import { ApproachPicker } from "./ApproachPicker";
 import { SolutionDisplay } from "./SolutionDisplay";
 import { ComplexityDetails } from "./ComplexityDetails";
 import type { EditorTheme } from "../PythonEditor";
@@ -35,6 +33,7 @@ export function EditorialPanel({
   solutionAvailable = false,
   requestComplexity,
   complexityDisabled = false,
+  contextId,
 }: {
   identity: DevelopmentIdentity;
   versionId: string;
@@ -49,8 +48,8 @@ export function EditorialPanel({
     open: (value: EditorialComplexity) => void,
   ) => void;
   complexityDisabled?: boolean;
+  contextId?: string;
 }) {
-  const [selectedId, setSelectedId] = useState<string>();
   const [active, setActive] = useState<"complexity" | "solution" | null>(null);
   const [displayed, setDisplayed] = useState<"complexity" | "solution" | null>(null);
   const [grantedComplexity, setGrantedComplexity] = useState<EditorialComplexity>();
@@ -69,7 +68,7 @@ export function EditorialPanel({
     } else open(item);
   }
   const complexity = useQuery({
-    queryKey: ["complexity", "approaches", identity, versionId],
+    queryKey: ["complexity", "bounds", identity, versionId, contextId],
     queryFn: () => loadComplexity(identity, versionId),
     enabled: !inMatch && !requestComplexity && available,
     staleTime: Infinity,
@@ -89,11 +88,6 @@ export function EditorialPanel({
   });
   if ((inMatch && !requestComplexity) || (!available && !solutionAvailable)) return null;
   const complexityData = requestComplexity ? grantedComplexity : complexity.data;
-  const selectedComplexity = selectApproach(
-    complexityData?.items,
-    selectedId,
-    complexityData?.canonicalApproachId ?? "",
-  );
   const visible = active === "complexity" ? available : active === "solution" && solutionAvailable;
   return (
     <section className="editorial-section" aria-label="Question guidance" data-open={!!visible}>
@@ -132,17 +126,6 @@ export function EditorialPanel({
             if (!visible) setDisplayed(null);
           }}
         >
-          {displayed === "complexity" &&
-            complexityData &&
-            complexityData.items.length > 1 &&
-            selectedComplexity && (
-              <ApproachPicker
-                approaches={complexityData.items}
-                canonicalId={complexityData.canonicalApproachId}
-                selectedId={selectedComplexity.id}
-                onChange={setSelectedId}
-              />
-            )}
           {displayed === "complexity" ? (
             !requestComplexity && complexity.isPending ? (
               <LoadingIndicator label="Loading complexity…" />
@@ -153,8 +136,16 @@ export function EditorialPanel({
                   "Complexity unavailable. Please try again.",
                 )}
               </p>
-            ) : selectedComplexity ? (
-              <ComplexityDetails value={selectedComplexity} />
+            ) : complexityData?.optimal ? (
+              <>
+                <ComplexityDetails label="Optimal" value={complexityData.optimal} />
+                {complexityData.accepted && (
+                  <ComplexityDetails
+                    label="Least efficient accepted"
+                    value={complexityData.accepted}
+                  />
+                )}
+              </>
             ) : (
               <p>No published complexity.</p>
             )
@@ -168,8 +159,6 @@ export function EditorialPanel({
             <SolutionDisplay
               approaches={solutions.data.items}
               canonicalApproachId={solutions.data.canonicalApproachId}
-              selectedId={selectedId}
-              onApproachChange={setSelectedId}
               preferredLanguage={language}
               theme={theme}
               colorScheme={colorScheme}

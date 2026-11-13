@@ -5,11 +5,11 @@ import { INPUT_BLOB_BATCH_ROWS, storeInputBlob, storeInputBlobs } from "./blob.t
 
 export type FixtureOwner = { publication: string } | { session: string; fixture: Uint8Array };
 /** A sealed fixture is selected in PostgreSQL, never materialized as a Worker array. */
-export function fixtureRows(owner: FixtureOwner, level: number) {
+export function fixtureRows(owner: FixtureOwner, level: number, hiddenLimit?: number) {
   if (!Number.isSafeInteger(level) || level < 0 || level > 8)
     throw new Error("Invalid fixture stage");
   return "publication" in owner
-    ? sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_publication_input_cases c JOIN runner_publication_inputs i USING(publication_id) WHERE i.sealed AND c.publication_id=${owner.publication}::uuid AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`
+    ? sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_publication_input_cases c JOIN runner_publication_inputs i USING(publication_id) WHERE i.sealed AND c.publication_id=${owner.publication}::uuid AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level}) ${hiddenLimit === undefined ? sql`` : sql`AND (c.channel<>'hidden' OR c.ordinal<${hiddenLimit})`}`
     : sql`SELECT c.stage,c.ordinal,c.channel,c.blob_hash FROM runner_snapshot_input_cases c JOIN runner_snapshot_inputs i USING(session_id,fixture_id) WHERE i.sealed AND c.session_id=${owner.session}::uuid AND c.fixture_id=${owner.fixture}::bytea AND (c.stage=0 OR c.stage BETWEEN 1 AND ${level})`;
 }
 /** Batch bounded custom inputs without changing their lexical JSON bytes. */
@@ -90,7 +90,7 @@ export async function bindJobInputs(
             sql`,`,
           )}) AS v(ordinal,hash)`
         : sql`SELECT 0 AS stage,0 AS ordinal,'public'::text AS channel,NULL::bytea AS blob_hash WHERE false`
-      : sql`SELECT stage,ordinal,${input.primary === "hidden" ? "private" : "public"}::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level)}) f WHERE channel=${input.primary}`;
+      : sql`SELECT stage,ordinal,${input.primary === "hidden" ? "private" : "public"}::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level, input.primary === "hidden" && input.level === 0 ? input.caseCount : undefined)}) f WHERE channel=${input.primary}`;
   const samples =
     input.sampleCount && !input.submitCasesAreSamples
       ? sql`SELECT stage,ordinal,'sample'::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level)}) f WHERE channel='example'`

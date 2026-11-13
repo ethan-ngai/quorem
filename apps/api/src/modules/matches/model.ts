@@ -10,6 +10,7 @@ export interface SubmissionProgress {
   owner: string;
   state: string;
   verdict: string;
+  points?: number;
   score: { passed: number; total: number } | null;
   intermediate: boolean;
   maxPossible: number | null;

@@ -9,8 +9,12 @@ export const assistancePolicySchema = z.strictObject({
   seconds: amount,
   points,
 });
+export const acceptancePolicySchema = z.enum(["small", "efficient", "optimal"]);
+export type AcceptancePolicy = z.infer<typeof acceptancePolicySchema>;
+
 export const matchRulesSchema = z.strictObject({
   victory: z.enum(["race", "high_score"]),
+  acceptance: acceptancePolicySchema.optional(),
   settingsEditors: z.enum(["host", "everyone"]),
   automaticImports: z.boolean().optional(),
   clipboard: z.enum(["off", "warning", "announce", "penalty"]),
@@ -67,6 +71,7 @@ export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings
   const access = preset === "casual" ? "free" : preset === "tournament" ? "blocked" : "penalty";
   return {
     victory: "race",
+    acceptance: preset === "casual" ? "small" : preset === "tournament" ? "optimal" : "efficient",
     settingsEditors: "host",
     automaticImports: false,
     clipboard:
@@ -108,6 +113,7 @@ export function selectedMatchPreset(rules: MatchRuleSettings): MatchPreset | "cu
         JSON.stringify(
           matchRulesSchema.parse({
             ...rules,
+            acceptance: rules.acceptance ?? "efficient",
             victory: "race",
             settingsEditors: "host",
             automaticImports: false,

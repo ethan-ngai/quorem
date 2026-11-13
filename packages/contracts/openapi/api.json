@@ -1037,23 +1037,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Authored complexity without solution source",
+            "description": "Complexity bounds without approach metadata",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["canonicalApproachId", "items"],
                   "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ApproachComplexity"
-                      }
-                    },
-                    "canonicalApproachId": {
-                      "type": "string"
-                    }
+                    "optimal": { "$ref": "#/components/schemas/ComplexityBound" },
+                    "accepted": { "$ref": "#/components/schemas/ComplexityBound" }
                   }
                 }
               }
@@ -6278,6 +6270,7 @@
       "PublishedQuestion": {
         "type": "object",
         "properties": {
+          "practiceTargets": { "type": "array", "items": { "type": "string", "enum": ["small", "efficient", "optimal"] } },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -6390,6 +6383,7 @@
       "Workspace": {
         "type": "object",
         "properties": {
+          "practiceTier": { "type": "integer", "minimum": 1, "maximum": 3 },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -6448,6 +6442,7 @@
       "CreateSubmissionRequest": {
         "type": "object",
         "properties": {
+          "practiceTarget": { "type": "string", "enum": ["small", "efficient", "optimal"] },
           "workspaceId": {
             "type": "string",
             "format": "uuid"
@@ -6610,6 +6605,7 @@
       "Submission": {
         "type": "object",
         "properties": {
+          "practiceTarget": { "type": "string", "enum": ["small", "efficient", "optimal"] },
           "customRun": {
             "type": "boolean"
           },
@@ -7380,6 +7376,7 @@
       "MatchRules": {
         "type": "object",
         "properties": {
+          "acceptance": { "type": "string", "enum": ["small", "efficient", "optimal"] },
           "victory": {
             "type": "string",
             "enum": ["race", "high_score"]
@@ -7670,6 +7667,34 @@
               "$ref": "#/components/schemas/SolutionCode"
             }
           }
+        }
+      },
+      "AcceptanceProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseCount", "complexity"],
+        "properties": {
+          "caseCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+          "complexity": { "$ref": "#/components/schemas/ComplexityBound" }
+        }
+      },
+      "QuestionAcceptance": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["efficient"],
+        "properties": {
+          "small": { "$ref": "#/components/schemas/AcceptanceProfile" },
+          "efficient": { "$ref": "#/components/schemas/AcceptanceProfile" },
+          "optimal": { "$ref": "#/components/schemas/AcceptanceProfile" }
+        }
+      },
+      "ComplexityBound": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["timeComplexity", "spaceComplexity"],
+        "properties": {
+          "timeComplexity": { "type": "string" },
+          "spaceComplexity": { "type": "string" }
         }
       },
       "ApproachComplexity": {
@@ -8785,6 +8810,7 @@
       "AuthoredQuestionProblem": {
         "type": "object",
         "properties": {
+          "acceptance": { "$ref": "#/components/schemas/QuestionAcceptance" },
           "id": {
             "type": "string"
           },

@@ -12,10 +12,7 @@ import {
 import { ApplicationError } from "../../../../application/error.ts";
 import { topicProjection } from "../../problems/topics.ts";
 import { fingerprint } from "../lifecycle/crypto.ts";
-import {
-  approachesProjection,
-  canonicalApproachProjection,
-} from "../../problems/editorial-storage.ts";
+import { complexityProjection } from "../../problems/editorial-storage.ts";
 import {
   competitiveSubject,
   recordRuleEvent,
@@ -106,7 +103,10 @@ export async function prepareRuleAction(
   } else {
     const row = (
       await tx.execute<{ data: string }>(
-        sql`SELECT jsonb_build_object('canonicalApproachId',${canonicalApproachProjection(sql`m.publication_id`)},'items',${approachesProjection(sql`m.publication_id`, false)})::text AS data FROM matches m JOIN question_publications v ON v.id=m.publication_id WHERE m.id=${match}::uuid AND v.odyssey IS NULL AND EXISTS(SELECT 1 FROM problem_solution_approaches a WHERE a.publication_id=v.id AND btrim(a.time_complexity)<>'' AND btrim(a.space_complexity)<>'')`,
+        sql`SELECT a.bounds::text AS data FROM matches m
+          JOIN question_publications v ON v.id=m.publication_id
+          CROSS JOIN LATERAL (SELECT ${complexityProjection(sql`v`, sql`m.rules->>'acceptance'`)} AS bounds) a
+          WHERE m.id=${match}::uuid AND v.odyssey IS NULL AND a.bounds ? 'optimal'`,
       )
     ).rows[0];
     if (!row) throw new ApplicationError("not_found", "No complexity available", 404);

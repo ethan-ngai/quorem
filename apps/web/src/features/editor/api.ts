@@ -50,6 +50,7 @@ export async function createSubmission(
   idempotencyKey: string = randomUUID(),
   level?: number,
   matchApproval?: import("@quorem/contracts/match-rules").RuleApproval,
+  practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy,
 ) {
   if (source.includes("\0")) throw new UserFacingError("Source cannot contain NUL characters.");
   const { data, error } = await api(identity).POST("/v1/submissions", {
@@ -61,6 +62,7 @@ export async function createSubmission(
       customCases,
       ...(matchApproval ? { matchApproval: ruleApproval(matchApproval) } : {}),
       ...(level !== undefined ? { level } : {}),
+      ...(practiceTarget ? { practiceTarget } : {}),
     },
   });
   return requireData(data as SubmissionAdmission | undefined, error);

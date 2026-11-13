@@ -1659,6 +1659,7 @@ export interface components {
             calls?: components["schemas"]["MethodCall"][];
         };
         PublishedQuestion: {
+            practiceTargets?: ("small" | "efficient" | "optimal")[];
             /** Format: uuid */
             id: string;
             isPrivate?: boolean;
@@ -1692,6 +1693,7 @@ export interface components {
             recommendationReason?: "review" | "weak_topic" | "new_topic" | "challenge" | "practice";
         };
         Workspace: {
+            practiceTier?: number;
             /** Format: uuid */
             id: string;
             /** @enum {string} */
@@ -1715,6 +1717,8 @@ export interface components {
             language: components["schemas"]["Language"];
         };
         CreateSubmissionRequest: {
+            /** @enum {string} */
+            practiceTarget?: "small" | "efficient" | "optimal";
             /** Format: uuid */
             workspaceId: string;
             kind: components["schemas"]["SubmissionKind"];
@@ -1757,6 +1761,8 @@ export interface components {
             status: "accepted" | "wrong_answer" | "time_limit";
         };
         Submission: {
+            /** @enum {string} */
+            practiceTarget?: "small" | "efficient" | "optimal";
             customRun?: boolean;
             /** Format: uuid */
             id: string;
@@ -2022,6 +2028,8 @@ export interface components {
         MatchRuleKind: "clipboard" | "copy" | "focus";
         MatchRules: {
             /** @enum {string} */
+            acceptance?: "small" | "efficient" | "optimal";
+            /** @enum {string} */
             victory: "race" | "high_score";
             automaticImports?: boolean;
             /** @enum {string} */
@@ -2106,6 +2114,19 @@ export interface components {
             spaceComplexity: string;
             complexityNotes: string;
             implementations: components["schemas"]["SolutionCode"][];
+        };
+        AcceptanceProfile: {
+            caseCount: number;
+            complexity: components["schemas"]["ComplexityBound"];
+        };
+        QuestionAcceptance: {
+            small?: components["schemas"]["AcceptanceProfile"];
+            efficient: components["schemas"]["AcceptanceProfile"];
+            optimal?: components["schemas"]["AcceptanceProfile"];
+        };
+        ComplexityBound: {
+            timeComplexity: string;
+            spaceComplexity: string;
         };
         ApproachComplexity: {
             id: string;
@@ -2412,6 +2433,7 @@ export interface components {
             memberCount: number;
         };
         AuthoredQuestionProblem: {
+            acceptance?: components["schemas"]["QuestionAcceptance"];
             id: string;
             slug: string;
             title: string;
@@ -2596,6 +2618,7 @@ export interface components {
             };
         };
         QuestionImportProblem: {
+            acceptance?: components["schemas"]["QuestionAcceptance"];
             slug: string;
             title: string;
             difficulty: components["schemas"]["Difficulty"];
@@ -3311,15 +3334,15 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Authored complexity without solution source */
+            /** @description Complexity bounds without approach metadata */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["ApproachComplexity"][];
-                        canonicalApproachId: string;
+                        optimal?: components["schemas"]["ComplexityBound"];
+                        accepted?: components["schemas"]["ComplexityBound"];
                     };
                 };
             };

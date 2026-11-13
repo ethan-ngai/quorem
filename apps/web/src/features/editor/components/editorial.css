@@ -98,6 +98,9 @@
   font-size: var(--text-small);
   line-height: 1.55;
 }
+.editorial-complexity + .editorial-complexity {
+  margin-top: var(--space-3);
+}
 .editorial-complexity dl {
   display: flex;
   flex-wrap: wrap;

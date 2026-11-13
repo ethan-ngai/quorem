@@ -35,6 +35,7 @@ type Submission = {
   state: string;
   job: string | null;
   intermediate: boolean | null;
+  acceptance: import("@quorem/contracts/schema").components["schemas"]["QuestionAcceptance"] | null;
 };
 const timestamp = (expr: ReturnType<typeof sql>) =>
   sql`floor(extract(epoch FROM ${expr})*1000000)::bigint::text`;
@@ -70,7 +71,7 @@ export async function reconcileMatch(
   ).rows;
   const rows = (
     await tx.execute<Submission>(
-      sql`SELECT s.id::text,COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql`s.admitted_at`)} AS "admittedAt",s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN question_publications p ON p.id=w.publication_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
+      sql`SELECT s.id::text,COALESCE(mp.competitor_id,s.owner_id) AS owner,${timestamp(sql`s.admitted_at`)} AS "admittedAt",s.state,j.id::text AS job,CASE WHEN p.odyssey IS NULL AND s.odyssey_level IS NULL THEN false WHEN jsonb_typeof(p.odyssey->'levels')='array' AND s.odyssey_level BETWEEN 1 AND jsonb_array_length(p.odyssey->'levels') THEN s.odyssey_level < jsonb_array_length(p.odyssey->'levels') END AS intermediate,p.acceptance FROM submissions s JOIN match_participants mp ON mp.match_id=s.match_id AND mp.owner_id=s.owner_id JOIN workspaces w ON w.id=s.workspace_id JOIN question_publications p ON p.id=w.publication_id LEFT JOIN execution_jobs j ON j.submission_id=s.id WHERE s.match_id=${id}::uuid AND s.kind='submit' ORDER BY s.admitted_at,s.match_sequence`,
     )
   ).rows;
   const submissions: SubmissionProgress[] = [];
@@ -101,7 +102,19 @@ export async function reconcileMatch(
       verified && verified.definiteFailures > 0
         ? verified.caseCount - verified.definiteFailures
         : null;
+    const points =
+      match.rules.victory === "high_score" && terminal && verified && row.acceptance
+        ? terminal.passedPrefix === verified.caseCount
+          ? 100
+          : row.acceptance.efficient.caseCount < verified.caseCount &&
+              terminal.passedPrefix >= row.acceptance.efficient.caseCount
+            ? 80
+            : row.acceptance.small && terminal.passedPrefix >= row.acceptance.small.caseCount
+              ? 40
+              : 0
+        : undefined;
     submissions.push({
+      points,
       id: row.id,
       owner: row.owner,
       admittedAt: BigInt(row.admittedAt),

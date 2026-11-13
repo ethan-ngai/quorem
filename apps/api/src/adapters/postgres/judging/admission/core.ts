@@ -29,6 +29,7 @@ export interface ExecutionAdmissionSnapshot {
     | {
         kind: "workspace";
         workspaceId: string;
+        practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy;
         matchId: string | null;
         matchSequence: string | null;
         admittedAt: string | null;
@@ -84,7 +85,7 @@ export async function insertAdmittedExecution(
   const inserted = (
     await tx.execute<{ admittedAt: string }>(
       sql`WITH admitted AS (
-        INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL)
+        INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases,practice_target) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL,${workspace?.practiceTarget ?? null})
         RETURNING id,admitted_at
       ), enqueued AS (
         INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports)
@@ -129,6 +130,7 @@ export async function prepareExecutionInputs(
   custom: readonly string[] | null,
   interview: boolean,
   odyssey: boolean,
+  hiddenLimit?: number,
 ): Promise<Omit<Parameters<typeof bindJobInputs>[1], "jobId" | "owner">> {
   const sealed =
     "publication" in owner
@@ -142,7 +144,7 @@ export async function prepareExecutionInputs(
     throw new ApplicationError("temporarily_unavailable", "Execution fixture unavailable", 503);
   const counts = (
     await tx.execute<{ examples: string; hidden: string }>(
-      sql`SELECT count(*) FILTER (WHERE channel='example')::text AS examples,count(*) FILTER (WHERE channel='hidden')::text AS hidden FROM (${fixtureRows(owner, level)}) f`,
+      sql`SELECT count(*) FILTER (WHERE channel='example')::text AS examples,count(*) FILTER (WHERE channel='hidden')::text AS hidden FROM (${fixtureRows(owner, level, hiddenLimit)}) f`,
     )
   ).rows[0];
   const examples = Number(counts.examples),

@@ -45,6 +45,7 @@ export function useSubmission({
   enabled = true,
   level,
   runExamples,
+  practiceTarget,
   beforeExecution,
   sharedSubmissionId,
 }: {
@@ -59,6 +60,7 @@ export function useSubmission({
   beforeExecution?: (kind: "run" | "submit") => Promise<boolean>;
   sharedSubmissionId?: string;
   level?: number;
+  practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy;
   runExamples?: PublishedQuestion["examples"];
 }) {
   const queryClient = useQueryClient();
@@ -283,8 +285,9 @@ export function useSubmission({
           }
           if (scopeRef.current !== scope) return false;
         }
+        const target = kind === "submit" ? practiceTarget : undefined;
         const fingerprint = await sha256(
-          JSON.stringify({ scope, kind, source, customCases, level, approval }),
+          JSON.stringify({ scope, kind, source, customCases, level, approval, target }),
         );
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
         pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
@@ -296,7 +299,8 @@ export function useSubmission({
           customCases,
           pendingRequest.current.key,
           level,
-          ...(approval ? [approval] : []),
+          approval,
+          target,
         );
         if (scopeRef.current === scope) {
           setActive({ scope, id: admission.id, level, kind });
@@ -347,6 +351,7 @@ export function useSubmission({
       enabled,
       beforeExecution,
       level,
+      practiceTarget,
     ],
   );
 
