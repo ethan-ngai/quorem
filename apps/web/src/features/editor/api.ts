@@ -94,12 +94,18 @@ export async function fetchSubmission(
 
 /** Requests cancellation where the workspace contract allows it. */
 export async function cancelSubmission(identity: DevelopmentIdentity, id: string) {
-  const { data, error } = await api(identity).POST("/v1/submissions/{id}/cancel", {
+  const { data, error, response } = await api(identity).POST("/v1/submissions/{id}/cancel", {
     params: {
       path: { id },
       header: { "Idempotency-Key": randomUUID() },
     },
   });
+  if (
+    response.status === 409 &&
+    error?.error?.code === "invalid_transition" &&
+    error.error.message === "Execution already finished"
+  )
+    return fetchSubmission(identity, id);
   return requireData(data as Submission | undefined, error);
 }
 

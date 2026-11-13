@@ -60,18 +60,20 @@ export function ExecutionActions({
           aria-hidden={!onCancel}
         >
           <button
-            className="button button-danger run-abort-button"
+            className="button button-danger"
             aria-label={abortPending ? "Aborting…" : "Abort"}
             disabled={abortPending}
             onClick={onCancel}
           >
-            <span className="run-action-state" data-active={!abortPending} aria-hidden="true">
-              <Icon name="stop" />
-              Abort
-            </span>
-            <span className="run-action-state" data-active={!!abortPending} aria-hidden="true">
-              <Spinner active={!!abortPending} />
-              Aborting…
+            <span className="run-abort-label" aria-hidden="true">
+              <span className="run-action-state" data-active={!abortPending}>
+                <Icon name="stop" />
+                Abort
+              </span>
+              <span className="run-action-state" data-active={!!abortPending}>
+                <Spinner size={18} active={!!abortPending} />
+                Aborting…
+              </span>
             </span>
           </button>
         </div>
