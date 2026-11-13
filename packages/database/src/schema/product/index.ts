@@ -1238,6 +1238,10 @@ export const submissions = pgTable(
     unique("submission_interview_identity").on(table.id, table.interview_id),
     check("submissions_kind_check", sql`kind = ANY (ARRAY['run'::text, 'submit'::text])`),
     check(
+      "submissions_practice_target_check",
+      sql`${table.practice_target} IN ('small', 'efficient')`,
+    ),
+    check(
       "submissions_state_check",
       sql`state = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'cancelled'::text, 'failed'::text])`,
     ),
@@ -2115,12 +2119,17 @@ export const practice_case_feedback = pgTable(
 export const practice_target_progress = pgTable(
   "practice_target_progress",
   {
-    workspace_id: uuid()
-      .primaryKey()
-      .references(() => workspaces.id, { onDelete: "cascade" }),
+    workspace_id: uuid().primaryKey(),
     tier: integer().notNull(),
   },
-  (table) => [check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 2`)],
+  (table) => [
+    check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 2`),
+    foreignKey({
+      columns: [table.workspace_id],
+      foreignColumns: [workspaces.id],
+      name: "practice_target_progress_workspace_id_fkey",
+    }).onDelete("cascade"),
+  ],
 );
 
 export const practice_solves = pgTable(
