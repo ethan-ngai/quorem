@@ -195,7 +195,7 @@ export function GlobalNav({
                     : { to: "/party" })}
                 >
                   <ArrowRight size={18} />
-                  <span>{returnLabel}</span>
+                  <span className="nav-match-action-label">{returnLabel}</span>
                 </Link>
               </Tooltip>
             ) : (
@@ -237,7 +237,7 @@ export function GlobalNav({
                       label="Checking active match"
                       fallback={<Plus size={16} aria-hidden="true" />}
                     />
-                    <span>
+                    <span className="nav-match-action-label">
                       {activeMatch.failed
                         ? "Match status unavailable"
                         : session.data?.kind === "guest"
