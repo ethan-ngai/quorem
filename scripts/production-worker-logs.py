@@ -31,6 +31,35 @@ def query(path, body):
         return json.load(response)
 
 
+containers = "quorem-hono-services-production-case"
+request = urllib.request.Request(
+    f"https://api.cloudflare.com/client/v4/accounts/{account}/containers/applications",
+    headers=headers,
+)
+try:
+    with urllib.request.urlopen(request, timeout=15) as response:
+        applications = json.load(response).get("result") or []
+    for application in applications:
+        if application.get("name") != containers:
+            continue
+        path = f"accounts/{account}/containers/applications/{application['id']}"
+        with urllib.request.urlopen(
+            urllib.request.Request(f"https://api.cloudflare.com/client/v4/{path}", headers=headers),
+            timeout=15,
+        ) as response:
+            detail = json.load(response).get("result") or {}
+        health = detail.get("health") or {}
+        errors = [
+            entry.get("event", {}).get("name", "")
+            for entry in health.get("errors", [])
+        ]
+        print("Judge container health:", json.dumps({
+            "summary": health.get("summary"),
+            "events": [name for name in errors if re.fullmatch(r"[A-Za-z]{1,40}", name)],
+        }))
+except urllib.error.HTTPError as error:
+    print("Judge container health HTTP status:", error.code)
+
 for worker in workers:
     # Analytics aggregates invocation outcomes independently of retained console logs.
     analytics = query("graphql", {
