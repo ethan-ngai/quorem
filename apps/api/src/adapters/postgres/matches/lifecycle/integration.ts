@@ -152,6 +152,37 @@ after(async () => {
   await pool.end();
   assert.deepEqual(schedulerErrors, []);
 });
+void test("Showdown draws require consent from both players", async () => {
+  const { id } = (await repo.create(host, "draw-match", settings)) as { id: string };
+  await pool.query(
+    "INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,'match-rival',2)",
+    [id],
+  );
+  await repo.mutate(host, id, "draw-host-ready", "ready", true);
+  await repo.mutate(rival, id, "draw-rival-ready", "ready", true);
+  await assert.rejects(repo.mutate(rival, id, "draw-no-offer", "accept-draw", null));
+  const offered = (await repo.mutate(host, id, "draw-offer", "offer-draw", null)) as {
+    state: string;
+    drawOfferUserId: string;
+    hostUserId: string;
+  };
+  assert.equal(offered.state, "active");
+  assert.equal(offered.drawOfferUserId, offered.hostUserId);
+  assert.deepEqual(await repo.mutate(host, id, "draw-offer", "offer-draw", null), offered);
+  await assert.rejects(repo.mutate(host, id, "draw-own", "accept-draw", null));
+  await assert.rejects(repo.mutate(outsider, id, "draw-outsider", "accept-draw", null));
+  const accepted = (await repo.mutate(rival, id, "draw-accept", "accept-draw", null)) as {
+    state: string;
+    drawOfferUserId?: string;
+    outcome: { kind: string; reason: string };
+  };
+  assert.equal(accepted.state, "completed");
+  assert.equal(accepted.drawOfferUserId, undefined);
+  assert.equal(accepted.outcome.kind, "draw");
+  assert.equal(accepted.outcome.reason, "agreed_draw");
+  assert.deepEqual(await repo.mutate(rival, id, "draw-accept", "accept-draw", null), accepted);
+});
+
 void test("creation serializes reservation and encrypts replay capability", async () => {
   const [a, b] = await Promise.allSettled([
     repo.create(host, "a", settings),

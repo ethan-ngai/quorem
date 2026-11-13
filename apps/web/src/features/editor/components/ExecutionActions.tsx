@@ -11,6 +11,7 @@ export function ExecutionActions({
   onRun,
   onSubmit,
   onCancel,
+  abortPending,
 }: {
   disabled: boolean;
   runDisabled?: boolean;
@@ -18,6 +19,7 @@ export function ExecutionActions({
   onRun: () => void;
   onSubmit: () => void;
   onCancel?: () => void;
+  abortPending?: boolean;
 }) {
   const submit = (
     <button className="button button-primary" disabled={disabled} onClick={onSubmit}>
@@ -28,8 +30,9 @@ export function ExecutionActions({
   return (
     <div className="run-actions">
       {onCancel && (
-        <button className="quiet-button" onClick={onCancel}>
-          Cancel run
+        <button className="button button-danger" disabled={abortPending} onClick={onCancel}>
+          <Icon name="stop" />
+          {abortPending ? "Aborting…" : "Abort"}
         </button>
       )}
       <Tooltip content={<ShortcutHint shortcut={workspaceShortcuts.run} />}>

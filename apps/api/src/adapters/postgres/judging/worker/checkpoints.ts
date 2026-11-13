@@ -32,9 +32,46 @@ async function lockAndLive(tx: Transaction, job: Job): Promise<{ cancelled: bool
   return row?.live ? { cancelled: row.cancelled } : null;
 }
 export function postgresCheckpoints(run: Run) {
+  async function releaseAttempt(
+    job: Job,
+    proof: { attemptId: string; sandboxScope: string },
+    cancellationOnly: boolean,
+  ) {
+    assertAttemptFence(job, proof);
+    await run((scope) =>
+      scope.transaction(options, async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(740020)`);
+        const live = await lockAndLive(tx, job);
+        if (!live) return;
+        if (live.cancelled) {
+          await tx.execute(
+            sql`UPDATE submissions SET state='cancelled',updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
+          );
+          await tx.execute(
+            sql`UPDATE execution_jobs SET finished=true,attempt_id=NULL,lease_until=NULL WHERE id=${job.jobId}::uuid`,
+          );
+          return;
+        }
+        if (cancellationOnly) return;
+        const progressed = (
+          await tx.execute<{ ready: boolean }>(
+            sql`SELECT EXISTS(SELECT 1 FROM execution_checkpoints WHERE job_id=${job.jobId}::uuid AND last_attempt_id=${job.attemptId}::uuid AND next_ordinal>0) AS ready`,
+          )
+        ).rows[0].ready;
+        if (!progressed) throw new Error("Cannot yield without checkpoint progress");
+        await tx.execute(
+          sql`UPDATE execution_jobs SET attempt_id=NULL,lease_until=NULL,available_at=clock_timestamp(),attempts=0 WHERE id=${job.jobId}::uuid`,
+        );
+        await tx.execute(
+          sql`UPDATE submissions SET state='queued',updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
+        );
+      }),
+    );
+  }
+
   const api: Pick<
     ExecutionRepository,
-    "loadCheckpoint" | "replayCheckpoint" | "saveCheckpoint" | "yield"
+    "loadCheckpoint" | "replayCheckpoint" | "saveCheckpoint" | "yield" | "acknowledgeCancellation"
   > = {
     async loadCheckpoint(job: Job): Promise<Checkpoint> {
       const { total, checkpoint } = await inputCheckpoint(run, job);
@@ -184,37 +221,8 @@ export function postgresCheckpoints(run: Run) {
         }),
       );
     },
-    async yield(job: Job, proof: { attemptId: string; sandboxScope: string }): Promise<void> {
-      assertAttemptFence(job, proof);
-      await run((scope) =>
-        scope.transaction(options, async (tx) => {
-          await tx.execute(sql`SELECT pg_advisory_xact_lock(740020)`);
-          const live = await lockAndLive(tx, job);
-          if (!live) return;
-          if (live.cancelled) {
-            await tx.execute(
-              sql`UPDATE submissions SET state='cancelled',updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
-            );
-            await tx.execute(
-              sql`UPDATE execution_jobs SET finished=true,attempt_id=NULL,lease_until=NULL WHERE id=${job.jobId}::uuid`,
-            );
-            return;
-          }
-          const progressed = (
-            await tx.execute<{ ready: boolean }>(
-              sql`SELECT EXISTS(SELECT 1 FROM execution_checkpoints WHERE job_id=${job.jobId}::uuid AND last_attempt_id=${job.attemptId}::uuid AND next_ordinal>0) AS ready`,
-            )
-          ).rows[0].ready;
-          if (!progressed) throw new Error("Cannot yield without checkpoint progress");
-          await tx.execute(
-            sql`UPDATE execution_jobs SET attempt_id=NULL,lease_until=NULL,available_at=clock_timestamp(),attempts=0 WHERE id=${job.jobId}::uuid`,
-          );
-          await tx.execute(
-            sql`UPDATE submissions SET state='queued',updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
-          );
-        }),
-      );
-    },
+    yield: (job, proof) => releaseAttempt(job, proof, false),
+    acknowledgeCancellation: (job, proof) => releaseAttempt(job, proof, true),
   };
   return api;
 }

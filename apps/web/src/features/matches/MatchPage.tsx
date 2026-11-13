@@ -1,3 +1,6 @@
+import { Handshake } from "lucide-react";
+import { toast } from "sonner";
+import { PersistentActionToast } from "../../ui/PersistentActionToast";
 import { matchCompetitors, isMatchWinner } from "./competitors";
 import { FactionWorkspace } from "../factions/FactionWorkspace";
 import { RoomAlerts } from "../rooms/RoomAlerts";
@@ -25,7 +28,7 @@ import { LoadingIndicator } from "../../ui/Spinner";
 import { Icon } from "../../ui/Icon";
 import { useTheme } from "../editor/useTheme";
 import { useMatchSync, type MatchSyncStatus } from "../realtime/useMatchSync";
-import { forfeitMatch } from "./api";
+import { forfeitMatch, matchDraw } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
 import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
@@ -74,13 +77,14 @@ function MatchClock({
           ? (deadline ?? snapshot.serverNow)
           : (snapshot.outcome?.completedAt ?? snapshot.serverNow),
       ));
-  const showPersonal = active && snapshot.rules.victory === "race" && penaltySeconds > 0;
-  const personalDeadline = showPersonal
+  const personalDeadline = active
     ? personalSubmissionDeadline(snapshot, penaltySeconds)
     : undefined;
-  const personal = personalDeadline
-    ? remainingTime(personalDeadline, snapshot.serverNow, elapsed)
-    : undefined;
+  const personalRemaining =
+    personalDeadline && deadline && Date.parse(personalDeadline) < Date.parse(deadline)
+      ? remainingTime(personalDeadline, snapshot.serverNow, elapsed)
+      : undefined;
+  const personal = personalRemaining === remaining ? undefined : personalRemaining;
   const personalClosed = personal === "00:00";
   const [dismissedCutoff, setDismissedCutoff] = useState<string>();
   const cutoffOpen =
@@ -93,7 +97,7 @@ function MatchClock({
   const global = (
     <span className="match-clock" data-shortened={shortened} tabIndex={shortened ? 0 : undefined}>
       <Icon name="clock" />
-      {(showPersonal || shortened) && <span className="match-clock-label">Match</span>}
+      {(personal || shortened) && <span className="match-clock-label">Match</span>}
       {remaining}
       {shortened && (
         <span className="match-clock-label">−{formatPenaltyDuration(shortenedBy)}</span>
@@ -164,12 +168,14 @@ function MatchLedger({
   identity,
   status,
   onForfeit,
+  drawAction,
   onResults,
 }: {
   snapshot: MatchSnapshot;
   identity: DevelopmentIdentity;
   status: MatchSyncStatus;
   onForfeit: () => void;
+  drawAction?: React.ReactNode;
   onResults?: () => void;
 }) {
   const own = ownParticipant(snapshot, identity);
@@ -217,6 +223,7 @@ function MatchLedger({
               active={snapshot.state === "active" && !own?.forfeited}
             />
           )}
+          {drawAction}
           {!own?.forfeited && snapshot.state === "active" && snapshot.mode !== "factions" && (
             <Tooltip content="Forfeit match">
               <button
@@ -373,6 +380,58 @@ export function MatchPage({
       }
     />
   );
+  const drawAction = (saveDraft?: () => Promise<void>) => {
+    const own = ownParticipant(snapshot, identity);
+    if (snapshot.mode !== "showdown" || snapshot.state !== "active" || !own || own.forfeited)
+      return null;
+    const offer = snapshot.participants.find(
+      (player) => player.userId === snapshot.drawOfferUserId,
+    );
+    const icon = <Handshake size={18} aria-hidden="true" />;
+    if (offer && offer.userId !== own.userId) {
+      return (
+        <PersistentActionToast
+          id={`draw:${matchId}:${own.userId}`}
+          title={`${offer.displayName} offered a draw`}
+          noun="draw offer"
+          icon={icon}
+        >
+          <button
+            className="button button-primary"
+            disabled={pending}
+            onClick={() =>
+              void command(async () => {
+                if (snapshot.shareFinalCode) await saveDraft?.();
+                await matchDraw(identity, matchId, "accept");
+              })
+            }
+          >
+            Accept draw
+          </button>
+        </PersistentActionToast>
+      );
+    }
+    const label = offer ? "Draw offered" : "Offer draw";
+    return (
+      <Tooltip content={label}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={label}
+          aria-disabled={!!offer || pending}
+          onClick={() => {
+            if (offer || pending) return;
+            void command(async () => {
+              await matchDraw(identity, matchId, "offer");
+              toast("Draw offered", { icon });
+            });
+          }}
+        >
+          {icon}
+        </button>
+      </Tooltip>
+    );
+  };
   const ledger = (problem?: PublishedQuestion, saveDraft?: () => Promise<void>) => (
     <>
       <MatchLedger
@@ -380,6 +439,7 @@ export function MatchPage({
         identity={identity}
         status={status}
         onForfeit={() => setConceding(true)}
+        drawAction={drawAction(saveDraft)}
         onResults={finished ? () => setResultsOpen(true) : undefined}
       />
       {snapshot.state === "finalizing" && (

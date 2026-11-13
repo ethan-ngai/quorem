@@ -141,7 +141,15 @@ export interface Lifecycle {
     who: Principal,
     id: string,
     key: string,
-    action: "settings" | "ready" | "start" | "leave" | "forfeit" | "rule-events",
+    action:
+      | "settings"
+      | "ready"
+      | "start"
+      | "leave"
+      | "forfeit"
+      | "offer-draw"
+      | "accept-draw"
+      | "rule-events",
     body: Settings | boolean | "clipboard" | "copy" | "focus" | null,
   ): Promise<unknown>;
 }

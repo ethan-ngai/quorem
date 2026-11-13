@@ -993,13 +993,8 @@ export function WorkspacePage({
               }
               onRun={() => void run()}
               onSubmit={() => void submit()}
-              onCancel={
-                submissionBusy &&
-                !admissionPending &&
-                !(submission?.kind === "submit" && workspace.kind === "match")
-                  ? () => void execution.cancel()
-                  : undefined
-              }
+              onCancel={execution.canAbort ? () => void execution.cancel() : undefined}
+              abortPending={execution.abortPending}
             />
           </>
         }

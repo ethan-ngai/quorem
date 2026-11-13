@@ -31,6 +31,8 @@ export function matchEndDescription(snapshot: MatchSnapshot, identity: Developme
   switch (snapshot.outcome?.reason) {
     case "first_correct":
       return "The earliest correct submission after time penalties decided this match.";
+    case "agreed_draw":
+      return "Both players agreed to a draw.";
     case "forfeit":
       return own?.forfeited
         ? "You forfeited this match."

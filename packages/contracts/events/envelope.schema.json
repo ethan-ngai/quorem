@@ -1904,6 +1904,10 @@
           "type": "string",
           "format": "uuid"
         },
+        "drawOfferUserId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "version": {
           "type": "string",
           "pattern": "^(0|[1-9][0-9]*)$"

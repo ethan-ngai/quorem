@@ -115,8 +115,12 @@ void test("final case verification overlaps teardown but publication waits for i
   }
 });
 
-void test("revoked lease aborts execution and cannot publish", async () => {
+void test("revoked lease acknowledges cancellation only after teardown", async () => {
   const f = fixture();
+  f.repository.acknowledgeCancellation = async (_job, proof) => {
+    assert.deepEqual(proof, { attemptId: job.attemptId, sandboxScope: job.sandboxScope });
+    f.events.push("acknowledge");
+  };
   const running = runAttempt({
     ...f,
     job,
@@ -132,7 +136,7 @@ void test("revoked lease aborts execution and cannot publish", async () => {
   await sleep(10);
   f.revoke();
   await assert.rejects(running, LostLease);
-  assert.deepEqual(f.events, ["lease", "lease", "teardown"]);
+  assert.deepEqual(f.events, ["lease", "lease", "teardown", "acknowledge"]);
 });
 void test("heartbeat failure cancels execution and teardown failure cannot publish", async () => {
   const f = fixture();

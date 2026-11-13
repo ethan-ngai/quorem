@@ -154,6 +154,7 @@ export interface ExecutionRepository {
   ): Promise<void>;
   saveCheckpoint(job: Job, checkpoint: CheckpointCase, signal?: AbortSignal): Promise<void>;
   yield(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
+  acknowledgeCancellation?(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
 }
 
 /** Ensure completion belongs to the claimed submission and attempt. */

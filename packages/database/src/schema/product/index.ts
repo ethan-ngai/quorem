@@ -735,6 +735,7 @@ export const matches = pgTable(
     publication_id: uuid(),
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
+    draw_offer_owner_id: text().references(() => users.id, { onDelete: "set null" }),
     rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),

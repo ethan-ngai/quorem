@@ -106,6 +106,13 @@ export async function runAttempt(options: {
   if (failure || lost || signal.aborted) {
     // Teardown must outlive cancellation; a failed confirmation keeps the lease fenced.
     await startTeardown();
+    if (lost || failure instanceof LostLease) {
+      await repository.acknowledgeCancellation?.(
+        job,
+        { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
+        AbortSignal.timeout(options.teardownMs ?? 30000),
+      );
+    }
     if (
       lost &&
       (!failure ||
