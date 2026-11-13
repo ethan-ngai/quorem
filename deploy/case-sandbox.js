@@ -46,6 +46,9 @@ export class CaseSandbox extends DurableObject {
       if (started || this.ctx.container.running) await this.ctx.container.destroy();
       this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
+      // Keep startup timings after teardown and Durable Object eviction.
+      if (this.startup && this.env.CASE_DIAGNOSTICS === "true")
+        await this.ctx.storage.put("startup-timing", this.startup);
       await this.ctx.storage.delete(["started", "deadline"]);
       await this.ctx.storage.deleteAlarm();
       this.phase = "stop-complete";
@@ -98,6 +101,7 @@ export class CaseSandbox extends DurableObject {
         failure: this.failure ?? "none",
         source: this.failureSource ?? "none",
         ...(this.timing ? { timing: this.timing } : {}),
+        startup: this.startup ?? (await this.ctx.storage.get("startup-timing")) ?? null,
       });
     if (request.method === "DELETE") {
       const token = request.headers.get("x-case-token");
@@ -173,6 +177,8 @@ export class CaseSandbox extends DurableObject {
   }
 
   async startAttempt(language) {
+    const began = performance.now();
+    const startup = (this.startup = { maxExecMs: 0 });
     const container = this.ctx.container;
     const image = container.images?.[language];
     if (!image || container.running || (await this.ctx.storage.get("started")))
@@ -188,24 +194,32 @@ export class CaseSandbox extends DurableObject {
         instance: { vcpu: SHARED_CASE_CONCURRENCY, memoryMib: 3072, diskMb: 4000 },
         enableInternet: false,
       });
+    startup.setupMs = Math.round(performance.now() - began);
     start();
     if (language !== "python") return;
 
     // All lanes wait for boot, so an allocation can be replaced before any child starts.
     this.phase = "allocation";
+    const allocationBegan = performance.now();
     const retryAt = Date.now() + PYTHON_ALLOCATION_RETRY_MS;
     let pause = 25;
     for (;;) {
       const allocation = await container.inspect();
       if (this.cancelled) throw new Error("Attempt cancelled");
-      if (allocation?.image === image) return;
+      if (allocation?.image === image) {
+        startup.allocationMs = Math.round(performance.now() - allocationBegan);
+        return;
+      }
       if (allocation?.image) throw new Error("Case image changed");
       const remaining = retryAt - Date.now();
       if (remaining <= 0) break;
       await new Promise((resolve) => setTimeout(resolve, Math.min(pause, remaining)));
       pause = Math.min(pause * 2, 250);
     }
+    const destroying = performance.now();
+    startup.allocationMs = Math.round(destroying - allocationBegan);
     await container.destroy();
+    startup.replacementCleanupMs = Math.round(performance.now() - destroying);
     if (this.cancelled) throw new Error("Attempt cancelled");
     console.log("case-lifecycle allocation-retry python");
     start();
@@ -252,6 +266,7 @@ export class CaseSandbox extends DurableObject {
         { highWaterMark: 0 },
       );
       active.launched = true;
+      const execBegan = performance.now();
       const process = await container.exec(
         [
           "/usr/bin/env",
@@ -269,6 +284,7 @@ export class CaseSandbox extends DurableObject {
       active.ready = true;
       this.phase = "exec-ready";
       const ready = performance.now();
+      this.startup.maxExecMs = Math.max(this.startup.maxExecMs, Math.round(ready - execBegan));
       timing.startupMs = Math.round(ready - started);
       timing.execMs = timing.startupMs;
       console.log(`case-lifecycle exec-created duration_ms=${timing.execMs}`);

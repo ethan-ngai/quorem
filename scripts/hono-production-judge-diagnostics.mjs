@@ -197,6 +197,11 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
         .map((name) => [name, value?.timing?.[name]])
         .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
     );
+    const startup = Object.fromEntries(
+      ["setupMs", "allocationMs", "replacementCleanupMs", "maxExecMs"]
+        .map((name) => [name, value?.startup?.[name]])
+        .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
+    );
     diagnostics.push({
       attemptId: attempt_id,
       claimedAt: claimed_at,
@@ -205,6 +210,7 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
       failure: field("failure"),
       source: field("source"),
       timing,
+      startup,
     });
   }
   return { attempts: diagnostics, runnerProfile: await productionRunnerProfile(keys) };
