@@ -85,8 +85,8 @@ for worker in workers:
         "limit": 1000,
         "dry": True,
         "parameters": {
-            "datasets": ["cloudflare-workers", "workers"],
-            "filters": [{"key": "$workers.scriptName", "type": "string",
+            "datasets": ["cloudflare-workers"],
+            "filters": [{"key": "$metadata.service", "type": "string",
                          "operation": "eq", "value": worker}],
         },
     })
