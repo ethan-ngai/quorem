@@ -97,6 +97,7 @@ export class CaseSandbox extends DurableObject {
     }
     if (request.method === "GET" && this.env.CASE_DIAGNOSTICS === "true")
       return Response.json({
+        actorId: this.ctx.id?.toString(),
         phase: this.phase ?? "idle",
         failure: this.failure ?? "none",
         source: this.failureSource ?? "none",

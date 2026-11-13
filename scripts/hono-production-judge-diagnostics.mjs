@@ -202,6 +202,30 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
         .map((name) => [name, value?.startup?.[name]])
         .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
     );
+    const actorId = /^[a-f0-9]{64}$/.test(value?.actorId ?? "") ? value.actorId : undefined;
+    let instance;
+    if (actorId && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) {
+      const base = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/containers/applications`;
+      const options = {
+        headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+        signal: AbortSignal.timeout(10000),
+        redirect: "error",
+      };
+      const applications = await (await fetch(base, options)).json();
+      const app = applications.result?.find(
+        ({ name }) => name === "quorem-hono-services-production-case",
+      );
+      if (app) {
+        const result = await fetch(`${base}/${app.id}/instances/${actorId}`, options);
+        const data = (await result.json()).result;
+        instance = {
+          status: result.status,
+          startedAt: /^\d{4}-[\d:T.+Z-]+$/.test(data?.started_at ?? "")
+            ? data.started_at
+            : undefined,
+        };
+      }
+    }
     diagnostics.push({
       attemptId: attempt_id,
       claimedAt: claimed_at,
@@ -211,6 +235,8 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
       source: field("source"),
       timing,
       startup,
+      actorId,
+      instance,
     });
   }
   return { attempts: diagnostics, runnerProfile: await productionRunnerProfile(keys) };
