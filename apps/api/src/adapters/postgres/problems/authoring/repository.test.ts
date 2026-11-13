@@ -181,10 +181,6 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           caseCount: 19,
           complexity: { timeComplexity: "$O(n^2)$", spaceComplexity: "$O(1)$" },
         },
-        optimal: {
-          caseCount: 20,
-          complexity: { timeComplexity: "$O(n)$", spaceComplexity: "$O(1)$" },
-        },
       };
       parsedContent.approaches.push({
         id: "grouping",
@@ -379,7 +375,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         true,
       );
       expect(JSON.parse(complexity)).toEqual({
-        optimal: parsedContent.problem.acceptance.optimal.complexity,
+        optimal: { timeComplexity: "O(n)", spaceComplexity: "O(1)" },
         accepted: parsedContent.problem.acceptance.efficient.complexity,
       });
 
@@ -393,8 +389,8 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         );
         for (const [target, tier] of [
           ["small", 1],
-          ["optimal", 3],
-          ["efficient", 3],
+          ["efficient", 2],
+          ["small", 2],
         ] as const) {
           const submission = crypto.randomUUID();
           await practice.query(

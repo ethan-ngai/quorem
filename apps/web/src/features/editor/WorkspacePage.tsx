@@ -75,7 +75,7 @@ import { WorkspaceTests } from "./components/WorkspaceTests";
 import { ExecutionActions } from "./components/ExecutionActions";
 import "../../styles/workspace.css";
 
-const practiceTiers = { small: 1, efficient: 2, optimal: 3 };
+const practiceTiers = { small: 1, efficient: 2 };
 
 type Panel = "problem" | "code" | "results";
 
@@ -831,7 +831,6 @@ export function WorkspacePage({
                       {
                         small: "Small inputs",
                         efficient: "Full constraints",
-                        optimal: "Optimization",
                       }[value] + (practiceTier >= practiceTiers[value] ? " ✓" : ""),
                   }))}
                   onChange={(target) =>

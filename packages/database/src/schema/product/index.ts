@@ -2115,7 +2115,7 @@ export const practice_target_progress = pgTable(
       .references(() => workspaces.id, { onDelete: "cascade" }),
     tier: integer().notNull(),
   },
-  (table) => [check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 3`)],
+  (table) => [check("practice_target_progress_tier_check", sql`${table.tier} BETWEEN 1 AND 2`)],
 );
 
 export const practice_solves = pgTable(

@@ -1322,8 +1322,7 @@
             "type": "string",
             "enum": [
               "small",
-              "efficient",
-              "optimal"
+              "efficient"
             ]
           }
         },
@@ -1448,7 +1447,7 @@
         "practiceTier": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 3
+          "maximum": 2
         },
         "id": {
           "type": "string",
@@ -1527,8 +1526,7 @@
           "type": "string",
           "enum": [
             "small",
-            "efficient",
-            "optimal"
+            "efficient"
           ]
         },
         "workspaceId": {
@@ -1721,8 +1719,7 @@
           "type": "string",
           "enum": [
             "small",
-            "efficient",
-            "optimal"
+            "efficient"
           ]
         },
         "customRun": {
@@ -2667,8 +2664,7 @@
           "type": "string",
           "enum": [
             "small",
-            "efficient",
-            "optimal"
+            "efficient"
           ]
         },
         "victory": {
@@ -3095,9 +3091,6 @@
           "$ref": "#/$defs/AcceptanceProfile"
         },
         "efficient": {
-          "$ref": "#/$defs/AcceptanceProfile"
-        },
-        "optimal": {
           "$ref": "#/$defs/AcceptanceProfile"
         }
       }

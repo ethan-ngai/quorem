@@ -172,9 +172,6 @@
         },
         "efficient": {
           "$ref": "#/$defs/AcceptanceProfile"
-        },
-        "optimal": {
-          "$ref": "#/$defs/AcceptanceProfile"
         }
       }
     },

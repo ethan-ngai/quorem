@@ -58,7 +58,7 @@ const projection = sql`jsonb_build_object(
 'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb))`;
 const from = sql.raw(` FROM question_publications v JOIN problems p ON p.id=v.problem_id `);
 const detailProjection = sql`(${projection} || jsonb_build_object(
-  'practiceTargets', ARRAY(SELECT key FROM unnest(ARRAY['small','efficient','optimal']) AS target(key) WHERE v.acceptance ? key),
+  'practiceTargets', ARRAY(SELECT key FROM unnest(ARRAY['small','efficient']) AS target(key) WHERE v.acceptance ? key),
   'hiddenCaseCounts', COALESCE((
     SELECT jsonb_object_agg(stage,n) FROM (
       SELECT stage,count(*) AS n FROM runner_publication_input_cases

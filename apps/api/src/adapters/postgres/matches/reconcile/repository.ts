@@ -106,12 +106,9 @@ export async function reconcileMatch(
       match.rules.victory === "high_score" && terminal && verified && row.acceptance
         ? terminal.passedPrefix === verified.caseCount
           ? 100
-          : row.acceptance.efficient.caseCount < verified.caseCount &&
-              terminal.passedPrefix >= row.acceptance.efficient.caseCount
-            ? 80
-            : row.acceptance.small && terminal.passedPrefix >= row.acceptance.small.caseCount
-              ? 40
-              : 0
+          : row.acceptance.small && terminal.passedPrefix >= row.acceptance.small.caseCount
+            ? 40
+            : 0
         : undefined;
     submissions.push({
       points,

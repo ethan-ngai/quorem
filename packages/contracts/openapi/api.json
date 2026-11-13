@@ -6270,7 +6270,7 @@
       "PublishedQuestion": {
         "type": "object",
         "properties": {
-          "practiceTargets": { "type": "array", "items": { "type": "string", "enum": ["small", "efficient", "optimal"] } },
+          "practiceTargets": { "type": "array", "items": { "type": "string", "enum": ["small", "efficient"] } },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -6383,7 +6383,7 @@
       "Workspace": {
         "type": "object",
         "properties": {
-          "practiceTier": { "type": "integer", "minimum": 1, "maximum": 3 },
+          "practiceTier": { "type": "integer", "minimum": 1, "maximum": 2 },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -6442,7 +6442,7 @@
       "CreateSubmissionRequest": {
         "type": "object",
         "properties": {
-          "practiceTarget": { "type": "string", "enum": ["small", "efficient", "optimal"] },
+          "practiceTarget": { "type": "string", "enum": ["small", "efficient"] },
           "workspaceId": {
             "type": "string",
             "format": "uuid"
@@ -6605,7 +6605,7 @@
       "Submission": {
         "type": "object",
         "properties": {
-          "practiceTarget": { "type": "string", "enum": ["small", "efficient", "optimal"] },
+          "practiceTarget": { "type": "string", "enum": ["small", "efficient"] },
           "customRun": {
             "type": "boolean"
           },
@@ -7376,7 +7376,7 @@
       "MatchRules": {
         "type": "object",
         "properties": {
-          "acceptance": { "type": "string", "enum": ["small", "efficient", "optimal"] },
+          "acceptance": { "type": "string", "enum": ["small", "efficient"] },
           "victory": {
             "type": "string",
             "enum": ["race", "high_score"]
@@ -7684,8 +7684,7 @@
         "required": ["efficient"],
         "properties": {
           "small": { "$ref": "#/components/schemas/AcceptanceProfile" },
-          "efficient": { "$ref": "#/components/schemas/AcceptanceProfile" },
-          "optimal": { "$ref": "#/components/schemas/AcceptanceProfile" }
+          "efficient": { "$ref": "#/components/schemas/AcceptanceProfile" }
         }
       },
       "ComplexityBound": {

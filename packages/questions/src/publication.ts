@@ -117,17 +117,16 @@ function core(
     );
   };
   if (p.acceptance) {
-    const { small, efficient, optimal } = p.acceptance;
+    const { small, efficient } = p.acceptance;
     if (
       p.sql ||
       levels ||
       (small && small.caseCount >= efficient.caseCount) ||
-      (optimal && optimal.caseCount <= efficient.caseCount) ||
-      (optimal ?? efficient).caseCount !== content.hiddenCases.length
+      efficient.caseCount > content.hiddenCases.length
     )
       throw new QuestionFieldError(
         "/problem/acceptance",
-        "Classic coding profiles must use increasing case counts and cover the full hidden suite",
+        "Classic coding profiles must use increasing case counts within the hidden suite",
       );
     for (const [name, profile] of Object.entries(p.acceptance)) {
       for (const bound of Object.values(profile.complexity)) {

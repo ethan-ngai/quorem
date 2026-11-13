@@ -1188,11 +1188,6 @@ void test("closes personal admission and schedules the race at the last settled 
   assert.equal(final.outcome?.reason, "deadline_score");
   assert.ok(Date.parse(final.outcome!.completedAt) < Date.parse(final.deadline!));
 });
-void test("Optimal Only excludes questions without an optimal profile", async () => {
-  const room = await rulesRoom(matchPreset("tournament"));
-  await assert.rejects(activateRulesRoom(room), { code: "no_matching_questions" });
-});
-
 void test("paid assistance confirms exact cost, grants once, shares penalties, and rejects forbidden reveals", async () => {
   const room = await rulesRoom();
   await pool.query("UPDATE match_participants SET competitor_id='team:1' WHERE match_id=$1", [
@@ -1232,7 +1227,7 @@ void test("paid assistance confirms exact cost, grants once, shares penalties, a
   assert.equal(snapshot.ruleEvents.length, 1);
   assert.equal(snapshot.ruleEvents[0].action, "penalty");
   await assert.rejects(repo.ruleAction(outsider, room.id, "outsider", { kind: "topics" }));
-  const strict = await rulesRoom({ ...matchPreset("tournament"), acceptance: "efficient" });
+  const strict = await rulesRoom(matchPreset("tournament"));
   await activateRulesRoom(strict);
   await assert.rejects(repo.ruleAction(strict.actor, strict.id, "blocked", { kind: "topics" }));
 });

@@ -85,8 +85,7 @@ const descriptions = {
     "Full constraints. Assistance adds a penalty. Submissions have a cooldown. Paste and focus loss are announced.",
   strict:
     "Full constraints. Double assistance penalties. Extra submissions, paste and focus loss also add penalties.",
-  tournament:
-    "Requires optimal solutions. Assistance and paste disabled. Focus loss adds a penalty.",
+  tournament: "Full constraints. Assistance and paste disabled. Focus loss adds a penalty.",
   custom: "Open the settings icon to review custom rules.",
 };
 function RuleInfo({ label, children }: { label: string; children: string }) {
@@ -357,7 +356,6 @@ export function MatchRuleSettingsControls({
             options={[
               { value: "small", label: "Small inputs where available" },
               { value: "efficient", label: "Full constraints" },
-              { value: "optimal", label: "Optimal only" },
             ]}
             onChange={(acceptance) =>
               onChange({ ...value, acceptance: acceptance as MatchRuleSettings["acceptance"] })

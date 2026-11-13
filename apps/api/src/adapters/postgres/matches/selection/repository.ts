@@ -11,14 +11,8 @@ import { ApplicationError } from "../../../../application/error.ts";
 import type { Settings } from "../../../../modules/matches/lifecycle/model.ts";
 import type { CandidateCriteria } from "../../../../modules/problems/model.ts";
 import { readCandidates } from "../../problems/queries/repository.ts";
-const noMatchingQuestions = (optimal = false) =>
-  new ApplicationError(
-    "no_matching_questions",
-    optimal
-      ? "No questions match the filters and optimal target"
-      : "No questions match the selected filters",
-    409,
-  );
+const noMatchingQuestions = () =>
+  new ApplicationError("no_matching_questions", "No questions match the selected filters", 409);
 export async function validateSelectedMatchProblem(tx: Transaction, owner: string, s: Settings) {
   if (!s.selectedProblemVersionId) return;
   if (
@@ -61,13 +55,12 @@ export async function selectMatchCandidate(
   const permitted = (
     await tx.execute<{ id: string }>(
       sql`SELECT id::text AS id FROM question_publications WHERE sealed
-        AND (${settings.rules.acceptance ?? "efficient"} <> 'optimal' OR acceptance ? 'optimal')
         AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
     )
   ).rows;
   const allowed = new Set(permitted.map((x) => x.id));
   const candidates = available.filter((x) => allowed.has(x.id));
-  if (!candidates.length) throw noMatchingQuestions(settings.rules.acceptance === "optimal");
+  if (!candidates.length) throw noMatchingQuestions();
   const context =
     !settings.selectedProblemVersionId && settings.questionSelection === "recommended"
       ? await recommendationContext(tx, participants)

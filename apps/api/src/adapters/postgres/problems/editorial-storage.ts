@@ -25,7 +25,7 @@ export function optimalComplexityProjection(publication: SQL): SQL {
 /** Keep profile metadata and editorial approach identities out of the hint response. */
 export function complexityProjection(publication: SQL, policy: SQL = sql`'efficient'`): SQL {
   const profiles = sql`${publication}.acceptance`;
-  const optimal = sql`COALESCE(${profiles}->'optimal'->'complexity',${optimalComplexityProjection(sql`${publication}.id`)})`;
+  const optimal = optimalComplexityProjection(sql`${publication}.id`);
   const accepted = sql`COALESCE(${profiles}->(COALESCE(${policy},'efficient'))->'complexity',${profiles}->'efficient'->'complexity')`;
   return sql`jsonb_strip_nulls(jsonb_build_object(
     'optimal',${optimal},

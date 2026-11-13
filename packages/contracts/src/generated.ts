@@ -1659,7 +1659,7 @@ export interface components {
             calls?: components["schemas"]["MethodCall"][];
         };
         PublishedQuestion: {
-            practiceTargets?: ("small" | "efficient" | "optimal")[];
+            practiceTargets?: ("small" | "efficient")[];
             /** Format: uuid */
             id: string;
             isPrivate?: boolean;
@@ -1718,7 +1718,7 @@ export interface components {
         };
         CreateSubmissionRequest: {
             /** @enum {string} */
-            practiceTarget?: "small" | "efficient" | "optimal";
+            practiceTarget?: "small" | "efficient";
             /** Format: uuid */
             workspaceId: string;
             kind: components["schemas"]["SubmissionKind"];
@@ -1762,7 +1762,7 @@ export interface components {
         };
         Submission: {
             /** @enum {string} */
-            practiceTarget?: "small" | "efficient" | "optimal";
+            practiceTarget?: "small" | "efficient";
             customRun?: boolean;
             /** Format: uuid */
             id: string;
@@ -2028,7 +2028,7 @@ export interface components {
         MatchRuleKind: "clipboard" | "copy" | "focus";
         MatchRules: {
             /** @enum {string} */
-            acceptance?: "small" | "efficient" | "optimal";
+            acceptance?: "small" | "efficient";
             /** @enum {string} */
             victory: "race" | "high_score";
             automaticImports?: boolean;
@@ -2122,7 +2122,6 @@ export interface components {
         QuestionAcceptance: {
             small?: components["schemas"]["AcceptanceProfile"];
             efficient: components["schemas"]["AcceptanceProfile"];
-            optimal?: components["schemas"]["AcceptanceProfile"];
         };
         ComplexityBound: {
             timeComplexity: string;
