@@ -1,7 +1,18 @@
 /** Per-frame writers share parent fences; attempt transitions retain exclusive parent locks. */
 import { sql } from "drizzle-orm";
-import type { Transaction } from "@quorem/database/core";
+import { classifyDatabaseError, type Transaction } from "@quorem/database/core";
 import type { Job } from "@quorem/execution";
+
+/** Retry a rolled-back lock timeout with a fresh transaction and attempt check. */
+export async function retryJudgingLock<T>(transaction: () => Promise<T>): Promise<T> {
+  for (let retry = 0; ; retry++) {
+    try {
+      return await transaction();
+    } catch (error) {
+      if (retry === 2 || classifyDatabaseError(error) !== "lock_timeout") throw error;
+    }
+  }
+}
 
 export async function lockCompletionFrame(
   tx: Transaction,
