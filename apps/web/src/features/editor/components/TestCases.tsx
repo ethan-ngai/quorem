@@ -196,10 +196,10 @@ export function TestCases({
   const resultIndex = caseId
     ? associatedResultIndex(matchingSnapshot, customMode, caseId, currentValue)
     : -1;
-  const runResult =
-    !pending && submission?.kind === "run" && submission.state === "completed" && resultIndex >= 0
-      ? submission.publicCases?.[resultIndex]
-      : recoveredCases?.[sampleIndex];
+  const runCases = new Map(
+    submission?.kind === "run" ? submission.publicCases?.map((item) => [item.index, item]) : [],
+  );
+  const runResult = runCases.get(resultIndex) ?? recoveredCases?.[sampleIndex];
   const result = showingHidden
     ? revealed?.result
     : ((!pending ? caseResults?.[customMode ? customIndex : sampleIndex] : undefined) ??
@@ -248,11 +248,13 @@ export function TestCases({
   function caseStatus(index: number) {
     const retained = caseStatuses?.find((result) => result.index === index)?.status;
     if (pendingSubmit && submitSamples.has(index)) return submitSamples.get(index)?.status;
-    if (pending)
-      return currentCaseGroup && caseGroups?.[index] !== currentCaseGroup ? retained : undefined;
-    if (caseResults) return caseResults[index]?.status ?? retained;
-    if (!submission || submission.state !== "completed") return retained;
-    if (submission.kind === "submit") return submitSamples.get(index)?.status ?? retained;
+    if (pending && currentCaseGroup && caseGroups?.[index] !== currentCaseGroup)
+      return retained;
+    if (!pending && caseResults) return caseResults[index]?.status ?? retained;
+    if (submission?.kind === "submit")
+      return pending ? undefined : (submitSamples.get(index)?.status ?? retained);
+    const previous = pending ? undefined : retained;
+    if (!runCases.size) return previous;
     if (recoveredCases) return recoveredCases[index]?.status ?? retained;
     let value;
     try {
@@ -268,7 +270,7 @@ export function TestCases({
       customMode ? drafts[index]!.id : String(index),
       value,
     );
-    return resultIndex >= 0 ? submission.publicCases?.[resultIndex]?.status : undefined;
+    return runCases.get(resultIndex)?.status ?? previous;
   }
   const statuses = (customMode ? drafts : displayCases).map((_, index) => caseStatus(index));
   const items = customMode ? drafts : displayCases;
@@ -276,7 +278,7 @@ export function TestCases({
   function casePending(index: number) {
     return (
       (pendingSubmit && !submitSamples.has(index) && !statuses[index]) ||
-      (runningSamples && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup))
+      (runningSamples && !statuses[index] && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup))
     );
   }
   function caseButton(index: number) {

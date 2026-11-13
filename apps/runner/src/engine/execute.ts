@@ -389,9 +389,8 @@ export async function executeAndStage(
                     sample ? sampleRef! : refs[index],
                   ));
                 results[index] = result;
-                // Final windows need no ordered checkpoint; verify each stopped case immediately.
-                if (!earlier && (atomicFinal || sample))
-                  enqueueStage(ordinal, storedFrame(ordinal, result.frame));
+                // Verification can finish out of order while checkpoints remain sequential.
+                if (!earlier) enqueueStage(ordinal, storedFrame(ordinal, result.frame));
               } catch (error) {
                 controller.abort(error);
                 throw error;
@@ -438,7 +437,6 @@ export async function executeAndStage(
                 },
                 signal,
               );
-              if (!earlySamples.has(ordinal)) enqueueStage(ordinal, stored);
             }
             earlySamples.delete(ordinal);
           }

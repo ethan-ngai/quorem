@@ -228,6 +228,11 @@ jobs:
         run: node scripts/hono-sql-validation.mjs
       - name: Native match WebSocket and result SSE workload fixture
         run: node scripts/hono-workload-validation.mjs
+      - name: Validate isolated cases sharing one Linux container
+        run: |
+          docker build -f deploy/Dockerfile.case -t quorem-attempt-cases:ci .
+          docker run --rm --privileged --cgroupns=private -i --entrypoint python3 \
+            quorem-attempt-cases:ci - < deploy/attempt-cases-test.py
       - name: Mandatory container runner release validation
         run: node scripts/hono-container-validation.mjs
 
