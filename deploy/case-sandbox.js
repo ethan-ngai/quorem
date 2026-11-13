@@ -1,9 +1,11 @@
+/** @file case-sandbox.js @description Disposable native case lifecycle. @module judging */
 import { decodeCaseFrames, encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
 import { DurableObject } from "cloudflare:workers";
 import { CASE_LANES } from "../packages/execution/src/scheduling.ts";
 
 const MAX_INPUT = 8 * 1024 * 1024;
 const FRAME_LIMIT = 64 * 1024;
+const PYTHON_ALLOCATION_RETRY_MS = 4000;
 const languages = new Set(["python", "java", "typescript", "ocaml", "postgresql"]);
 
 async function input(request) {
@@ -39,13 +41,20 @@ async function usedLanes(storage) {
 
 /** One trusted launcher and one disposable container per execution case. */
 export class CaseSandbox extends DurableObject {
+  destroyContainer() {
+    this.destroying ??= this.ctx.container.destroy().finally(() => {
+      this.destroying = undefined;
+    });
+    return this.destroying;
+  }
+
   stop() {
     this.stopping ??= (async () => {
       this.phase = "stop-begin";
       console.log("case-lifecycle stop-begin");
       const started = await this.ctx.storage.get("started");
       this.phase = "destroy-begin";
-      if (started || this.ctx.container.running) await this.ctx.container.destroy();
+      if (started || this.ctx.container.running) await this.destroyContainer();
       this.phase = "destroy-complete";
       console.log("case-lifecycle destroy-complete");
       await this.ctx.storage.delete(["started", "deadline"]);
@@ -352,13 +361,38 @@ export class CaseSandbox extends DurableObject {
       if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
       const started = performance.now();
       timing.inputMs = Math.round(started - admitted);
-      container.start({
-        image: container.images[language],
-        instance: language === "python" ? "basic" : { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
-        enableInternet: false,
-      });
-      this.phase = "started";
-      // exec waits for native readiness; metadata polling adds control-plane calls.
+      const image = container.images[language];
+      const start = () =>
+        container.start({
+          image,
+          instance: language === "python" ? "basic" : { vcpu: 1, memoryMib: 3072, diskMb: 4000 },
+          enableInternet: false,
+        });
+      start();
+      if (language === "python") {
+        this.phase = "allocation";
+        const retryAt = Date.now() + PYTHON_ALLOCATION_RETRY_MS;
+        let pause = 25;
+        for (;;) {
+          const info = await container.inspect();
+          if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
+          if (info?.image === image) break;
+          if (info?.image) throw new Error("Case image changed");
+          if (Date.now() >= retryAt) {
+            // Replace one slow allocation before any process can receive contestant input.
+            await this.destroyContainer();
+            if ((this.generation ?? 0) !== generation) throw new Error("Case cancelled");
+            timing.allocationRetries = 1;
+            console.log("case-lifecycle allocation-retry python");
+            start();
+            break;
+          }
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(pause, retryAt - Date.now())),
+          );
+          pause = Math.min(pause * 2, 250);
+        }
+      }
       // The live response keeps this invocation active; the durable alarm fences abandoned runs.
       this.phase = "exec-begin";
       const stdin = new ReadableStream(

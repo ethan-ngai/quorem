@@ -1,3 +1,4 @@
+/** @file case-sandbox.test.mjs @description Native case lifecycle regressions. @module judging */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { encodeCaseFrame as frame } from "../packages/execution/src/frames.ts";
@@ -160,7 +161,7 @@ void test("direct case forwards current input and confirms teardown before its t
   assert.equal(context.alarm, undefined);
 });
 
-void test("native exec manages readiness without metadata polling or early input", async () => {
+void test("native exec manages process readiness after allocation", async () => {
   const f = fixture();
   let entered, release;
   const starting = new Promise((resolve) => {
@@ -169,9 +170,6 @@ void test("native exec manages readiness without metadata polling or early input
   const ready = new Promise((resolve) => {
     release = resolve;
   });
-  f.context.container.inspect = async () => {
-    throw new Error("metadata polling");
-  };
   const exec = f.context.container.exec.bind(f.context.container);
   f.context.container.exec = async (...args) => {
     entered();
@@ -188,6 +186,87 @@ void test("native exec manages readiness without metadata polling or early input
   await Promise.all(f.pending);
   assert.equal(new TextDecoder().decode(f.input()), "case-input");
   assert.equal(f.context.container.running, false);
+});
+
+void test("slow Python allocation is replaced once before exec", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const f = fixture();
+  const container = f.context.container;
+  const start = container.start.bind(container);
+  let starts = 0;
+  container.start = (options) => {
+    assert.equal(container.running, false);
+    assert.equal(f.input().length, 0);
+    starts++;
+    start(options);
+  };
+  container.inspect = async () => {
+    assert.equal(starts, 1);
+    t.mock.timers.tick(4000);
+    return { image: "" };
+  };
+  const sandbox = newSandbox(f.context, { CASE_DIAGNOSTICS: "true" });
+  const response = await sandbox.fetch(request());
+  await response.arrayBuffer();
+  await Promise.all(f.pending);
+  assert.equal(starts, 2);
+  const diagnostic = await (await sandbox.fetch(request("GET"))).json();
+  assert.equal(diagnostic.timing.allocationRetries, 1);
+  assert.equal(container.running, false);
+});
+
+void test("cancelling during allocation replacement prevents restart", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const f = fixture();
+  const container = f.context.container;
+  let destroying, finishDestroy;
+  const started = new Promise((resolve) => {
+    destroying = resolve;
+  });
+  const gate = new Promise((resolve) => {
+    finishDestroy = resolve;
+  });
+  container.inspect = async () => {
+    t.mock.timers.tick(4000);
+    return { image: "" };
+  };
+  const destroy = container.destroy.bind(container);
+  let destroys = 0;
+  container.destroy = async () => {
+    destroys++;
+    destroying();
+    await gate;
+    await destroy();
+  };
+  const sandbox = newSandbox(f.context);
+  const response = await sandbox.fetch(request());
+  const consumed = assert.rejects(response.arrayBuffer(), /Case cancelled/);
+  await started;
+  const deletion = sandbox.fetch(request("DELETE"));
+  await new Promise((resolve) => setImmediate(resolve));
+  finishDestroy();
+  assert.equal((await deletion).status, 204);
+  await consumed;
+  await Promise.all(f.pending);
+  assert.equal(destroys, 1);
+  assert.equal(f.input().length, 0);
+  assert.equal(container.running, false);
+});
+
+void test("uncertain allocation destruction prevents replacement", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const f = fixture({ failure: true });
+  f.context.container.inspect = async () => {
+    t.mock.timers.tick(4000);
+    return { image: "" };
+  };
+  f.context.container.exec = async () => assert.fail("exec before confirmed replacement");
+  const response = await newSandbox(f.context).fetch(request());
+  await assert.rejects(response.arrayBuffer(), /unconfirmed/);
+  await Promise.all(f.pending);
+  assert.equal(f.context.container.running, true);
+  assert.equal(f.values.has("started"), true);
+  assert.ok(f.context.alarm);
 });
 
 void test("a late exec response cannot receive input after cancellation", async () => {
