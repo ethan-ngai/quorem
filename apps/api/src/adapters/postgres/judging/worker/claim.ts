@@ -8,6 +8,8 @@ import {
   type Job,
 } from "@quorem/execution";
 
+import { retryJudgingLock } from "./frame-lock.ts";
+
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export interface RunnerCapabilities {
   inputProtocol: "manifest-v1";
@@ -36,6 +38,7 @@ function lossless(cap: RunnerCapabilities) {
 const joins = sql`FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN question_publications p ON p.id=w.publication_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id`;
 export function postgresClaims(run: Run, cap: RunnerCapabilities) {
   if (cap.inputProtocol !== "manifest-v1") throw new Error("Runner input protocol required");
+  const retryLocked: Run = (operation) => retryJudgingLock(() => run(operation));
   return {
     async queueState() {
       return run((scopeDb) =>
@@ -176,7 +179,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
     },
     async lease(job: Job, heartbeat: boolean): Promise<boolean> {
       scopeValid(job.sandboxScope);
-      return run((scopeDb) =>
+      return retryLocked((scopeDb) =>
         scopeDb.transaction(options, async (tx) => {
           // Read-only control ticks must not exclude concurrent frame persistence.
           const locked = await tx.execute(

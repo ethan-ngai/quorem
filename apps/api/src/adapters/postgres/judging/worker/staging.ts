@@ -1,10 +1,6 @@
 /** @file staging.ts @description Attempt-fenced, idempotent completion frame staging. @module judging */
 import { sql } from "drizzle-orm";
-import {
-  classifyDatabaseError,
-  type ConnectionScope,
-  type Transaction,
-} from "@quorem/database/core";
+import { type ConnectionScope, type Transaction } from "@quorem/database/core";
 import {
   type CompletionFieldChunk,
   type CompletionHeader,
@@ -15,19 +11,9 @@ import { validateFieldChunks } from "./field-validation.ts";
 import type { ResultVerifier } from "./verification-client.ts";
 import { postgresVerificationPrepare } from "./verification-prepare.ts";
 import { postgresVerificationCommit } from "./verification-commit.ts";
-import { lockCompletionFrame } from "./frame-lock.ts";
+import { lockCompletionFrame, retryJudgingLock } from "./frame-lock.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-/** Retry only known PostgreSQL lock rollbacks, under a fresh attempt fence each time. */
-async function retryVerificationLock<T>(transaction: () => Promise<T>): Promise<T> {
-  for (let retry = 0; ; retry++) {
-    try {
-      return await transaction();
-    } catch (error) {
-      if (retry === 2 || classifyDatabaseError(error) !== "lock_timeout") throw error;
-    }
-  }
-}
 const encoder = new TextEncoder();
 async function digest(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data)));
@@ -121,9 +107,9 @@ export function postgresCompletionStaging(
       if (!verification) throw new Error("Result verifier unavailable");
       const prepare = postgresVerificationPrepare(run);
       const commit = postgresVerificationCommit(run, verification.verificationPublicKey);
-      const challenge = await retryVerificationLock(() => prepare(job, channel, ordinal, status));
+      const challenge = await retryJudgingLock(() => prepare(job, channel, ordinal, status));
       const signed = await verification.verifier.verify(challenge.id);
-      const pendingMatch = await retryVerificationLock(() =>
+      const pendingMatch = await retryJudgingLock(() =>
         commit(challenge, signed.receipt, signed.signature, signed.fields),
       );
       if (pendingMatch && wakeMatchDeadline) {

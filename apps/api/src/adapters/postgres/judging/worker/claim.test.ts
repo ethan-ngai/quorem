@@ -700,6 +700,27 @@ describe.skipIf(!url)("runner claim fences", () => {
         field: "diagnostics",
         bytes: new TextEncoder().encode("[]"),
       });
+      // A heartbeat that exceeds one lock timeout still renews the same fenced attempt.
+      const heartbeat = claims.lease(live!, true);
+      const renewed = expect(heartbeat).resolves.toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      release();
+      await renewed;
+      // Reacquire the frame before exercising conflicting writes and cancellation.
+      const reacquired = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const secondGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      held = run((scope) =>
+        scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+          await lockCompletionFrame(tx, live!, "public", 0);
+          entered();
+          await secondGate;
+        }),
+      );
+      await reacquired;
       let sameDone = false,
         transitionDone = false;
       const same = staging.chunk(live!, { ...chunk, ordinal: 0 }).then(() => {
