@@ -156,6 +156,77 @@ void test("four cases share one VM and report independently", async () => {
   assert.equal((await sandbox.fetch(request())).status, 503);
 });
 
+void test("a slow allocation is replaced once before any case starts", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const f = fixture();
+  const sandbox = newSandbox(f.context);
+  const container = f.context.container;
+  const start = container.start.bind(container);
+  const destroy = container.destroy.bind(container);
+  const exec = container.exec.bind(container);
+  const events = [];
+  container.start = (options) => {
+    events.push("start");
+    start(options);
+  };
+  container.inspect = async () => {
+    t.mock.timers.tick(4001);
+    return null;
+  };
+  container.destroy = async () => {
+    events.push("destroy");
+    await destroy();
+  };
+  container.exec = async (...args) => {
+    events.push("exec");
+    return exec(...args);
+  };
+  await Promise.all(
+    Array.from({ length: 4 }, async () => {
+      const response = await sandbox.fetch(
+        request("POST", { "x-case-token": crypto.randomUUID() }),
+      );
+      assert.equal(response.status, 200);
+      await response.arrayBuffer();
+    }),
+  );
+  assert.deepEqual(events, ["start", "destroy", "start", "exec", "exec", "exec", "exec"]);
+  assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+  assert.equal(container.running, false);
+});
+
+void test("cancellation while replacing an allocation prevents restart and execution", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const f = fixture();
+  const sandbox = newSandbox(f.context);
+  const container = f.context.container;
+  const destroy = container.destroy.bind(container);
+  const { promise: replacing, resolve: destroying } = Promise.withResolvers();
+  const { promise: cancelled, resolve: cancellationStored } = Promise.withResolvers();
+  const put = f.context.storage.put.bind(f.context.storage);
+  f.context.storage.put = async (key, value) => {
+    await put(key, value);
+    if (key === "cancelled") cancellationStored();
+  };
+  container.inspect = async () => {
+    t.mock.timers.tick(4001);
+    return null;
+  };
+  container.destroy = async () => {
+    destroying();
+    await cancelled;
+    await destroy();
+  };
+  container.exec = () => assert.fail("Cancelled allocation ran a case");
+  const response = await sandbox.fetch(request());
+  const failed = assert.rejects(response.arrayBuffer());
+  await replacing;
+  const stop = await sandbox.fetch(request("DELETE", { "x-case-token": "" }));
+  await failed;
+  assert.equal(stop.status, 204);
+  assert.equal(container.running, false);
+});
+
 void test("case cancellation targets only its launcher cgroup", async () => {
   const f = fixture();
   const sandbox = newSandbox(f.context);
