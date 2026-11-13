@@ -130,7 +130,6 @@ export async function prepareExecutionInputs(
   custom: readonly string[] | null,
   interview: boolean,
   odyssey: boolean,
-  hiddenLimit?: number,
 ): Promise<Omit<Parameters<typeof bindJobInputs>[1], "jobId" | "owner">> {
   const sealed =
     "publication" in owner
@@ -144,7 +143,7 @@ export async function prepareExecutionInputs(
     throw new ApplicationError("temporarily_unavailable", "Execution fixture unavailable", 503);
   const counts = (
     await tx.execute<{ examples: string; hidden: string }>(
-      sql`SELECT count(*) FILTER (WHERE channel='example')::text AS examples,count(*) FILTER (WHERE channel='hidden')::text AS hidden FROM (${fixtureRows(owner, level, hiddenLimit)}) f`,
+      sql`SELECT count(*) FILTER (WHERE channel='example')::text AS examples,count(*) FILTER (WHERE channel='hidden')::text AS hidden FROM (${fixtureRows(owner, level)}) f`,
     )
   ).rows[0];
   const examples = Number(counts.examples),

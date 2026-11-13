@@ -10,7 +10,6 @@ export type VerifiedMatchProgress =
       readonly terminal: null | {
         readonly verdict: string;
         readonly passed: number;
-        readonly passedPrefix: number;
       };
     };
 /** Only signed comparison evidence for the current attempt can bound match progress. */
@@ -26,7 +25,6 @@ export async function verifiedMatchProgress(
       full_count: number;
       failures: number;
       passed: number;
-      passed_prefix: number;
       unresolved: number;
       first_failure: string | null;
       finished: boolean;
@@ -37,7 +35,6 @@ export async function verifiedMatchProgress(
       count(v.ordinal)::int AS full_count,
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status NOT IN ('accepted','executed'))::int AS failures,
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status='accepted')::int AS passed,
-      COALESCE(min(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status<>'accepted'),i.case_count)::int AS passed_prefix,
       count(v.ordinal) FILTER (WHERE v.ordinal<i.case_count AND v.status='executed')::int AS unresolved,
       (SELECT x.status FROM execution_verified_cases x WHERE x.job_id=j.id AND x.attempt_id=j.attempt_id AND x.sandbox_scope=j.sandbox_scope AND x.ordinal<i.case_count AND x.status NOT IN ('accepted','executed') ORDER BY x.ordinal LIMIT 1) AS first_failure,
       j.finished, EXISTS(SELECT 1 FROM execution_completion_receipts r WHERE r.job_id=j.id AND r.attempt_id=j.attempt_id AND r.sandbox_scope=j.sandbox_scope AND r.outcome='completed') AS receipt
@@ -64,7 +61,6 @@ export async function verifiedMatchProgress(
       ? {
           verdict: row.first_failure ?? "accepted",
           passed: row.passed,
-          passedPrefix: row.passed_prefix,
         }
       : null;
   return { kind: "verified", caseCount: row.cases, definiteFailures: row.failures, terminal };

@@ -808,7 +808,7 @@ describe.skipIf(!url)("immutable runner input SQL", () => {
               kind: "verified",
               caseCount: 1,
               definiteFailures: 0,
-              terminal: { verdict: "accepted", passed: 1, passedPrefix: 1 },
+              terminal: { verdict: "accepted", passed: 1 },
             });
             await tx.execute(sql`ROLLBACK TO SAVEPOINT terminal_test`);
             await stage.eof(fence, fence);

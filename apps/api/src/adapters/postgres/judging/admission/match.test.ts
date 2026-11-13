@@ -205,7 +205,7 @@ it.skipIf(!url)(
       "SELECT i.case_count,i.sample_count FROM runner_job_inputs i JOIN execution_jobs j ON j.id=i.job_id WHERE j.submission_id=$1",
       [result.id],
     );
-    expect(manifest.rows).toEqual([{ case_count: 1, sample_count: 1 }]);
+    expect(manifest.rows).toEqual([{ case_count: 2, sample_count: 1 }]);
     expect(
       (
         await pool.query("SELECT automatic_imports FROM execution_jobs WHERE submission_id=$1", [

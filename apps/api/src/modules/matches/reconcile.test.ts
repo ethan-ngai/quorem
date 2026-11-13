@@ -154,14 +154,6 @@ describe("penalty victory rules", () => {
     expect(reconcile(now, now + minute, null, players, rows, rules).outcome).toBeNull();
     expect(reconcile(now, now, null, players, rows, rules).outcome?.winnerUserId).toBe("bob");
   });
-  it("uses verified milestone points instead of case percentages in High Score", () => {
-    const rows = [
-      { ...partial("alice", 3), points: 0 },
-      { ...partial("bob", 1), points: 40 },
-    ];
-    const rules = { victory: "high_score" as const, penalties: new Map() };
-    expect(reconcile(now, now, null, players, rows, rules).outcome?.winnerUserId).toBe("bob");
-  });
   it("retains negative scores and excludes infrastructure failures from unresolved work", () => {
     const rules = {
       victory: "high_score" as const,

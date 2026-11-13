@@ -105,7 +105,7 @@ export async function prepareRuleAction(
       await tx.execute<{ data: string }>(
         sql`SELECT a.bounds::text AS data FROM matches m
           JOIN question_publications v ON v.id=m.publication_id
-          CROSS JOIN LATERAL (SELECT ${complexityProjection(sql`v`, sql`m.rules->>'acceptance'`)} AS bounds) a
+          CROSS JOIN LATERAL (SELECT ${complexityProjection(sql`v`)} AS bounds) a
           WHERE m.id=${match}::uuid AND v.odyssey IS NULL AND a.bounds ? 'optimal'`,
       )
     ).rows[0];

@@ -83,12 +83,7 @@ Group languages that implement the same algorithm under one approach. Use separa
 
 ## Acceptance profiles
 
-Classic coding questions can set `problem.acceptance`. Each profile contains a `caseCount` and a `complexity` object with LaTeX `timeComplexity` and `spaceComplexity`. Put small inputs first, followed by full constraints cases. Each profile runs the first `caseCount` hidden cases. Include correctness edge cases in the first group. Counts must strictly increase and stay within the number of hidden cases.
-
-- `small` is optional. Choose inputs that a straightforward exhaustive solution can handle. State the small-input range in the problem statement.
-- `efficient` is required when declaring profiles. Include full-range cases and verify that practical alternatives pass.
-
-Casual uses small inputs when authored. Balanced, Strict, and Tournament use full constraints. In Full Constraints matches, High Score awards 100 for a full pass and 40 for clearing the small suite when available. Practice defaults to full constraints.
+Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Existing acceptance profile metadata can supply the efficient complexity shown in the hint. Its case counts do not select tests.
 
 ## Preflight and import
 

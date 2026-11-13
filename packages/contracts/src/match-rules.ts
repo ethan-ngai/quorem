@@ -71,7 +71,6 @@ export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings
   const access = preset === "casual" ? "free" : preset === "tournament" ? "blocked" : "penalty";
   return {
     victory: "race",
-    acceptance: preset === "casual" ? "small" : "efficient",
     settingsEditors: "host",
     automaticImports: false,
     clipboard:
@@ -113,7 +112,7 @@ export function selectedMatchPreset(rules: MatchRuleSettings): MatchPreset | "cu
         JSON.stringify(
           matchRulesSchema.parse({
             ...rules,
-            acceptance: rules.acceptance ?? "efficient",
+            acceptance: undefined,
             victory: "race",
             settingsEditors: "host",
             automaticImports: false,

@@ -80,12 +80,12 @@ const assistanceIcons = {
   hiddenCase: <EyeOff size={16} aria-hidden="true" />,
 };
 const descriptions = {
-  casual: "Small inputs where available. Free assistance and no submission cooldown.",
+  casual: "Free assistance and no submission cooldown.",
   balanced:
-    "Full constraints. Assistance adds a penalty. Submissions have a cooldown. Paste and focus loss are announced.",
+    "Assistance adds a penalty. Submissions have a cooldown. Paste and focus loss are announced.",
   strict:
-    "Full constraints. Double assistance penalties. Extra submissions, paste and focus loss also add penalties.",
-  tournament: "Full constraints. Assistance and paste disabled. Focus loss adds a penalty.",
+    "Double assistance penalties. Extra submissions, paste and focus loss also add penalties.",
+  tournament: "Assistance and paste disabled. Focus loss adds a penalty.",
   custom: "Open the settings icon to review custom rules.",
 };
 function RuleInfo({ label, children }: { label: string; children: string }) {
@@ -347,21 +347,6 @@ export function MatchRuleSettingsControls({
           </div>
         )}
       >
-        <fieldset className="match-rule-group">
-          <legend>Acceptance</legend>
-          <SelectField
-            label="Solution acceptance"
-            value={value.acceptance ?? "efficient"}
-            disabled={disabled}
-            options={[
-              { value: "small", label: "Small inputs where available" },
-              { value: "efficient", label: "Full constraints" },
-            ]}
-            onChange={(acceptance) =>
-              onChange({ ...value, acceptance: acceptance as MatchRuleSettings["acceptance"] })
-            }
-          />
-        </fieldset>
         <fieldset className="match-rule-group">
           <legend>
             Assistance{" "}

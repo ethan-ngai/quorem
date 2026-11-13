@@ -23,10 +23,10 @@ export function optimalComplexityProjection(publication: SQL): SQL {
 }
 
 /** Keep profile metadata and editorial approach identities out of the hint response. */
-export function complexityProjection(publication: SQL, policy: SQL = sql`'efficient'`): SQL {
+export function complexityProjection(publication: SQL): SQL {
   const profiles = sql`${publication}.acceptance`;
   const optimal = optimalComplexityProjection(sql`${publication}.id`);
-  const accepted = sql`COALESCE(${profiles}->(COALESCE(${policy},'efficient'))->'complexity',${profiles}->'efficient'->'complexity')`;
+  const accepted = sql`${profiles}->'efficient'->'complexity'`;
   return sql`jsonb_strip_nulls(jsonb_build_object(
     'optimal',${optimal},
     'accepted',CASE WHEN ${optimal} IS NOT NULL AND regexp_replace(${accepted}::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(${optimal}::text, '[[:space:]$]', '', 'g') THEN ${accepted} END
