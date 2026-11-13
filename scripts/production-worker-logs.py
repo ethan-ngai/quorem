@@ -60,6 +60,28 @@ try:
 except urllib.error.HTTPError as error:
     print("Judge container health HTTP status:", error.code)
 
+container_logs = query(f"accounts/{account}/workers/observability/telemetry/query", {
+    "queryId": "quorem-historical-container-diagnostics",
+    "timeframe": {"from": int(start.timestamp() * 1000), "to": int(end.timestamp() * 1000)},
+    "view": "events",
+    "limit": 500,
+    "dry": True,
+    "parameters": {"datasets": ["containers"]},
+})
+events = (container_logs.get("result") or {}).get("events") or {}
+print("Historical container events:", events.get("count", 0))
+for event in events.get("events", []):
+    source = event.get("source")
+    message = source if isinstance(source, str) else (source or {}).get("message", "")
+    category = re.match(
+        r"Container (?:started|exited|failed|stopped)|SchedulerPlaced|VMStarted|"
+        r"ImagePulled|ImagePullError|VMFailedToStart|RuntimeStartFailed|DurableObjectConnected",
+        message or "",
+    )
+    if category:
+        print(datetime.datetime.fromtimestamp(event["timestamp"] / 1000, datetime.timezone.utc),
+              category.group())
+
 for worker in workers:
     # Analytics aggregates invocation outcomes independently of retained console logs.
     analytics = query("graphql", {
