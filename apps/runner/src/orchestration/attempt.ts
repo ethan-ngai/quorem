@@ -103,27 +103,24 @@ export async function runAttempt(options: {
     }
     await Promise.all([heartbeat, cancellation]);
   }
-  if (failure || lost || signal.aborted) {
-    // Teardown must outlive cancellation; a failed confirmation keeps the lease fenced.
-    await startTeardown();
-    if (lost || failure instanceof LostLease) {
-      await repository.acknowledgeCancellation?.(
-        job,
-        { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
-        AbortSignal.timeout(options.teardownMs ?? 30000),
-      );
+  try {
+    if (failure || lost || signal.aborted) {
+      if (lost && failure instanceof Error && failure.name === "AbortError") throw new LostLease();
+      throw failure ?? new LostLease();
     }
-    if (
-      lost &&
-      (!failure ||
-        failure instanceof LostLease ||
-        (failure instanceof Error && failure.name === "AbortError"))
-    )
-      throw new LostLease();
-    throw failure ?? new LostLease();
+    const finalSignal = AbortSignal.timeout(options.teardownMs ?? 30000);
+    const proof = startTeardown();
+    if (outcome === "yield") await yieldAfterTeardown(repository, sandbox, job, finalSignal, proof);
+    else await finishAfterTeardown(repository, sandbox, job, finalSignal, proof);
+    return outcome!;
+  } catch (error) {
+    // A write can fail before the next lease check sees the cancellation.
+    await startTeardown();
+    await repository.acknowledgeCancellation?.(
+      job,
+      { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
+      AbortSignal.timeout(options.teardownMs ?? 30000),
+    );
+    throw error;
   }
-  const finalSignal = AbortSignal.timeout(options.teardownMs ?? 30000);
-  if (outcome === "yield") await yieldAfterTeardown(repository, sandbox, job, finalSignal);
-  else await finishAfterTeardown(repository, sandbox, job, finalSignal, teardown);
-  return outcome!;
 }

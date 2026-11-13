@@ -20,8 +20,9 @@ export async function yieldAfterTeardown(
   sandbox: SandboxControl,
   job: Job,
   signal?: AbortSignal,
+  teardown?: Promise<void>,
 ): Promise<void> {
   const fence = { attemptId: job.attemptId, sandboxScope: job.sandboxScope };
-  await sandbox.teardownAttempt(fence, signal);
+  await (teardown ?? sandbox.teardownAttempt(fence, signal));
   await repository.yield(job, fence, signal);
 }

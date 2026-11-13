@@ -138,6 +138,37 @@ void test("revoked lease acknowledges cancellation only after teardown", async (
   await assert.rejects(running, LostLease);
   assert.deepEqual(f.events, ["lease", "lease", "teardown", "acknowledge"]);
 });
+void test("a write failure before the lease check still acknowledges cancellation", async () => {
+  for (const phase of ["execution", "finalization"]) {
+    const f = fixture();
+    const failure = new Error("write failed");
+    f.repository.acknowledgeCancellation = async () => {
+      f.events.push("acknowledge");
+    };
+    f.repository.promoteCompletion = async () => {
+      throw failure;
+    };
+    await assert.rejects(
+      runAttempt({
+        ...f,
+        job,
+        engine: {
+          async execute() {
+            if (phase === "execution") throw failure;
+            return "complete";
+          },
+        },
+      }),
+      (error) => error === failure,
+    );
+    assert.deepEqual(
+      f.events,
+      phase === "execution"
+        ? ["lease", "teardown", "acknowledge"]
+        : ["lease", "teardown", "eof", "acknowledge"],
+    );
+  }
+});
 void test("heartbeat failure cancels execution and teardown failure cannot publish", async () => {
   const f = fixture();
   f.repository.lease = async (_job, heartbeat) => !heartbeat;

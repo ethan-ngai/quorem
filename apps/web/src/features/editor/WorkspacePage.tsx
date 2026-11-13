@@ -996,6 +996,15 @@ export function WorkspacePage({
               onSubmit={() => void submit()}
               onCancel={execution.canAbort ? () => void execution.cancel() : undefined}
               abortPending={execution.abortPending}
+              busyLabel={
+                submissionBusy
+                  ? admissionPending || !submission
+                    ? "Starting…"
+                    : submission.kind === "submit"
+                      ? "Judging…"
+                      : "Running…"
+                  : undefined
+              }
             />
           </>
         }
