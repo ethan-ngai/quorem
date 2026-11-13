@@ -55,6 +55,10 @@ export function postgresExecutionCommands(
       resumable();
       return checkpoints.saveCheckpoint(job, item);
     },
+    async saveCheckpointBatch(job, items) {
+      resumable();
+      return checkpoints.saveCheckpointBatch(job, items);
+    },
     acknowledgeCancellation: checkpoints.acknowledgeCancellation,
     async yield(job, proof) {
       resumable();

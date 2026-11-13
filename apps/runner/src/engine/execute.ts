@@ -14,6 +14,7 @@ import {
   assertManifestCheckpoint,
   runtimeForRevision,
   validateCompiledArtifact,
+  type CheckpointCase,
   type CompletionFieldChunk,
   type CompletionHeader,
   type ExecutionRepository,
@@ -347,8 +348,15 @@ export async function executeAndStage(
             !!repository.finalizeCompletion &&
             remaining <= CASE_LANES &&
             remaining <= caseConcurrency * 2;
+          // Batch checkpoints give each lane queued work while a sibling case is still running.
           const requested = Math.min(
-            compiled && !artifact && !fatal ? 1 : finalWindow ? remaining : caseConcurrency,
+            compiled && !artifact && !fatal
+              ? 1
+              : finalWindow
+                ? remaining
+                : repository.saveCheckpointBatch
+                  ? Math.min(CASE_LANES, caseConcurrency * 2)
+                  : caseConcurrency,
             remaining,
           );
           caseCache.clear();
@@ -432,6 +440,7 @@ export async function executeAndStage(
             await Promise.all(pending);
             pending.length = 0;
           }
+          const checkpoints: CheckpointCase[] = [];
           for (let index = 0; index < orderedWidth; index++) {
             const ordinal = start + index;
             const { frame, ref } = results[index];
@@ -453,19 +462,20 @@ export async function executeAndStage(
                 { artifact, fatal: fatalRaw, compilationNanos: compilation },
                 stored,
               );
-              await repository.saveCheckpoint(
-                job,
-                {
-                  ordinal,
-                  frame: encodeManifestCheckpointFrame(stored, provenance),
-                  artifact: frame.artifact,
-                  compilationNanos: compilation,
-                  fatal: fatalRaw,
-                },
-                signal,
-              );
+              checkpoints.push({
+                ordinal,
+                frame: encodeManifestCheckpointFrame(stored, provenance),
+                artifact: frame.artifact,
+                compilationNanos: compilation,
+                fatal: fatalRaw,
+              });
             }
             earlySamples.delete(ordinal);
+          }
+          if (checkpoints.length) {
+            if (repository.saveCheckpointBatch)
+              await repository.saveCheckpointBatch(job, checkpoints, signal);
+            else for (const item of checkpoints) await repository.saveCheckpoint(job, item, signal);
           }
           if (overlapSample) {
             const sample = results[orderedWidth]!;

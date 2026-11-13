@@ -153,6 +153,11 @@ export interface ExecutionRepository {
     signal?: AbortSignal,
   ): Promise<void>;
   saveCheckpoint(job: Job, checkpoint: CheckpointCase, signal?: AbortSignal): Promise<void>;
+  saveCheckpointBatch?(
+    job: Job,
+    checkpoints: readonly CheckpointCase[],
+    signal?: AbortSignal,
+  ): Promise<void>;
   yield(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   acknowledgeCancellation?(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
 }

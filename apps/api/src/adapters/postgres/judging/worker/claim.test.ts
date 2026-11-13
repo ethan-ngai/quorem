@@ -195,6 +195,11 @@ describe.skipIf(!url)("runner claim fences", () => {
       judgeFrame,
     );
     const frame = encodeManifestCheckpointFrame(judgeFrame, provenance);
+    const item = { ordinal: 0, frame, compilationNanos: 42n };
+    await expect(
+      checkpoints.saveCheckpointBatch(live!, [item, { ...item, ordinal: 1 }]),
+    ).rejects.toThrow(/checkpoint ordinal mismatch/i);
+    expect((await checkpoints.loadCheckpoint(live!)).nextOrdinal).toBe(0);
     await checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n });
     await expect(
       checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n }),

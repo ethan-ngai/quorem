@@ -557,6 +557,7 @@ void test("four native lanes overlap verification while checkpoints remain order
     verifying = 0,
     peakVerification = 0,
     overlap = false,
+    refilled = false,
     finalCalls = 0;
   const lanes = new Set<number>();
   const seal = fixture.port.sealCompletionFrame.bind(fixture.port);
@@ -572,14 +573,17 @@ void test("four native lanes overlap verification while checkpoints remain order
     }
   };
   const save = fixture.port.saveCheckpoint.bind(fixture.port);
-  fixture.port.saveCheckpoint = async (...args) => {
+  const batches: number[] = [];
+  fixture.port.saveCheckpointBatch = async (job, items, signal) => {
     assert.equal(verifying, 0, "checkpoint must not compete with active verification");
-    await save(...args);
+    batches.push(items.length);
+    for (const item of items) await save(job, item, signal);
   };
   const sandbox = {
     teardownAttempt: async () => {},
     async runCase(request: Parameters<typeof confirmCaseOutput>[0], signal?: AbortSignal) {
       const lane = request.ordinal % CASE_LANES;
+      if (request.ordinal === 4) refilled = lanes.has(0);
       assert.equal(lanes.has(lane), false);
       lanes.add(lane);
       running++;
@@ -611,6 +615,8 @@ void test("four native lanes overlap verification while checkpoints remain order
   );
   assert.equal(peak, 4);
   assert.equal(overlap, true);
+  assert.equal(refilled, true);
+  assert.ok(batches.some((size) => size > 4));
   assert.ok(peakVerification <= 8);
   assert.equal(fixture.frames.length, 20);
   assert.equal(fixture.seals.length, 20);
