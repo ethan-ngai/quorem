@@ -34,6 +34,7 @@ type Row = {
   matchId: string | null;
   reviewMatchId: string | null;
   reviewSourceOwnerId: string | null;
+  practiceTier?: number | null;
 };
 function dto(row: Row): Workspace {
   return {
@@ -41,6 +42,7 @@ function dto(row: Row): Workspace {
     kind: row.kind,
     problemVersionId: row.problemVersionId,
     language: row.language,
+    ...(row.practiceTier ? { practiceTier: row.practiceTier } : {}),
     ...(row.matchId ? { matchId: row.matchId } : {}),
     ...(row.reviewMatchId ? { reviewMatchId: row.reviewMatchId } : {}),
   };
@@ -56,7 +58,7 @@ async function workspace(tx: Transaction, principal: Principal, id: string): Pro
   if (!uuid.test(id)) throw missing();
   const row = (
     await tx.execute<Row>(
-      sql`SELECT w.id::text,w.kind,w.publication_id::text AS "problemVersionId",w.language,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND ${workspaceAccess(principal.userId)} FOR SHARE OF w,p,v`,
+      sql`SELECT w.id::text,w.kind,w.publication_id::text AS "problemVersionId",w.language,(SELECT tier FROM practice_target_progress WHERE workspace_id=w.id) AS "practiceTier",w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId" FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${id}::uuid AND ${workspaceAccess(principal.userId)} FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw missing();

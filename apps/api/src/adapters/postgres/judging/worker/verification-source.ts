@@ -31,34 +31,48 @@ export async function lockVerificationChallenge(tx: Transaction, id: string) {
   if (!live?.live) throw new Error("Verification unavailable");
   return row;
 }
+export async function frozenResultFields(
+  tx: Transaction,
+  row: { job_id: string; result_channel: string; result_ordinal: number },
+  includePages: boolean,
+) {
+  const fields = await tx.execute<{
+    field: string;
+    size: number;
+    hash: string;
+    bytes: Uint8Array | null;
+  }>(sql`WITH fields AS (
+    SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data
+    FROM execution_completion_field_chunks WHERE job_id=${row.job_id}::uuid
+      AND channel=${row.result_channel} AND ordinal=${row.result_ordinal}
+      AND field IN ('actual','sqlTypes') GROUP BY field
+  )
+  SELECT field,octet_length(data)::int AS size,encode(sha256(data),'hex') AS hash,
+    CASE WHEN ${includePages} AND octet_length(data)<=65536 THEN data END AS bytes
+  FROM fields`);
+  const found = new Map(fields.rows.map(({ field, ...value }) => [field, value]));
+  const actual = found.get("actual");
+  const sqlTypes = found.get("sqlTypes");
+  const ref = (value: typeof actual) => (value ? { size: value.size, hash: value.hash } : null);
+  const page = (value: typeof actual) =>
+    value?.bytes ? { size: value.size, hash: value.hash, bytes: value.bytes, channel: null } : null;
+  return {
+    actual: ref(actual),
+    sqlTypes: ref(sqlTypes),
+    pages: {
+      actual: page(actual),
+      sqlTypes: page(sqlTypes),
+    },
+  };
+}
+
 export function postgresVerificationSource(run: Run) {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     retryJudgingLock(() => run((scope) => scope.transaction(opts, fn)));
   const frozenCase = (id: string, includePages: boolean) =>
     transact(async (tx) => {
       const row = await lockVerificationChallenge(tx, id);
-      const fields = await tx.execute<{
-        field: string;
-        size: number;
-        hash: string;
-        bytes: Uint8Array | null;
-      }>(sql`WITH fields AS (
-        SELECT field,string_agg(chunk_data,''::bytea ORDER BY chunk_ordinal) AS data
-        FROM execution_completion_field_chunks WHERE job_id=${row.job_id}::uuid
-          AND channel=${row.result_channel} AND ordinal=${row.result_ordinal}
-          AND field IN ('actual','sqlTypes') GROUP BY field
-      )
-      SELECT field,octet_length(data)::int AS size,encode(sha256(data),'hex') AS hash,
-        CASE WHEN ${includePages} AND octet_length(data)<=65536 THEN data END AS bytes
-      FROM fields`);
-      const found = new Map(fields.rows.map(({ field, ...value }) => [field, value]));
-      const actual = found.get("actual");
-      const sqlTypes = found.get("sqlTypes");
-      const ref = (value: typeof actual) => (value ? { size: value.size, hash: value.hash } : null);
-      const page = (value: typeof actual) =>
-        value?.bytes
-          ? { size: value.size, hash: value.hash, bytes: value.bytes, channel: null }
-          : null;
+      const { actual, sqlTypes, pages } = await frozenResultFields(tx, row, includePages);
       const job = decodeJob(row.job_data, row.sandbox_scope);
       const bundle = includePages
         ? await inputBundleInTransaction(tx, job, row.ordinal, false)
@@ -71,11 +85,10 @@ export function postgresVerificationSource(run: Run) {
           ordinal: row.ordinal,
           frameHash: row.frame_hash,
           status: row.raw_status,
-          actual: ref(actual),
-          sqlTypes: ref(sqlTypes),
+          actual,
+          sqlTypes,
         },
-        actual: page(actual),
-        sqlTypes: page(sqlTypes),
+        ...pages,
       };
     });
   return {

@@ -8,6 +8,29 @@ function base64(bytes: Uint8Array): string {
   for (const value of bytes) s += String.fromCharCode(value);
   return btoa(s);
 }
+type FrozenBundle = Awaited<
+  ReturnType<ReturnType<typeof postgresVerificationSource>["frozenCaseWithPages"]>
+>;
+
+export function encodeVerificationBundle({ frozen, actual, sqlTypes, bundle }: FrozenBundle) {
+  const encoded = <T extends { bytes: Uint8Array }>(value: T) => ({
+    ...value,
+    bytes: base64(value.bytes),
+  });
+  if (!bundle?.ref) throw new Error("Verification input unavailable");
+  return {
+    frozen,
+    manifest: bundle.manifest,
+    ref: bundle.ref,
+    pages: {
+      metadata: bundle.metadata && encoded(bundle.metadata),
+      case: bundle.testcase && encoded(bundle.testcase),
+      actual: actual && encoded(actual),
+      sqlTypes: sqlTypes && encoded(sqlTypes),
+    },
+  };
+}
+
 function decode(value: unknown): Uint8Array {
   if (
     typeof value !== "string" ||
@@ -80,23 +103,7 @@ export function createVerificationSourceHandler(run: Run, credential: Uint8Array
       let result: unknown;
       switch (url.pathname) {
         case "/internal/verification/bundle": {
-          const { frozen, actual, sqlTypes, bundle } = await source.frozenCaseWithPages(id);
-          const encoded = <T extends { bytes: Uint8Array }>(value: T) => ({
-            ...value,
-            bytes: base64(value.bytes),
-          });
-          if (!bundle?.ref) throw new Error("Verification input unavailable");
-          result = {
-            frozen,
-            manifest: bundle.manifest,
-            ref: bundle.ref,
-            pages: {
-              metadata: bundle.metadata && encoded(bundle.metadata),
-              case: bundle.testcase && encoded(bundle.testcase),
-              actual: actual && encoded(actual),
-              sqlTypes: sqlTypes && encoded(sqlTypes),
-            },
-          };
+          result = encodeVerificationBundle(await source.frozenCaseWithPages(id));
           break;
         }
         case "/internal/verification/frozen":

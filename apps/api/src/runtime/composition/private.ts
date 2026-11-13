@@ -30,6 +30,7 @@ export async function composePrivate(
   localDrain?: (peer: PrivateConfig["runnerPeers"][number]) => RunnerPeer["drain"],
   profile?: ReturnType<typeof judgingProfile>,
   send: typeof fetch = fetch,
+  inlineBundle = false,
 ) {
   const source = hex(config.verificationSourceCredential),
     service = hex(config.verificationServiceCredential);
@@ -57,6 +58,7 @@ export async function composePrivate(
     origin: config.verificationServiceOrigin,
     credential: service,
     timeoutMs: 30000,
+    inlineBundle,
     fetch: accessFetch(config.verificationServiceOrigin, config.verificationAccess, send) ?? send,
   });
   const verifier = profile ? profile.wrap(verifierTransport, "verification") : verifierTransport;

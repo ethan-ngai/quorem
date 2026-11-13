@@ -686,6 +686,7 @@ export function WorkspacePage({
         solutionAvailable={!problem.odyssey && (!match || review) && !!problem.hasSolutions}
         identity={identity}
         versionId={problem.id}
+        contextId={match?.id}
         language={documentLanguage}
         inMatch={!!assistance && assistance.complexity.access !== "free"}
         complexityDisabled={controls?.disabled}
@@ -993,11 +994,15 @@ export function WorkspacePage({
               }
               onRun={() => void run()}
               onSubmit={() => void submit()}
-              onCancel={
-                submissionBusy &&
-                !admissionPending &&
-                !(submission?.kind === "submit" && workspace.kind === "match")
-                  ? () => void execution.cancel()
+              onCancel={execution.canAbort ? () => void execution.cancel() : undefined}
+              abortPending={execution.abortPending}
+              busyLabel={
+                submissionBusy
+                  ? admissionPending || !submission
+                    ? "Starting…"
+                    : submission.kind === "submit"
+                      ? "Judging…"
+                      : "Running…"
                   : undefined
               }
             />

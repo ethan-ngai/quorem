@@ -54,7 +54,8 @@ export async function selectMatchCandidate(
   const available = await readCandidates(tx, { userId: owner }, criteria);
   const permitted = (
     await tx.execute<{ id: string }>(
-      sql`SELECT id::text AS id FROM question_publications WHERE sealed AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
+      sql`SELECT id::text AS id FROM question_publications WHERE sealed
+        AND id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(available.map((x) => x.id))}::jsonb))`,
     )
   ).rows;
   const allowed = new Set(permitted.map((x) => x.id));

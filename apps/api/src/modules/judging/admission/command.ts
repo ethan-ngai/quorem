@@ -12,7 +12,10 @@ import {
 } from "@quorem/execution";
 import { ApplicationError } from "../../../application/error.ts";
 
+import { acceptancePolicySchema, type AcceptancePolicy } from "@quorem/contracts/match-rules";
+
 export interface WorkspaceCommand {
+  practiceTarget?: AcceptancePolicy;
   matchApproval?: import("@quorem/contracts/match-rules").RuleApproval;
   workspaceId: string;
   kind: "run" | "submit";
@@ -67,7 +70,15 @@ export async function parseWorkspaceCommand(raw: string, key: string): Promise<W
   let c: Record<string, JsonValue>;
   try {
     c = object(parseLosslessJson(raw));
-    keys(c, ["level", "workspaceId", "kind", "source", "customCases", "matchApproval"]);
+    keys(c, [
+      "level",
+      "workspaceId",
+      "kind",
+      "source",
+      "customCases",
+      "matchApproval",
+      "practiceTarget",
+    ]);
   } catch {
     throw invalid();
   }
@@ -132,7 +143,10 @@ export async function parseWorkspaceCommand(raw: string, key: string): Promise<W
       throw invalid();
     matchApproval = { ruleVersion: a.ruleVersion, seconds, points };
   }
+  const target = acceptancePolicySchema.optional().safeParse(c.practiceTarget);
+  if (!target.success || (target.data && kind !== "submit")) throw invalid();
   return {
+    ...(target.data ? { practiceTarget: target.data } : {}),
     ...(matchApproval ? { matchApproval } : {}),
     workspaceId,
     kind,

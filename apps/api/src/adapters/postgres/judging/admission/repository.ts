@@ -204,6 +204,8 @@ export async function admitWorkspaceInTransaction(
   } else if (principal.kind === "guest")
     throw failure("forbidden", "Guests can execute only in their match", 403);
   if (prior) return replay();
+  if (command.practiceTarget)
+    throw failure("invalid_input", "Submit uses the full test suite", 400);
   if (!config.losslessCases)
     throw failure("temporarily_unavailable", "Runner input protocol unavailable", 503);
   if (row.stages < 0 || row.stages > 8) throw new Error("Invalid Odyssey metadata");

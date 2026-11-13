@@ -59,7 +59,7 @@ beforeAll(async () => {
   );
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
   await pool.query(
-    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'')",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,acceptance) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'',$4::jsonb)",
     [
       version,
       problem,
@@ -69,6 +69,13 @@ beforeAll(async () => {
         parameters: [{ name: "x", type: "int" }],
         returnType: "int",
       }),
+      JSON.stringify({
+        small: { caseCount: 1, complexity: { timeComplexity: "O(1)", spaceComplexity: "O(1)" } },
+        efficient: {
+          caseCount: 2,
+          complexity: { timeComplexity: "O(1)", spaceComplexity: "O(1)" },
+        },
+      }),
     ],
   );
   await pool.query(
@@ -76,7 +83,7 @@ beforeAll(async () => {
     [version],
   );
   await pool.query(
-    "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb)",
+    "INSERT INTO problem_test_cases(publication_id,ordinal,args,expected) VALUES($1,0,'[3]'::jsonb,'4'::jsonb),($1,1,'[4]'::jsonb,'5'::jsonb)",
     [version],
   );
   await run((scope) =>
@@ -96,7 +103,10 @@ beforeAll(async () => {
             limits: {},
             examples: [{ args: [1], expected: 2 }],
           },
-          hiddenCases: [{ args: [3], expected: 4 }],
+          hiddenCases: [
+            { args: [3], expected: 4 },
+            { args: [4], expected: 5 },
+          ],
         }),
       ),
     ),
@@ -186,11 +196,16 @@ it.skipIf(!url)(
     }
     await pool.query(
       `UPDATE matches SET deadline=clock_timestamp()+interval '1 hour',
-         rules=rules||'{"automaticImports":true}'::jsonb WHERE id=$1`,
+         rules=rules||'{"automaticImports":true,"acceptance":"small"}'::jsonb WHERE id=$1`,
       [matches[0]],
     );
     const result = await start(0);
     expect(result.state).toBe("queued");
+    const manifest = await pool.query(
+      "SELECT i.case_count,i.sample_count FROM runner_job_inputs i JOIN execution_jobs j ON j.id=i.job_id WHERE j.submission_id=$1",
+      [result.id],
+    );
+    expect(manifest.rows).toEqual([{ case_count: 2, sample_count: 1 }]);
     expect(
       (
         await pool.query("SELECT automatic_imports FROM execution_jobs WHERE submission_id=$1", [

@@ -108,7 +108,15 @@ describe("viewer-relative completion outcomes", () => {
     expect(matchCompletionOutcome(settled, "bob")).toBe("loss");
     expect(matchCompletionOutcome(settled, "charlie")).toBe("observer");
   });
-  it.each(["draw", "no_contest", "cancelled"] as const)(
+  it("maps a settled draw to the shared draw outcome", () => {
+    const draw: MatchSnapshot = {
+      ...settled,
+      outcome: { kind: "draw", reason: "agreed_draw", completedAt: settled.serverNow },
+    };
+    expect(matchCompletionOutcome(draw, "alice")).toBe("draw");
+    expect(matchCompletionOutcome(draw, "charlie")).toBe("draw");
+  });
+  it.each(["no_contest", "cancelled"] as const)(
     "keeps %s neutral even with a stale winner field",
     (kind) => {
       expect(

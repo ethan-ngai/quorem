@@ -1316,6 +1316,16 @@
     "PublishedQuestion": {
       "type": "object",
       "properties": {
+        "practiceTargets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "small",
+              "efficient"
+            ]
+          }
+        },
         "id": {
           "type": "string",
           "format": "uuid"
@@ -1434,6 +1444,11 @@
     "Workspace": {
       "type": "object",
       "properties": {
+        "practiceTier": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
         "id": {
           "type": "string",
           "format": "uuid"
@@ -1507,6 +1522,13 @@
     "CreateSubmissionRequest": {
       "type": "object",
       "properties": {
+        "practiceTarget": {
+          "type": "string",
+          "enum": [
+            "small",
+            "efficient"
+          ]
+        },
         "workspaceId": {
           "type": "string",
           "format": "uuid"
@@ -1693,6 +1715,17 @@
     "Submission": {
       "type": "object",
       "properties": {
+        "canCancel": {
+          "type": "boolean",
+          "description": "False when the viewer can read the submission but does not own it."
+        },
+        "practiceTarget": {
+          "type": "string",
+          "enum": [
+            "small",
+            "efficient"
+          ]
+        },
         "customRun": {
           "type": "boolean"
         },
@@ -1901,6 +1934,10 @@
       "type": "object",
       "properties": {
         "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "drawOfferUserId": {
           "type": "string",
           "format": "uuid"
         },
@@ -2627,6 +2664,13 @@
     "MatchRules": {
       "type": "object",
       "properties": {
+        "acceptance": {
+          "type": "string",
+          "enum": [
+            "small",
+            "efficient"
+          ]
+        },
         "victory": {
           "type": "string",
           "enum": [
@@ -3019,6 +3063,55 @@
           "items": {
             "$ref": "#/$defs/SolutionCode"
           }
+        }
+      }
+    },
+    "AcceptanceProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseCount",
+        "complexity"
+      ],
+      "properties": {
+        "caseCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "complexity": {
+          "$ref": "#/$defs/ComplexityBound"
+        }
+      }
+    },
+    "QuestionAcceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "efficient"
+      ],
+      "properties": {
+        "small": {
+          "$ref": "#/$defs/AcceptanceProfile"
+        },
+        "efficient": {
+          "$ref": "#/$defs/AcceptanceProfile"
+        }
+      }
+    },
+    "ComplexityBound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timeComplexity",
+        "spaceComplexity"
+      ],
+      "properties": {
+        "timeComplexity": {
+          "type": "string"
+        },
+        "spaceComplexity": {
+          "type": "string"
         }
       }
     },
@@ -4307,6 +4400,9 @@
     "AuthoredQuestionProblem": {
       "type": "object",
       "properties": {
+        "acceptance": {
+          "$ref": "#/$defs/QuestionAcceptance"
+        },
         "id": {
           "type": "string"
         },

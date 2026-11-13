@@ -7,7 +7,10 @@ export type VerifiedMatchProgress =
       readonly kind: "verified";
       readonly caseCount: number;
       readonly definiteFailures: number;
-      readonly terminal: null | { readonly verdict: string; readonly passed: number };
+      readonly terminal: null | {
+        readonly verdict: string;
+        readonly passed: number;
+      };
     };
 /** Only signed comparison evidence for the current attempt can bound match progress. */
 export async function verifiedMatchProgress(
@@ -55,7 +58,10 @@ export async function verifiedMatchProgress(
     row.full_count === row.total &&
     row.primary_count === row.cases &&
     row.unresolved === 0
-      ? { verdict: row.first_failure ?? "accepted", passed: row.passed }
+      ? {
+          verdict: row.first_failure ?? "accepted",
+          passed: row.passed,
+        }
       : null;
   return { kind: "verified", caseCount: row.cases, definiteFailures: row.failures, terminal };
 }

@@ -1,13 +1,17 @@
 /** @file verification-client.ts @description Private independent result verification transport. @module judging */
 import { verificationReceiptBytes, type VerificationReceipt } from "@quorem/execution";
+import type { encodeVerificationBundle } from "./verification-http.ts";
+
 export interface VerifiedField {
   field: "actual" | "expected";
   bytes: Uint8Array;
 }
 export interface ResultVerifier {
+  readonly inlineBundle?: boolean;
   verify(
     challenge: string,
     signal?: AbortSignal,
+    bundle?: ReturnType<typeof encodeVerificationBundle>,
   ): Promise<{ receipt: VerificationReceipt; signature: Uint8Array; fields?: VerifiedField[] }>;
 }
 /** HTTPS is mandatory outside loopback; redirects and oversized responses fail closed. */
@@ -16,6 +20,7 @@ export function httpResultVerifier(options: {
   credential: Uint8Array;
   timeoutMs: number;
   fetch?: typeof fetch;
+  inlineBundle?: boolean;
 }): ResultVerifier {
   let origin: URL;
   try {
@@ -41,7 +46,8 @@ export function httpResultVerifier(options: {
   const token = Array.from(options.credential, (x) => x.toString(16).padStart(2, "0")).join(""),
     send = options.fetch ?? fetch;
   return {
-    async verify(challenge, signal) {
+    inlineBundle: options.inlineBundle,
+    async verify(challenge, signal, bundle) {
       const combined = signal
         ? AbortSignal.any([signal, AbortSignal.timeout(options.timeoutMs)])
         : AbortSignal.timeout(options.timeoutMs);
@@ -53,7 +59,7 @@ export function httpResultVerifier(options: {
           "content-type": "application/json",
           "x-quorem-verification-fields": "inline",
         },
-        body: JSON.stringify({ challenge }),
+        body: JSON.stringify({ challenge, bundle }),
         signal: combined,
       });
       if (!response.ok || !response.body) {

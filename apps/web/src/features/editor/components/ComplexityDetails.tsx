@@ -5,13 +5,12 @@ import { complexityMath, complexityNotesMarkup } from "../complexityMarkup";
 import { Icon } from "../../../ui/Icon";
 import { Tooltip } from "../../../ui/Tooltip";
 import "./editorial.css";
-type Complexity = Pick<
-  ApproachComplexity,
-  "timeComplexity" | "spaceComplexity" | "complexityNotes"
->;
-export function ComplexityDetails({ value }: { value: Complexity }) {
+type Complexity = Pick<ApproachComplexity, "timeComplexity" | "spaceComplexity"> &
+  Partial<Pick<ApproachComplexity, "complexityNotes">>;
+export function ComplexityDetails({ label, value }: { label?: string; value: Complexity }) {
   return (
     <div className="editorial-complexity">
+      {label && <span>{label}</span>}
       <dl>
         <div>
           <dt>

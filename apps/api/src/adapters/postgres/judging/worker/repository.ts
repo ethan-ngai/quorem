@@ -39,6 +39,8 @@ export function postgresExecutionCommands(
     writeCompletionChunks: (job, chunks) => staging.chunks(job, chunks),
     sealCompletionFrame: (job, channel, ordinal, status) =>
       staging.seal(job, channel, ordinal, status),
+    sealCompletionFrameWithChunks: (job, channel, ordinal, status, chunks) =>
+      staging.seal(job, channel, ordinal, status, chunks),
     sealCompletionDiagnostics: (job) => staging.sealDiagnostics(job),
     finishCompletionStream: (job, proof) => staging.eof(job, proof),
     promoteCompletion: postgresCompletionPromotion(run, false, wakeMatchDeadline),
@@ -55,6 +57,11 @@ export function postgresExecutionCommands(
       resumable();
       return checkpoints.saveCheckpoint(job, item);
     },
+    async saveCheckpointBatch(job, items) {
+      resumable();
+      return checkpoints.saveCheckpointBatch(job, items);
+    },
+    acknowledgeCancellation: checkpoints.acknowledgeCancellation,
     async yield(job, proof) {
       resumable();
       return checkpoints.yield(job, proof);

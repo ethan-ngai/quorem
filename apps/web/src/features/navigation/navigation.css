@@ -398,7 +398,7 @@
 }
 
 @media (max-width: 620px) {
-  .nav-actions .nav-match-action > span,
+  .nav-actions .nav-match-action-label,
   .nav-actions .global-mode > .mode-text {
     display: none;
   }

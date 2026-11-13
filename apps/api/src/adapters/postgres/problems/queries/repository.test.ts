@@ -166,7 +166,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       for (const [table, columns] of Object.entries({
         problems: "id,slug,current_publication_id,owner_id,leetcode_id",
         question_publications:
-          "id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public",
+          "id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,sql_config,odyssey,lossless_public,acceptance",
         problem_examples: "publication_id,ordinal,args,expected,explanation,calls,graphs",
         runner_publication_input_cases: "publication_id,channel,stage",
         problem_tags: "publication_id,tag,ordinal",

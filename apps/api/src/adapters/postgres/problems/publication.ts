@@ -98,7 +98,7 @@ export async function persistQuestionPublication(
     safeProblem = object(safe.problem),
     publicJSON = stringifyLosslessJson(safeProblem);
   await tx.execute(
-    sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages) SELECT ${publicationId}::uuid,${problemId}::uuid,doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',CASE WHEN doc->'sql' IS NOT NULL OR doc->'odyssey' IS NOT NULL THEN NULL ELSE doc->'signature' END,COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages} FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
+    sql`INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,sql_config,odyssey,lossless_fixture,lossless_public,lossless_stages,acceptance) SELECT ${publicationId}::uuid,${problemId}::uuid,doc->>'title',doc->>'difficulty',doc->>'statementMarkdown',CASE WHEN doc->'sql' IS NOT NULL OR doc->'odyssey' IS NOT NULL THEN NULL ELSE doc->'signature' END,COALESCE(doc->'constraints','[]'),doc->'limits',${str(c.attribution)},doc->'sql',doc->'odyssey',${side.fixture},${side.public},${side.stages},${p.acceptance ? stringifyLosslessJson(p.acceptance) : null}::jsonb FROM (SELECT ${publicJSON}::jsonb AS doc) input`,
   );
   const hidden = stringifyLosslessJson(safe.hiddenCases ?? []),
     staged = stringifyLosslessJson(safe.odysseyHiddenCases ?? []);

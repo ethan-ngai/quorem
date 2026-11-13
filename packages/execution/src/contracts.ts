@@ -141,6 +141,14 @@ export interface ExecutionRepository {
     status: string,
     signal?: AbortSignal,
   ): Promise<void>;
+  sealCompletionFrameWithChunks?(
+    job: Job,
+    channel: "public" | "sample" | "private",
+    ordinal: number,
+    status: string,
+    chunks: readonly CompletionFieldChunk[],
+    signal?: AbortSignal,
+  ): Promise<void>;
   sealCompletionDiagnostics(job: Job, signal?: AbortSignal): Promise<void>;
   finishCompletionStream(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
   finalizeCompletion?(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
@@ -153,7 +161,13 @@ export interface ExecutionRepository {
     signal?: AbortSignal,
   ): Promise<void>;
   saveCheckpoint(job: Job, checkpoint: CheckpointCase, signal?: AbortSignal): Promise<void>;
+  saveCheckpointBatch?(
+    job: Job,
+    checkpoints: readonly CheckpointCase[],
+    signal?: AbortSignal,
+  ): Promise<void>;
   yield(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
+  acknowledgeCancellation?(job: Job, proof: AttemptFence, signal?: AbortSignal): Promise<void>;
 }
 
 /** Ensure completion belongs to the claimed submission and attempt. */

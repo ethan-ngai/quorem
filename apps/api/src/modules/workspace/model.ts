@@ -7,6 +7,7 @@ export interface Workspace {
   problemVersionId: string;
   language: WorkspaceLanguage;
   matchId?: string;
+  practiceTier?: number;
   reviewMatchId?: string;
 }
 export interface WorkspaceRepository {

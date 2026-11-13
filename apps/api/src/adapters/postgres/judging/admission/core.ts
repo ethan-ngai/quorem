@@ -29,6 +29,7 @@ export interface ExecutionAdmissionSnapshot {
     | {
         kind: "workspace";
         workspaceId: string;
+        practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy;
         matchId: string | null;
         matchSequence: string | null;
         admittedAt: string | null;
@@ -84,7 +85,7 @@ export async function insertAdmittedExecution(
   const inserted = (
     await tx.execute<{ admittedAt: string }>(
       sql`WITH admitted AS (
-        INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL)
+        INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases,practice_target) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL,${workspace?.practiceTarget ?? null})
         RETURNING id,admitted_at
       ), enqueued AS (
         INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports)

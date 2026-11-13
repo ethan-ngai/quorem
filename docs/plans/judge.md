@@ -12,7 +12,7 @@ Codecs: arrays for ListNode; breadth-first arrays with null gaps for TreeNode, t
 
 API validates identity, ownership, problem/language, request size, quota, and idempotency. Commit immutable submission and durable job atomically. Worker claims lease, executes with pinned Python/harness revision, persists final verdict with attempt fencing, then records outbox event. Crash/retry may repeat execution but must not overwrite a newer attempt or award duplicate results.
 
-One queued/running job per user; atomically reject another Run/Submit while busy. Run cancellable; match Submit irrevocable; solo Submit cancellable by default. Fence cancellation and confirm teardown before releasing busy slot. Run handles public examples/custom input; Submit returns safe verdict/counts only.
+One queued/running job per user; atomically reject another Run/Submit while busy. Owners can cancel queued or running Runs and Submits. Fence cancellation and confirm teardown before releasing busy slot. Run handles public examples/custom input; Submit returns safe verdict/counts only.
 
 Evaluate all 20 hidden cases for comparable partial scores. Fresh Solution, input objects and Python state per case prevent mutation leakage. Each case: 2 seconds wall, 256 MiB, bounded output/tasks. Contestant error scores zero for that case and other cases continue; syntax/setup contestant error scores zero for the suite. Controller/scoring faults are infrastructure errors, never contestant zeros. Total job budget 60 seconds; validate startup plus worst-case suite fits. Persist complete scores only; retry infrastructure attempts with fencing. Accepted iff all pass; otherwise stable error category from first failed case in fixed order, with full passed/total.
 

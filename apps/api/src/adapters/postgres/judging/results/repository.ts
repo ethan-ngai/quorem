@@ -24,7 +24,9 @@ type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) 
 type Row = {
   id: string;
   workspace: string | null;
+  owner: string;
   kind: string;
+  practiceTarget: string | null;
   state: string;
   source_hash: string;
   admitted: string;
@@ -68,7 +70,7 @@ async function load(
 ): Promise<Row> {
   if (!uuid.test(id)) throw missing();
   const result = await tx.execute<Row>(
-    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.kind,s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND ${shared ? sql`(s.owner_id=${owner} OR ${workspaceAccess(owner)})` : sql`s.owner_id=${owner}`}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
+    sql`SELECT s.id::text,s.workspace_id::text AS workspace,s.owner_id AS owner,s.kind,s.practice_target AS "practiceTarget",s.state,s.source_hash,to_char(s.admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS admitted,to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated,s.custom_run AS custom,s.interview_id::text AS interview,s.match_id::text AS match,w.review_match_id::text AS "reviewMatch",w.review_source_owner_id AS "reviewSource",CASE WHEN s.result IS NULL THEN NULL ELSE convert_to('{}','UTF8') END AS result FROM submissions s LEFT JOIN workspaces w ON w.id=s.workspace_id WHERE s.id=${id}::uuid ${owner === undefined ? sql`` : sql`AND ${shared ? sql`(s.owner_id=${owner} OR ${workspaceAccess(owner)})` : sql`s.owner_id=${owner}`}`} ${lock ? sql`FOR UPDATE OF s` : sql``}`,
   );
   const row = result.rows[0];
   if (!row) throw missing();
@@ -89,6 +91,7 @@ function snapshot(row: Row, hideInterview: boolean): { [key: string]: JsonValue 
     id: row.id,
     ...(row.workspace ? { workspaceId: row.workspace } : {}),
     kind: row.kind,
+    ...(row.practiceTarget ? { practiceTarget: row.practiceTarget } : {}),
     state: row.state,
     sourceHash: row.source_hash,
     admittedAt: row.admitted,
@@ -132,12 +135,6 @@ export function submissionSnapshots(run: Run): SubmissionSnapshots {
           }
           const row = await load(tx, id, who.userId, true);
           await assertScope(tx, who, row);
-          if (row.match && row.kind === "submit")
-            throw new ApplicationError(
-              "invalid_transition",
-              "Match submissions cannot be cancelled",
-              409,
-            );
           if (row.state === "queued") {
             await tx.execute(
               sql`UPDATE execution_jobs SET finished=true,attempt_id=NULL WHERE submission_id=${id}::uuid`,
@@ -184,6 +181,7 @@ async function streamSnapshot(
       if (header && !["completed", "failed", "cancelled"].includes(row.state))
         throw new Error("Result is not terminal");
       const value = snapshot({ ...row, result: header?.data ?? null }, !interviewId);
+      if (row.owner !== who.userId) value.canCancel = false;
       if (row.workspace && !row.interview && row.state === "running") {
         // Partial feedback contains only statuses signed for the current runner attempt.
         const progress = (

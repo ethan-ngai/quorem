@@ -116,6 +116,28 @@ function core(
       validateField(`${path}/${index}`, () => validateCase(value, methods)),
     );
   };
+  if (p.acceptance) {
+    const { small, efficient } = p.acceptance;
+    if (
+      p.sql ||
+      levels ||
+      (small && small.caseCount >= efficient.caseCount) ||
+      efficient.caseCount > content.hiddenCases.length
+    )
+      throw new QuestionFieldError(
+        "/problem/acceptance",
+        "Classic coding profiles must use increasing case counts within the hidden suite",
+      );
+    for (const [name, profile] of Object.entries(p.acceptance)) {
+      for (const bound of Object.values(profile.complexity)) {
+        if (!/^\$?(?:O|Θ|\\Theta)\s*\([^$\r\n]+\)\$?$/.test(bound.trim()))
+          throw new QuestionFieldError(
+            `/problem/acceptance/${name}/complexity`,
+            "Use a single time and space bound without explanatory text",
+          );
+      }
+    }
+  }
   if (levels) {
     const rawOdyssey = object(rawProblem.odyssey),
       rawLevels = array(rawOdyssey.levels),

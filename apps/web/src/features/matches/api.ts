@@ -17,6 +17,16 @@ export function forfeitMatch(identity: DevelopmentIdentity, id: string) {
   });
 }
 
+/** Sends an explicit offer or accepts the opponent's existing offer. */
+export function matchDraw(identity: DevelopmentIdentity, id: string, action: "offer" | "accept") {
+  return recoverableCommand(identity, `${action}-draw:${id}`, {}, async (_body, key) => {
+    const { data, error } = await api(identity).POST(`/v1/matches/{id}/${action}-draw`, {
+      params: { path: { id }, header: { "Idempotency-Key": key } },
+    });
+    return requireData(data, error);
+  });
+}
+
 /** Reports the event kind only; clipboard data and navigation targets remain private. */
 export async function reportRuleEvent(
   identity: DevelopmentIdentity,

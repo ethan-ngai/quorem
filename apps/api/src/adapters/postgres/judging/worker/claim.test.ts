@@ -195,6 +195,11 @@ describe.skipIf(!url)("runner claim fences", () => {
       judgeFrame,
     );
     const frame = encodeManifestCheckpointFrame(judgeFrame, provenance);
+    const item = { ordinal: 0, frame, compilationNanos: 42n };
+    await expect(
+      checkpoints.saveCheckpointBatch(live!, [item, { ...item, ordinal: 1 }]),
+    ).rejects.toThrow(/checkpoint ordinal mismatch/i);
+    expect((await checkpoints.loadCheckpoint(live!)).nextOrdinal).toBe(0);
     await checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n });
     await expect(
       checkpoints.saveCheckpoint(live!, { ordinal: 0, frame, compilationNanos: 42n }),
@@ -328,8 +333,22 @@ describe.skipIf(!url)("runner claim fences", () => {
     await expect(
       pool.query("DELETE FROM runner_job_input_digests WHERE job_id=$1", [job]),
     ).rejects.toThrow("immutable");
-    await staging.seal(live!, "public", 0, "executed");
-    await staging.seal(live!, "public", 0, "executed");
+    const finalChunk = {
+      ...actualChunk,
+      field: "stderr" as const,
+      bytes: new TextEncoder().encode('"final"'),
+    };
+    await expect(staging.seal(live!, "public", 0, "invalid", [finalChunk])).rejects.toThrow();
+    expect(
+      (
+        await pool.query(
+          "SELECT 1 FROM execution_completion_field_chunks WHERE job_id=$1 AND field='stderr'",
+          [job],
+        )
+      ).rows,
+    ).toHaveLength(0);
+    await staging.seal(live!, "public", 0, "executed", [finalChunk]);
+    await staging.seal(live!, "public", 0, "executed", [finalChunk]);
     const challenge = (
       await pool.query(
         "SELECT id::text FROM execution_verification_challenges WHERE job_id=$1 AND ordinal=0",

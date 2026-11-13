@@ -1,8 +1,8 @@
 /** @file Icon.tsx @description Consistent functional workspace symbols. @module ui */
 import type { SVGProps } from "react";
-import { Clock3, MemoryStick, Swords } from "lucide-react";
+import { Clock3, Handshake, MemoryStick, Swords } from "lucide-react";
 
-const symbols = { showdown: Swords, time: Clock3, memory: MemoryStick };
+const symbols = { showdown: Swords, draw: Handshake, time: Clock3, memory: MemoryStick };
 
 const paths = {
   "syntax-error": "m8 5-5 7 5 7m8-14 5 7-5 7M12 7v5m0 4h.01",
@@ -37,6 +37,7 @@ const paths = {
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
   "eye-off":
     "m3 3 18 18M10.5 5.1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3.1 3.8M6.2 6.2A21 21 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.8M9.9 9.9a3 3 0 0 0 4.2 4.2",
+  stop: "M6 6h12v12H6Z",
   play: "m8 5 11 7-11 7Z",
   submit: "m5 12 4 4L19 6",
   history: "M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2",
@@ -55,7 +56,7 @@ export function Icon({
   name,
   ...props
 }: SVGProps<SVGSVGElement> & { name: keyof typeof paths | keyof typeof symbols }) {
-  if (name === "showdown" || name === "time" || name === "memory") {
+  if (name === "showdown" || name === "draw" || name === "time" || name === "memory") {
     const Symbol = symbols[name];
     return <Symbol size={18} strokeWidth={1.5} aria-hidden="true" {...props} />;
   }

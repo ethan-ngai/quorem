@@ -322,6 +322,18 @@
     },
     {
       "method": "POST",
+      "path": "/v1/matches/{id}/offer-draw",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/accept-draw",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
       "path": "/v1/matches/{id}/leave",
       "packet": "20",
       "contract": "packages/contracts/openapi/api.json"

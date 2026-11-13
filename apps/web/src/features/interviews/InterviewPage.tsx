@@ -705,6 +705,7 @@ function InterviewPad({
       actions={
         <ExecutionActions
           disabled={disabled}
+          busyLabel={executing ? "Judging…" : undefined}
           onRun={() => void execute("run")}
           onSubmit={() => void execute("submit")}
         />

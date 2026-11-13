@@ -68,6 +68,82 @@ export function postgresCompletionStaging(
 ) {
   const transact = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, f));
+  async function writeChunks(
+    tx: Transaction,
+    job: Job,
+    items: readonly CompletionFieldChunk[],
+  ): Promise<void> {
+    if (!items.length || items.length > 16) throw new Error("Invalid completion batch");
+    const item = items[0];
+    const keys = new Set<string>();
+    for (const candidate of items) {
+      if (candidate.channel !== item.channel || candidate.ordinal !== item.ordinal)
+        throw new Error("Completion batch crosses frames");
+      const key = `${candidate.field}:${candidate.chunkOrdinal}`;
+      if (keys.has(key)) throw new Error("Duplicate completion chunk");
+      keys.add(key);
+      validateChunk(candidate);
+      if (candidate.channel === "header" && candidate.field !== "diagnostics")
+        throw new Error("Invalid header field");
+    }
+    const stage = (
+      await tx.execute<{ eof: boolean; header: Uint8Array; kind: string; interview: boolean }>(
+        sql`SELECT c.eof,c.header_data AS header,s.kind,s.interview_id IS NOT NULL AS interview FROM execution_completion_staging c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id WHERE c.job_id=${job.jobId}::uuid AND c.attempt_id=${job.attemptId}::uuid AND c.sandbox_scope=${job.sandboxScope}`,
+      )
+    ).rows[0];
+    if (!stage || stage.eof) throw new Error("Completion stream closed");
+    if (
+      (item.channel === "public" && stage.kind !== "run") ||
+      (item.channel === "sample" && stage.kind !== "submit") ||
+      (item.channel === "private" && stage.kind !== "submit")
+    )
+      throw new Error("Invalid completion channel");
+    const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
+    if (
+      item.channel === "header" &&
+      (item.ordinal !== 0 || item.field !== "diagnostics" || !header.diagnosticsPresent)
+    )
+      throw new Error("Invalid header field");
+    const count =
+      item.channel === "public"
+        ? header.publicCount
+        : item.channel === "sample"
+          ? header.sampleCount
+          : item.channel === "private"
+            ? header.privateCount
+            : 1;
+    if (item.ordinal >= count) throw new Error("Unexpected completion ordinal");
+    const sealedQuery =
+      item.channel === "header"
+        ? sql`SELECT 1 FROM execution_completion_header_fields
+              WHERE job_id=${job.jobId}::uuid AND field=${item.field}`
+        : sql`SELECT 1 FROM execution_completion_frames
+              WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}
+              UNION ALL SELECT 1 FROM execution_verification_challenges
+              WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel}
+                AND result_ordinal=${item.ordinal}`;
+    const incoming = sql.join(
+      items.map(
+        (chunk) => sql`(${chunk.field}::text,${chunk.chunkOrdinal}::int,${chunk.bytes}::bytea)`,
+      ),
+      sql`, `,
+    );
+    const {
+      rows: [result],
+    } = await tx.execute<{ matched: number; sealed: boolean }>(sql`
+          WITH incoming(field,chunk_ordinal,data) AS (VALUES ${incoming}),
+          seal AS (SELECT EXISTS(${sealedQuery}) AS sealed),
+          inserted AS (
+            INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash)
+            SELECT ${job.jobId}::uuid,${item.channel},${item.ordinal},i.field,i.chunk_ordinal,i.data,sha256(i.data)
+            FROM incoming i,seal WHERE NOT seal.sealed ON CONFLICT DO NOTHING RETURNING 1
+          ) SELECT seal.sealed,((SELECT count(*) FROM inserted)+(SELECT count(*) FROM incoming i
+            JOIN execution_completion_field_chunks c ON c.job_id=${job.jobId}::uuid
+              AND c.channel=${item.channel} AND c.ordinal=${item.ordinal} AND c.field=i.field
+              AND c.chunk_ordinal=i.chunk_ordinal AND c.chunk_data=i.data AND c.chunk_hash=sha256(i.data)))::int AS matched FROM seal`);
+    if (result.matched !== items.length)
+      throw new Error(result.sealed ? "Completion frame sealed" : "Completion chunk conflict");
+  }
   const api = {
     async chunk(job: Job, item: CompletionFieldChunk): Promise<void> {
       return api.chunks(job, [item]);
@@ -96,6 +172,7 @@ export function postgresCompletionStaging(
       channel: "public" | "sample" | "private",
       ordinal: number,
       status: string,
+      chunks?: readonly CompletionFieldChunk[],
     ): Promise<void> {
       if (
         !["public", "sample", "private"].includes(channel) ||
@@ -107,8 +184,20 @@ export function postgresCompletionStaging(
       if (!verification) throw new Error("Result verifier unavailable");
       const prepare = postgresVerificationPrepare(run);
       const commit = postgresVerificationCommit(run, verification.verificationPublicKey);
-      const challenge = await retryJudgingLock(() => prepare(job, channel, ordinal, status));
-      const signed = await verification.verifier.verify(challenge.id);
+      if (chunks?.some((chunk) => chunk.channel !== channel || chunk.ordinal !== ordinal))
+        throw new Error("Completion batch crosses frames");
+      // Release database locks before calling the independent verifier.
+      const challenge = await retryJudgingLock(() =>
+        prepare(
+          job,
+          channel,
+          ordinal,
+          status,
+          chunks?.length ? (tx) => writeChunks(tx, job, chunks) : undefined,
+          verification.verifier.inlineBundle,
+        ),
+      );
+      const signed = await verification.verifier.verify(challenge.id, undefined, challenge.bundle);
       const pendingMatch = await retryJudgingLock(() =>
         commit(challenge, signed.receipt, signed.signature, signed.fields),
       );
@@ -121,78 +210,10 @@ export function postgresCompletionStaging(
       }
     },
     async chunks(job: Job, items: readonly CompletionFieldChunk[]): Promise<void> {
-      if (!items.length || items.length > 16) throw new Error("Invalid completion batch");
-      const item = items[0];
-      const keys = new Set<string>();
-      for (const candidate of items) {
-        if (candidate.channel !== item.channel || candidate.ordinal !== item.ordinal)
-          throw new Error("Completion batch crosses frames");
-        const key = `${candidate.field}:${candidate.chunkOrdinal}`;
-        if (keys.has(key)) throw new Error("Duplicate completion chunk");
-        keys.add(key);
-        validateChunk(candidate);
-        if (candidate.channel === "header" && candidate.field !== "diagnostics")
-          throw new Error("Invalid header field");
-      }
+      if (!items.length) throw new Error("Invalid completion batch");
       await transact(async (tx) => {
-        await lockCompletionFrame(tx, job, item.channel, item.ordinal);
-        const stage = (
-          await tx.execute<{ eof: boolean; header: Uint8Array; kind: string; interview: boolean }>(
-            sql`SELECT c.eof,c.header_data AS header,s.kind,s.interview_id IS NOT NULL AS interview FROM execution_completion_staging c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id WHERE c.job_id=${job.jobId}::uuid AND c.attempt_id=${job.attemptId}::uuid AND c.sandbox_scope=${job.sandboxScope}`,
-          )
-        ).rows[0];
-        if (!stage || stage.eof) throw new Error("Completion stream closed");
-        if (
-          (item.channel === "public" && stage.kind !== "run") ||
-          (item.channel === "sample" && stage.kind !== "submit") ||
-          (item.channel === "private" && stage.kind !== "submit")
-        )
-          throw new Error("Invalid completion channel");
-        const header = JSON.parse(new TextDecoder().decode(stage.header)) as CompletionHeader;
-        if (
-          item.channel === "header" &&
-          (item.ordinal !== 0 || item.field !== "diagnostics" || !header.diagnosticsPresent)
-        )
-          throw new Error("Invalid header field");
-        const count =
-          item.channel === "public"
-            ? header.publicCount
-            : item.channel === "sample"
-              ? header.sampleCount
-              : item.channel === "private"
-                ? header.privateCount
-                : 1;
-        if (item.ordinal >= count) throw new Error("Unexpected completion ordinal");
-        const sealedQuery =
-          item.channel === "header"
-            ? sql`SELECT 1 FROM execution_completion_header_fields
-              WHERE job_id=${job.jobId}::uuid AND field=${item.field}`
-            : sql`SELECT 1 FROM execution_completion_frames
-              WHERE job_id=${job.jobId}::uuid AND channel=${item.channel} AND ordinal=${item.ordinal}
-              UNION ALL SELECT 1 FROM execution_verification_challenges
-              WHERE job_id=${job.jobId}::uuid AND result_channel=${item.channel}
-                AND result_ordinal=${item.ordinal}`;
-        const incoming = sql.join(
-          items.map(
-            (chunk) => sql`(${chunk.field}::text,${chunk.chunkOrdinal}::int,${chunk.bytes}::bytea)`,
-          ),
-          sql`, `,
-        );
-        const {
-          rows: [result],
-        } = await tx.execute<{ matched: number; sealed: boolean }>(sql`
-          WITH incoming(field,chunk_ordinal,data) AS (VALUES ${incoming}),
-          seal AS (SELECT EXISTS(${sealedQuery}) AS sealed),
-          inserted AS (
-            INSERT INTO execution_completion_field_chunks(job_id,channel,ordinal,field,chunk_ordinal,chunk_data,chunk_hash)
-            SELECT ${job.jobId}::uuid,${item.channel},${item.ordinal},i.field,i.chunk_ordinal,i.data,sha256(i.data)
-            FROM incoming i,seal WHERE NOT seal.sealed ON CONFLICT DO NOTHING RETURNING 1
-          ) SELECT seal.sealed,((SELECT count(*) FROM inserted)+(SELECT count(*) FROM incoming i
-            JOIN execution_completion_field_chunks c ON c.job_id=${job.jobId}::uuid
-              AND c.channel=${item.channel} AND c.ordinal=${item.ordinal} AND c.field=i.field
-              AND c.chunk_ordinal=i.chunk_ordinal AND c.chunk_data=i.data AND c.chunk_hash=sha256(i.data)))::int AS matched FROM seal`);
-        if (result.matched !== items.length)
-          throw new Error(result.sealed ? "Completion frame sealed" : "Completion chunk conflict");
+        await lockCompletionFrame(tx, job, items[0].channel, items[0].ordinal);
+        await writeChunks(tx, job, items);
       });
     },
     async begin(job: Job, header: CompletionHeader): Promise<void> {

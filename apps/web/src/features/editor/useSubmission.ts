@@ -45,6 +45,7 @@ export function useSubmission({
   enabled = true,
   level,
   runExamples,
+  practiceTarget,
   beforeExecution,
   sharedSubmissionId,
 }: {
@@ -59,6 +60,7 @@ export function useSubmission({
   beforeExecution?: (kind: "run" | "submit") => Promise<boolean>;
   sharedSubmissionId?: string;
   level?: number;
+  practiceTarget?: import("@quorem/contracts/match-rules").AcceptancePolicy;
   runExamples?: PublishedQuestion["examples"];
 }) {
   const queryClient = useQueryClient();
@@ -78,6 +80,8 @@ export function useSubmission({
     value: RunSnapshot;
   }>();
   const admissionLock = useRef(false);
+  const abortLock = useRef(false);
+  const [abortingId, setAbortingId] = useState<string>();
   const pendingRequest = useRef<PendingExecution | undefined>(undefined);
   const scope = workspace ? `${identity}:${workspace.id}` : "";
   const activeSubmissionId =
@@ -154,12 +158,18 @@ export function useSubmission({
     refetchOnWindowFocus: (query) => query.state.status === "error",
     refetchOnReconnect: (query) => query.state.status === "error",
     refetchInterval: ({ state }) =>
-      state.data?.state === "running" &&
+      (state.data?.state === "running" ||
+        (abortingId === activeSubmissionId && state.data?.state === "queued")) &&
       !(state.error instanceof SubmissionReadError && [401, 403, 404].includes(state.error.status))
         ? 1000
         : false,
   });
   const submission = submissionQuery.data;
+  const canAbort =
+    !admissionPending &&
+    (submission?.state === "queued" || submission?.state === "running") &&
+    submission.canCancel !== false;
+  const abortPending = canAbort && abortingId === submission.id;
   const streaming =
     !!activeSubmissionId &&
     !submissionQuery.isPending &&
@@ -228,7 +238,15 @@ export function useSubmission({
   const dispatch = useCallback(
     async (kind: "run" | "submit", approval?: RuleApproval, frozenSource?: string) => {
       const replacement = kind === "run" ? replaceableRun : undefined;
-      if (!enabled || !workspace || !problem || admissionLock.current || (busy && !replacement))
+      if (
+        !enabled ||
+        !workspace ||
+        !problem ||
+        admissionLock.current ||
+        abortLock.current ||
+        abortPending ||
+        (busy && !replacement)
+      )
         return false;
       let customCases;
       if (kind === "run" && customMode) {
@@ -265,8 +283,9 @@ export function useSubmission({
           }
           if (scopeRef.current !== scope) return false;
         }
+        const target = kind === "submit" ? practiceTarget : undefined;
         const fingerprint = await sha256(
-          JSON.stringify({ scope, kind, source, customCases, level, approval }),
+          JSON.stringify({ scope, kind, source, customCases, level, approval, target }),
         );
         const recoveryKey = `${submissionStorageKey(identity, workspace.id)}:pending`;
         pendingRequest.current = pendingExecution(recoveryKey, fingerprint, pendingRequest.current);
@@ -278,7 +297,8 @@ export function useSubmission({
           customCases,
           pendingRequest.current.key,
           level,
-          ...(approval ? [approval] : []),
+          approval,
+          target,
         );
         if (scopeRef.current === scope) {
           setActive({ scope, id: admission.id, level, kind });
@@ -317,6 +337,7 @@ export function useSubmission({
       identity,
       busy,
       replaceableRun,
+      abortPending,
       customMode,
       drafts,
       problem,
@@ -328,18 +349,26 @@ export function useSubmission({
       enabled,
       beforeExecution,
       level,
+      practiceTarget,
     ],
   );
 
   const cancel = useCallback(async () => {
-    if (!submission || !busy || (submission.kind === "submit" && workspace?.kind === "match"))
+    if (!canAbort || !submission || abortPending || abortLock.current || admissionLock.current)
       return;
+    abortLock.current = true;
+    setAbortingId(submission.id);
+    setError(undefined);
     try {
       await cancelSubmission(identity, submission.id);
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (scopeRef.current === scope) setError(errorMessage(cause));
+      setAbortingId(undefined);
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ["submission", identity, submission.id] });
+      abortLock.current = false;
     }
-  }, [identity, submission, busy, workspace]);
+  }, [abortPending, canAbort, identity, queryClient, scope, submission]);
 
   const run = useCallback(() => dispatch("run"), [dispatch]);
   const submit = useCallback(
@@ -360,7 +389,9 @@ export function useSubmission({
     pendingKind:
       admittingKind ??
       (submissionQuery.isPending && active?.id === activeSubmissionId ? active?.kind : undefined),
-    canReplaceRun: !!replaceableRun && !admissionPending,
+    canReplaceRun: !!replaceableRun && !admissionPending && !abortPending,
+    canAbort,
+    abortPending,
     error,
     run,
     submit,
