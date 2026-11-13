@@ -218,11 +218,17 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
       if (app) {
         const result = await fetch(`${base}/${app.id}/instances/${actorId}`, options);
         const data = (await result.json()).result;
+        const timestamp = (value) =>
+          typeof value === "string" && /^\d{4}-[\d:T.+Z-]+$/.test(value) ? value : undefined;
         instance = {
           status: result.status,
-          startedAt: /^\d{4}-[\d:T.+Z-]+$/.test(data?.started_at ?? "")
-            ? data.started_at
+          startedAt: timestamp(data?.started_at),
+          updatedAt: timestamp(data?.status?.updated_at),
+          state: /^[a-z_]{1,30}$/.test(data?.status?.state ?? "") ? data.status.state : undefined,
+          region: /^[A-Z]{2,8}$/.test(data?.location?.region ?? "")
+            ? data.location.region
             : undefined,
+          exitCode: Number.isInteger(data?.status?.exit_code) ? data.status.exit_code : undefined,
         };
       }
     }
