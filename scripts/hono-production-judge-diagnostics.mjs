@@ -174,10 +174,8 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
   const { rows } = await database.query(
     `SELECT a.attempt_id, a.claimed_at FROM execution_attempt_inventory a
      JOIN execution_jobs j ON j.id=a.job_id JOIN submissions s ON s.id=j.submission_id
-     WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2 AND j.attempt_id<>a.attempt_id
-       AND NOT EXISTS (SELECT 1 FROM execution_completion_receipts r
-         WHERE r.job_id=j.id AND r.attempt_id=a.attempt_id)
-     ORDER BY a.claimed_at LIMIT 20`,
+     WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2
+     ORDER BY a.claimed_at DESC LIMIT 20`,
     [matchId, namespace.scope],
   );
   const diagnostics = [];
@@ -194,6 +192,46 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
     });
     const value = await response.json().catch(() => null);
     const field = (name) => (/^[a-z-]{1,40}$/.test(value?.[name] ?? "") ? value[name] : undefined);
+    const timing = Object.fromEntries(
+      ["inputMs", "startupMs", "executionMs", "totalMs"]
+        .map((name) => [name, value?.timing?.[name]])
+        .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
+    );
+    const startup = Object.fromEntries(
+      ["setupMs", "allocationMs", "replacementCleanupMs", "maxExecMs"]
+        .map((name) => [name, value?.startup?.[name]])
+        .filter(([, ms]) => Number.isSafeInteger(ms) && ms >= 0),
+    );
+    const actorId = /^[a-f0-9]{64}$/.test(value?.actorId ?? "") ? value.actorId : undefined;
+    let instance;
+    if (actorId && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_API_TOKEN) {
+      const base = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/containers/applications`;
+      const options = {
+        headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
+        signal: AbortSignal.timeout(10000),
+        redirect: "error",
+      };
+      const applications = await (await fetch(base, options)).json();
+      const app = applications.result?.find(
+        ({ name }) => name === "quorem-hono-services-production-case",
+      );
+      if (app) {
+        const result = await fetch(`${base}/${app.id}/instances/${actorId}`, options);
+        const data = (await result.json()).result;
+        const timestamp = (value) =>
+          typeof value === "string" && /^\d{4}-[\d:T.+Z-]+$/.test(value) ? value : undefined;
+        instance = {
+          status: result.status,
+          startedAt: timestamp(data?.started_at),
+          updatedAt: timestamp(data?.status?.updated_at),
+          state: /^[a-z_]{1,30}$/.test(data?.status?.state ?? "") ? data.status.state : undefined,
+          region: /^[A-Z]{2,8}$/.test(data?.location?.region ?? "")
+            ? data.location.region
+            : undefined,
+          exitCode: Number.isInteger(data?.status?.exit_code) ? data.status.exit_code : undefined,
+        };
+      }
+    }
     diagnostics.push({
       attemptId: attempt_id,
       claimedAt: claimed_at,
@@ -201,6 +239,10 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
       phase: field("phase"),
       failure: field("failure"),
       source: field("source"),
+      timing,
+      startup,
+      actorId,
+      instance,
     });
   }
   return { attempts: diagnostics, runnerProfile: await productionRunnerProfile(keys) };
