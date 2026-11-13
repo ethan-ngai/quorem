@@ -1,8 +1,8 @@
 /** @file Icon.tsx @description Consistent functional workspace symbols. @module ui */
 import type { SVGProps } from "react";
-import { Clock3, MemoryStick, Swords } from "lucide-react";
+import { Clock3, Handshake, MemoryStick, Swords } from "lucide-react";
 
-const symbols = { showdown: Swords, time: Clock3, memory: MemoryStick };
+const symbols = { showdown: Swords, draw: Handshake, time: Clock3, memory: MemoryStick };
 
 const paths = {
   "syntax-error": "m8 5-5 7 5 7m8-14 5 7-5 7M12 7v5m0 4h.01",
@@ -56,7 +56,7 @@ export function Icon({
   name,
   ...props
 }: SVGProps<SVGSVGElement> & { name: keyof typeof paths | keyof typeof symbols }) {
-  if (name === "showdown" || name === "time" || name === "memory") {
+  if (name === "showdown" || name === "draw" || name === "time" || name === "memory") {
     const Symbol = symbols[name];
     return <Symbol size={18} strokeWidth={1.5} aria-hidden="true" {...props} />;
   }

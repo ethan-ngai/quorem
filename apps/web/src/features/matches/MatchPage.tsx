@@ -1,4 +1,3 @@
-import { Handshake } from "lucide-react";
 import { toast } from "sonner";
 import { PersistentActionToast } from "../../ui/PersistentActionToast";
 import { matchCompetitors, isMatchWinner } from "./competitors";
@@ -377,7 +376,7 @@ export function MatchPage({
     const offer = snapshot.participants.find(
       (player) => player.userId === snapshot.drawOfferUserId,
     );
-    const icon = <Handshake size={18} aria-hidden="true" />;
+    const icon = <Icon name="draw" />;
     if (offer && offer.userId !== own.userId) {
       return (
         <PersistentActionToast

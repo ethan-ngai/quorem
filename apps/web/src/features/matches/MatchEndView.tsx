@@ -166,7 +166,8 @@ export function MatchEndView({
   const own = ownParticipant(snapshot, identity);
   const forfeited = !!own?.forfeited;
   const outcome = matchCompletionOutcome(snapshot, identity);
-  const title = forfeited ? "You forfeited" : outcomeLabel(snapshot, identity);
+  const title =
+    forfeited && outcome !== "draw" ? "You forfeited" : outcomeLabel(snapshot, identity);
   const description = matchEndDescription(snapshot, identity);
   const players = matchCompetitors(snapshot).sort(
     (a, b) =>
