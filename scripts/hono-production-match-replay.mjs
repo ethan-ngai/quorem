@@ -199,7 +199,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
            FROM submissions s JOIN execution_jobs j ON j.submission_id=s.id
            JOIN runner_job_inputs i ON i.job_id=j.id
            LEFT JOIN execution_attempt_inventory a ON a.job_id=j.id
-           WHERE s.id=ANY($1::uuid[]) GROUP BY s.id, j.language, i.case_count, i.sample_count ORDER BY s.id`,
+           WHERE s.id=ANY($1::uuid[]) GROUP BY s.id, j.id, i.case_count, i.sample_count ORDER BY s.id`,
             [submissions.map(({ id }) => id)],
           );
           for (const { id, state, verified } of rows) {
