@@ -26,7 +26,7 @@ export function optimalComplexityProjection(publication: SQL): SQL {
 export function complexityProjection(publication: SQL): SQL {
   const profiles = sql`${publication}.acceptance`;
   const optimal = optimalComplexityProjection(sql`${publication}.id`);
-  const accepted = sql`${profiles}->'efficient'->'complexity'`;
+  const accepted = sql`(${profiles}->'efficient'->'complexity')`;
   return sql`jsonb_strip_nulls(jsonb_build_object(
     'optimal',${optimal},
     'accepted',CASE WHEN ${optimal} IS NOT NULL AND regexp_replace(${accepted}::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(${optimal}::text, '[[:space:]$]', '', 'g') THEN ${accepted} END
