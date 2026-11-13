@@ -9,6 +9,7 @@ import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { SessionBar } from "../../ui/SessionBar";
 import { ScorePenalty } from "./ScorePenalty";
+import { MatchForfeitStatus } from "./MatchForfeitStatus";
 /** @file MatchPage.tsx @description Match ledger and owner-scoped editor entry. @module matches */
 import { MatchRecovery } from "./MatchRecovery";
 import { MatchEndView } from "./MatchEndView";
@@ -258,18 +259,7 @@ function MatchLedger({
               <ParticipantName participant={player} self={index === 0} />
             )}
           </strong>
-          {player?.forfeited && (
-            <Tooltip content="Forfeited">
-              <span
-                className="match-forfeit-status motion-reveal"
-                role="img"
-                aria-label="Forfeited"
-                tabIndex={0}
-              >
-                <Icon name="flag" width={14} height={14} />
-              </span>
-            </Tooltip>
-          )}
+          {player?.forfeited && <MatchForfeitStatus />}
           <ScoreProgress
             score={player?.bestScore}
             color={participantColor(player?.userId ?? "opponent", player?.color)}

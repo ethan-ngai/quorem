@@ -129,6 +129,11 @@
   align-items: end;
   gap: var(--space-1);
 }
+.match-result-players .match-result-player {
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
 
 .completion-trophy {
   color: var(--color-warning);

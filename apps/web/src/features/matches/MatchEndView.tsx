@@ -2,6 +2,7 @@ import { matchCompetitors, isMatchWinner } from "./competitors";
 /** @file MatchEndView.tsx @description Settled match summary and dismissible result dialog. @module matches */
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { ScorePenalty } from "./ScorePenalty";
+import { MatchForfeitStatus } from "./MatchForfeitStatus";
 import { ScoreProgress } from "../../ui/ScoreProgress";
 import { participantColor } from "../collaboration/participantColor";
 import { hasReviewCode, useMatchReview } from "./useMatchReview";
@@ -190,7 +191,7 @@ export function MatchEndView({
         const reviewPlayer = player.members.find((member) => reviewableIds.has(member.userId));
         return (
           <li key={player.userId} data-you={player.userId === participantUserId(identity)}>
-            <span>
+            <span className="match-result-player">
               <strong>
                 {snapshot.mode === "factions" ? (
                   <span>
@@ -208,6 +209,9 @@ export function MatchEndView({
               {snapshot.mode === "factions" && isMatchWinner(snapshot, player) && (
                 <MatchWinnerMetadata />
               )}
+              {!player.forfeited && !highScore && !!player.penaltySeconds && (
+                <ScorePenalty unit="seconds" value={player.penaltySeconds} />
+              )}
             </span>
             <span className="match-result-score">
               {party && snapshot.mode !== "factions" && (
@@ -218,19 +222,19 @@ export function MatchEndView({
               {!player.forfeited && highScore && (
                 <span>{player.adjustedScore ?? player.bestScore?.passed ?? 0} points</span>
               )}
-              <span className="match-result-score-stack">
-                <ScoreProgress
-                  score={player.forfeited ? undefined : player.bestScore}
-                  color={participantColor(player.userId, player.color)}
-                  unavailableLabel={player.forfeited ? "Forfeited" : undefined}
-                />
-                {!player.forfeited && highScore && !!player.penaltyPoints && (
-                  <ScorePenalty unit="points" value={player.penaltyPoints} />
-                )}
-                {!player.forfeited && !highScore && !!player.penaltySeconds && (
-                  <ScorePenalty unit="seconds" value={player.penaltySeconds} />
-                )}
-              </span>
+              {player.forfeited ? (
+                <MatchForfeitStatus />
+              ) : (
+                <span className="match-result-score-stack">
+                  <ScoreProgress
+                    score={player.bestScore}
+                    color={participantColor(player.userId, player.color)}
+                  />
+                  {highScore && !!player.penaltyPoints && (
+                    <ScorePenalty unit="points" value={player.penaltyPoints} />
+                  )}
+                </span>
+              )}
               {reviewPlayer && (
                 <PlayerCodeReviewButton
                   name={player.displayName}
