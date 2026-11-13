@@ -779,13 +779,15 @@ void test("signed live case observation follows execution and confirmed attempt 
     );
   const diagnosticResponse = await diagnostic();
   assert.equal(diagnosticResponse.status, 200);
-  const { timing, ...diagnosticState } = await diagnosticResponse.json();
+  const { timing, startup, ...diagnosticState } = await diagnosticResponse.json();
   assert.ok(Number.isSafeInteger(timing.startupMs));
   assert.deepEqual(diagnosticState, {
     phase: "exec-ready",
     failure: "none",
     source: "none",
   });
+  for (const phase of ["setupMs", "allocationMs", "maxExecMs"])
+    assert.ok(Number.isSafeInteger(startup[phase]) && startup[phase] >= 0);
   assert.equal((await diagnostic({ authorization: "Bearer wrong" })).status, 404);
   assert.equal((await diagnostic({ "x-quorem-owner-scope": `remote:${secret("0")}` })).status, 404);
   assert.equal((await diagnostic({ "x-case-token": randomUUID() })).status, 404);
