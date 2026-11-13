@@ -99,6 +99,7 @@ export async function manifestInvocationBinding(
   ordinal: number,
   original: AttemptFence,
   requestHash: string,
+  limits: Job["limits"] = job.limits,
 ): Promise<string> {
   if (!hex.test(requestHash)) throw new Error("Invalid invocation hash");
   return digest(
@@ -106,6 +107,7 @@ export async function manifestInvocationBinding(
       "quorem-manifest-invocation-v1",
       await manifestCaseBinding(job, manifest, ref, ordinal, original),
       requestHash,
+      ...(limits === job.limits ? [] : [limits.wallTimeMs, limits.memoryBytes]),
     ]),
   );
 }

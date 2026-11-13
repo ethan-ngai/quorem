@@ -2115,6 +2115,17 @@ export interface components {
             complexityNotes: string;
             implementations: components["schemas"]["SolutionCode"][];
         };
+        CaseBudget: {
+            time: components["schemas"]["CaseGrowth"];
+            space: components["schemas"]["CaseGrowth"];
+        };
+        CaseGrowth: {
+            argument: number;
+            /** @enum {string} */
+            measure: "length" | "value";
+            /** @enum {string} */
+            growth: "linear" | "logarithmic" | "linearithmic" | "quadratic";
+        }[][];
         AcceptanceProfile: {
             caseCount: number;
             complexity: components["schemas"]["ComplexityBound"];
@@ -2432,6 +2443,7 @@ export interface components {
             memberCount: number;
         };
         AuthoredQuestionProblem: {
+            caseBudget?: components["schemas"]["CaseBudget"];
             acceptance?: components["schemas"]["QuestionAcceptance"];
             id: string;
             slug: string;
@@ -2617,6 +2629,7 @@ export interface components {
             };
         };
         QuestionImportProblem: {
+            caseBudget?: components["schemas"]["CaseBudget"];
             acceptance?: components["schemas"]["QuestionAcceptance"];
             slug: string;
             title: string;

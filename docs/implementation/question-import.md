@@ -85,6 +85,19 @@ Group languages that implement the same algorithm under one approach. Use separa
 
 Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Existing acceptance profile metadata can supply the efficient complexity shown in the hint. Its case counts do not select tests.
 
+## Native case budgets
+
+Classic coding questions can declare `problem.caseBudget` with `time` and `space` growth expressions. Each expression is a sum of products. An empty product represents constant growth. Each factor references a zero-based argument index and measures its collection length or nonnegative integer value.
+
+```json
+{
+  "time": [[{ "argument": 0, "measure": "length", "growth": "linearithmic" }]],
+  "space": [[{ "argument": 0, "measure": "length", "growth": "linear" }]]
+}
+```
+
+Submit still judges every case. The runner derives time and memory allowances from the case dimensions and shared runtime coefficients, bounded by the question's existing execution limits. The attempt reserves the derived memory before each case launches. Questions without this metadata and inputs too large for bounded dimension parsing use their admitted limits. Native time and memory enforcement can vary near the cutoff across hosts.
+
 ## Preflight and import
 
 1. Compare the signature, statement, constraints, and metadata with the source for adaptations. Resolve disagreements before changing a source guarantee to fit a case.

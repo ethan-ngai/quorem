@@ -33,7 +33,7 @@ async function readPrivateQuestionContent(
       data: string;
       lossless: Uint8Array | null;
     }>(sql`SELECT p.owner_id AS owner,v.lossless_fixture AS lossless,jsonb_build_object(
- 'problem',jsonb_build_object('id',v.id,'slug',p.slug,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'acceptance',v.acceptance,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
+ 'problem',jsonb_build_object('id',v.id,'slug',p.slug,'title',v.title,'difficulty',v.difficulty,'statementMarkdown',v.statement_markdown,'signature',v.signature,'constraints',v.constraints,'limits',v.limits,'acceptance',v.acceptance,'caseBudget',v.case_budget,'sql',v.sql_config,'odyssey',v.odyssey,'leetcodeId',p.leetcode_id,
  'tags',COALESCE((SELECT jsonb_agg(tag ORDER BY ordinal) FROM problem_tags WHERE publication_id=v.id),'[]'::jsonb),
  'companies',COALESCE((SELECT jsonb_agg(c.name ORDER BY c.name) FROM problem_companies pc JOIN companies c ON c.id=pc.company_id WHERE pc.problem_id=p.id),'[]'::jsonb),
  'examples',COALESCE((SELECT jsonb_agg(${publicExampleJson} ORDER BY ordinal) FROM problem_examples WHERE publication_id=v.id),'[]'::jsonb)),
@@ -49,6 +49,7 @@ async function readPrivateQuestionContent(
     p = object(c.problem),
     lossless = bytes(rows[0].lossless);
   if (!p.acceptance) delete p.acceptance;
+  if (!p.caseBudget) delete p.caseBudget;
   if (lossless) {
     const f = content(lossless),
       fp = object(f.problem);

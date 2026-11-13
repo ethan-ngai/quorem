@@ -1,3 +1,6 @@
+import type { CaseBudget } from "@quorem/questions";
+import { caseMemoryReservation, nativeCaseLimits, readBudgetJson } from "./case-budget.ts";
+import { metadataSpans } from "./metadata-spans.ts";
 /** @file execute.ts @description Manifest-bound, checkpointed case orchestration. @module runner */
 import {
   CASE_LANES,
@@ -121,6 +124,15 @@ export async function executeAndStage(
       signal,
     });
     try {
+      const budgetSpan =
+        manifest.kind === "submit" && !manifest.privateDetails
+          ? (await metadataSpans(metadata, manifest.level)).caseBudget
+          : undefined;
+      const budgetRaw = budgetSpan
+        ? await readBudgetJson(metadata.stream(budgetSpan.start, budgetSpan.length), 8192)
+        : undefined;
+      const caseBudget = budgetRaw ? (JSON.parse(budgetRaw) as CaseBudget) : undefined;
+      const reserveMemory = caseBudget ? caseMemoryReservation() : undefined;
       if (
         checkpoint.nextOrdinal < 0 ||
         checkpoint.nextOrdinal > total ||
@@ -232,7 +244,7 @@ export async function executeAndStage(
           try {
             const operation = compiled ? (artifact ? "execute" : "compile-execute") : "direct";
             const remaining = Math.max(1, Math.ceil(Number(60000000000n - compilation) / 1000000));
-            const { input } = await streamedCaseRequest({
+            const { input, testcase: projectedCase } = await streamedCaseRequest({
               source,
               metadata,
               testcase,
@@ -243,6 +255,12 @@ export async function executeAndStage(
               artifact,
               signal,
             });
+            const limits = await nativeCaseLimits(
+              job,
+              caseBudget,
+              projectedCase.args,
+              operation === "compile-execute",
+            );
             const request = {
               fence: job,
               binding: await manifestInvocationBinding(
@@ -252,15 +270,17 @@ export async function executeAndStage(
                 ordinal,
                 job,
                 input.hash,
+                limits,
               ),
               ordinal,
               language: job.language,
-              limits: job.limits,
+              limits,
               input,
               outputLimit: compiled && !artifact ? 4 * 1024 * 1024 : job.limits.outputBytes,
-              timeoutMs: Math.max(90000, remaining + job.limits.wallTimeMs + 70000),
+              timeoutMs: Math.max(90000, remaining + limits.wallTimeMs + 70000),
               compileMs: Math.min(120000, remaining),
             };
+            const releaseMemory = await reserveMemory?.(limits.memoryBytes, signal);
             try {
               const result = await sandbox.runCase(request, signal);
               assertCaseOutput(request, result);
@@ -275,6 +295,8 @@ export async function executeAndStage(
                 if (error.phase === "compile") compilation = 60000000000n;
               } else if (error instanceof CaseOutputLimit) frame = failFrame("output_limit");
               else throw error;
+            } finally {
+              releaseMemory?.();
             }
             if (frame.artifact) {
               validateCompiledArtifact(frame.artifact, job.language);

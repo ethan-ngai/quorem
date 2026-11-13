@@ -174,6 +174,7 @@ export function seedFingerprint(raw: string, actor: string): { fingerprint: stri
   problem.constraints = arr(p.constraints).map(constraint);
   if (p.signature) problem.signature = signature(p.signature);
   if (p.acceptance) problem.acceptance = p.acceptance;
+  if (p.caseBudget) problem.caseBudget = p.caseBudget;
   const l = obj(p.limits);
   problem.limits = {
     wallTimeMs: l.wallTimeMs!,

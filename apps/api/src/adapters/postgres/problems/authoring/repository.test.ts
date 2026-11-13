@@ -172,6 +172,10 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "utf8",
       );
       const parsedContent = JSON.parse(content);
+      parsedContent.problem.caseBudget = {
+        time: [[{ argument: 0, measure: "length", growth: "linear" }]],
+        space: [[]],
+      };
       parsedContent.problem.acceptance = {
         small: {
           caseCount: 6,
@@ -363,6 +367,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(fork.content.hiddenCases).toHaveLength(parsedContent.hiddenCases.length);
       expect(fork.content.canonicalApproachId).toBe(parsedContent.canonicalApproachId);
       expect(fork.content.approaches).toEqual(parsedContent.approaches);
+      expect(fork.content.problem.caseBudget).toEqual(parsedContent.problem.caseBudget);
       expect(fork.content.problem.acceptance).toEqual(parsedContent.problem.acceptance);
       expect(fork.content).not.toHaveProperty("implementations");
       expect(
@@ -418,6 +423,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
 
       const nul = structuredClone(parsedContent);
       delete nul.problem.acceptance;
+      delete nul.problem.caseBudget;
       nul.problem.slug = `nul-${crypto.randomUUID().slice(0, 8)}`;
       nul.problem.signature = {
         className: "Solution",
@@ -446,6 +452,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       ).rejects.toMatchObject({ status: 404 });
       const sq = structuredClone(parsedContent);
       delete sq.problem.acceptance;
+      delete sq.problem.caseBudget;
       sq.problem.slug = `sql-${crypto.randomUUID().slice(0, 8)}`;
       sq.problem.sql = {
         dialect: "postgresql",

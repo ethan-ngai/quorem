@@ -1058,6 +1058,7 @@ export const question_publications = pgTable(
     lossless_fixture: bytea("lossless_fixture"),
     lossless_public: bytea("lossless_public"),
     acceptance: jsonb("acceptance"),
+    case_budget: jsonb("case_budget"),
     lossless_stages: bytea("lossless_stages"),
   },
   (table): PgTableExtraConfigValue[] => [

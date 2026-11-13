@@ -32,7 +32,7 @@ function wireCase(value: JsonValue): Obj {
 export function fixtureMetadata(value: JsonValue): Obj {
   const problem = object(value),
     metadata: Obj = {};
-  for (const key of ["id", "signature", "constraints", "limits", "sql"])
+  for (const key of ["id", "signature", "constraints", "limits", "sql", "caseBudget"])
     if (problem[key] !== undefined && problem[key] !== null) metadata[key] = problem[key];
   if (problem.odyssey !== undefined && problem.odyssey !== null)
     metadata.odyssey = {
