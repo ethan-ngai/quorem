@@ -3,6 +3,7 @@ import { workspaceShortcuts } from "../workspaceShortcuts";
 import { Icon } from "../../../ui/Icon";
 import { ShortcutHint } from "../../../ui/ShortcutKeys";
 import { Spinner } from "../../../ui/Spinner";
+import { StateIcon } from "../../../ui/StateIcon";
 import { Tooltip } from "../../../ui/Tooltip";
 
 export function ExecutionActions({
@@ -65,16 +66,12 @@ export function ExecutionActions({
             disabled={abortPending}
             onClick={onCancel}
           >
-            <span className="run-abort-label" aria-hidden="true">
-              <span className="run-action-state" data-active={!abortPending}>
-                <Icon name="stop" />
-                Abort
-              </span>
-              <span className="run-action-state" data-active={!!abortPending}>
-                <Spinner size={18} active={!!abortPending} />
-                Aborting…
-              </span>
-            </span>
+            <StateIcon
+              active={!!abortPending}
+              off={<Icon name="stop" />}
+              on={<Spinner size={18} active={!!abortPending} />}
+            />
+            Abort
           </button>
         </div>
         <div className="run-action-state" data-active={!onCancel} aria-hidden={!!onCancel}>
