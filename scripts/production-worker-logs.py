@@ -89,6 +89,22 @@ for event in events.get("events", []):
         }
         print(datetime.datetime.fromtimestamp(event["timestamp"] / 1000, datetime.timezone.utc),
               category.group(), json.dumps(identifiers))
+        stamp = datetime.datetime.fromtimestamp(event["timestamp"] / 1000, datetime.timezone.utc)
+        if not 0 <= (stamp - start).total_seconds() < 180:
+            continue
+        application = identifiers.get("applicationId")
+        deployment = identifiers.get("deploymentId")
+        if application and deployment:
+            path = f"accounts/{account}/containers/applications/{application}/instances/{deployment}"
+            try:
+                request = urllib.request.Request(
+                    f"https://api.cloudflare.com/client/v4/{path}", headers=headers,
+                )
+                with urllib.request.urlopen(request, timeout=10) as response:
+                    instance = json.load(response).get("result") or {}
+                print("Container instance fields:", sorted(instance))
+            except urllib.error.HTTPError as error:
+                print("Container instance HTTP status:", error.code)
 
 for worker in workers:
     # Analytics aggregates invocation outcomes independently of retained console logs.
