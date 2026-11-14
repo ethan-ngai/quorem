@@ -1,6 +1,6 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BookOpen, Check, Clock3, Flag, Swords, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Flag, Swords } from "lucide-react";
 import { useState } from "react";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
@@ -190,62 +190,41 @@ export function DashboardDemo() {
         <div className="dashboard-columns">
           <div className="dashboard-main">
             <DashboardRecommendations items={recommendations} />
-            <div className="dashboard-destinations">
-              <section className="dashboard-panel" aria-labelledby="dashboard-odyssey-title">
-                <div className="dashboard-panel-heading">
-                  <h2 id="dashboard-odyssey-title">
-                    <Flag size={17} /> Odysseys
-                  </h2>
-                  <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
-                    Browse <ArrowRight size={14} />
-                  </Link>
-                </div>
-                {isNew ? (
-                  <p className="dashboard-caption">
-                    Solve a series of questions that build on each other.
-                  </p>
-                ) : (
-                  <>
-                    <p className="dashboard-preview-title">Transit Operations</p>
-                    <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
-                    <ol className="dashboard-stages" aria-label="Odyssey stages">
-                      <li data-stage="complete">
-                        <Check size={14} />
-                        <span className="sr-only">Stage 1 complete</span>
-                      </li>
-                      <li aria-current="step">
-                        2<span className="sr-only">, current stage</span>
-                      </li>
-                      <li>
-                        3<span className="sr-only">, upcoming stage</span>
-                      </li>
-                    </ol>
-                  </>
-                )}
-              </section>
-
-              <section className="dashboard-panel" aria-labelledby="dashboard-interviews-title">
-                <div className="dashboard-panel-heading">
-                  <h2 id="dashboard-interviews-title">
-                    <Users size={17} /> Interviews
-                  </h2>
-                  <Link className="dashboard-link" to="/interviews">
-                    Open interviews <ArrowRight size={14} />
-                  </Link>
-                </div>
-                {isNew ? (
-                  <p className="dashboard-caption">Create a room for a mock interview.</p>
-                ) : (
-                  <>
-                    <p className="dashboard-preview-title">Mock interview with Mira</p>
-                    <p className="dashboard-caption dashboard-inline">
-                      <Clock3 size={14} /> Last opened yesterday
-                    </p>
-                    <p className="dashboard-caption">2 rooms</p>
-                  </>
-                )}
-              </section>
-            </div>
+            <section
+              className="dashboard-panel dashboard-odyssey"
+              aria-labelledby="dashboard-odyssey-title"
+            >
+              <div className="dashboard-panel-heading">
+                <h2 id="dashboard-odyssey-title">
+                  <Flag size={17} /> Odysseys
+                </h2>
+                <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
+                  Browse <ArrowRight size={14} />
+                </Link>
+              </div>
+              {isNew ? (
+                <p className="dashboard-caption">
+                  Solve a series of questions that build on each other.
+                </p>
+              ) : (
+                <>
+                  <p className="dashboard-preview-title">Transit Operations</p>
+                  <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
+                  <ol className="dashboard-stages" aria-label="Odyssey stages">
+                    <li data-stage="complete">
+                      <Check size={14} />
+                      <span className="sr-only">Stage 1 complete</span>
+                    </li>
+                    <li aria-current="step">
+                      2<span className="sr-only">, current stage</span>
+                    </li>
+                    <li>
+                      3<span className="sr-only">, upcoming stage</span>
+                    </li>
+                  </ol>
+                </>
+              )}
+            </section>
             <DashboardActivity items={activity} />
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
