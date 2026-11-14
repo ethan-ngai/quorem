@@ -55,8 +55,7 @@
   width: 15px;
   height: 15px;
 }
-.dashboard-caption,
-.dashboard-next-meta {
+.dashboard-caption {
   color: var(--color-text-secondary);
   font-size: 13px;
 }
@@ -76,7 +75,6 @@
   font-size: var(--text-h3);
   font-weight: 600;
 }
-.dashboard-next-meta,
 .dashboard-actions,
 .dashboard-inline {
   display: flex;
@@ -84,12 +82,17 @@
   align-items: center;
   gap: var(--space-3);
 }
-.dashboard-next-content .dashboard-next-meta {
-  margin-top: var(--space-1);
+.dashboard-question-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
 }
-.dashboard-next-meta span + span::before {
-  content: "·";
-  margin-right: var(--space-3);
+.dashboard-question-meta .practice-topic-list {
+  margin: 0;
+}
+.dashboard-next-content .dashboard-question-meta {
+  margin-top: var(--space-2);
 }
 .dashboard-link {
   display: inline-flex;
@@ -123,7 +126,7 @@
 .dashboard-picks a:hover {
   background: var(--color-control-hover);
 }
-.dashboard-picks small {
+.dashboard-picks .dashboard-question-meta {
   grid-column: 1 / -1;
 }
 .dashboard-activity {
@@ -145,7 +148,6 @@
 }
 .dashboard-activity-date,
 .dashboard-activity small,
-.dashboard-picks small,
 .dashboard-rows small {
   color: var(--color-text-secondary);
   font-size: var(--text-label);

@@ -88,12 +88,6 @@
 .practice-difficulty.hard {
   color: var(--color-error);
 }
-.practice-topic-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-}
 .practice-state {
   padding: var(--space-6) var(--space-4);
   text-align: center;
@@ -139,13 +133,6 @@
 
   .data-table td:first-child {
     width: auto;
-  }
-  .practice-topic-list {
-    gap: var(--space-1);
-  }
-  .practice-topic-list button {
-    min-height: 28px;
-    padding: var(--space-1) var(--space-2);
   }
 }
 

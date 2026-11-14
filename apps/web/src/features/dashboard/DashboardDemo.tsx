@@ -19,6 +19,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import {
   DashboardActivity,
   DashboardRecommendations,
+  DashboardQuestionMetadata,
   DashboardStreak,
 } from "./DashboardHighlights";
 import "./dashboard-demo.css";
@@ -52,8 +53,13 @@ function qualifyingDaysFor(events: StreakEvent[]) {
   );
 }
 const recommendations = [
-  { slug: "segment-sums", title: "Segment Sums", difficulty: "medium", topic: "Arrays" },
-  { slug: "quota-window", title: "Quota Window", difficulty: "hard", topic: "Sliding window" },
+  { slug: "segment-sums", title: "Segment Sums", difficulty: "medium", tags: ["Linked List"] },
+  {
+    slug: "quota-window",
+    title: "Quota Window",
+    difficulty: "hard",
+    tags: ["Strings", "Sliding Window"],
+  },
 ] as const;
 
 const difficulty = [
@@ -162,10 +168,10 @@ export function DashboardDemo() {
               <div className="dashboard-next-content">
                 <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
                 {!isNew && (
-                  <p className="dashboard-next-meta">
-                    <span>Medium</span>
-                    <span>Binary trees</span>
-                  </p>
+                  <DashboardQuestionMetadata
+                    difficulty="medium"
+                    tags={["Binary Trees", "Breadth-First Search"]}
+                  />
                 )}
               </div>
               <div className="dashboard-actions">

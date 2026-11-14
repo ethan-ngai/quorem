@@ -2,14 +2,15 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Check, Clock3, Lightbulb, Swords } from "lucide-react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
+import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import fire from "./fire.svg";
 import embers from "./embers.svg";
 
 type Recommendation = {
   slug: string;
   title: string;
-  difficulty: "easy" | "medium" | "hard";
-  topic: string;
+  difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"];
+  tags: readonly string[];
 };
 
 type Activity = {
@@ -20,6 +21,18 @@ type Activity = {
   kind: "practice" | "match";
 };
 
+export function DashboardQuestionMetadata({
+  difficulty,
+  tags,
+}: Pick<Recommendation, "difficulty" | "tags">) {
+  return (
+    <div className="dashboard-question-meta">
+      <DifficultyLabel difficulty={difficulty} />
+      <QuestionTopics tags={tags} />
+    </div>
+  );
+}
+
 export function DashboardRecommendations({ items }: { items: readonly Recommendation[] }) {
   return (
     <section className="dashboard-panel" aria-labelledby="dashboard-recommendations-title">
@@ -27,15 +40,12 @@ export function DashboardRecommendations({ items }: { items: readonly Recommenda
         <Lightbulb aria-hidden="true" /> Recommended for you
       </h2>
       <ul className="dashboard-picks">
-        {items.map(({ slug, title, topic, difficulty }) => (
+        {items.map(({ slug, title, tags, difficulty }) => (
           <li key={slug}>
             <Link to="/practice/$slug" params={{ slug }}>
               <strong>{title}</strong>
               <ArrowUpRight size={14} aria-hidden="true" />
-              <small>
-                {topic} <span aria-hidden="true">·</span>{" "}
-                <DifficultyLabel difficulty={difficulty} />
-              </small>
+              <DashboardQuestionMetadata difficulty={difficulty} tags={tags} />
             </Link>
           </li>
         ))}
