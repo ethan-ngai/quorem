@@ -36,6 +36,7 @@
   align-items: start;
   margin-top: var(--space-5);
 }
+.dashboard-overview,
 .dashboard-progress {
   display: grid;
   min-width: 0;
@@ -118,10 +119,6 @@
 }
 .dashboard-panel-heading {
   margin-bottom: var(--space-2);
-}
-.dashboard-odyssey {
-  padding-block: var(--space-4);
-  border-block: 1px solid var(--color-border);
 }
 .dashboard-demo .dashboard-odyssey-completed {
   margin-top: var(--space-3);
