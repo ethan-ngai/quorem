@@ -26,25 +26,22 @@ const reasonLabels = {
 
 type RecommendationScope = Pick<CatalogSearch, "library" | "sql" | "type">;
 
-/** Keep the dashboard's next problem and the Practice carousel on the same query. */
-export function practiceRecommendationOptions(
-  client: ReturnType<typeof useQueryClient>,
-  actor: ProblemActor,
-  scope: RecommendationScope,
-) {
-  return catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
-}
-
 export function PracticeRecommendations({
   actor,
   scope,
+  embedded = false,
+  primaryAction = false,
 }: {
   actor: ProblemActor;
   scope: RecommendationScope;
+  embedded?: boolean;
+  primaryAction?: boolean;
 }) {
   const heading = useId();
+  const Heading = embedded ? "h3" : "h2";
+  const QuestionHeading = embedded ? "h4" : "h3";
   const client = useQueryClient();
-  const options = practiceRecommendationOptions(client, actor, scope);
+  const options = catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
   const recommendations = useQuery(options);
   const items = recommendations.data?.items;
   const viewport = useRef<HTMLDivElement>(null);
@@ -95,13 +92,14 @@ export function PracticeRecommendations({
   return (
     <section
       className="practice-recommendations"
+      data-embedded={embedded || undefined}
       aria-labelledby={heading}
       aria-roledescription="carousel"
     >
       <div className="practice-recommendations-header">
-        <h2 id={heading}>
+        <Heading className="practice-recommendations-heading" id={heading}>
           <Lightbulb size={16} aria-hidden /> Recommended
-        </h2>
+        </Heading>
         {count > 1 && (
           <div className="practice-recommendations-controls">
             <span aria-hidden="true">
@@ -172,7 +170,9 @@ export function PracticeRecommendations({
                 >
                   <div className="practice-recommendation-details">
                     <div className="practice-recommendation-title">
-                      <h3>{question.title}</h3>
+                      <QuestionHeading className="practice-recommendation-name">
+                        {question.title}
+                      </QuestionHeading>
                       <span className={`difficulty-${question.difficulty}`}>
                         {formatLabel(question.difficulty)}
                       </span>
@@ -185,7 +185,9 @@ export function PracticeRecommendations({
                   </div>
                   <div className="practice-recommendation-actions">
                     <Link
-                      className="button button-secondary"
+                      className={
+                        primaryAction ? "button button-primary" : "button button-secondary"
+                      }
                       to="/practice/$slug"
                       params={{ slug: question.slug }}
                       onPointerEnter={warmWorkspacePage}

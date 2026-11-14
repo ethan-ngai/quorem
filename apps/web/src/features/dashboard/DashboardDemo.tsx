@@ -1,6 +1,5 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BookOpen, Check, Swords } from "lucide-react";
 import { useState } from "react";
@@ -9,10 +8,7 @@ import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
-import {
-  PracticeRecommendations,
-  practiceRecommendationOptions,
-} from "../practice/PracticeRecommendations";
+import { PracticeRecommendations } from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
   DashboardTimeline,
@@ -136,10 +132,6 @@ export function DashboardDemo() {
       ]
         .sort((a, b) => b.day - a.day)
         .slice(0, 5);
-  const client = useQueryClient();
-  const options = practiceRecommendationOptions(client, actor, recommendationScope);
-  const recommended = useQuery({ ...options, enabled: !hasPractice && options.enabled !== false });
-  const nextProblem = hasPractice ? practiceInProgress : recommended.data?.items[0];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
@@ -157,43 +149,49 @@ export function DashboardDemo() {
           />
         </header>
 
-        <div className="dashboard-top">
-          <section
-            className="dashboard-panel dashboard-next"
-            aria-labelledby="dashboard-next-title"
-          >
+        <section className="dashboard-panel dashboard-next" aria-labelledby="dashboard-next-title">
+          <div className="dashboard-panel-heading">
             <h2 id="dashboard-next-title">
               <BookOpen size={17} /> Practice
             </h2>
-            <div className="dashboard-next-content">
-              <h3>{nextProblem?.title ?? "Find a problem"}</h3>
-              {nextProblem && (
-                <DashboardQuestionMetadata
-                  difficulty={nextProblem.difficulty}
-                  tags={nextProblem.tags}
-                />
-              )}
-            </div>
-            <div className="dashboard-actions">
-              {nextProblem && (
-                <Link
-                  className="button button-primary"
-                  to="/practice/$slug"
-                  params={{ slug: nextProblem.slug }}
-                >
-                  {hasPractice ? "Resume practice" : "Start practice"} <ArrowRight size={16} />
-                </Link>
-              )}
-              <Link
-                className={nextProblem ? "dashboard-link" : "button button-primary"}
-                to="/practice"
+            <Link className="dashboard-link" to="/practice">
+              Browse problems <ArrowRight size={14} />
+            </Link>
+          </div>
+          <div className="dashboard-practice-items">
+            {hasPractice && (
+              <section
+                className="dashboard-practice-resume"
+                aria-labelledby="dashboard-resume-title"
               >
-                Browse problems
-              </Link>
-            </div>
-          </section>
-          <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
-        </div>
+                <h3 id="dashboard-resume-title">In progress</h3>
+                <div className="dashboard-practice-problem">
+                  <div>
+                    <h4>{practiceInProgress.title}</h4>
+                    <DashboardQuestionMetadata
+                      difficulty={practiceInProgress.difficulty}
+                      tags={practiceInProgress.tags}
+                    />
+                  </div>
+                  <Link
+                    className="button button-primary"
+                    to="/practice/$slug"
+                    params={{ slug: practiceInProgress.slug }}
+                  >
+                    Resume practice <ArrowRight size={16} />
+                  </Link>
+                </div>
+              </section>
+            )}
+            <PracticeRecommendations
+              key={actor}
+              actor={actor}
+              scope={recommendationScope}
+              embedded
+              primaryAction={!hasPractice}
+            />
+          </div>
+        </section>
 
         <div className="dashboard-columns">
           <ActivityCalendar activity={qualifyingDays} streakDays={length} />

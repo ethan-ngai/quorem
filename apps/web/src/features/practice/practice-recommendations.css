@@ -23,7 +23,7 @@
   padding-inline: var(--space-1);
 }
 
-.practice-recommendations-header h2 {
+.practice-recommendations-heading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -32,7 +32,7 @@
   font-weight: 600;
 }
 
-.practice-recommendations-header h2 svg {
+.practice-recommendations-heading svg {
   color: var(--color-info);
 }
 
@@ -62,6 +62,24 @@
   border-radius: var(--radius-sm);
 }
 
+.practice-recommendations[data-embedded] {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.practice-recommendations[data-embedded]
+  :is(.practice-recommendations-header, .practice-recommendation-slide) {
+  padding: 0;
+}
+
+.practice-recommendations[data-embedded] .practice-recommendations-track {
+  align-items: flex-start;
+}
+
 .practice-recommendation-slide {
   display: flex;
   flex: 0 0 100%;
@@ -77,7 +95,7 @@
   min-width: 0;
 }
 
-.practice-recommendation-details h3 {
+.practice-recommendation-name {
   margin: 0;
   font-size: var(--text-h3);
   font-weight: 600;

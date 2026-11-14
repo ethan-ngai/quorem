@@ -27,7 +27,6 @@
   line-height: 1.2;
   letter-spacing: -0.025em;
 }
-.dashboard-top,
 .dashboard-columns {
   display: grid;
   gap: var(--space-5);
@@ -68,20 +67,38 @@
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
-.dashboard-next-content {
-  padding-block: var(--space-3);
+.dashboard-practice-items:has(.dashboard-practice-resume + .practice-recommendations) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
 }
-.dashboard-next h3 {
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  font-size: var(--text-h3);
-  font-weight: 600;
+.dashboard-practice-resume {
+  min-width: 0;
 }
-.dashboard-actions {
+.dashboard-practice-resume h3 {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height);
+  margin-bottom: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+}
+.dashboard-practice-problem {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
+}
+.dashboard-practice-problem h4 {
+  margin: 0;
+  font-size: var(--text-h3);
+  font-weight: 600;
+}
+.dashboard-practice-resume + .practice-recommendations {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--color-border);
 }
 .dashboard-question-meta {
   display: flex;
@@ -92,8 +109,8 @@
 .dashboard-question-meta .practice-topic-list {
   margin: 0;
 }
-.dashboard-next-content .dashboard-question-meta {
-  margin-top: var(--space-2);
+.dashboard-practice-problem .dashboard-question-meta {
+  margin-top: var(--space-1);
 }
 .dashboard-link {
   display: inline-flex;
@@ -104,10 +121,6 @@
 }
 .dashboard-panel-heading {
   margin-bottom: var(--space-2);
-}
-.dashboard-top > .practice-recommendations {
-  min-width: 0;
-  margin-block-end: 0;
 }
 .dashboard-odyssey {
   padding-block: var(--space-4);
@@ -261,13 +274,16 @@
   color: var(--color-text);
 }
 @media (max-width: 760px) {
-  .dashboard-actions .button {
-    white-space: normal;
-  }
-
-  .dashboard-top,
+  .dashboard-practice-items:has(.dashboard-practice-resume + .practice-recommendations),
   .dashboard-columns {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-practice-resume + .practice-recommendations {
+    padding-inline-start: 0;
+    padding-block-start: var(--space-2);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--color-border);
   }
 }
 @media (max-width: 460px) {
