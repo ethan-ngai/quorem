@@ -81,6 +81,8 @@ Include at least one public example and hidden case per question or Odyssey leve
 
 Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`.
 
+Apply the statement's Markdown conventions to `explanationMarkdown` and `complexityNotes` too. Write costs as LaTeX, such as `$O(n^{2})$`, and put code accesses such as `dp[i][j]` in backticks. For hash-table algorithms, use the expected running time, such as `$O(n)$` expected, and put the constant-time lookup assumption in the notes when it matters. Use amortized bounds for costs analyzed across a sequence of operations.
+
 ## Acceptance profiles
 
 Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Existing acceptance profile metadata can supply the efficient complexity shown in the hint. Its case counts do not select tests.
