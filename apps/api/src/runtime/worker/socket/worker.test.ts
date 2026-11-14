@@ -334,7 +334,9 @@ it.skipIf(!database)(
     socket.accept();
     try {
       const frame = await new Promise<string>((resolve) =>
-        socket.addEventListener("message", (event) => resolve(String(event.data)), { once: true }),
+        socket.addEventListener("message", (event: MessageEvent) => resolve(String(event.data)), {
+          once: true,
+        }),
       );
       const { receipt, payload } = JSON.parse(frame);
       expect(payload).toMatchObject({
