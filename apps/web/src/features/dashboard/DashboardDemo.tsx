@@ -109,7 +109,9 @@ export function DashboardDemo() {
       <GlobalNav theme={preference} onThemeChange={setPreference} />
       <main className="dashboard-demo">
         <header className="dashboard-title">
-          <h1>Good {greeting}, Alex.</h1>
+          <h1>
+            Good {greeting},<br /> Alex.
+          </h1>
           <label className="dashboard-scenario">
             Preview state
             <select
@@ -123,6 +125,38 @@ export function DashboardDemo() {
             </select>
           </label>
         </header>
+
+        <section
+          className="dashboard-panel dashboard-solves"
+          aria-labelledby="dashboard-solves-title"
+        >
+          <div className="dashboard-panel-heading">
+            <h2 id="dashboard-solves-title">
+              <Check size={17} /> Problems solved
+            </h2>
+            <Link className="dashboard-link" to="/practice">
+              Practice <ArrowRight size={14} />
+            </Link>
+          </div>
+          <p className="dashboard-total">
+            <strong>{isNew ? 0 : 42}</strong> unique problems
+          </p>
+          <div className="dashboard-solve-bar" aria-hidden="true">
+            {!isNew &&
+              difficulty.map(({ label, color, solved }) => (
+                <span key={label} data-tone={color} style={{ flexGrow: solved }} />
+              ))}
+          </div>
+          <ul className="dashboard-difficulty">
+            {difficulty.map(({ label, solved, color }) => (
+              <li key={label}>
+                <span className="dashboard-dot" data-tone={color} />
+                {label}
+                <strong>{isNew ? 0 : solved}</strong>
+              </li>
+            ))}
+          </ul>
+        </section>
 
         <div className="dashboard-columns">
           <div className="dashboard-main">
@@ -316,35 +350,6 @@ export function DashboardDemo() {
                 </span>
               </div>
             </section>
-            <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
-              <div className="dashboard-panel-heading">
-                <h2 id="dashboard-solves-title">
-                  <Check size={17} /> Problems solved
-                </h2>
-                <Link className="dashboard-link" to="/practice">
-                  Practice <ArrowRight size={14} />
-                </Link>
-              </div>
-              <p className="dashboard-total">
-                <strong>{isNew ? 0 : 42}</strong> unique problems
-              </p>
-              <div className="dashboard-solve-bar" aria-hidden="true">
-                {!isNew &&
-                  difficulty.map(({ label, color, solved }) => (
-                    <span key={label} data-tone={color} style={{ flexGrow: solved }} />
-                  ))}
-              </div>
-              <ul className="dashboard-difficulty">
-                {difficulty.map(({ label, solved, color }) => (
-                  <li key={label}>
-                    <span className="dashboard-dot" data-tone={color} />
-                    {label}
-                    <strong>{isNew ? 0 : solved}</strong>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
             <section
               className="dashboard-panel dashboard-matches"
               aria-labelledby="dashboard-matches-title"
