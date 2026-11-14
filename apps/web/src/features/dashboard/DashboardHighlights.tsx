@@ -92,11 +92,11 @@ export function DashboardStreak({ days }: { days: number }) {
       >
         <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
       </button>
-      <div>
-        <h3 id="dashboard-streak-title">Daily streak</h3>
+      <div className="dashboard-streak-stat">
         <p className="dashboard-streak-number" aria-live="polite">
           <strong>{days}</strong> <span>{days === 1 ? "day" : "days"}</span>
         </p>
+        <h3 id="dashboard-streak-title">Daily streak</h3>
       </div>
     </section>
   );
