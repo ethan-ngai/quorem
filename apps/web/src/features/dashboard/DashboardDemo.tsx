@@ -5,10 +5,10 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpen,
-  CalendarDays,
   Check,
   Clock3,
   Flag,
+  Lightbulb,
   Minus,
   Swords,
   Users,
@@ -18,6 +18,7 @@ import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import fire from "./fire.svg";
 import embers from "./embers.svg";
+import "../../ui/difficulty.css";
 import "./dashboard-demo.css";
 
 const today = 0;
@@ -41,13 +42,11 @@ function qualifyingDaysFor(events: StreakEvent[]) {
       .map(({ day }) => day),
   );
 }
-const demoDate = new Date("2026-11-14T00:00:00Z");
-const days = Array.from({ length: 7 }, (_, index) => {
-  const date = new Date(demoDate);
-  date.setUTCDate(date.getUTCDate() - 6 + index);
-  const label = date.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-  return { day: today - 6 + index, label, date: date.toISOString().slice(0, 10) };
-});
+const recommendations = [
+  { slug: "segment-sums", title: "Segment Sums", difficulty: "Medium", topic: "Arrays" },
+  { slug: "quota-window", title: "Quota Window", difficulty: "Hard", topic: "Sliding window" },
+] as const;
+
 const difficulty = [
   { label: "Easy", solved: 18, color: "success" },
   { label: "Medium", solved: 20, color: "warning" },
@@ -103,16 +102,15 @@ export function DashboardDemo() {
   const doneToday = qualifyingDays.has(today);
   const length = streakLength(qualifyingDays, today);
   const best = isNew ? 0 : 12;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
   return (
     <>
       <GlobalNav theme={preference} onThemeChange={setPreference} />
       <main className="dashboard-demo">
         <header className="dashboard-title">
-          <div>
-            <h1>Dashboard</h1>
-            <p>{isNew ? "Welcome to Quorem." : "Welcome back, Alex."}</p>
-          </div>
+          <h1>Good {greeting}, Alex.</h1>
           <label className="dashboard-scenario">
             Preview state
             <select
@@ -128,96 +126,95 @@ export function DashboardDemo() {
         </header>
 
         <div className="dashboard-overview">
-          <section
-            className="dashboard-panel dashboard-next"
-            aria-labelledby="dashboard-next-title"
-          >
-            <h2 id="dashboard-next-title">
-              <BookOpen size={17} /> Practice
-            </h2>
-            <div className="dashboard-next-content">
-              <p className="dashboard-caption">
-                {isNew ? "Get started" : "Pick up where you left off"}
-              </p>
-              <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
-              {!isNew && (
-                <p className="dashboard-next-meta">
-                  <span>Medium</span>
-                  <span>Binary trees</span>
+          <div className="dashboard-start">
+            <section
+              className="dashboard-panel dashboard-next"
+              aria-labelledby="dashboard-next-title"
+            >
+              <h2 id="dashboard-next-title">
+                <BookOpen size={17} /> Practice
+              </h2>
+              <div className="dashboard-next-content">
+                <p className="dashboard-caption">
+                  {isNew ? "Get started" : "Pick up where you left off"}
                 </p>
-              )}
-            </div>
-            <div className="dashboard-actions">
-              {isNew ? (
-                <Link className="button button-primary" to="/practice">
-                  Find a problem <ArrowRight size={16} />
-                </Link>
-              ) : (
-                <>
-                  <Link
-                    className="button button-primary"
-                    to="/practice/$slug"
-                    params={{ slug: "level-spreads" }}
-                  >
-                    Resume practice <ArrowRight size={16} />
+                <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
+                {!isNew && (
+                  <p className="dashboard-next-meta">
+                    <span>Medium</span>
+                    <span>Binary trees</span>
+                  </p>
+                )}
+              </div>
+              <div className="dashboard-actions">
+                {isNew ? (
+                  <Link className="button button-primary" to="/practice">
+                    Find a problem <ArrowRight size={16} />
                   </Link>
-                  <Link className="dashboard-link" to="/practice">
-                    Browse problems
-                  </Link>
-                </>
-              )}
-            </div>
-          </section>
+                ) : (
+                  <>
+                    <Link
+                      className="button button-primary"
+                      to="/practice/$slug"
+                      params={{ slug: "level-spreads" }}
+                    >
+                      Resume practice <ArrowRight size={16} />
+                    </Link>
+                    <Link className="dashboard-link" to="/practice">
+                      Browse problems
+                    </Link>
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section
+              className="dashboard-panel dashboard-recommendations"
+              aria-labelledby="dashboard-recommendations-title"
+            >
+              <h2 id="dashboard-recommendations-title">
+                <Lightbulb size={17} /> Recommended for you
+              </h2>
+              <ul>
+                {recommendations.map(({ slug, title, difficulty, topic }) => (
+                  <li key={slug}>
+                    <Link to="/practice/$slug" params={{ slug }}>
+                      <span>
+                        <strong>{title}</strong>
+                        <small>{topic}</small>
+                      </span>
+                      <span className={`difficulty-${difficulty.toLowerCase()}`}>{difficulty}</span>
+                      <ArrowRight size={15} aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
 
           <section
-            className="dashboard-panel dashboard-streak"
+            className="dashboard-streak"
             aria-labelledby="dashboard-streak-title"
             data-active={length > 0}
           >
-            <h2 id="dashboard-streak-title">
-              <CalendarDays size={17} /> Daily streak
-            </h2>
-            <div className="dashboard-streak-summary" aria-live="polite">
-              <div>
+            <div aria-live="polite">
+              <p className="dashboard-streak-label">Streak</p>
+              <h2 id="dashboard-streak-title">{length ? "Daily streak" : "No active streak"}</h2>
+              <p className="dashboard-caption">
+                {doneToday
+                  ? "Today complete"
+                  : length
+                    ? "Today still open"
+                    : "Start a streak today"}
+              </p>
+              <div className="dashboard-streak-summary">
                 <p className="dashboard-streak-number">
-                  <strong>{length}</strong> {length === 1 ? "day" : "days"}
+                  <strong>{length}</strong>
+                  <span>{length === 1 ? "day active" : "days active"}</span>
                 </p>
-                <p className="dashboard-caption">
-                  {doneToday
-                    ? "Today complete"
-                    : length
-                      ? "Today still open"
-                      : isNew
-                        ? "Start your streak today"
-                        : "Start a new streak today"}
-                </p>
+                <img src={length ? fire : embers} alt="" width={144} height={144} />
               </div>
-              <img src={length ? fire : embers} alt="" width={76} height={82} />
             </div>
-            <ol className="dashboard-week" aria-label="Last seven days">
-              {days.map(({ day, label, date }) => {
-                const complete = qualifyingDays.has(day);
-                return (
-                  <li key={day}>
-                    <time dateTime={date}>{label}</time>
-                    <span className="dashboard-day" data-done={complete} data-today={day === today}>
-                      <span className="sr-only">
-                        {complete
-                          ? "Complete"
-                          : day === today
-                            ? "Today pending"
-                            : "No qualifying activity"}
-                      </span>
-                      {complete ? (
-                        <Check size={16} aria-hidden="true" />
-                      ) : (
-                        <span aria-hidden="true">·</span>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
             <div className="dashboard-streak-footer">
               <p>Play a match or submit an accepted practice solution.</p>
               <span>
