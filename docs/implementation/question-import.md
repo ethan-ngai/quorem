@@ -81,7 +81,7 @@ Include at least one public example and hidden case per question or Odyssey leve
 
 Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`. Order `approaches` from most to least efficient, considering time first and auxiliary space when time bounds tie. The complexity hint uses the first and last approaches with valid bounds and shows one pair when those bounds match.
 
-Apply the statement's Markdown conventions to `explanationMarkdown` and `complexityNotes` too. Write costs as LaTeX, such as `$O(n^{2})$`, and put code accesses such as `dp[i][j]` in backticks. For hash-table algorithms, use the expected running time, such as `$O(n)$` expected, and put the constant-time lookup assumption in the notes when it matters. Use amortized bounds for costs analyzed across a sequence of operations.
+Apply the statement's Markdown conventions to `explanationMarkdown` and `complexityNotes` too. Write costs as LaTeX, such as `$O(n^{2})$`, and put code accesses such as `dp[i][j]` in backticks. Use `$O(1)$` for hash-table lookup, insertion, and deletion in standard complexity analysis. Use amortized bounds for costs analyzed across a sequence of operations.
 
 ## Acceptance profiles
 
