@@ -59,11 +59,6 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
 
   const firstWeekday = days[0].date.getDay();
   const weeks = Math.ceil((firstWeekday + range) / 7);
-  const compactDateLabel = new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
   const monthLabels = new Map<number, string>();
   const spansYears = days[0].date.getFullYear() !== current.getFullYear();
   const yearLabels = new Map<number, string>();
