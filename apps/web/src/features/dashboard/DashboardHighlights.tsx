@@ -1,14 +1,11 @@
-/** @file DashboardHighlights.tsx @description Streak, recommendations, and activity previews. @module dashboard */
-import { Link } from "@tanstack/react-router";
-import { ArrowUpRight, Check, Clock3, Lightbulb, Swords } from "lucide-react";
+/** @file DashboardHighlights.tsx @description Streak, question metadata, and activity previews. @module dashboard */
+import { Check, Clock3, Swords } from "lucide-react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { useState } from "react";
 import { StreakArtwork } from "./StreakArtwork";
 
-type Recommendation = {
-  slug: string;
-  title: string;
+type QuestionMetadata = {
   difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"];
   tags: readonly string[];
 };
@@ -21,36 +18,12 @@ type Activity = {
   kind: "practice" | "match";
 };
 
-export function DashboardQuestionMetadata({
-  difficulty,
-  tags,
-}: Pick<Recommendation, "difficulty" | "tags">) {
+export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata) {
   return (
     <div className="dashboard-question-meta">
       <DifficultyLabel difficulty={difficulty} />
       <QuestionTopics tags={tags} />
     </div>
-  );
-}
-
-export function DashboardRecommendations({ items }: { items: readonly Recommendation[] }) {
-  return (
-    <section className="dashboard-panel" aria-labelledby="dashboard-recommendations-title">
-      <h2 id="dashboard-recommendations-title">
-        <Lightbulb aria-hidden="true" /> Recommended for you
-      </h2>
-      <ul className="dashboard-picks">
-        {items.map(({ slug, title, tags, difficulty }) => (
-          <li key={slug}>
-            <Link to="/practice/$slug" params={{ slug }}>
-              <strong>{title}</strong>
-              <ArrowUpRight size={14} aria-hidden="true" />
-              <DashboardQuestionMetadata difficulty={difficulty} tags={tags} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 

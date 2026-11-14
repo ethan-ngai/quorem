@@ -1,14 +1,16 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
+import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BookOpen, Check, Flag, Swords } from "lucide-react";
 import { useState } from "react";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
+import { useAccountIdentity } from "../matches/MatchControls";
+import { PracticeRecommendations } from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
   DashboardActivity,
   DashboardDistribution,
-  DashboardRecommendations,
   DashboardQuestionMetadata,
   DashboardStreak,
 } from "./DashboardHighlights";
@@ -46,16 +48,6 @@ const sampleHistory: ActivityEvent[] = Array.from(
     }));
   },
 ).flat();
-
-const recommendations = [
-  { slug: "segment-sums", title: "Segment Sums", difficulty: "medium", tags: ["Linked List"] },
-  {
-    slug: "quota-window",
-    title: "Quota Window",
-    difficulty: "hard",
-    tags: ["Strings", "Sliding Window"],
-  },
-] as const;
 
 const difficulty = [
   { label: "Easy", count: 18, tone: "success" },
@@ -100,6 +92,8 @@ function streakLength(qualifyingDays: ReadonlyMap<number, unknown>, day: number)
 /** Render the local preview without reading or changing player stats. */
 export function DashboardDemo() {
   const { preference, setPreference } = useTheme();
+  const { identity, account } = useAccountIdentity();
+  const actor = account.data === undefined ? undefined : identity;
   const [scenario, setScenario] = useState<keyof typeof scenarios>("active");
   const { through, days: count } = scenarios[scenario];
   const events: ActivityEvent[] = Array.from({ length: count }, (_, index) => ({
@@ -196,7 +190,11 @@ export function DashboardDemo() {
 
         <div className="dashboard-columns">
           <div className="dashboard-main">
-            <DashboardRecommendations items={recommendations} />
+            <PracticeRecommendations
+              key={actor}
+              actor={actor}
+              scope={{ type: defaultCatalogFormat }}
+            />
             <section
               className="dashboard-panel dashboard-odyssey"
               aria-labelledby="dashboard-odyssey-title"
