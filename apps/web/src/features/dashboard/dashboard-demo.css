@@ -317,3 +317,29 @@
     flex-direction: column;
   }
 }
+
+.dashboard-solved-topics {
+  margin-top: var(--space-4);
+}
+.dashboard-solved-topics h3 {
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.dashboard-demo .dashboard-solved-topics ol,
+.dashboard-demo .dashboard-solved-topics p {
+  margin-top: var(--space-2);
+}
+.dashboard-solved-topics ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.dashboard-solved-topics .topic-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dashboard-solved-topics strong {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}

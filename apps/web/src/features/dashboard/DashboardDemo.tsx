@@ -54,6 +54,11 @@ const difficulty = [
   { label: "Medium", count: 20, tone: "warning" },
   { label: "Hard", count: 4, tone: "error" },
 ] as const;
+const mostSolvedTopics = [
+  { topic: "Binary Trees", count: 12 },
+  { topic: "Sliding Window", count: 9 },
+  { topic: "Linked List", count: 7 },
+] as const;
 const matchRecord = [
   { label: "Wins", count: 14, tone: "success" },
   { label: "Draws", count: 3, tone: "neutral" },
@@ -249,6 +254,25 @@ export function DashboardDemo() {
                 label="Solved problems by difficulty"
                 items={isNew ? difficulty.map((item) => ({ ...item, count: 0 })) : difficulty}
               />
+              <section
+                className="dashboard-solved-topics"
+                aria-labelledby="dashboard-solved-topics-title"
+              >
+                <h3 id="dashboard-solved-topics-title">Most solved topics</h3>
+                {isNew ? (
+                  <p className="dashboard-caption">Solve a problem to start tracking topics.</p>
+                ) : (
+                  <ol>
+                    {mostSolvedTopics.map(({ topic, count }) => (
+                      <li key={topic}>
+                        <Link className="topic-chip" to="/practice" search={{ topic }}>
+                          {topic} <strong>{count}</strong>
+                        </Link>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </section>
             </section>
 
             <section
