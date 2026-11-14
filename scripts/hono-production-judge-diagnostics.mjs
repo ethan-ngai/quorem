@@ -178,8 +178,23 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
      ORDER BY a.claimed_at DESC LIMIT 20`,
     [matchId, namespace.scope],
   );
+  return probeSandboxes(rows, keys, namespace);
+}
+
+/** Inspect only benchmark attempts from the currently active sandbox scope. */
+export async function probeBenchmarkSandboxes(database, keys, namespace, start) {
+  const { benchmarkTimingRows } = await import("./hono-production-benchmark-timing.mjs");
+  const rows = await benchmarkTimingRows(database, new Date(start));
+  return probeSandboxes(
+    rows.filter((row) => row.sandbox_scope === namespace.scope),
+    keys,
+    namespace,
+  );
+}
+
+async function probeSandboxes(rows, keys, namespace) {
   const diagnostics = [];
-  for (const { attempt_id, claimed_at } of rows) {
+  for (const { attempt_id, claimed_at, claimed, claimToFinalMs } of rows) {
     const response = await fetch(`https://case-hono.quorem.app/internal/case/${attempt_id}`, {
       headers: {
         authorization: `Bearer ${keys.QUOREM_CASE_SECRET}`,
@@ -234,7 +249,8 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
     }
     diagnostics.push({
       attemptId: attempt_id,
-      claimedAt: claimed_at,
+      claimedAt: claimed_at ?? claimed,
+      claimToFinalMs,
       status: response.status,
       phase: field("phase"),
       failure: field("failure"),

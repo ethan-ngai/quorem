@@ -30,6 +30,10 @@ on:
         description: Read authenticated diagnostics for the match's failed sandbox attempts
         type: boolean
         default: false
+      probe_benchmark_sandboxes:
+        description: Read authenticated sandbox timing for benchmark_start
+        type: boolean
+        default: false
       replay_match:
         description: Replay the published suite in a disposable production match
         type: boolean
@@ -96,7 +100,7 @@ jobs:
           QUOREM_DATABASE_LOAD: "true"
         run: python3 scripts/profile-production-sql.py
   sql:
-    if: ${{ inputs.match_id != '' || inputs.sql || (inputs.benchmark_start != '' && !inputs.hyperdrive) }}
+    if: ${{ inputs.match_id != '' || inputs.sql || (inputs.benchmark_start != '' && !inputs.hyperdrive && !inputs.probe_benchmark_sandboxes) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -116,7 +120,7 @@ jobs:
           QUOREM_DIAGNOSTIC_MATCH_ID: ${{ inputs.match_id }}
         run: python3 scripts/profile-production-sql.py
   benchmark:
-    if: github.ref == 'refs/heads/dev' && (inputs.benchmark || inputs.workload || inputs.diagnostics || ((inputs.probe_match_sandboxes || inputs.replay_match) && inputs.match_id != ''))
+    if: github.ref == 'refs/heads/dev' && ((inputs.probe_benchmark_sandboxes && inputs.benchmark_start != '') || inputs.benchmark || inputs.workload || inputs.diagnostics || ((inputs.probe_match_sandboxes || inputs.replay_match) && inputs.match_id != ''))
     runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
@@ -124,6 +128,7 @@ jobs:
       JUDGING_WORKLOAD: ${{ inputs.workload }}
       JUDGING_DIAGNOSTICS: ${{ inputs.diagnostics }}
       QUOREM_REPLAY_MATCH: ${{ inputs.replay_match && inputs.match_id || '' }}
+      QUOREM_SANDBOX_PROBE_BENCHMARK: ${{ inputs.probe_benchmark_sandboxes && inputs.benchmark_start || '' }}
       QUOREM_SANDBOX_PROBE_MATCH: ${{ inputs.probe_match_sandboxes && inputs.match_id || '' }}
       BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

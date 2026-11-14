@@ -227,6 +227,32 @@ void test("cancellation while replacing an allocation prevents restart and execu
   assert.equal(container.running, false);
 });
 
+void test("a pending provider inspection cannot delay the allocation retry", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const f = fixture();
+  const sandbox = newSandbox(f.context);
+  const container = f.context.container;
+  const { promise: inspecting, resolve: inspectStarted } = Promise.withResolvers();
+  const { promise: result, reject: rejectInspection } = Promise.withResolvers();
+  container.inspect = () => {
+    inspectStarted();
+    return result;
+  };
+  const start = t.mock.method(container, "start");
+  const destroy = t.mock.method(container, "destroy");
+  const response = await sandbox.fetch(request());
+  const body = response.arrayBuffer();
+  await inspecting;
+  t.mock.timers.tick(3999);
+  assert.equal(destroy.mock.callCount(), 0);
+  t.mock.timers.tick(1);
+  await body;
+  assert.equal(destroy.mock.callCount(), 1);
+  assert.equal(start.mock.callCount(), 2);
+  rejectInspection(new Error("Late provider failure"));
+  assert.equal((await sandbox.fetch(request("DELETE", { "x-case-token": "" }))).status, 204);
+});
+
 void test("case cancellation targets only its launcher cgroup", async () => {
   const f = fixture();
   const sandbox = newSandbox(f.context);

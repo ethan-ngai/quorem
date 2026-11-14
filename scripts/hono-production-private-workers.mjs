@@ -100,6 +100,17 @@ async function rollout(env, benchmarkOnly) {
         ),
       };
     }
+    if (benchmarkOnly && env.QUOREM_SANDBOX_PROBE_BENCHMARK) {
+      const { probeBenchmarkSandboxes } = await import("./hono-production-judge-diagnostics.mjs");
+      return {
+        sandboxDiagnostics: await probeBenchmarkSandboxes(
+          db,
+          keys,
+          namespace,
+          env.QUOREM_SANDBOX_PROBE_BENCHMARK,
+        ),
+      };
+    }
     const controls = (targetRelease, bindings) =>
       stageControls({
         namespace: namespace.namespace,
