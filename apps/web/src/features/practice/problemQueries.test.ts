@@ -149,7 +149,7 @@ it("never shares private catalog details with another account or the public cach
   auth.actor = "account-b";
   await expect(
     cache.fetchQuery(problemQueryOptions(cache, actor("account-b"), privateProblem.slug)),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ status: 404 });
   expect(
     cache.getQueryData(
       problemQueryOptions(cache, actor("account-a"), privateProblem.slug).queryKey,
@@ -157,7 +157,7 @@ it("never shares private catalog details with another account or the public cach
   ).toEqual(privateProblem);
   await expect(
     cache.fetchQuery(problemQueryOptions(cache, "anonymous", privateProblem.slug)),
-  ).rejects.toThrow();
+  ).rejects.toMatchObject({ status: 404 });
 });
 
 it("can reuse a proven public question when the account resolves", async () => {

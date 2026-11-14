@@ -19,6 +19,8 @@ import { useLocalEditorPreferences } from "../settings/useLocalEditorPreferences
 import { WorkspaceCompletion } from "../completion/WorkspaceCompletion";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { userFacingErrorMessage } from "../../ui/errors";
+import { ApiError } from "../../api/client";
+import { NotFoundPage } from "../public/NotFoundPage";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { workspaceShortcuts } from "./workspaceShortcuts";
 import {
@@ -627,6 +629,13 @@ export function WorkspacePage({
       matchWorkspaceId,
       loaded: !loading,
     });
+  if (
+    !match &&
+    problemOptions.enabled &&
+    problemQuery.error instanceof ApiError &&
+    problemQuery.error.status === 404
+  )
+    return <NotFoundPage />;
   if (!problem || !workspace) {
     if (!loadError) return <LoadingScreen />;
     return (
