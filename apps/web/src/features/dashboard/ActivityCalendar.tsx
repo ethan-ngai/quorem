@@ -27,7 +27,7 @@ const periods = [30, 90, activityHistoryDays].map((days) => ({
   label: `${days} days`,
 }));
 
-const dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "long" });
+const dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "full" });
 const monthLabel = new Intl.DateTimeFormat(undefined, { month: "short" });
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
