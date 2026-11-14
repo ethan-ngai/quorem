@@ -1,6 +1,6 @@
 /** @file ActivityCalendar.tsx @description Daily practice and match activity in the dashboard preview. @module dashboard */
 import { useState, type CSSProperties } from "react";
-import { BookOpen, Swords } from "lucide-react";
+import { BookOpen, Flame, Swords } from "lucide-react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import "./activity-calendar.css";
 
@@ -54,6 +54,7 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
     const counts = activity.get(offset) ?? { practice: 0, matches: 0 };
     return { offset, date, ...counts, total: counts.practice + counts.matches };
   });
+  const activeDays = days.filter(({ total }) => total > 0).length;
   const activeDay = Math.max(selected, 1 - range);
   const detail = days[activeDay + range - 1];
 
@@ -79,8 +80,12 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
       <div className="activity-calendar-header">
         <div>
           <h2 id="activity-calendar-title">Activity calendar</h2>
-          <p className="dashboard-caption">
-            {days.filter(({ total }) => total > 0).length} active days · Sample data
+          <p className="dashboard-caption activity-calendar-active-days">
+            <Flame size={14} aria-hidden="true" />
+            <span>
+              {activeDays} {activeDays === 1 ? "day" : "days"}
+            </span>
+            <span className="sr-only">with activity. Sample data.</span>
           </p>
         </div>
         <SegmentedControl

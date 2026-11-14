@@ -5,6 +5,7 @@
   border-radius: var(--radius-lg);
 }
 .activity-calendar-header,
+.activity-calendar-active-days,
 .activity-calendar-detail,
 .activity-calendar-detail > span {
   display: flex;
@@ -15,6 +16,9 @@
 .activity-calendar-header {
   align-items: stretch;
   flex-direction: column;
+}
+.activity-calendar-active-days {
+  gap: var(--space-1);
 }
 .activity-calendar .activity-calendar-range {
   margin-top: var(--space-3);
