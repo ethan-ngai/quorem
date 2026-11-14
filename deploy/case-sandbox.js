@@ -205,16 +205,25 @@ export class CaseSandbox extends DurableObject {
     const retryAt = Date.now() + PYTHON_ALLOCATION_RETRY_MS;
     let pause = 25;
     for (;;) {
-      const allocation = await container.inspect();
+      const remaining = retryAt - Date.now();
+      if (remaining <= 0) break;
+      // The provider can hold inspect() past the allocation deadline.
+      let timer;
+      const allocation = await Promise.race([
+        container.inspect(),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(null), remaining);
+        }),
+      ]).finally(() => clearTimeout(timer));
       if (this.cancelled) throw new Error("Attempt cancelled");
       if (allocation?.image === image) {
         startup.allocationMs = Math.round(performance.now() - allocationBegan);
         return;
       }
       if (allocation?.image) throw new Error("Case image changed");
-      const remaining = retryAt - Date.now();
-      if (remaining <= 0) break;
-      await new Promise((resolve) => setTimeout(resolve, Math.min(pause, remaining)));
+      const wait = retryAt - Date.now();
+      if (wait <= 0) break;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(pause, wait)));
       pause = Math.min(pause * 2, 250);
     }
     const destroying = performance.now();
