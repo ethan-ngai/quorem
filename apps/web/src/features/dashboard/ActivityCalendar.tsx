@@ -28,6 +28,11 @@ const periods = [30, 90, activityHistoryDays].map((days) => ({
 }));
 
 const dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "full" });
+const compactDateLabel = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
 const monthLabel = new Intl.DateTimeFormat(undefined, { month: "short" });
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
@@ -54,6 +59,11 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
 
   const firstWeekday = days[0].date.getDay();
   const weeks = Math.ceil((firstWeekday + range) / 7);
+  const compactDateLabel = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
   const monthLabels = new Map<number, string>();
   const spansYears = days[0].date.getFullYear() !== current.getFullYear();
   const yearLabels = new Map<number, string>();
@@ -140,10 +150,14 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
         </div>
       </div>
       <p className="activity-calendar-detail" aria-live="polite">
-        <strong>{dateLabel.format(detail.date)}</strong>
+        <strong className="activity-calendar-date-full">{dateLabel.format(detail.date)}</strong>
+        <strong className="activity-calendar-date-compact">
+          {compactDateLabel.format(detail.date)}
+        </strong>
         {describeDay(detail).map(({ count, label, Icon }) => (
           <span key={label}>
-            <Icon size={14} aria-hidden="true" /> {count} {label}
+            <Icon size={14} aria-hidden="true" />
+            {`${count} ${label}`}
           </span>
         ))}
       </p>

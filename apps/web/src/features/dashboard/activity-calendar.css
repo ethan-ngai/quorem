@@ -6,7 +6,7 @@
 }
 .activity-calendar-header,
 .activity-calendar-detail,
-.activity-calendar-detail span {
+.activity-calendar-detail > span {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -80,4 +80,23 @@
 .activity-calendar-detail {
   color: var(--color-text-secondary);
   font-size: var(--text-label);
+}
+
+.activity-calendar-detail > span {
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.activity-calendar-date-compact {
+  display: none;
+}
+
+@media (max-width: 460px) {
+  .activity-calendar-date-full {
+    display: none;
+  }
+  .activity-calendar-date-compact {
+    display: inline;
+  }
 }
