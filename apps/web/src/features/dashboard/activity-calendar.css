@@ -30,8 +30,14 @@
 }
 .activity-calendar-chart {
   --activity-gap: 3px;
-  --activity-tile-max: clamp(24px, 4vw, 36px);
+  --activity-tile-max: clamp(24px, 4vw, var(--activity-tile-limit, 36px));
   margin-block: var(--space-2) var(--space-3);
+}
+.activity-calendar[data-period="30"] {
+  --activity-tile-limit: 32px;
+}
+.activity-calendar[data-period="90"] {
+  --activity-tile-limit: 28px;
 }
 .activity-calendar-labels,
 .activity-calendar-grid {
