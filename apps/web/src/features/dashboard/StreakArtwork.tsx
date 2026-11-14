@@ -27,7 +27,6 @@ export function StreakArtwork({ active }: { active: boolean }) {
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
       </defs>
-      <circle className="shockwave" cx="50" cy="80" r="0" fill="none" stroke="#ea580c" />
       <g>
         <circle className="spark" cx="40" cy="80" r="1.5" fill="#fde047" />
         <circle className="spark" cx="65" cy="75" r="1" fill="#f59e0b" />
@@ -64,7 +63,6 @@ export function StreakArtwork({ active }: { active: boolean }) {
           <stop offset="100%" stopColor="#0f172a" />
         </linearGradient>
       </defs>
-      <circle className="puff" cx="50" cy="90" r="0" fill="#64748b" />
       <g filter={`url(#smokeSoftness-${id})`}>
         <path
           className="wisp wisp-1"
