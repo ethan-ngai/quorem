@@ -257,13 +257,14 @@ it.each([
     expect(container.textContent).toContain(
       action === "revoke" ? "You offered a draw" : "Bob offered a draw",
     );
-    expect(container.textContent).toContain("1 of 2 accepted");
     expect(container.textContent).not.toContain(action === "revoke" ? "Decline" : "Revoke offer");
     await act(async () =>
       container.querySelector<HTMLButtonElement>('button[aria-label="Draw"]')!.click(),
     );
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("1 of 2 accepted");
+    expect(dialog.textContent).toContain(
+      action === "revoke" ? "You offered a draw" : "Bob offered a draw",
+    );
     await act(async () =>
       [...dialog.querySelectorAll("button")]
         .find((button) => button.textContent?.trim() === label)!

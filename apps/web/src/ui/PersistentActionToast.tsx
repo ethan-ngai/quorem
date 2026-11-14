@@ -54,7 +54,9 @@ export function PersistentActionToast({
         duration: Infinity,
         dismissible: false,
         closeButton: false,
-        description: <div className="persistent-action-toast">{children}</div>,
+        description: children ? (
+          <div className="persistent-action-toast">{children}</div>
+        ) : undefined,
       },
     );
   }, [id, title, children, minimized, hidden, noun, icon, onMinimize]);

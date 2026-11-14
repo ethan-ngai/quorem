@@ -33,54 +33,47 @@ export function DrawOfferControl({
         ? "You offered a draw"
         : `${offer.name} offered a draw`
       : "Offer a draw?";
-  const details = (
-    <>
-      <p className="persistent-action-toast-meta" role="status">
-        {accepted ? "2 of 2 accepted" : offer ? "1 of 2 accepted" : "0 of 2 accepted"}
-      </p>
-      {!accepted && (
-        <div className="persistent-action-toast-actions">
-          {!offer ? (
-            <button
-              type="button"
-              className="button button-primary"
-              disabled={pending}
-              onClick={onOffer}
-            >
-              {icon} Offer draw
-            </button>
-          ) : offer.own ? (
-            <button
-              type="button"
-              className="button button-secondary"
-              disabled={pending}
-              onClick={() => onRespond("revoke", offer.id)}
-            >
-              <Undo2 size={14} aria-hidden="true" /> Revoke offer
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="button button-primary"
-                disabled={pending}
-                onClick={() => onRespond("accept", offer.id)}
-              >
-                <Check size={14} aria-hidden="true" /> Accept draw
-              </button>
-              <button
-                type="button"
-                className="button button-secondary"
-                disabled={pending}
-                onClick={() => onRespond("decline", offer.id)}
-              >
-                <X size={14} aria-hidden="true" /> Decline
-              </button>
-            </>
-          )}
-        </div>
+  const details = !accepted && (
+    <div className="persistent-action-toast-actions">
+      {!offer ? (
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={pending}
+          onClick={onOffer}
+        >
+          {icon} Offer draw
+        </button>
+      ) : offer.own ? (
+        <button
+          type="button"
+          className="button button-secondary"
+          disabled={pending}
+          onClick={() => onRespond("revoke", offer.id)}
+        >
+          <Undo2 size={14} aria-hidden="true" /> Revoke offer
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="button button-primary"
+            disabled={pending}
+            onClick={() => onRespond("accept", offer.id)}
+          >
+            <Check size={14} aria-hidden="true" /> Accept draw
+          </button>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={pending}
+            onClick={() => onRespond("decline", offer.id)}
+          >
+            <X size={14} aria-hidden="true" /> Decline
+          </button>
+        </>
       )}
-    </>
+    </div>
   );
   return (
     <Popover.Root
@@ -107,7 +100,7 @@ export function DrawOfferControl({
               {title}
             </span>
           </div>
-          <div className="persistent-action-toast">{details}</div>
+          {details && <div className="persistent-action-toast">{details}</div>}
         </Popover.Content>
       </Popover.Portal>
       {noticeId && (
