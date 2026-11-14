@@ -1,5 +1,6 @@
 /** @file ActivityCalendar.tsx @description Daily practice and match activity in the dashboard preview. @module dashboard */
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { BookOpen, Flame, Swords } from "lucide-react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { DashboardStreak } from "./DashboardHighlights";
@@ -53,6 +54,28 @@ export function ActivityCalendar({
 }) {
   const [period, setPeriod] = useState(String(activityHistoryDays));
   const [selected, setSelected] = useState(0);
+  const rangeTransition = useRef<ViewTransition>(null);
+
+  function changePeriod(next: string) {
+    if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPeriod(next);
+      return;
+    }
+
+    const root = document.documentElement;
+    root.classList.add("activity-range-transition");
+    // Commit the new grid before the browser captures its positions.
+    const transition = document.startViewTransition(() => flushSync(() => setPeriod(next)));
+    rangeTransition.current = transition;
+
+    const cleanup = () => {
+      if (rangeTransition.current !== transition) return;
+      rangeTransition.current = null;
+      root.classList.remove("activity-range-transition");
+    };
+    void transition.finished.then(cleanup, cleanup);
+  }
+
   const range = Number(period);
   const current = new Date();
   const days = Array.from({ length: range }, (_, index) => {
@@ -90,7 +113,7 @@ export function ActivityCalendar({
             <h2 id="activity-calendar-title">Activity calendar</h2>
             <p className="dashboard-caption activity-calendar-active-days">
               <Flame size={14} aria-hidden="true" />
-              <span>
+              <span className="activity-calendar-count">
                 {activeDays} {activeDays === 1 ? "day" : "days"}
               </span>
               <span className="sr-only">with activity. Sample data.</span>
@@ -102,7 +125,7 @@ export function ActivityCalendar({
           label="Activity period"
           value={period}
           options={periods}
-          onChange={setPeriod}
+          onChange={changePeriod}
         />
       </div>
       <p className="activity-calendar-range">{shortDate.formatRange(days[0].date, current)}</p>
@@ -110,19 +133,21 @@ export function ActivityCalendar({
         className="activity-calendar-chart"
         style={{ "--activity-weeks": weeks } as CSSProperties}
       >
-        {(spansYears ? [yearLabels, monthLabels] : [monthLabels]).map((labels) => (
-          <div
-            key={labels === yearLabels ? "years" : "months"}
-            className="activity-calendar-labels"
-            aria-hidden="true"
-          >
-            {[...labels].map(([week, label]) => (
-              <span key={week} style={{ gridColumn: week }} data-last={week === weeks}>
-                {label}
-              </span>
-            ))}
-          </div>
-        ))}
+        <div className="activity-calendar-labels-group">
+          {(spansYears ? [yearLabels, monthLabels] : [monthLabels]).map((labels) => (
+            <div
+              key={labels === yearLabels ? "years" : "months"}
+              className="activity-calendar-labels"
+              aria-hidden="true"
+            >
+              {[...labels].map(([week, label]) => (
+                <span key={week} style={{ gridColumn: week }} data-last={week === weeks}>
+                  {label}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
         <div
           className="activity-calendar-grid"
           role="group"

@@ -115,3 +115,62 @@
     display: inline;
   }
 }
+
+:root.activity-range-transition {
+  view-transition-name: none;
+}
+
+.activity-range-transition::view-transition {
+  pointer-events: none;
+}
+
+.activity-range-transition::view-transition-group(*) {
+  animation-duration: var(--motion-standard);
+  animation-timing-function: var(--motion-easing);
+}
+
+.activity-range-transition .activity-calendar {
+  view-transition-name: activity-calendar;
+}
+
+.activity-range-transition .activity-calendar-header {
+  view-transition-name: activity-calendar-header;
+}
+
+.activity-range-transition .activity-calendar-count {
+  view-transition-name: activity-calendar-count;
+}
+
+.activity-range-transition .activity-calendar-range {
+  view-transition-name: activity-calendar-range;
+}
+
+.activity-range-transition .activity-calendar-detail {
+  view-transition-name: activity-calendar-detail;
+}
+
+.activity-range-transition .activity-calendar-labels-group {
+  view-transition-name: activity-calendar-labels;
+}
+
+.activity-range-transition .activity-calendar-grid {
+  view-transition-name: activity-calendar-grid;
+}
+
+.activity-range-transition [aria-labelledby="dashboard-odyssey-title"] {
+  view-transition-name: activity-calendar-odyssey;
+}
+
+.activity-range-transition::view-transition-old(activity-calendar-header) {
+  display: none;
+}
+
+.activity-range-transition::view-transition-new(activity-calendar-header) {
+  animation: none;
+}
+
+@media (max-width: 760px) {
+  .activity-range-transition .dashboard-progress {
+    view-transition-name: activity-calendar-progress;
+  }
+}
