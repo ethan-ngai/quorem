@@ -1,0 +1,85 @@
+.activity-calendar {
+  margin-block: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.activity-calendar-header,
+.activity-calendar-controls,
+.activity-calendar-controls form,
+.activity-calendar-footer,
+.activity-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.activity-calendar-header,
+.activity-calendar-footer {
+  justify-content: space-between;
+}
+.activity-calendar-controls input {
+  width: 72px;
+}
+.activity-calendar-chart {
+  --activity-cell: clamp(7px, 2vw, 18px);
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: var(--space-1) var(--space-2);
+  margin-block: var(--space-3);
+  padding: var(--space-1);
+  overflow: auto;
+}
+.activity-calendar-months,
+.activity-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--activity-weeks), var(--activity-cell));
+  gap: 3px;
+}
+.activity-calendar-months {
+  grid-column: 2;
+  min-height: 1lh;
+}
+.activity-calendar-weekdays {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.activity-calendar-grid {
+  grid-template-rows: repeat(7, var(--activity-cell));
+}
+.activity-calendar-grid button,
+.activity-calendar-legend span {
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--activity-fill, var(--color-control-selected));
+}
+.activity-calendar-grid button {
+  padding: 0;
+  cursor: pointer;
+}
+.activity-calendar-grid button[aria-pressed="true"] {
+  border-color: var(--color-text);
+}
+.activity-calendar [data-level="1"] {
+  --activity-fill: color-mix(in oklch, var(--color-primary) 25%, var(--color-surface));
+}
+.activity-calendar [data-level="2"] {
+  --activity-fill: color-mix(in oklch, var(--color-primary) 48%, var(--color-surface));
+}
+.activity-calendar [data-level="3"] {
+  --activity-fill: color-mix(in oklch, var(--color-primary) 73%, var(--color-surface));
+}
+.activity-calendar [data-level="4"] {
+  --activity-fill: var(--color-primary);
+}
+.activity-calendar-months,
+.activity-calendar-weekdays,
+.activity-calendar-footer {
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.activity-calendar-legend span {
+  width: 10px;
+  height: 10px;
+}

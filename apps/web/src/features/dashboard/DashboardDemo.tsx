@@ -12,6 +12,12 @@ import {
   DashboardQuestionMetadata,
   DashboardStreak,
 } from "./DashboardHighlights";
+import {
+  ActivityCalendar,
+  activityHistoryDays,
+  summarizeActivity,
+  type ActivityEvent,
+} from "./ActivityCalendar";
 import "./dashboard-demo.css";
 
 const today = 0;
@@ -29,19 +35,18 @@ const scenarioOptions = [
   { value: "new", label: "New player" },
 ];
 
-type StreakEvent = {
-  day: number;
-  kind: "matchPlayed" | "practiceAccepted" | "practiceRejected";
-};
+const sampleHistory: ActivityEvent[] = Array.from(
+  { length: activityHistoryDays - 10 },
+  (_, index) => {
+    const day = -10 - index;
+    const count = ((index * 41) ^ (index >> 1)) % 7;
+    return Array.from({ length: Math.max(0, count - 2) }, (_, event) => ({
+      day,
+      kind: (index + event) % 3 === 0 ? ("matchPlayed" as const) : ("practiceAccepted" as const),
+    }));
+  },
+).flat();
 
-/** Each calendar day counts once even when a player submits or plays repeatedly. */
-function qualifyingDaysFor(events: StreakEvent[]) {
-  return new Set(
-    events
-      .filter(({ kind }) => kind === "matchPlayed" || kind === "practiceAccepted")
-      .map(({ day }) => day),
-  );
-}
 const recommendations = [
   { slug: "segment-sums", title: "Segment Sums", difficulty: "medium", tags: ["Linked List"] },
   {
@@ -85,7 +90,7 @@ const matches = [
 ] as const;
 
 /** Count distinct qualifying calendar days, allowing today to remain open until midnight. */
-function streakLength(qualifyingDays: Set<number>, day: number) {
+function streakLength(qualifyingDays: ReadonlyMap<number, unknown>, day: number) {
   let cursor = qualifyingDays.has(day) ? day : day - 1;
   const start = cursor;
   while (qualifyingDays.has(cursor)) cursor--;
@@ -97,12 +102,12 @@ export function DashboardDemo() {
   const { preference, setPreference } = useTheme();
   const [scenario, setScenario] = useState<keyof typeof scenarios>("active");
   const { through, days: count } = scenarios[scenario];
-  const events: StreakEvent[] = Array.from({ length: count }, (_, index) => ({
+  const events: ActivityEvent[] = Array.from({ length: count }, (_, index) => ({
     day: through - index,
     kind: index % 3 === 1 ? "matchPlayed" : "practiceAccepted",
   }));
   if (scenario === "pending") events.push({ day: today, kind: "practiceRejected" });
-  const qualifyingDays = qualifyingDaysFor(events);
+  const qualifyingDays = summarizeActivity(scenario === "new" ? [] : [...sampleHistory, ...events]);
   const isNew = scenario === "new";
   const doneToday = qualifyingDays.has(today);
   const length = streakLength(qualifyingDays, today);
@@ -186,6 +191,8 @@ export function DashboardDemo() {
           </section>
           <DashboardStreak days={length} />
         </div>
+
+        <ActivityCalendar activity={qualifyingDays} />
 
         <div className="dashboard-columns">
           <div className="dashboard-main">
