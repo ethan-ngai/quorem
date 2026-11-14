@@ -302,6 +302,12 @@ void test("completed review is participant-only, latest-round and frozen-sharing
   );
 });
 void test("retention holds latest source during delayed settlement and releases it after expiry", async () => {
+  const party = crypto.randomUUID();
+  await pool.query(
+    "INSERT INTO parties(id,host_owner_id,invite_hash,settings) VALUES($1,'review-a','retention-party','{}')",
+    [party],
+  );
+  await pool.query("UPDATE matches SET party_id=$2 WHERE id=$1", [ids.match, party]);
   await pool.query("UPDATE users SET kind='guest' WHERE id='review-b'");
   await retainBatch(run);
   assert.equal(
@@ -320,6 +326,7 @@ void test("retention holds latest source during delayed settlement and releases 
     (await pool.query("SELECT source FROM submissions WHERE id=$1", [ids.last])).rows[0].source,
     "",
   );
+  await pool.query("UPDATE users SET kind='account' WHERE id='review-b'");
 });
 
 void test("party guest is restricted to participated rounds and live credentials", async () => {
@@ -392,6 +399,14 @@ void test("party guest is restricted to participated rounds and live credentials
     JSON.parse(await repo.read(guest, second)).participants[1].submission.source,
     "shared-source",
   );
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT 1 FROM question_exposure WHERE owner_id IN ('review-guest','review-new')",
+      )
+    ).rowCount,
+    0,
+  );
   const newcomerId = (await pool.query("SELECT participant_id FROM users WHERE id='review-new'"))
     .rows[0].participant_id as string;
   const scratch = await repo.createWorkspace(guest, second, newcomerId, "python");
@@ -443,6 +458,32 @@ void test("party guest is restricted to participated rounds and live credentials
     "UPDATE guest_sessions SET revoked_at=NULL,expires_at=now()-interval '1 second' WHERE token_hash='review-guest-token'",
   );
   assert.equal(await allowed(guest, second), false);
+  await pool.query(
+    "UPDATE guest_sessions SET expires_at=now()+interval '1 hour' WHERE party_id=$1",
+    [party],
+  );
+  await pool.query(
+    "UPDATE matches SET state='completed',completed_at=now(),outcome='{}' WHERE id=$1",
+    [second],
+  );
+  await pool.query("UPDATE parties SET disbanded_at=now() WHERE id=$1", [party]);
+  await assert.rejects(repo.read(guest, second), { status: 404 });
+  await assert.rejects(submissionSnapshots(run).read(guest, admitted.id), { status: 404 });
+  await retainBatch(run);
+  assert.equal((await pool.query("SELECT 1 FROM matches WHERE id=$1", [second])).rowCount, 1);
+  await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [admitted.id]);
+  await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [admitted.id]);
+  await retainBatch(run);
+  assert.equal((await pool.query("SELECT 1 FROM matches WHERE id=$1", [second])).rowCount, 0);
+  assert.equal(
+    (await pool.query("SELECT 1 FROM workspaces WHERE id=$1", [scratch.id])).rowCount,
+    0,
+  );
+  assert.equal(
+    (await pool.query("SELECT 1 FROM guest_sessions WHERE party_id=$1", [party])).rowCount,
+    0,
+  );
+  assert.equal((await pool.query("SELECT 1 FROM matches WHERE id=$1", [outsider])).rowCount, 1);
 });
 
 void test("review freezes editor code and uses the exact race-winning submission", async () => {

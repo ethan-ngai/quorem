@@ -383,6 +383,11 @@ void test(
         assert.equal(comparison.kind, "review");
       }
 
+      assert.equal(
+        (await json<MatchReview>(`/v1/matches/${lastRoundId}/review`, guest, undefined, "GET"))
+          .participants.length,
+        actors.length,
+      );
       const guestSession = await json<{ kind: string }>("/v1/session", guest, undefined, "GET");
       assert.equal(guestSession.kind, "guest");
       const bobSession = await json<{ user: { id: string } }>("/v1/session", bob, undefined, "GET");
@@ -401,11 +406,14 @@ void test(
         ).party,
         null,
       );
-      assert.equal(
-        (await json<MatchReview>(`/v1/matches/${lastRoundId}/review`, guest, undefined, "GET"))
-          .participants.length,
-        actors.length,
+      const closedReview = await response(
+        `/v1/matches/${lastRoundId}/review`,
+        guest,
+        undefined,
+        "GET",
       );
+      assert.equal(closedReview.status, 404);
+      await closedReview.body?.cancel();
     } finally {
       await fixture.close();
     }

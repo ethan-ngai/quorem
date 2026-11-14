@@ -334,6 +334,18 @@
     },
     {
       "method": "POST",
+      "path": "/v1/matches/{id}/decline-draw",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/matches/{id}/revoke-draw",
+      "packet": "20",
+      "contract": "packages/contracts/openapi/api.json"
+    },
+    {
+      "method": "POST",
       "path": "/v1/matches/{id}/leave",
       "packet": "20",
       "contract": "packages/contracts/openapi/api.json"

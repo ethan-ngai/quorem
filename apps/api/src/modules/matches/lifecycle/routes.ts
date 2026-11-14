@@ -88,14 +88,36 @@ export function matchLifecycleRoutes(deps: {
       await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", input.kind),
     );
   });
-  for (const action of ["leave", "forfeit", "offer-draw", "accept-draw"] as const)
+  for (const action of [
+    "leave",
+    "forfeit",
+    "offer-draw",
+    "accept-draw",
+    "decline-draw",
+    "revoke-draw",
+  ] as const)
     app.post(`/v1/matches/:id/${action}`, async (c) => {
       const who = await actor(c.req.raw),
         operation = key(c.req.raw),
         input = await jsonObjectBody(c.req.raw, 1024, { emptyObject: true });
-      if (Object.keys(input).length)
+      const responding =
+        action === "accept-draw" || action === "decline-draw" || action === "revoke-draw";
+      const offerId = responding && typeof input.offerId === "string" ? input.offerId : null;
+      if (
+        responding
+          ? Object.keys(input).length !== 1 ||
+            !offerId ||
+            !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(offerId)
+          : Object.keys(input).length !== 0
+      )
         throw new ApplicationError("invalid_input", "Invalid request body", 400);
-      const result = await deps.lifecycle.mutate(who, c.req.param("id"), operation, action, null);
+      const result = await deps.lifecycle.mutate(
+        who,
+        c.req.param("id"),
+        operation,
+        action,
+        offerId,
+      );
       if (
         action === "leave" &&
         who.kind === "guest" &&

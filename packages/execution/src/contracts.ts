@@ -196,6 +196,7 @@ export interface InputManifest {
   readonly level: number | null;
   readonly caseCount: number;
   readonly sampleCount: number;
+  /** Retain private console output for authorized detail views. */
   readonly privateDetails: boolean;
   readonly submitCasesAreSamples: boolean;
   readonly suiteHash: string;

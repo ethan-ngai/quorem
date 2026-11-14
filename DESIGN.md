@@ -69,6 +69,7 @@ All agents must apply this contract to UI planning, implementation, refactors an
 - Establish compact controls, readable line lengths and consistent heading/body/metadata hierarchy across views.
 - Use shared control colors for hover, selection and open triggers. Fade hover fills in place and keep selected radio choices stable on hover.
 - Use Geist for UI/prose; JetBrains Mono for code, parameters, identifiers, machine values and units. Disable code ligatures.
+- Show a single complexity inline with time and space icons. Show distinct bounds in two labeled panels that stack in narrow editors.
 - Render math with proper symbols and spacing. Keep literal brackets/punctuation neutral while values retain syntax colors.
 - Use white light-mode reading/editor surfaces, neutral controls, blue actions/focus and semantic colors with text/icons. Maintain contrast in both themes.
 - Preserve source, undo, selection, focus and scroll through appearance/layout changes. Reserve asynchronous status space while keeping related controls adjacent.

@@ -182,7 +182,10 @@ export function browserSocketObject<Env>(
         if (
           !Number.isSafeInteger(record.grant.expiresAt) ||
           record.grant.expiresAt * 1000 <= Date.now() ||
-          (record.grant.kind === "guest" && record.grant.resourceId !== record.resourceId)
+          // The match authority checks party scope and round membership before issuing a lease.
+          (record.grant.kind === "guest" &&
+            record.grant.resourceId !== record.resourceId &&
+            !(record.mode === "match" && record.grant.scope === "party"))
         )
           throw new IdentityError("unauthorized");
         if (new TextEncoder().encode(JSON.stringify(record)).length > 24 * 1024)

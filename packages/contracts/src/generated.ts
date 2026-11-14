@@ -232,6 +232,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/matches/{id}/decline-draw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["declineMatchDraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/matches/{id}/revoke-draw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["revokeMatchDraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/matches/{id}/leave": {
         parameters: {
             query?: never;
@@ -1757,8 +1789,7 @@ export interface components {
         };
         HiddenCaseResult: {
             index: number;
-            /** @enum {string} */
-            status: "accepted" | "wrong_answer" | "time_limit";
+            status: components["schemas"]["Verdict"];
         };
         Submission: {
             /** @description False when the viewer can read the submission but does not own it. */
@@ -1821,9 +1852,15 @@ export interface components {
             revealedAssistance?: ("topics" | "complexity")[];
             team?: number;
         };
+        DrawOfferResponse: {
+            /** Format: uuid */
+            offerId: string;
+        };
         MatchSnapshot: {
             /** Format: uuid */
             id: string;
+            /** Format: uuid */
+            drawOfferId?: string;
             /** Format: uuid */
             drawOfferUserId?: string;
             version: string;
@@ -3093,7 +3130,85 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawOfferResponse"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    declineMatchDraw: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawOfferResponse"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MatchSnapshot"];
+                };
+            };
+            /** @description Safe application error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revokeMatchDraw: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DrawOfferResponse"];
+            };
+        };
         responses: {
             /** @description Success */
             200: {

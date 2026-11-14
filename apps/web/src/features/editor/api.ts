@@ -14,10 +14,10 @@ import type {
 
 /** Loads the latest public immutable problem version for a slug. */
 export async function fetchProblem(identity: DevelopmentIdentity, slug: string) {
-  const { data, error } = await api(identity).GET("/v1/problems/{slug}", {
+  const { data, error, response } = await api(identity).GET("/v1/problems/{slug}", {
     params: { path: { slug } },
   });
-  return requireData(data as PublishedQuestion | undefined, error);
+  return requireData(data as PublishedQuestion | undefined, error, response.status);
 }
 
 /** Creates or reuses the owner's solo workspace for a problem version. */

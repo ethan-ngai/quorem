@@ -10,7 +10,7 @@ type Complexity = Pick<ApproachComplexity, "timeComplexity" | "spaceComplexity">
 export function ComplexityDetails({ label, value }: { label?: string; value: Complexity }) {
   return (
     <div className="editorial-complexity">
-      {label && <span>{label}</span>}
+      {label && <span className="editorial-complexity-label">{label}</span>}
       <dl>
         <div>
           <dt>
@@ -52,6 +52,22 @@ export function ComplexityDetails({ label, value }: { label?: string; value: Com
           />
         </div>
       )}
+    </div>
+  );
+}
+
+export function ComplexityBounds({
+  optimal,
+  accepted,
+}: {
+  optimal: Complexity;
+  accepted?: Complexity;
+}) {
+  if (!accepted) return <ComplexityDetails value={optimal} />;
+  return (
+    <div className="editorial-complexity-comparison">
+      <ComplexityDetails label="Optimal" value={optimal} />
+      <ComplexityDetails label="Least efficient accepted" value={accepted} />
     </div>
   );
 }

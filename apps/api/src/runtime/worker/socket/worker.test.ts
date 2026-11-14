@@ -286,6 +286,72 @@ it.skipIf(!database)(
   },
 );
 
+it.skipIf(!database)(
+  "streams a lobby guest's round through its party-scoped credential",
+  async () => {
+    const host = `party-host-${crypto.randomUUID()}`,
+      guest = `party-guest-${crypto.randomUUID()}`,
+      party = crypto.randomUUID(),
+      otherParty = crypto.randomUUID(),
+      round = crypto.randomUUID(),
+      otherRound = crypto.randomUUID(),
+      token = newGuestToken(),
+      hash = await guestTokenHash(token);
+    await run((scope) =>
+      scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+        await tx.execute(sql`INSERT INTO users(id,display_name,kind) VALUES
+        (${host},'Host','account'),(${guest},'Guest','guest')`);
+        await tx.execute(sql`INSERT INTO entitlement_grants(id,user_id,feature,source,source_ref,actor,reason)
+        VALUES(${crypto.randomUUID()}::uuid,${host},'matches.host_guests','manual','test','test','test')`);
+        for (const [partyId, matchId] of [
+          [party, round],
+          [otherParty, otherRound],
+        ]) {
+          await tx.execute(sql`INSERT INTO parties(id,host_owner_id,invite_hash,settings)
+          VALUES(${partyId}::uuid,${host},${crypto.randomUUID()},'{}')`);
+          await tx.execute(sql`INSERT INTO matches(id,party_id,host_owner_id,invite_hash,expires_at,duration_minutes,state,difficulties)
+          VALUES(${matchId}::uuid,${partyId}::uuid,${host},${crypto.randomUUID()},clock_timestamp()+interval '1 hour',30,'waiting',ARRAY['easy'])`);
+          await tx.execute(sql`INSERT INTO match_participants(match_id,owner_id,seat)
+          VALUES(${matchId}::uuid,${guest},1)`);
+        }
+        await tx.execute(sql`INSERT INTO guest_sessions(token_hash,owner_id,party_id,expires_at)
+        VALUES(${hash},${guest},${party}::uuid,clock_timestamp()+interval '1 hour')`);
+      }),
+    );
+    const connect = (id: string) =>
+      SELF.fetch(`https://worker.test/v1/matches/${id}/events?shard=${id}`, {
+        headers: {
+          upgrade: "websocket",
+          origin: "https://example.test",
+          "sec-websocket-protocol": "quorem",
+          cookie: `quorem_guest=${token}`,
+        },
+      });
+    expect((await connect(otherRound)).status).toBe(404);
+    const response = await connect(round);
+    expect(response.status).toBe(101);
+    const socket = response.webSocket!;
+    socket.accept();
+    try {
+      const frame = await new Promise<string>((resolve) =>
+        socket.addEventListener("message", (event: MessageEvent) => resolve(String(event.data)), {
+          once: true,
+        }),
+      );
+      const { receipt, payload } = JSON.parse(frame);
+      expect(payload).toMatchObject({
+        type: "match.updated",
+        aggregateId: round,
+        payload: { partyId: party, participants: [{ guest: true, presence: "online" }] },
+      });
+      socket.send(JSON.stringify({ type: "receipt", id: receipt }));
+    } finally {
+      socket.close();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  },
+);
+
 it.skipIf(!database)("rehydrates guest scope and closes after guest revocation", async () => {
   const host = `guest-host-${crypto.randomUUID()}`,
     guest = `guest-${crypto.randomUUID()}`,

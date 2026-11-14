@@ -55,6 +55,7 @@ it.each([
                   index: input.caseIndex,
                   status: "accepted",
                   actual: "private-actual",
+                  stdout: "private-console",
                 }),
               },
             }
@@ -74,7 +75,7 @@ it.each([
       state: "completed",
       score: { passed: 1, total: 2 },
       hiddenCases: [
-        { index: 0, status: "wrong_answer" },
+        { index: 0, status: "memory_limit" },
         { index: 1, status: "accepted" },
       ],
     } as Submission;
@@ -144,11 +145,14 @@ it.each([
       expect(container.textContent).toContain("private-case-input");
       expect(container.textContent).toContain("private-expected");
       expect(container.textContent).toContain("private-actual");
+      expect(container.querySelector('[aria-label="stdout"]')?.textContent).toBe("private-console");
       const locked = container.querySelector<HTMLButtonElement>(
-        '[aria-label="Hidden case 1: failed"]',
+        '[aria-label="Hidden case 1: memory limit"]',
       )!;
       await act(async () => locked.click());
+      expect(container.querySelector(".case-verdict")?.textContent).toBe("Memory limit");
       expect(container.textContent).not.toContain("private-case-input");
+      expect(container.querySelector('[aria-label="stdout"]')).toBeNull();
       await act(async () => caseButton.click());
       expect(container.textContent).toContain("private-case-input");
     }

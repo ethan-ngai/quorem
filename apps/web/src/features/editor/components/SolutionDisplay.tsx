@@ -32,7 +32,11 @@ export function SolutionDisplay({
 }) {
   const [localId, setLocalId] = useState<string>();
   const [languages, setLanguages] = useState<Record<string, string>>({});
-  const approach = selectApproach(approaches, selectedId ?? localId, canonicalApproachId);
+  const approach = selectApproach(
+    approaches,
+    selectedId ?? localId ?? approaches[0]?.id,
+    canonicalApproachId,
+  );
   if (!approach) return null;
   const variants = approach.implementations.filter((item) => item.source.trim());
   const code =

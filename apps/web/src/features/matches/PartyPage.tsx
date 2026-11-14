@@ -76,7 +76,7 @@ export function PartyPage() {
           party.members.some((member) => member.userId === assignment.userId),
         ),
       }));
-  const round = usePartyRoundNavigation(identity, party?.currentMatchId);
+  const waitingForNextRound = usePartyRoundNavigation(identity, party?.currentMatchId);
   const recovery =
     !pending &&
     party &&
@@ -352,9 +352,7 @@ export function PartyPage() {
               queueError={party.queueError}
             />
           )}
-          {party.currentMatchId && !round.entering && !round.checking && (
-            <p>A round is in progress. You can join the next round.</p>
-          )}
+          {waitingForNextRound && <p>A round is in progress. You can join the next round.</p>}
         </fieldset>
         {readinessActions}
         <fieldset className="lobby-command-lock" disabled={controlsPending && !pendingSettings}>
