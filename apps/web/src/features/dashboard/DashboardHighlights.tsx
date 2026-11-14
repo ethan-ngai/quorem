@@ -3,8 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Check, Clock3, Lightbulb, Swords } from "lucide-react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
-import fire from "./fire.svg";
-import embers from "./embers.svg";
+import { useState } from "react";
+import { StreakArtwork } from "./StreakArtwork";
 
 type Recommendation = {
   slug: string;
@@ -87,15 +87,52 @@ export function DashboardActivity({ items }: { items: readonly Activity[] }) {
 }
 
 export function DashboardStreak({ days }: { days: number }) {
+  const [replay, setReplay] = useState(0);
   return (
     <section className="dashboard-streak" aria-labelledby="dashboard-streak-title">
       <h2 id="dashboard-streak-title">Daily streak</h2>
       <div className="dashboard-streak-summary" aria-live="polite">
-        <img src={days ? fire : embers} alt="" width={64} height={64} />
+        <button
+          type="button"
+          className="button button-ghost dashboard-streak-art"
+          aria-label="Replay streak animation"
+          onClick={() => setReplay((count) => count + 1)}
+        >
+          <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
+        </button>
         <p className="dashboard-streak-number">
           <strong>{days}</strong> {days === 1 ? "day" : "days"}
         </p>
       </div>
     </section>
+  );
+}
+
+export function DashboardDistribution({
+  items,
+  label,
+}: {
+  items: readonly { label: string; count: number; tone: string }[];
+  label: string;
+}) {
+  return (
+    <>
+      <div className="dashboard-distribution" aria-hidden="true">
+        {items
+          .filter(({ count }) => count > 0)
+          .map(({ label, count, tone }) => (
+            <span key={label} data-tone={tone} style={{ flexGrow: count }} />
+          ))}
+      </div>
+      <ul className="dashboard-breakdown" aria-label={label}>
+        {items.map(({ label, count, tone }) => (
+          <li key={label}>
+            <span className="dashboard-dot" data-tone={tone} />
+            {label}
+            <strong>{count}</strong>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

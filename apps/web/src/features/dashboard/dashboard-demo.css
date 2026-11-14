@@ -147,13 +147,9 @@
   gap: var(--space-1);
 }
 .dashboard-activity-date,
-.dashboard-activity small,
-.dashboard-rows small {
+.dashboard-activity small {
   color: var(--color-text-secondary);
   font-size: var(--text-label);
-}
-.dashboard-rows small {
-  margin-inline-start: var(--space-2);
 }
 .dashboard-demo .dashboard-highlight-empty {
   margin-top: var(--space-2);
@@ -209,8 +205,22 @@
   gap: var(--space-3);
   margin-top: var(--space-1);
 }
-.dashboard-streak-summary img {
-  object-fit: contain;
+.dashboard-streak {
+  justify-self: start;
+  width: min(100%, 224px);
+}
+.dashboard-streak-art.button {
+  width: 68px;
+  height: 68px;
+  padding: 0;
+}
+.dashboard-streak-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.dashboard-demo [data-tone="neutral"] {
+  --dashboard-tone: var(--color-text-disabled);
 }
 .dashboard-streak-number {
   font-size: var(--text-small);
@@ -230,7 +240,7 @@
   color: var(--color-text);
   margin-right: var(--space-1);
 }
-.dashboard-solve-bar {
+.dashboard-distribution {
   display: flex;
   gap: 2px;
   height: 4px;
@@ -239,7 +249,7 @@
   overflow: hidden;
   margin-block: var(--space-3);
 }
-.dashboard-solve-bar span {
+.dashboard-distribution span {
   flex-basis: 0;
   opacity: 0.7;
 }
@@ -252,7 +262,7 @@
 .dashboard-demo [data-tone="error"] {
   --dashboard-tone: var(--color-error);
 }
-.dashboard-solve-bar span,
+.dashboard-distribution span,
 .dashboard-dot {
   background: var(--dashboard-tone);
 }
@@ -261,54 +271,20 @@
   height: 6px;
   border-radius: 50%;
 }
-.dashboard-difficulty,
-.dashboard-record {
+.dashboard-breakdown {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-3);
   font-size: 12px;
 }
-.dashboard-difficulty li {
+.dashboard-breakdown li {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   color: var(--color-text-secondary);
 }
-.dashboard-difficulty strong {
+.dashboard-breakdown strong {
   color: var(--color-text);
-}
-.dashboard-record {
-  align-items: baseline;
-}
-.dashboard-record .dashboard-caption {
-  margin-left: auto;
-  font-size: 11px;
-}
-.dashboard-demo .dashboard-rows {
-  margin-top: var(--space-2);
-}
-.dashboard-rows li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 49px 30px;
-  align-items: center;
-  gap: var(--space-2);
-  padding-block: var(--space-2);
-  font-size: 12px;
-}
-.dashboard-rows li + li {
-  border-top: 1px solid var(--color-border);
-}
-.dashboard-rows time {
-  color: var(--color-text-secondary);
-  text-align: end;
-}
-.dashboard-match-result {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.dashboard-match-result svg {
-  color: var(--dashboard-tone, var(--color-text-secondary));
 }
 @media (max-width: 760px) {
   .dashboard-columns {

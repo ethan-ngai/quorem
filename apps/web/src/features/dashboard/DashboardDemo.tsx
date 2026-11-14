@@ -1,23 +1,13 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { Link } from "@tanstack/react-router";
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  BookOpen,
-  Check,
-  Clock3,
-  Flag,
-  Minus,
-  Swords,
-  Users,
-} from "lucide-react";
+import { ArrowRight, BookOpen, Check, Clock3, Flag, Swords, Users } from "lucide-react";
 import { useState } from "react";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
   DashboardActivity,
+  DashboardDistribution,
   DashboardRecommendations,
   DashboardQuestionMetadata,
   DashboardStreak,
@@ -63,34 +53,34 @@ const recommendations = [
 ] as const;
 
 const difficulty = [
-  { label: "Easy", solved: 18, color: "success" },
-  { label: "Medium", solved: 20, color: "warning" },
-  { label: "Hard", solved: 4, color: "error" },
+  { label: "Easy", count: 18, tone: "success" },
+  { label: "Medium", count: 20, tone: "warning" },
+  { label: "Hard", count: 4, tone: "error" },
 ] as const;
+const matchRecord = [
+  { label: "Wins", count: 14, tone: "success" },
+  { label: "Draws", count: 3, tone: "neutral" },
+  { label: "Losses", count: 8, tone: "error" },
+];
+const matchTotal = matchRecord.reduce((total, { count }) => total + count, 0);
 const matches = [
   {
     mode: "Showdown",
     opponent: "Mira Chen",
     when: "Fri",
     result: "Win",
-    icon: ArrowUpRight,
-    tone: "success",
   },
   {
     mode: "Race",
     opponent: "3 players",
     when: "Thu",
     result: "Loss",
-    icon: ArrowDownRight,
-    tone: "error",
   },
   {
     mode: "Showdown",
     opponent: "Leo Park",
     when: "Tue",
     result: "Draw",
-    icon: Minus,
-    tone: "neutral",
   },
 ] as const;
 
@@ -269,21 +259,10 @@ export function DashboardDemo() {
               <p className="dashboard-total">
                 <strong>{isNew ? 0 : 42}</strong> unique problems
               </p>
-              <div className="dashboard-solve-bar" aria-hidden="true">
-                {!isNew &&
-                  difficulty.map(({ label, color, solved }) => (
-                    <span key={label} data-tone={color} style={{ flexGrow: solved }} />
-                  ))}
-              </div>
-              <ul className="dashboard-difficulty">
-                {difficulty.map(({ label, solved, color }) => (
-                  <li key={label}>
-                    <span className="dashboard-dot" data-tone={color} />
-                    {label}
-                    <strong>{isNew ? 0 : solved}</strong>
-                  </li>
-                ))}
-              </ul>
+              <DashboardDistribution
+                label="Solved problems by difficulty"
+                items={isNew ? difficulty.map((item) => ({ ...item, count: 0 })) : difficulty}
+              />
             </section>
 
             <section
@@ -302,33 +281,10 @@ export function DashboardDemo() {
                 <p className="dashboard-caption">Play your first match to build your record.</p>
               ) : (
                 <>
-                  <div className="dashboard-record">
-                    <span>
-                      <strong>14</strong> wins
-                    </span>
-                    <span>
-                      <strong>3</strong> draws
-                    </span>
-                    <span>
-                      <strong>8</strong> losses
-                    </span>
-                    <span className="dashboard-caption">Last 30 days</span>
-                  </div>
-                  <ul className="dashboard-rows" aria-label="Recent matches">
-                    {recentMatches.map(({ mode, opponent, when, result, icon: Icon, tone }) => (
-                      <li key={opponent}>
-                        <span>
-                          <strong>{mode}</strong>
-                          <small>{opponent}</small>
-                        </span>
-                        <span className="dashboard-match-result" data-tone={tone}>
-                          <Icon size={15} />
-                          {result}
-                        </span>
-                        <time>{when}</time>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="dashboard-total">
+                    <strong>{matchTotal}</strong> matches in the last 30 days
+                  </p>
+                  <DashboardDistribution items={matchRecord} label="Match outcomes" />
                 </>
               )}
             </section>
