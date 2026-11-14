@@ -91,6 +91,20 @@
   padding: var(--space-1);
 }
 
+.practice-recommendations[data-embedded] .practice-recommendation-slide {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.practice-recommendations[data-embedded] .practice-recommendation-title {
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.practice-recommendations[data-embedded] .practice-recommendation-actions {
+  justify-content: space-between;
+}
+
 .practice-recommendation-details {
   min-width: 0;
 }

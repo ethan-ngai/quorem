@@ -3,9 +3,9 @@ import { LoadingButton } from "../../ui/LoadingButton";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Lightbulb, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, EyeOff, Lightbulb, X } from "lucide-react";
 import { api } from "../../api/client";
-import { formatLabel } from "../../ui/formatLabel";
+import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
@@ -13,7 +13,6 @@ import type { CatalogSearch } from "./catalogSearch";
 import { catalogQueryOptions, type ProblemActor } from "./problemQueries";
 import { QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
-import "../../ui/difficulty.css";
 import "./practice-recommendations.css";
 
 const reasonLabels = {
@@ -173,13 +172,11 @@ export function PracticeRecommendations({
                       <QuestionHeading className="practice-recommendation-name">
                         {question.title}
                       </QuestionHeading>
-                      <span className={`difficulty-${question.difficulty}`}>
-                        {formatLabel(question.difficulty)}
-                      </span>
+                      <DifficultyLabel difficulty={question.difficulty} />
                       {question.isPrivate && <QuestionIndicators privateQuestion />}
                     </div>
                     <div className="practice-recommendation-meta">
-                      <QuestionTopics tags={question.tags} />
+                      <QuestionTopics tags={question.tags} linkToFilter={embedded} />
                       {reason && <span>{reason}</span>}
                     </div>
                   </div>
@@ -198,17 +195,19 @@ export function PracticeRecommendations({
                     {id && (
                       <Tooltip content="Hide recommendation for 7 days">
                         <LoadingButton
-                          className="icon-button"
+                          className={embedded ? "button button-ghost" : "icon-button"}
                           type="button"
                           aria-label={`Hide recommendation for ${question.title}`}
                           onClick={() => {
                             viewport.current?.focus({ preventScroll: true });
                             dismissal.mutate(id);
                           }}
-                          icon={<X size={16} />}
+                          icon={embedded ? <EyeOff size={16} /> : <X size={16} />}
                           disabled={dismissal.isPending}
                           pending={dismissal.isPending && dismissal.variables === id}
-                        />
+                        >
+                          {embedded && "Hide"}
+                        </LoadingButton>
                       </Tooltip>
                     )}
                   </div>

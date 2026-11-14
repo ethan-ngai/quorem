@@ -2,23 +2,8 @@
 import { BookOpen, Swords } from "lucide-react";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
-import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { useState } from "react";
 import { StreakArtwork } from "./StreakArtwork";
-
-type QuestionMetadata = {
-  difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"];
-  tags: readonly string[];
-};
-
-export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata) {
-  return (
-    <div className="dashboard-question-meta">
-      <DifficultyLabel difficulty={difficulty} />
-      <QuestionTopics tags={tags} />
-    </div>
-  );
-}
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
@@ -29,7 +14,7 @@ const timelineKinds = {
 } as const;
 
 type TimelineEvent = { day: number; title: string } & (
-  | { kind: "practiceAccepted"; difficulty: QuestionMetadata["difficulty"] }
+  | { kind: "practiceAccepted"; difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"] }
   | { kind: "matchPlayed"; outcome: "victory" | "loss" }
   | { kind: "odyssey"; detail: string }
 );

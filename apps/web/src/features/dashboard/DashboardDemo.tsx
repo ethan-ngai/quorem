@@ -1,20 +1,17 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BookOpen, Check, Swords } from "lucide-react";
+import { ArrowRight, BookOpen, Check, CircleDashed, Swords } from "lucide-react";
 import { useState } from "react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
+import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { PracticeRecommendations } from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
-import {
-  DashboardTimeline,
-  DashboardDistribution,
-  DashboardQuestionMetadata,
-} from "./DashboardHighlights";
+import { DashboardTimeline, DashboardDistribution } from "./DashboardHighlights";
 import { ActivityCalendar, activityHistoryDays, summarizeActivity } from "./ActivityCalendar";
 import "./dashboard-demo.css";
 
@@ -164,15 +161,15 @@ export function DashboardDemo() {
                 className="dashboard-practice-resume"
                 aria-labelledby="dashboard-resume-title"
               >
-                <h3 id="dashboard-resume-title">In progress</h3>
+                <h3 id="dashboard-resume-title">
+                  <CircleDashed size={16} aria-hidden /> In progress
+                </h3>
                 <div className="dashboard-practice-problem">
-                  <div>
+                  <div className="dashboard-practice-title">
                     <h4>{practiceInProgress.title}</h4>
-                    <DashboardQuestionMetadata
-                      difficulty={practiceInProgress.difficulty}
-                      tags={practiceInProgress.tags}
-                    />
+                    <DifficultyLabel difficulty={practiceInProgress.difficulty} />
                   </div>
+                  <QuestionTopics tags={practiceInProgress.tags} linkToFilter />
                   <Link
                     className="button button-primary"
                     to="/practice/$slug"

@@ -78,6 +78,7 @@
 .dashboard-practice-resume h3 {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: var(--control-height);
   margin-bottom: var(--space-2);
   color: var(--color-text-secondary);
@@ -85,11 +86,21 @@
   font-weight: 500;
 }
 .dashboard-practice-problem {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+.dashboard-practice-title {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+}
+.dashboard-practice-problem .practice-topic-list {
+  margin: 0;
+}
+.dashboard-practice-problem > .button {
+  margin-top: var(--space-2);
 }
 .dashboard-practice-problem h4 {
   margin: 0;
@@ -99,18 +110,6 @@
 .dashboard-practice-resume + .practice-recommendations {
   padding-inline-start: var(--space-4);
   border-inline-start: 1px solid var(--color-border);
-}
-.dashboard-question-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-}
-.dashboard-question-meta .practice-topic-list {
-  margin: 0;
-}
-.dashboard-practice-problem .dashboard-question-meta {
-  margin-top: var(--space-1);
 }
 .dashboard-link {
   display: inline-flex;
