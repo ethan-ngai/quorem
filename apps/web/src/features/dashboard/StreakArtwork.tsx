@@ -66,7 +66,7 @@ export function StreakArtwork({ active }: { active: boolean }) {
       <g filter={`url(#smokeSoftness-${id})`}>
         <path
           className="wisp wisp-1"
-          d="M 46,90 C 45,77 33,73 39,62 S 53,51 46,41"
+          d="M 46,90 C 48,80 33,76 34,65 S 45,50 40,38"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
           strokeWidth="9"
@@ -74,7 +74,7 @@ export function StreakArtwork({ active }: { active: boolean }) {
         />
         <path
           className="wisp wisp-2"
-          d="M 54,89 C 52,76 67,73 63,62 S 48,53 57,43"
+          d="M 54,89 C 53,74 69,76 66,62 C 64,55 54,56 57,48"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
           strokeWidth="10"
@@ -82,10 +82,10 @@ export function StreakArtwork({ active }: { active: boolean }) {
         />
         <path
           className="wisp wisp-3"
-          d="M 50,90 C 55,79 42,73 48,61 S 64,50 61,38"
+          d="M 50,90 C 48,78 56,71 52,60 S 49,45 55,33"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
-          strokeWidth="10"
+          strokeWidth="7"
           strokeLinecap="round"
         />
       </g>

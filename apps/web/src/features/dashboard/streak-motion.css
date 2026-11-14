@@ -39,14 +39,23 @@
   }
 
   .smoke-sequence .wisp-1 {
+    --wisp-drift: -9px;
+    --wisp-rise: -50px;
+    --wisp-sway: -9deg;
     animation-delay: 0.65s;
   }
 
   .smoke-sequence .wisp-2 {
+    --wisp-drift: 12px;
+    --wisp-rise: -46px;
+    --wisp-sway: 10deg;
     animation-delay: 3.15s;
   }
 
   .smoke-sequence .wisp-3 {
+    --wisp-drift: 3px;
+    --wisp-rise: -54px;
+    --wisp-sway: 3deg;
     animation-delay: 5.65s;
   }
 
@@ -117,11 +126,12 @@
       opacity: 0.78;
     }
     58% {
-      transform: translate(4px, -32px) scale(1.12, 1.08) skewX(5deg);
+      transform: translate(calc(var(--wisp-drift) * 0.5), -32px) scale(1.12, 1.08);
       opacity: 0.52;
     }
     100% {
-      transform: translate(8px, -50px) scale(1.28, 1.12) skewX(8deg);
+      transform: translate(var(--wisp-drift), var(--wisp-rise)) scale(1.28, 1.12)
+        skewX(var(--wisp-sway));
       opacity: 0;
     }
   }
