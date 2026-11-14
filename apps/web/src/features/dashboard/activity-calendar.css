@@ -13,39 +13,24 @@
   gap: var(--space-2);
 }
 .activity-calendar-header {
-  justify-content: space-between;
-}
-.activity-calendar-chart {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--space-1) var(--space-2);
-  margin-block: var(--space-3);
-  padding: var(--space-1);
-}
-.activity-calendar-months,
-.activity-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(var(--activity-weeks), minmax(0, 1fr));
-  gap: 3px;
-}
-.activity-calendar-months {
-  grid-column: 2;
-  min-height: 1lh;
-}
-.activity-calendar-weekdays {
-  display: flex;
+  align-items: stretch;
   flex-direction: column;
-  justify-content: space-between;
+}
+.activity-calendar .activity-calendar-range {
+  margin-top: var(--space-3);
 }
 .activity-calendar-grid {
-  grid-template-rows: repeat(7, clamp(16px, 3vw, 24px));
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(clamp(14px, 2vw, 22px), 1fr));
+  gap: 4px;
+  margin-block: var(--space-2) var(--space-3);
 }
 .activity-calendar-grid button {
   border: 1px solid var(--color-border);
   border-radius: 2px;
   background: var(--activity-fill, var(--color-control-selected));
-}
-.activity-calendar-grid button {
+  aspect-ratio: 1;
+  min-width: 0;
   padding: 0;
   cursor: pointer;
 }
@@ -64,18 +49,8 @@
 .activity-calendar [data-level="4"] {
   --activity-fill: var(--color-primary);
 }
-.activity-calendar-months,
-.activity-calendar-weekdays,
+.activity-calendar-range,
 .activity-calendar-detail {
   color: var(--color-text-secondary);
   font-size: var(--text-label);
-}
-@media (max-width: 420px) {
-  .activity-calendar-chart {
-    column-gap: var(--space-1);
-  }
-  .activity-calendar-months,
-  .activity-calendar-grid {
-    gap: 2px;
-  }
 }
