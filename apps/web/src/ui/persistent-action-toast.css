@@ -14,12 +14,22 @@
 .persistent-action-toast-heading {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--text-small);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.5;
+}
+.persistent-action-toast-icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: 1.5em;
+}
+.persistent-action-toast-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .persistent-action-toast {
   display: grid;

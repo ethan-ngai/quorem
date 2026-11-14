@@ -25,7 +25,12 @@ export function PersistentActionToast({
     }
     toast(
       <div className="persistent-action-toast-heading">
-        <span>{title}</span>
+        {icon && (
+          <span className="persistent-action-toast-icon" aria-hidden="true">
+            {icon}
+          </span>
+        )}
+        <span className="persistent-action-toast-title">{title}</span>
         <Tooltip content={`Minimize ${noun}`}>
           <button
             type="button"
@@ -39,7 +44,6 @@ export function PersistentActionToast({
       </div>,
       {
         id,
-        icon,
         className: "app-toast persistent-action-toast-shell",
         duration: Infinity,
         dismissible: false,

@@ -736,6 +736,7 @@ export const matches = pgTable(
     started_at: timestamp({ withTimezone: true, mode: "string" }),
     deadline: timestamp({ withTimezone: true, mode: "string" }),
     draw_offer_owner_id: text(),
+    draw_offer_id: uuid(),
     rule_deadline: timestamp({ withTimezone: true, mode: "string" }),
     finalizing_at: timestamp({ withTimezone: true, mode: "string" }),
     completed_at: timestamp({ withTimezone: true, mode: "string" }),

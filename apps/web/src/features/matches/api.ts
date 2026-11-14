@@ -17,13 +17,24 @@ export function forfeitMatch(identity: DevelopmentIdentity, id: string) {
   });
 }
 
-/** Sends an explicit offer or accepts the opponent's existing offer. */
-export function matchDraw(identity: DevelopmentIdentity, id: string, action: "offer" | "accept") {
-  return recoverableCommand(identity, `${action}-draw:${id}`, {}, async (_body, key) => {
-    const { data, error } = await api(identity).POST(`/v1/matches/{id}/${action}-draw`, {
-      params: { path: { id }, header: { "Idempotency-Key": key } },
-    });
-    return requireData(data, error);
+/** @returns The match snapshot after offering or responding to a specific draw offer. */
+export function matchDraw(
+  identity: DevelopmentIdentity,
+  id: string,
+  ...[action, offerId]:
+    | [action: "offer"]
+    | [action: "accept" | "decline" | "revoke", offerId: string]
+) {
+  return recoverableCommand(identity, `${action}-draw:${id}`, { offerId }, async (_body, key) => {
+    const params = { path: { id }, header: { "Idempotency-Key": key } };
+    const { data, error, response } =
+      action === "offer"
+        ? await api(identity).POST("/v1/matches/{id}/offer-draw", { params })
+        : await api(identity).POST(`/v1/matches/{id}/${action}-draw`, {
+            params,
+            body: { offerId },
+          });
+    return requireData(data, error, response.status);
   });
 }
 

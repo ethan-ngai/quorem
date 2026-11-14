@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 import { PersistentActionToast } from "../../ui/PersistentActionToast";
 import { matchCompetitors, isMatchWinner } from "./competitors";
 import { FactionWorkspace } from "../factions/FactionWorkspace";
@@ -376,43 +375,73 @@ export function MatchPage({
     const offer = snapshot.participants.find(
       (player) => player.userId === snapshot.drawOfferUserId,
     );
+    const offerId = snapshot.drawOfferId;
     const icon = <Icon name="draw" />;
-    if (offer && offer.userId !== own.userId) {
+    if (offer && offerId) {
+      const offeredByYou = offer.userId === own.userId;
+      const respond = (action: "accept" | "decline" | "revoke") =>
+        void command(async () => {
+          if (action === "accept" && snapshot.shareFinalCode) await saveDraft?.();
+          await matchDraw(identity, matchId, action, offerId);
+        });
       return (
         <PersistentActionToast
-          id={`draw:${matchId}:${own.userId}`}
-          title={`${offer.displayName} offered a draw`}
+          key={offerId}
+          id={`draw:${offerId}`}
+          title="Draw offer"
           noun="draw offer"
           icon={icon}
         >
-          <button
-            className="button button-primary"
-            disabled={pending}
-            onClick={() =>
-              void command(async () => {
-                if (snapshot.shareFinalCode) await saveDraft?.();
-                await matchDraw(identity, matchId, "accept");
-              })
-            }
-          >
-            Accept draw
-          </button>
+          <p className="persistent-action-toast-context">
+            <span>
+              {offeredByYou ? "You offered a draw" : `${offer.displayName} offered a draw`}
+            </span>
+          </p>
+          <div className="persistent-action-toast-actions">
+            {offeredByYou ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={pending}
+                onClick={() => respond("revoke")}
+              >
+                Revoke offer
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={pending}
+                  onClick={() => respond("accept")}
+                >
+                  Accept draw
+                </button>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={pending}
+                  onClick={() => respond("decline")}
+                >
+                  Decline
+                </button>
+              </>
+            )}
+          </div>
         </PersistentActionToast>
       );
     }
-    const label = offer ? "Draw offered" : "Offer draw";
     return (
-      <Tooltip content={label}>
+      <Tooltip content="Offer draw">
         <button
           type="button"
           className="icon-button"
-          aria-label={label}
-          aria-disabled={!!offer || pending}
+          aria-label="Offer draw"
+          aria-disabled={pending || !!offer}
           onClick={() => {
-            if (offer || pending) return;
+            if (pending || offer) return;
             void command(async () => {
               await matchDraw(identity, matchId, "offer");
-              toast("Draw offered", { icon });
             });
           }}
         >
