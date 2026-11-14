@@ -112,6 +112,7 @@ export async function admitWorkspaceInTransaction(
     admissionTime: string | null = null,
     sponsor: string | null = null;
   let automaticImports: boolean | undefined;
+  let retainPrivateDetails = false;
   if (row.reviewMatchId && row.reviewSourceOwnerId) {
     const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
     automaticImports = review.automaticImports ?? undefined;
@@ -160,6 +161,7 @@ export async function admitWorkspaceInTransaction(
     admissionTime = match.admittedAt;
     automaticImports = match.rules.automaticImports === true;
     if (command.kind === "submit") {
+      retainPrivateDetails = match.rules.assistance.hiddenCase.access !== "blocked";
       rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
         kind: "submission",
       });
@@ -265,7 +267,12 @@ export async function admitWorkspaceInTransaction(
       odysseyLevel: level,
     },
   });
-  await bindJobInputs(tx, { jobId: fence.jobId, owner, ...input });
+  await bindJobInputs(tx, {
+    jobId: fence.jobId,
+    owner,
+    ...input,
+    privateDetails: retainPrivateDetails,
+  });
   const id = inserted.id;
   await tx.execute(
     sql`INSERT INTO execution_idempotency(owner_id,key,body_hash,submission_id,expires_at) VALUES(${principal.userId},${key},${command.fingerprint},${id}::uuid,clock_timestamp()+interval '24 hours') ON CONFLICT(owner_id,key) DO UPDATE SET body_hash=EXCLUDED.body_hash,submission_id=EXCLUDED.submission_id,expires_at=EXCLUDED.expires_at`,

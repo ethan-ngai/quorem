@@ -598,6 +598,40 @@ void test("real HTTP guest join shares origin, budget, cookie and bearer precede
       .status,
     403,
   );
+  const guest = (
+    await pool.query("SELECT owner_id FROM interview_guest_sessions WHERE session_id=$1", [
+      created.id,
+    ])
+  ).rows[0].owner_id;
+  const submission = crypto.randomUUID();
+  await run((scope) =>
+    scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000 }, async (tx) => {
+      await tx.execute(sql`INSERT INTO submissions(id,owner_id,interview_id,kind,source,source_hash,state,cases,result,admitted_at)
+        VALUES(${submission}::uuid,${guest},${created.id}::uuid,'submit','guest answer','hash','completed','[]','{"verdict":"accepted"}',now()-interval '8 days')`);
+      await tx.execute(sql`INSERT INTO interview_execution(submission_id,session_id,document_version,document_epoch,question_epoch,fixture_id)
+        SELECT ${submission}::uuid,i.id,i.document_version,i.document_epoch,i.question_epoch,
+          (SELECT q.id FROM interview_question_snapshots q WHERE q.session_id=i.id LIMIT 1)
+        FROM interviews i WHERE i.id=${created.id}::uuid`);
+    }),
+  );
+  await actual.close(host, created.id, "close-guest-interview");
+  await pool.query(
+    "UPDATE interview_guest_sessions SET expires_at=now()-interval '1 day' WHERE owner_id=$1",
+    [guest],
+  );
+  const { retainBatch } = await import("../../events/scheduling/retention.ts");
+  await retainBatch(run);
+  const closed = JSON.parse(await new Response(await actual.read(host, created.id)).text());
+  assert.equal(closed.state, "closed");
+  assert.ok(
+    closed.members.some(
+      (member: { name: string; guest?: boolean }) => member.guest && member.name === "Guest",
+    ),
+  );
+  assert.equal(
+    (await pool.query("SELECT source FROM submissions WHERE id=$1", [submission])).rows[0].source,
+    "guest answer",
+  );
 });
 void test("immutable fixture backfill gates complete staged public sidecars", async () => {
   const { storageProjection } = await import("../../problems/storage.ts");

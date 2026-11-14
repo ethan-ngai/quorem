@@ -149,7 +149,9 @@ export interface Lifecycle {
       | "forfeit"
       | "offer-draw"
       | "accept-draw"
+      | "decline-draw"
+      | "revoke-draw"
       | "rule-events",
-    body: Settings | boolean | "clipboard" | "copy" | "focus" | null,
+    body: Settings | boolean | string | null,
   ): Promise<unknown>;
 }

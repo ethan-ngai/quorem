@@ -182,7 +182,8 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
           complexity: { timeComplexity: "$O(n^2)$", spaceComplexity: "$O(1)$" },
         },
       };
-      parsedContent.approaches.push({
+      parsedContent.approaches[0].timeComplexity = "O(n log n)";
+      parsedContent.approaches.unshift({
         id: "grouping",
         title: "Grouping",
         defaultLanguage: "python",
@@ -368,15 +369,15 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       expect(
         JSON.parse(await catalog.editorials({ userId: owner }, published.publishedVersionId, false))
           .items,
-      ).toEqual(expect.arrayContaining(parsedContent.approaches));
+      ).toEqual(parsedContent.approaches);
       const complexity = await catalog.editorials(
         { userId: owner },
         published.publishedVersionId,
         true,
       );
       expect(JSON.parse(complexity)).toEqual({
-        optimal: { timeComplexity: "O(n)", spaceComplexity: "O(1)" },
-        accepted: parsedContent.problem.acceptance.efficient.complexity,
+        optimal: { timeComplexity: "O(n)", spaceComplexity: "O(n)" },
+        accepted: { timeComplexity: "O(n log n)", spaceComplexity: "O(1)" },
       });
 
       const budgetMetadata = await pool.query(
@@ -472,7 +473,7 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
       sq.hiddenCases = structuredClone(sq.problem.examples);
       sq.approaches = [
         {
-          ...sq.approaches[0],
+          ...sq.approaches.find((item: { id: string }) => item.id === sq.canonicalApproachId),
           implementations: [{ language: "postgresql", source: "select 1" }],
         },
       ];
@@ -488,6 +489,9 @@ describe.skipIf(!url)("authoring on disposable PostgreSQL", () => {
         "1e309",
       );
       expect(await repository.create(actor, undefined, sp.publishedVersionId)).toContain("1e309");
+      expect(
+        JSON.parse(await catalog.editorials({ userId: owner }, sp.publishedVersionId, true)),
+      ).toEqual({ optimal: { timeComplexity: "O(n log n)", spaceComplexity: "O(1)" } });
       const stored = await pool.query(
         "SELECT args::text FROM problem_test_cases WHERE publication_id=$1",
         [sp.publishedVersionId],

@@ -56,8 +56,8 @@ it("keeps code and metadata scoped to the selected approach", () => {
     title: "Alternative",
     implementations: [{ language: "python" as const, source: "ALTERNATIVE_SOURCE" }],
   };
-  const approaches = [alternative, approach];
-  expect(render({ approaches })).toContain("JAVA_SOURCE");
+  const approaches = [approach, alternative];
+  expect(render({ approaches, canonicalApproachId: alternative.id })).toContain("JAVA_SOURCE");
   const selected = render({ approaches, selectedId: alternative.id });
   expect(selected).toContain("ALTERNATIVE_SOURCE");
   expect(selected).not.toContain("JAVA_SOURCE");

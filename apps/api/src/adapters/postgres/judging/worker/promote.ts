@@ -236,7 +236,7 @@ export function postgresCompletionPromotion(
           );
         if (terminal === "completed" && state.kind === "submit")
           await tx.execute(
-            sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,'hiddenCases',convert_to('['||COALESCE(string_agg(json_build_object('index',ordinal,'status',CASE WHEN status='accepted' THEN 'accepted' WHEN status='time_limit' THEN 'time_limit' ELSE 'wrong_answer' END)::text,',' ORDER BY ordinal),'')||']','UTF8') FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private'`,
+            sql`INSERT INTO submission_result_header_fields(submission_id,field,field_data) SELECT ${job.submissionId}::uuid,'hiddenCases',convert_to('['||COALESCE(string_agg(json_build_object('index',ordinal,'status',status)::text,',' ORDER BY ordinal),'')||']','UTF8') FROM execution_completion_frames WHERE job_id=${job.jobId}::uuid AND channel='private'`,
           );
         const finished = await tx.execute(sql`WITH published AS (
           UPDATE submissions SET state=${terminal},result=${JSON.stringify(safe)}::jsonb,

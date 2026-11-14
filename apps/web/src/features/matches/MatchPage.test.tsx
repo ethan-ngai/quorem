@@ -221,7 +221,11 @@ it("flushes the shared draft before forfeiting a Race", async () => {
   }
 });
 
-it("collapses equal penalty clocks and accepts the opponent's offer from a toast", async () => {
+it.each([
+  ["Accept draw", "accept"],
+  ["Decline", "decline"],
+  ["Revoke offer", "revoke"],
+] as const)("collapses equal penalty clocks and handles %s", async (label, action) => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const opponent = {
     userId: "00000000-0000-4000-8000-000000000002",
@@ -234,7 +238,8 @@ it("collapses equal penalty clocks and accepts the opponent's offer from a toast
     rules: matchPreset(),
     participants: [{ ...activeMatch.participants[0]!, penaltySeconds: 30 }, opponent],
     submissionDeadline: "2026-11-06T12:29:30Z",
-    drawOfferUserId: opponent.userId,
+    drawOfferId: "00000000-0000-4000-8000-000000000003",
+    drawOfferUserId: action === "revoke" ? activeMatch.participants[0]!.userId : opponent.userId,
   };
   const container = document.createElement("div");
   document.body.append(container);
@@ -249,13 +254,23 @@ it("collapses equal penalty clocks and accepts the opponent's offer from a toast
       ),
     );
     expect(container.querySelector(".match-clock-personal")).toBeNull();
-    expect(container.textContent).toContain("Bob offered a draw");
+    expect(container.textContent).toContain(
+      action === "revoke" ? "You offered a draw" : "Bob offered a draw",
+    );
+    expect(container.textContent).not.toContain(action === "revoke" ? "Decline" : "Revoke offer");
     await act(async () =>
-      [...container.querySelectorAll("button")]
-        .find((button) => button.textContent === "Accept draw")!
+      container.querySelector<HTMLButtonElement>('button[aria-label="Draw"]')!.click(),
+    );
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain(
+      action === "revoke" ? "You offered a draw" : "Bob offered a draw",
+    );
+    await act(async () =>
+      [...dialog.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === label)!
         .click(),
     );
-    expect(state.draw).toHaveBeenCalledWith("alice", "match", "accept");
+    expect(state.draw).toHaveBeenCalledWith("alice", "match", action, state.snapshot.drawOfferId);
     state.snapshot = { ...state.snapshot, submissionDeadline: undefined };
     await act(async () =>
       root.render(

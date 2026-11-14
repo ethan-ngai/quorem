@@ -7,7 +7,7 @@ import { CaseFields } from "./CaseFields";
 import { CaseBrowserLayout } from "./CaseBrowserLayout";
 import { Tooltip } from "../../../ui/Tooltip";
 import type { QuestionProblem, PublicCaseResult, Submission } from "@quorem/contracts";
-import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   associatedResultIndex,
   createCustomDraft,
@@ -108,8 +108,14 @@ export function TestCases({
       setSelectedHidden(undefined);
     previousSubmissionId.current = submission?.id;
   }, [submission?.id]);
-  const showingHidden = selectedHidden !== undefined && hiddenIndexes.includes(selectedHidden);
-  const hidden = showingHidden ? hiddenVerdicts.get(selectedHidden!) : undefined;
+  const activeHidden =
+    selectedHidden !== undefined && hiddenIndexes.includes(selectedHidden)
+      ? selectedHidden
+      : !customMode && !problem.examples.length
+        ? hiddenIndexes[0]
+        : undefined;
+  const showingHidden = activeHidden !== undefined;
+  const hidden = showingHidden ? hiddenVerdicts.get(activeHidden) : undefined;
   const revealed = hidden && !pendingSubmit ? hiddenCaseDetails?.(hidden.index) : undefined;
   const hiddenSelector = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -184,7 +190,7 @@ export function TestCases({
     />
   );
   const caseId = showingHidden
-    ? `hidden:${selectedHidden}`
+    ? `hidden:${activeHidden}`
     : customMode
       ? draft?.id
       : String(sampleIndex);
@@ -248,8 +254,7 @@ export function TestCases({
   function caseStatus(index: number) {
     const retained = caseStatuses?.find((result) => result.index === index)?.status;
     if (pendingSubmit && submitSamples.has(index)) return submitSamples.get(index)?.status;
-    if (pending && currentCaseGroup && caseGroups?.[index] !== currentCaseGroup)
-      return retained;
+    if (pending && currentCaseGroup && caseGroups?.[index] !== currentCaseGroup) return retained;
     if (!pending && caseResults) return caseResults[index]?.status ?? retained;
     if (submission?.kind === "submit")
       return pending ? undefined : (submitSamples.get(index)?.status ?? retained);
@@ -278,7 +283,9 @@ export function TestCases({
   function casePending(index: number) {
     return (
       (pendingSubmit && !submitSamples.has(index) && !statuses[index]) ||
-      (runningSamples && !statuses[index] && (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup))
+      (runningSamples &&
+        !statuses[index] &&
+        (!currentCaseGroup || caseGroups?.[index] === currentCaseGroup))
     );
   }
   function caseButton(index: number) {
@@ -389,7 +396,7 @@ export function TestCases({
               pending={pendingSubmit}
               failed={hiddenCases?.some((item) => item.status !== "accepted") ?? false}
               passed={!pendingSubmit && !!hiddenCases?.every((item) => item.status === "accepted")}
-              keepOpen={showingHidden}
+              collapseOnPass={false}
               onClose={() => setSelectedHidden(undefined)}
             >
               {hiddenIndexes.map((index) => {
@@ -398,10 +405,10 @@ export function TestCases({
                   <button
                     type="button"
                     key={index}
-                    ref={selectedHidden === index ? hiddenSelector : undefined}
+                    ref={activeHidden === index ? hiddenSelector : undefined}
                     className="case-selector"
-                    aria-pressed={showingHidden && selectedHidden === index}
-                    aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : status === "time_limit" ? "time limit exceeded" : status ? "failed" : "pending"}`}
+                    aria-pressed={activeHidden === index}
+                    aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : (status?.replaceAll("_", " ") ?? "pending")}`}
                     onClick={() => setSelectedHidden(index)}
                   >
                     <CaseIndicator pending={!status} status={status} />
@@ -445,7 +452,7 @@ export function TestCases({
           {showingHidden && !example ? (
             <div className="locked-case">
               <Icon name="lock" />
-              <span>Hidden case {selectedHidden! + 1}</span>
+              <span>Hidden case {activeHidden + 1}</span>
               {revealed?.action}
             </div>
           ) : customMode && draft ? (
@@ -606,7 +613,7 @@ function CaseGroupDisclosure({
   failed,
   passed,
   executionID,
-  keepOpen,
+  collapseOnPass = true,
   pending = false,
   icon,
   onClose,
@@ -618,16 +625,15 @@ function CaseGroupDisclosure({
   failed: boolean;
   passed: boolean;
   executionID?: string;
-  keepOpen?: boolean;
+  collapseOnPass?: boolean;
   pending?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(failed || pending);
-  const hasSelectedCase = useEffectEvent(() => keepOpen);
+  const [open, setOpen] = useState(!collapseOnPass || failed || pending);
   useEffect(() => {
     if (failed || pending) setOpen(true);
-    else if (passed && !hasSelectedCase()) setOpen(false);
-  }, [failed, passed, executionID, pending]);
+    else if (passed && collapseOnPass) setOpen(false);
+  }, [failed, passed, executionID, pending, collapseOnPass]);
   return (
     <details
       className="case-group disclosure"

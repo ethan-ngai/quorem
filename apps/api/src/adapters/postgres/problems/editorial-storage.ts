@@ -14,21 +14,23 @@ export function approachesProjection(publication: SQL): SQL {
   )) ORDER BY a.ordinal) FROM problem_solution_approaches a WHERE a.publication_id=${publication}), '[]'::jsonb)`;
 }
 
-export function optimalComplexityProjection(publication: SQL): SQL {
+function rankedComplexity(publication: SQL, end: "first" | "last"): SQL {
+  const order = end === "first" ? sql`ASC` : sql`DESC`;
+  // Authored order captures tradeoffs that cannot be inferred from Big O strings.
   return sql`(SELECT jsonb_build_object('timeComplexity',time_complexity,'spaceComplexity',space_complexity)
     FROM problem_solution_approaches
-    WHERE publication_id=${publication} AND is_canonical
+    WHERE publication_id=${publication}
       AND btrim(time_complexity) ~ '^[$]?(O|Θ)[[:space:]]*[(][^$[:cntrl:]]+[)][$]?$'
-      AND btrim(space_complexity) ~ '^[$]?(O|Θ)[[:space:]]*[(][^$[:cntrl:]]+[)][$]?$')`;
+      AND btrim(space_complexity) ~ '^[$]?(O|Θ)[[:space:]]*[(][^$[:cntrl:]]+[)][$]?$'
+    ORDER BY ordinal ${order} LIMIT 1)`;
 }
 
-/** Keep profile metadata and editorial approach identities out of the hint response. */
+/** Expose bounds without revealing approaches or code. */
 export function complexityProjection(publication: SQL): SQL {
-  const profiles = sql`${publication}.acceptance`;
-  const optimal = optimalComplexityProjection(sql`${publication}.id`);
-  const accepted = sql`(${profiles}->'efficient'->'complexity')`;
-  return sql`jsonb_strip_nulls(jsonb_build_object(
-    'optimal',${optimal},
-    'accepted',CASE WHEN ${optimal} IS NOT NULL AND regexp_replace(${accepted}::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(${optimal}::text, '[[:space:]$]', '', 'g') THEN ${accepted} END
-  ))`;
+  const id = sql`${publication}.id`;
+  return sql`(SELECT jsonb_strip_nulls(jsonb_build_object(
+    'optimal',optimal,
+    'accepted',CASE WHEN regexp_replace(accepted::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(optimal::text, '[[:space:]$]', '', 'g') THEN accepted END
+  )) FROM (SELECT ${rankedComplexity(id, "first")} AS optimal,
+                  ${rankedComplexity(id, "last")} AS accepted) bounds)`;
 }

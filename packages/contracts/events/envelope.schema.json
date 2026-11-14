@@ -1698,12 +1698,7 @@
           "minimum": 0
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "wrong_answer",
-            "time_limit"
-          ]
+          "$ref": "#/$defs/Verdict"
         }
       },
       "required": [
@@ -1930,10 +1925,27 @@
       ],
       "additionalProperties": false
     },
+    "DrawOfferResponse": {
+      "type": "object",
+      "properties": {
+        "offerId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "required": [
+        "offerId"
+      ],
+      "additionalProperties": false
+    },
     "MatchSnapshot": {
       "type": "object",
       "properties": {
         "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "drawOfferId": {
           "type": "string",
           "format": "uuid"
         },

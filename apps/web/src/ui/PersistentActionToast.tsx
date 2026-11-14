@@ -10,28 +10,39 @@ export function PersistentActionToast({
   children,
   noun = "action",
   icon,
+  hidden = false,
+  trigger,
+  onMinimize,
 }: {
   id: string;
   title: string;
   children: ReactNode;
   noun?: string;
   icon?: ReactNode;
+  hidden?: boolean;
+  trigger?: ReactNode;
+  onMinimize?: () => void;
 }) {
   const [minimized, setMinimized] = useState(false);
   useEffect(() => {
-    if (minimized) {
+    if (minimized || hidden) {
       toast.dismiss(id);
       return;
     }
     toast(
       <div className="persistent-action-toast-heading">
-        <span>{title}</span>
+        {icon && (
+          <span className="persistent-action-toast-icon" aria-hidden="true">
+            {icon}
+          </span>
+        )}
+        <span className="persistent-action-toast-title">{title}</span>
         <Tooltip content={`Minimize ${noun}`}>
           <button
             type="button"
             className="quiet-button persistent-action-toast-minimize"
             aria-label={`Minimize ${noun}`}
-            onClick={() => setMinimized(true)}
+            onClick={onMinimize ?? (() => setMinimized(true))}
           >
             <Minus size={16} aria-hidden="true" />
           </button>
@@ -39,15 +50,16 @@ export function PersistentActionToast({
       </div>,
       {
         id,
-        icon,
         className: "app-toast persistent-action-toast-shell",
         duration: Infinity,
         dismissible: false,
         closeButton: false,
-        description: <div className="persistent-action-toast">{children}</div>,
+        description: children ? (
+          <div className="persistent-action-toast">{children}</div>
+        ) : undefined,
       },
     );
-  }, [id, title, children, minimized, noun, icon]);
+  }, [id, title, children, minimized, hidden, noun, icon, onMinimize]);
   useEffect(
     () => () => {
       toast.dismiss(id);
@@ -55,14 +67,16 @@ export function PersistentActionToast({
     [id],
   );
   return (
-    <button
-      type="button"
-      className="quiet-button persistent-action-toast-trigger"
-      onClick={() => setMinimized(false)}
-      aria-label={`Show ${title}`}
-    >
-      {icon}
-      {minimized ? `Show ${noun}` : `${noun[0]?.toUpperCase()}${noun.slice(1)} pending`}
-    </button>
+    trigger ?? (
+      <button
+        type="button"
+        className="quiet-button persistent-action-toast-trigger"
+        onClick={() => setMinimized(false)}
+        aria-label={`Show ${title}`}
+      >
+        {icon}
+        {minimized ? `Show ${noun}` : `${noun[0]?.toUpperCase()}${noun.slice(1)} pending`}
+      </button>
+    )
   );
 }

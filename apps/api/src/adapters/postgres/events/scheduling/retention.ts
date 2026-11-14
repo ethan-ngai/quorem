@@ -1,13 +1,15 @@
 /** @file retention.ts @description Bounded database retention batches. @module events */
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import { purgeGuestMatchData } from "./guest-retention.ts";
+import { guestLobbyClosed } from "../../matches/review/lifetime.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const outboxes = ["interview_outbox", "match_outbox", "submission_outbox"] as const;
 // A late settlement can outlive ordinary admission-based retention.
 const reviewHold = sql`EXISTS (
   SELECT 1 FROM matches m WHERE m.id=s.match_id AND s.kind='submit' AND s.match_sequence IS NOT NULL
     AND (s.id=m.review_winning_submission_id OR NOT EXISTS (SELECT 1 FROM submissions newer WHERE newer.match_id=s.match_id AND newer.owner_id=s.owner_id AND newer.kind='submit' AND newer.match_sequence>s.match_sequence))
-    AND (m.state IN ('active','finalizing') OR (m.state IN ('completed','cancelled') AND m.completed_at>statement_timestamp()-interval '24 hours'
+    AND (m.state IN ('active','finalizing') OR (m.state IN ('completed','cancelled') AND m.completed_at>statement_timestamp()-interval '24 hours' AND NOT (${guestLobbyClosed(sql`m`)})
       AND EXISTS (SELECT 1 FROM match_participants viewer WHERE viewer.match_id=m.id
         AND (viewer.owner_id=s.owner_id OR m.share_code_after_match)
         AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
@@ -52,12 +54,12 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     sql`DELETE FROM execution_jobs WHERE id IN (SELECT j.id FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE j.finished AND j.lease_until IS NULL AND s.state IN ('completed','failed','cancelled') AND s.admitted_at < statement_timestamp()-CASE
       WHEN s.workspace_id IS NOT NULL AND s.match_id IS NULL AND (s.kind='run' OR (s.source='' AND s.result IS NULL))
         AND s.updated_at < statement_timestamp()-interval '10 minutes' THEN interval '24 hours'
-      WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END ORDER BY s.admitted_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT ${limit})`,
-    sql`DELETE FROM execution_checkpoints WHERE ctid IN (SELECT c.ctid FROM execution_checkpoints c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END FOR UPDATE OF c SKIP LOCKED LIMIT ${limit})`,
-    sql`UPDATE interview_execution SET private_results=NULL, private_results_payload=NULL WHERE ctid IN (SELECT e.ctid FROM interview_execution e JOIN submissions s ON s.id=e.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' THEN interval '7 days' ELSE interval '30 days' END AND (e.private_results IS NOT NULL OR e.private_results_payload IS NOT NULL) FOR UPDATE OF e SKIP LOCKED LIMIT ${limit})`,
+      WHEN u.kind='guest' AND s.interview_id IS NULL THEN interval '7 days' ELSE interval '30 days' END ORDER BY s.admitted_at,j.id FOR UPDATE OF j SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM execution_checkpoints WHERE ctid IN (SELECT c.ctid FROM execution_checkpoints c JOIN execution_jobs j ON j.id=c.job_id JOIN submissions s ON s.id=j.submission_id JOIN users u ON u.id=s.owner_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-CASE WHEN u.kind='guest' AND s.interview_id IS NULL THEN interval '7 days' ELSE interval '30 days' END FOR UPDATE OF c SKIP LOCKED LIMIT ${limit})`,
+    sql`UPDATE interview_execution SET private_results=NULL, private_results_payload=NULL WHERE ctid IN (SELECT e.ctid FROM interview_execution e JOIN submissions s ON s.id=e.submission_id WHERE s.state NOT IN ('queued','running') AND s.admitted_at < statement_timestamp()-interval '30 days' AND (e.private_results IS NOT NULL OR e.private_results_payload IS NOT NULL) FOR UPDATE OF e SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM guest_request_buckets WHERE ctid IN (SELECT ctid FROM guest_request_buckets WHERE window_start < statement_timestamp()-interval '2 hours' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM interview_operations WHERE ctid IN (SELECT ctid FROM interview_operations WHERE expires_at<statement_timestamp() ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
-    sql`UPDATE submissions SET source='',result=NULL,result_payload=NULL,cases='[]'::jsonb,lossless_cases=NULL WHERE ctid IN (SELECT s.ctid FROM submissions s JOIN users u ON u.id=s.owner_id WHERE s.admitted_at < statement_timestamp()-interval '7 days' AND s.state NOT IN ('queued','running') AND u.kind='guest' AND NOT (${reviewHold}) AND (s.source<>'' OR s.result IS NOT NULL OR s.result_payload IS NOT NULL OR s.cases<>'[]'::jsonb OR s.lossless_cases IS NOT NULL) FOR UPDATE OF s SKIP LOCKED LIMIT ${limit})`,
+    sql`UPDATE submissions SET source='',result=NULL,result_payload=NULL,cases='[]'::jsonb,lossless_cases=NULL WHERE ctid IN (SELECT s.ctid FROM submissions s JOIN users u ON u.id=s.owner_id WHERE s.admitted_at < statement_timestamp()-interval '7 days' AND s.state NOT IN ('queued','running') AND u.kind='guest' AND s.interview_id IS NULL AND NOT (${reviewHold}) AND (s.source<>'' OR s.result IS NOT NULL OR s.result_payload IS NOT NULL OR s.cases<>'[]'::jsonb OR s.lossless_cases IS NOT NULL) FOR UPDATE OF s SKIP LOCKED LIMIT ${limit})`,
     sql`UPDATE users SET display_name='Expired guest' WHERE ctid IN (SELECT u.ctid FROM users u WHERE u.kind='guest' AND u.display_name<>'Expired guest' AND EXISTS (SELECT 1 FROM guest_sessions g WHERE g.owner_id=u.id AND g.expires_at<statement_timestamp()-interval '7 days') FOR UPDATE OF u SKIP LOCKED LIMIT ${limit})`,
     ...["execution_idempotency", "cancellation_idempotency", "match_idempotency"].map((name) => {
       const table = sql.raw(name);
@@ -102,6 +104,7 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
         async (tx) => (await tx.execute(statement)).rowCount ?? 0,
       ),
     );
+  changed += await purgeGuestMatchData(run, limit);
   const collected = await run((scope) =>
     scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
       collectInputBlobs(tx, Math.min(limit, 128)),

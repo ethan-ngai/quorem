@@ -160,27 +160,72 @@ void test("Showdown draws require consent from both players", async () => {
   );
   await repo.mutate(host, id, "draw-host-ready", "ready", true);
   await repo.mutate(rival, id, "draw-rival-ready", "ready", true);
-  await assert.rejects(repo.mutate(rival, id, "draw-no-offer", "accept-draw", null));
-  const offered = (await repo.mutate(host, id, "draw-offer", "offer-draw", null)) as {
-    state: string;
-    drawOfferUserId: string;
-    hostUserId: string;
-  };
+  const missingOffer = "00000000-0000-4000-8000-000000000000";
+  await assert.rejects(repo.mutate(rival, id, "draw-no-offer", "accept-draw", missingOffer));
+  const offer = async (key: string) =>
+    (await repo.mutate(host, id, key, "offer-draw", null)) as {
+      state: string;
+      drawOfferId: string;
+      drawOfferUserId: string;
+      hostUserId: string;
+    };
+  const offered = await offer("draw-offer");
   assert.equal(offered.state, "active");
   assert.equal(offered.drawOfferUserId, offered.hostUserId);
-  assert.deepEqual(await repo.mutate(host, id, "draw-offer", "offer-draw", null), offered);
-  await assert.rejects(repo.mutate(host, id, "draw-own", "accept-draw", null));
-  await assert.rejects(repo.mutate(outsider, id, "draw-outsider", "accept-draw", null));
-  const accepted = (await repo.mutate(rival, id, "draw-accept", "accept-draw", null)) as {
+  assert.deepEqual(await offer("draw-offer"), offered);
+  await assert.rejects(repo.mutate(host, id, "draw-own", "accept-draw", offered.drawOfferId));
+  await assert.rejects(
+    repo.mutate(outsider, id, "draw-outsider", "decline-draw", offered.drawOfferId),
+  );
+  await assert.rejects(
+    repo.mutate(host, id, "draw-own-decline", "decline-draw", offered.drawOfferId),
+  );
+  await assert.rejects(
+    repo.mutate(rival, id, "draw-rival-revoke", "revoke-draw", offered.drawOfferId),
+  );
+
+  const declined = (await repo.mutate(
+    rival,
+    id,
+    "draw-decline",
+    "decline-draw",
+    offered.drawOfferId,
+  )) as typeof offered;
+  assert.equal(declined.state, "active");
+  assert.equal(declined.drawOfferId, undefined);
+  assert.equal(declined.drawOfferUserId, undefined);
+
+  const next = await offer("draw-offer-again");
+  assert.notEqual(next.drawOfferId, offered.drawOfferId);
+  await assert.rejects(repo.mutate(rival, id, "draw-stale", "accept-draw", offered.drawOfferId));
+  assert.deepEqual(
+    await repo.mutate(rival, id, "draw-decline", "decline-draw", offered.drawOfferId),
+    declined,
+  );
+
+  const revoked = (await repo.mutate(
+    host,
+    id,
+    "draw-revoke",
+    "revoke-draw",
+    next.drawOfferId,
+  )) as typeof offered;
+  assert.equal(revoked.state, "active");
+  assert.equal(revoked.drawOfferId, undefined);
+  const finalOffer = await offer("draw-final-offer");
+  const accept = () => repo.mutate(rival, id, "draw-accept", "accept-draw", finalOffer.drawOfferId);
+  const accepted = (await accept()) as {
     state: string;
+    drawOfferId?: string;
     drawOfferUserId?: string;
     outcome: { kind: string; reason: string };
   };
   assert.equal(accepted.state, "completed");
   assert.equal(accepted.drawOfferUserId, undefined);
+  assert.equal(accepted.drawOfferId, undefined);
   assert.equal(accepted.outcome.kind, "draw");
   assert.equal(accepted.outcome.reason, "agreed_draw");
-  assert.deepEqual(await repo.mutate(rival, id, "draw-accept", "accept-draw", null), accepted);
+  assert.deepEqual(await accept(), accepted);
 });
 
 void test("creation serializes reservation and encrypts replay capability", async () => {
@@ -1424,7 +1469,7 @@ for (const accepted of [false, true])
       JSON.stringify({
         workspaceId: workspace,
         kind: "submit",
-        source: `class Solution:\n def f(self,x): return x${accepted ? "+1" : ""}`,
+        source: `class Solution:\n def f(self,x): print(f"case={x}"); return x${accepted ? "+1" : " // 0"}`,
       }),
       "hidden-run",
     );
@@ -1482,7 +1527,7 @@ for (const accepted of [false, true])
       ).json()) as import("@quorem/contracts").Submission;
       assert.equal(live.state, "running");
       assert.deepEqual(live.hiddenCases, [
-        { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+        { index: 0, status: accepted ? "accepted" : "runtime_error" },
       ]);
       assert.ok(live.publicCases?.length);
       assert.ok(live.publicCases.every((item) => Object.keys(item).length === 2));
@@ -1496,9 +1541,10 @@ for (const accepted of [false, true])
       await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
     );
     assert.deepEqual(publicResult.hiddenCases, [
-      { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+      { index: 0, status: accepted ? "accepted" : "runtime_error" },
     ]);
-    assert.equal(publicResult.verdict, accepted ? "accepted" : "wrong_answer");
+    assert.equal(publicResult.verdict, accepted ? "accepted" : "runtime_error");
+    assert.ok(!JSON.stringify(publicResult).includes("case=3"));
     const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
     const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);
     assert.equal(quoted.revealed, undefined);
@@ -1511,9 +1557,11 @@ for (const accepted of [false, true])
       ...request,
       approval: ruleApproval(quoted.quote),
     });
-    assert.equal(JSON.parse(revealed.revealed!.result!).actual, accepted ? 4 : 3);
-    assert.equal(JSON.parse(revealed.revealed!.result!).expected, 4);
+    const result = JSON.parse(revealed.revealed!.result!);
+    assert.equal(result.actual, accepted ? 4 : undefined);
+    assert.equal(result.expected, accepted ? 4 : undefined);
     assert.ok(revealed.revealed!.input!.includes("3"));
+    if (accepted) assert.equal(result.stdout?.trim(), "case=3");
     const again = await repo.ruleAction(room.actor, room.id, "hidden-again", request);
     assert.equal(again.quote.points, 0);
   });

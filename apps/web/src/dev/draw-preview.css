@@ -1,0 +1,25 @@
+.draw-preview {
+  width: min(420px, calc(100% - 2 * var(--space-4)));
+  margin: var(--space-6) auto;
+}
+.draw-preview h1 {
+  font-size: var(--text-h1);
+  margin: 0 0 var(--space-4);
+}
+.draw-preview-controls,
+.draw-preview-session {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.draw-preview > .draw-preview-controls,
+.draw-preview-session {
+  justify-content: space-between;
+}
+.draw-preview-session {
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}

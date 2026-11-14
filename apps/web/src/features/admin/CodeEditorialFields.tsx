@@ -9,7 +9,7 @@ import {
   approachDefaultLanguage,
   withCanonicalApproach,
 } from "@quorem/questions";
-import { Plus, Trash2, BookmarkCheck, ArrowUpRight } from "lucide-react";
+import { Plus, Trash2, BookmarkCheck, ArrowUpRight, ChevronUp, ChevronDown } from "lucide-react";
 import { Field } from "./AuthoringFields";
 import { TextInput } from "../../ui/TextControl";
 import { SelectField } from "../../ui/SelectField";
@@ -42,6 +42,7 @@ export function CodeEditorialFields({
   const removalTrigger = useRef<HTMLButtonElement>(null),
     addContent = useRef<HTMLButtonElement>(null);
   const approach = selectApproach(content.approaches, selectedId, content.canonicalApproachId);
+  const approachIndex = content.approaches.findIndex((item) => item.id === approach?.id);
   const canonical = approach?.id === content.canonicalApproachId;
   const primaryLanguage = content.problem.sql ? "postgresql" : "python";
   const canMakeCanonical = !!approach?.implementations.some(
@@ -56,6 +57,13 @@ export function CodeEditorialFields({
           item.id === approach.id ? { ...item, ...patch } : item,
         ),
       });
+  }
+  function moveApproach(offset: -1 | 1) {
+    const approaches = [...content.approaches];
+    const [item] = approaches.splice(approachIndex, 1);
+    if (!item) return;
+    approaches.splice(approachIndex + offset, 0, item);
+    onChange({ ...content, approaches });
   }
   function addApproach() {
     const next = blankApproach(primaryLanguage, `approach-${crypto.randomUUID()}`);
@@ -154,6 +162,32 @@ export function CodeEditorialFields({
               onChange={setSelectedId}
               disabled={disabled}
             />
+          )}
+          {approach && content.approaches.length > 1 && (
+            <>
+              <Tooltip content="Move toward most efficient">
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Move toward most efficient"
+                  disabled={disabled || approachIndex === 0}
+                  onClick={() => moveApproach(-1)}
+                >
+                  <ChevronUp size={14} aria-hidden="true" />
+                </button>
+              </Tooltip>
+              <Tooltip content="Move toward least efficient">
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Move toward least efficient"
+                  disabled={disabled || approachIndex === content.approaches.length - 1}
+                  onClick={() => moveApproach(1)}
+                >
+                  <ChevronDown size={14} aria-hidden="true" />
+                </button>
+              </Tooltip>
+            </>
           )}
           <Tooltip content="Add approach">
             <button

@@ -1,5 +1,4 @@
-import { toast } from "sonner";
-import { PersistentActionToast } from "../../ui/PersistentActionToast";
+import { DrawOfferControl } from "./DrawOfferControl";
 import { matchCompetitors, isMatchWinner } from "./competitors";
 import { FactionWorkspace } from "../factions/FactionWorkspace";
 import { RoomAlerts } from "../rooms/RoomAlerts";
@@ -371,54 +370,44 @@ export function MatchPage({
   );
   const drawAction = (saveDraft?: () => Promise<void>) => {
     const own = ownParticipant(snapshot, identity);
-    if (snapshot.mode !== "showdown" || snapshot.state !== "active" || !own || own.forfeited)
+    const accepted = snapshot.outcome?.reason === "agreed_draw";
+    if (
+      snapshot.mode !== "showdown" ||
+      (!accepted && snapshot.state !== "active") ||
+      !own ||
+      own.forfeited
+    )
       return null;
-    const offer = snapshot.participants.find(
+    const offerer = snapshot.participants.find(
       (player) => player.userId === snapshot.drawOfferUserId,
     );
-    const icon = <Icon name="draw" />;
-    if (offer && offer.userId !== own.userId) {
-      return (
-        <PersistentActionToast
-          id={`draw:${matchId}:${own.userId}`}
-          title={`${offer.displayName} offered a draw`}
-          noun="draw offer"
-          icon={icon}
-        >
-          <button
-            className="button button-primary"
-            disabled={pending}
-            onClick={() =>
-              void command(async () => {
-                if (snapshot.shareFinalCode) await saveDraft?.();
-                await matchDraw(identity, matchId, "accept");
-              })
-            }
-          >
-            Accept draw
-          </button>
-        </PersistentActionToast>
-      );
-    }
-    const label = offer ? "Draw offered" : "Offer draw";
     return (
-      <Tooltip content={label}>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label={label}
-          aria-disabled={!!offer || pending}
-          onClick={() => {
-            if (offer || pending) return;
-            void command(async () => {
-              await matchDraw(identity, matchId, "offer");
-              toast("Draw offered", { icon });
-            });
-          }}
-        >
-          {icon}
-        </button>
-      </Tooltip>
+      <DrawOfferControl
+        key={matchId}
+        matchId={matchId}
+        offer={
+          offerer && snapshot.drawOfferId
+            ? {
+                id: snapshot.drawOfferId,
+                name: offerer.displayName,
+                own: offerer.userId === own.userId,
+              }
+            : undefined
+        }
+        accepted={accepted}
+        pending={pending}
+        onOffer={() =>
+          void command(async () => {
+            await matchDraw(identity, matchId, "offer");
+          })
+        }
+        onRespond={(action, offerId) =>
+          void command(async () => {
+            if (action === "accept" && snapshot.shareFinalCode) await saveDraft?.();
+            await matchDraw(identity, matchId, action, offerId);
+          })
+        }
+      />
     );
   };
   const ledger = (problem?: PublishedQuestion, saveDraft?: () => Promise<void>) => (

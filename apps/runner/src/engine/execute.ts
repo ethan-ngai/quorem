@@ -126,7 +126,7 @@ export async function executeAndStage(
     });
     try {
       const budgetSpan =
-        manifest.kind === "submit" && !manifest.privateDetails
+        manifest.kind === "submit"
           ? (await metadataSpans(metadata, manifest.level)).caseBudget
           : undefined;
       const budgetRaw = budgetSpan
@@ -382,7 +382,6 @@ export async function executeAndStage(
             ),
           );
           const sampleRef =
-            !manifest.privateDetails &&
             requested > 1 &&
             start + requested <= privateCount &&
             nextSample < total &&

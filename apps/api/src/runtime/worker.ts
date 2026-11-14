@@ -25,6 +25,8 @@ import {
   AdmissionRecovery,
   type AdmissionAlarmStorage,
 } from "../modules/judging/admission/recovery.ts";
+import { purgeGuestMatchData } from "../adapters/postgres/events/scheduling/guest-retention.ts";
+import { guestLobbyClosed } from "../adapters/postgres/matches/review/lifetime.ts";
 import { retainBatch } from "../adapters/postgres/events/scheduling/retention.ts";
 import {
   occupiedDeadlineShards,
@@ -337,14 +339,27 @@ export class DeadlineCoordinator extends DurableObject {
       store: postgresDeadlines(run),
       receipts: prearmReceipts(run),
       shards: boundedInt(env.DEADLINE_SHARDS, 1, 256),
-      reconcile: (candidate) =>
-        run((scope) =>
-          scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, (tx) =>
-            candidate.id.startsWith("party:")
-              ? reconcileParty(tx, candidate.id.slice(6))
-              : reconcileScheduledMatch(tx, candidate.id, candidate.generation),
-          ),
-        ),
+      reconcile: async (candidate) => {
+        const closed = await run((scope) =>
+          scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
+            if (candidate.id.startsWith("party:")) {
+              const id = candidate.id.slice(6);
+              await reconcileParty(tx, id);
+              return (
+                await tx.execute(
+                  sql`SELECT 1 FROM parties WHERE id=${id}::uuid AND disbanded_at IS NOT NULL AND guest_joins>0`,
+                )
+              ).rows.length;
+            }
+            await reconcileScheduledMatch(tx, candidate.id, candidate.generation);
+            return (
+              await tx.execute(sql`SELECT 1 FROM matches m WHERE m.id=${candidate.id}::uuid
+              AND m.state IN ('completed','cancelled') AND ${guestLobbyClosed(sql`m`)}`)
+            ).rows.length;
+          }),
+        );
+        if (closed && env.APP_ENV === "production") await scheduleMaintenance(env);
+      },
     });
   }
   wake(shard: number) {
@@ -400,7 +415,14 @@ async function repairWorker(
           () => cloudflareCoordinator(env.EXECUTION_RECOVERY).wake(0),
         ]
       : []),
-    ...(retain ? [() => retainBatch(run)] : []),
+    ...(retain || trackPending
+      ? [
+          async () => {
+            const removed = retain ? await retainBatch(run) : await purgeGuestMatchData(run, 128);
+            if (trackPending && removed > 0) pending = true;
+          },
+        ]
+      : []),
   ]);
   return pending;
 }

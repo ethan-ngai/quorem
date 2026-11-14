@@ -199,14 +199,11 @@ for (const field of ["level", "questionEpoch", "documentEpoch", "sourceHash"]) {
 }
 assert(!validateInterviewExecution({ ...interviewExecution, sourceHash: "invalid" }));
 const validateHidden = ajv.compile({ $ref: `${document.$id}#/$defs/HiddenCaseResult` });
-for (const status of schemas.HiddenCaseResult.properties.status.enum)
-  assert(validateHidden({ index: 0, status }));
+for (const status of schemas.Verdict.enum) assert(validateHidden({ index: 0, status }));
 for (const hidden of [
   { index: -1, status: "accepted" },
   { index: 0, status: "executed" },
-  ...schemas.Verdict.enum
-    .filter((status) => !schemas.HiddenCaseResult.properties.status.enum.includes(status))
-    .map((status) => ({ index: 0, status })),
+  { index: 0, status: "unknown" },
   ...["args", "actual", "expected", "diagnostics", "stdout", "stderr"].map((key) => ({
     index: 0,
     status: "accepted",

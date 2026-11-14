@@ -182,7 +182,11 @@ export function problemQueryOptions(
       const result = byID
         ? await transport.GET("/v1/question-publications/{id}", { params: { path: { id: value } } })
         : await transport.GET("/v1/problems/{slug}", { params: { path: { slug: value } } });
-      return requireData(result.data as PublishedQuestion | undefined, result.error);
+      return requireData(
+        result.data as PublishedQuestion | undefined,
+        result.error,
+        result.response.status,
+      );
     },
   });
 }

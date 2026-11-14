@@ -149,7 +149,16 @@ describe("typed case controls", () => {
     expect(stripSyntaxMarkup(markup).match(/>18<\/code>/g)).toHaveLength(1);
   });
   it("keeps hidden-case data private while showing status", () => {
-    for (const status of ["accepted", "wrong_answer", "time_limit"] as const) {
+    for (const status of [
+      "accepted",
+      "wrong_answer",
+      "time_limit",
+      "memory_limit",
+      "syntax_error",
+      "runtime_error",
+      "output_limit",
+      "invalid_output",
+    ] as const) {
       const markup = renderToStaticMarkup(
         <TestCases
           problem={problem}
@@ -170,11 +179,7 @@ describe("typed case controls", () => {
       );
       expect(markup).toContain('class="case-group-label case-group-label--locked"');
       expect(markup).toContain(
-        status === "accepted"
-          ? "Hidden case 1: passed"
-          : status === "time_limit"
-            ? "Hidden case 1: time limit exceeded"
-            : "Hidden case 1: failed",
+        `Hidden case 1: ${status === "accepted" ? "passed" : status.replaceAll("_", " ")}`,
       );
       expect(markup).not.toContain("machine-value");
       expect(markup).not.toContain("case-run-output");

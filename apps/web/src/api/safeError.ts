@@ -4,6 +4,8 @@ const specificMessages: Record<string, Record<string, string>> = {
       "No questions match these filters. Change the filters before starting.",
   },
   invalid_transition: {
+    "This draw offer is no longer pending": "This draw offer is no longer pending.",
+    "The draw window has closed": "The draw window has closed.",
     "All players must be ready": "Everyone must be ready before the match can start.",
     "Too many players for this mode": "Remove players or choose a mode that supports everyone.",
     "Remove guests before disabling guest access": "Remove guests before turning off guest access.",

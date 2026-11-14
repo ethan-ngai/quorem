@@ -27,9 +27,16 @@
 @media (prefers-reduced-motion: no-preference) {
   .run-action-group,
   .run-action-state {
+    visibility: visible;
     transition:
-      opacity var(--motion-fast) var(--motion-easing),
-      visibility var(--motion-fast) allow-discrete;
+      opacity var(--motion-standard) var(--motion-easing),
+      translate var(--motion-standard) var(--motion-easing),
+      visibility 0s;
+  }
+  .run-action-group[data-active="false"],
+  .run-action-state[data-active="false"] {
+    translate: 0 var(--space-1);
+    transition-delay: 0s, 0s, var(--motion-standard);
   }
 }
 .disabled-action-hint {
