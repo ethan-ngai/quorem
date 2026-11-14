@@ -115,6 +115,13 @@
   padding-block: var(--space-4);
   border-block: 1px solid var(--color-border);
 }
+.dashboard-demo .dashboard-odyssey-completed {
+  margin-top: var(--space-3);
+}
+.dashboard-odyssey-completed strong {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
 .dashboard-preview-title {
   font-size: var(--text-small);
   font-weight: 600;

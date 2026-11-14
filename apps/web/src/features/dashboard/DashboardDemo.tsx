@@ -2,8 +2,9 @@
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BookOpen, Check, Flag, Swords } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Swords } from "lucide-react";
 import { useState } from "react";
+import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
@@ -205,7 +206,7 @@ export function DashboardDemo() {
             >
               <div className="dashboard-panel-heading">
                 <h2 id="dashboard-odyssey-title">
-                  <Flag size={17} /> Odysseys
+                  <OdysseyIcon /> Odysseys
                 </h2>
                 <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
                   Browse Odysseys <ArrowRight size={14} />
@@ -214,7 +215,7 @@ export function DashboardDemo() {
               {hasOdyssey ? (
                 <>
                   <p className="dashboard-preview-title">Transit Operations</p>
-                  <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
+                  <p className="dashboard-caption">Stage 2 of 3</p>
                   <ol className="dashboard-stages" aria-label="Odyssey stages">
                     <li data-stage="complete">
                       <Check size={14} />
@@ -228,11 +229,14 @@ export function DashboardDemo() {
                     </li>
                   </ol>
                 </>
-              ) : (
+              ) : isNew ? (
                 <p className="dashboard-caption">
-                  {isNew
-                    ? "Solve a series of questions that build on each other."
-                    : "4 Odysseys completed"}
+                  Solve a series of questions that build on each other.
+                </p>
+              ) : null}
+              {!isNew && (
+                <p className="dashboard-caption dashboard-odyssey-completed">
+                  <strong>4</strong> Odysseys completed
                 </p>
               )}
             </section>

@@ -1,5 +1,6 @@
 /** @file DashboardHighlights.tsx @description Activity timeline, streak, question metadata, and stat charts. @module dashboard */
-import { BookOpen, Flag, Swords } from "lucide-react";
+import { BookOpen, Swords } from "lucide-react";
+import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { useState } from "react";
@@ -24,7 +25,7 @@ const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "
 const timelineKinds = {
   practiceAccepted: { label: "Practice", Icon: BookOpen },
   matchPlayed: { label: "Match", Icon: Swords },
-  odyssey: { label: "Odyssey", Icon: Flag },
+  odyssey: { label: "Odyssey", Icon: OdysseyIcon },
 } as const;
 
 type TimelineEvent = { day: number; title: string } & (
