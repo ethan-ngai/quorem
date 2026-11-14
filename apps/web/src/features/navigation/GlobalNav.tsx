@@ -79,8 +79,8 @@ export function GlobalNav({
   const navigate = useNavigate();
   const consumedCreation = useRef(false);
   const hideCreation = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
-  const activeMatch = useActiveMatch(actor, !!session.data);
   const party = useParty(actor, !!session.data);
+  const activeMatch = useActiveMatch(actor, !!session.data, party.data?.party?.currentMatchId);
   const checkingMatch =
     session.isPending || activeMatch.checking || (!!session.data && party.isPending);
   const currentMatch = activeMatch.match;
