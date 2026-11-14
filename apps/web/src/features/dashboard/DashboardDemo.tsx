@@ -8,7 +8,6 @@ import {
   Check,
   Clock3,
   Flag,
-  Lightbulb,
   Minus,
   Swords,
   Users,
@@ -17,8 +16,11 @@ import { useState } from "react";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
-import fire from "./fire.svg";
-import embers from "./embers.svg";
+import {
+  DashboardActivity,
+  DashboardRecommendations,
+  DashboardStreak,
+} from "./DashboardHighlights";
 import "./dashboard-demo.css";
 
 const today = 0;
@@ -50,8 +52,8 @@ function qualifyingDaysFor(events: StreakEvent[]) {
   );
 }
 const recommendations = [
-  { slug: "segment-sums", title: "Segment Sums", difficulty: "Medium", topic: "Arrays" },
-  { slug: "quota-window", title: "Quota Window", difficulty: "Hard", topic: "Sliding window" },
+  { slug: "segment-sums", title: "Segment Sums", difficulty: "medium", topic: "Arrays" },
+  { slug: "quota-window", title: "Quota Window", difficulty: "hard", topic: "Sliding window" },
 ] as const;
 
 const difficulty = [
@@ -109,6 +111,29 @@ export function DashboardDemo() {
   const doneToday = qualifyingDays.has(today);
   const length = streakLength(qualifyingDays, today);
   const best = isNew ? 0 : 12;
+  const recentMatches = matches.filter(({ when }) => scenario !== "broken" || when !== "Fri");
+  const activity = isNew
+    ? []
+    : [
+        ...(doneToday
+          ? [
+              {
+                id: "mirror-letters",
+                title: "Mirror Letters",
+                detail: "Practice accepted",
+                when: "Today",
+                kind: "practice" as const,
+              },
+            ]
+          : []),
+        ...recentMatches.map(({ mode, opponent, result, when }) => ({
+          id: opponent,
+          title: mode,
+          detail: `${result} · ${opponent}`,
+          when,
+          kind: "match" as const,
+        })),
+      ];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
@@ -166,28 +191,7 @@ export function DashboardDemo() {
               </div>
             </section>
 
-            <section
-              className="dashboard-panel dashboard-recommendations"
-              aria-labelledby="dashboard-recommendations-title"
-            >
-              <h2 id="dashboard-recommendations-title">
-                <Lightbulb size={17} /> Recommended for you
-              </h2>
-              <ul>
-                {recommendations.map(({ slug, title, difficulty, topic }) => (
-                  <li key={slug}>
-                    <Link to="/practice/$slug" params={{ slug }}>
-                      <span>
-                        <strong>{title}</strong>
-                        <small>{topic}</small>
-                      </span>
-                      <span className="dashboard-recommendation-difficulty">{difficulty}</span>
-                      <ArrowRight size={15} aria-hidden="true" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <DashboardRecommendations items={recommendations} />
             <div className="dashboard-destinations">
               <section className="dashboard-panel" aria-labelledby="dashboard-odyssey-title">
                 <div className="dashboard-panel-heading">
@@ -244,80 +248,10 @@ export function DashboardDemo() {
                 )}
               </section>
             </div>
-            <section
-              className="dashboard-panel dashboard-activity"
-              aria-labelledby="dashboard-activity-title"
-            >
-              <div className="dashboard-panel-heading">
-                <h2 id="dashboard-activity-title">
-                  <Clock3 size={17} /> Recent activity
-                </h2>
-              </div>
-              {isNew ? (
-                <p className="dashboard-caption">
-                  Your judged submissions and matches will appear here.
-                </p>
-              ) : (
-                <ul className="dashboard-rows">
-                  {doneToday && (
-                    <li>
-                      <span>
-                        <strong>Mirror Letters</strong>
-                        <small>Practice accepted</small>
-                      </span>
-                      <time>Today</time>
-                    </li>
-                  )}
-                  {scenario !== "broken" && (
-                    <li>
-                      <span>
-                        <strong>Showdown</strong>
-                        <small>Won against Mira Chen</small>
-                      </span>
-                      <time>Fri</time>
-                    </li>
-                  )}
-                  <li>
-                    <span>
-                      <strong>Race</strong>
-                      <small>Played with 3 players</small>
-                    </span>
-                    <time>Thu</time>
-                  </li>
-                </ul>
-              )}
-            </section>
+            <DashboardActivity items={activity} />
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
-            <section
-              className="dashboard-streak"
-              aria-labelledby="dashboard-streak-title"
-              data-active={length > 0}
-            >
-              <div aria-live="polite">
-                <h2 id="dashboard-streak-title">{length ? "Daily streak" : "No active streak"}</h2>
-                <p className="dashboard-caption">
-                  {doneToday
-                    ? "Today complete"
-                    : length
-                      ? "Today still open"
-                      : "Start a streak today"}
-                </p>
-                <div className="dashboard-streak-summary">
-                  <p className="dashboard-streak-number">
-                    <strong>{length}</strong>
-                    <span>{length === 1 ? "day active" : "days active"}</span>
-                  </p>
-                  <img src={length ? fire : embers} alt="" width={144} height={144} />
-                </div>
-              </div>
-              <div className="dashboard-streak-footer">
-                <p>Play a match or submit an accepted practice solution.</p>
-                <span>
-                  Best <strong>{best} days</strong>
-                </span>
-              </div>
-            </section>
+            <DashboardStreak days={length} best={best} doneToday={doneToday} />
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
               <div className="dashboard-panel-heading">
                 <h2 id="dashboard-solves-title">
@@ -376,21 +310,19 @@ export function DashboardDemo() {
                     <span className="dashboard-caption">Last 30 days</span>
                   </div>
                   <ul className="dashboard-rows" aria-label="Recent matches">
-                    {matches
-                      .filter(({ when }) => scenario !== "broken" || when !== "Fri")
-                      .map(({ mode, opponent, when, result, icon: Icon, tone }) => (
-                        <li key={opponent}>
-                          <span>
-                            <strong>{mode}</strong>
-                            <small>{opponent}</small>
-                          </span>
-                          <span className="dashboard-match-result" data-tone={tone}>
-                            <Icon size={15} />
-                            {result}
-                          </span>
-                          <time>{when}</time>
-                        </li>
-                      ))}
+                    {recentMatches.map(({ mode, opponent, when, result, icon: Icon, tone }) => (
+                      <li key={opponent}>
+                        <span>
+                          <strong>{mode}</strong>
+                          <small>{opponent}</small>
+                        </span>
+                        <span className="dashboard-match-result" data-tone={tone}>
+                          <Icon size={15} />
+                          {result}
+                        </span>
+                        <time>{when}</time>
+                      </li>
+                    ))}
                   </ul>
                 </>
               )}
