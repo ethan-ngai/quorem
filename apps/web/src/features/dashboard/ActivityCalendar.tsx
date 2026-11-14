@@ -28,6 +28,7 @@ const periods = [30, 90, activityHistoryDays].map((days) => ({
 }));
 
 const dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "long" });
+const monthLabel = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" });
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 function describeDay(day: { practice: number; matches: number }) {
@@ -51,9 +52,20 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
   const activeDay = Math.max(selected, 1 - range);
   const detail = days[activeDay + range - 1];
 
+  const groups = new Map<string, typeof days>();
+  for (const day of days) {
+    const weekStart = new Date(day.date);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const key = range === 30 ? weekStart.toDateString() : monthLabel.format(day.date);
+    const group = groups.get(key);
+    if (group) group.push(day);
+    else groups.set(key, [day]);
+  }
+
   return (
     <section
       className="activity-calendar dashboard-panel"
+      data-period={range}
       aria-labelledby="activity-calendar-title"
     >
       <div className="activity-calendar-header">
@@ -72,38 +84,48 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
       </div>
       <p className="activity-calendar-range">{shortDate.formatRange(days[0].date, current)}</p>
       <div
-        className="activity-calendar-grid"
+        className="activity-calendar-groups"
         role="group"
         aria-label="Daily activity. Use arrow keys to move between days."
       >
-        {days.map((day) => (
-          <button
-            type="button"
-            key={day.offset}
-            data-day={day.offset}
-            data-level={Math.min(day.total, 4)}
-            aria-label={`${dateLabel.format(day.date)}. ${
-              describeDay(day)
-                .map(({ count, label }) => `${count} ${label}`)
-                .join(", ") || "No activity"
-            }`}
-            aria-pressed={day.offset === activeDay}
-            tabIndex={day.offset === activeDay ? 0 : -1}
-            onClick={() => setSelected(day.offset)}
-            onKeyDown={(event) => {
-              const grid = event.currentTarget.parentElement;
-              if (!grid) return;
-              const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
-              const step = { ArrowUp: -columns, ArrowDown: columns, ArrowLeft: -1, ArrowRight: 1 }[
-                event.key
-              ];
-              if (step === undefined) return;
-              event.preventDefault();
-              const next = Math.max(1 - range, Math.min(0, day.offset + step));
-              grid.querySelector<HTMLButtonElement>(`[data-day="${next}"]`)?.focus();
-              setSelected(next);
-            }}
-          />
+        {[...groups].map(([key, group]) => (
+          <div key={key} className="activity-calendar-group">
+            <p>
+              {range === 30
+                ? shortDate.formatRange(group[0].date, group[group.length - 1].date)
+                : key}
+            </p>
+            <div className="activity-calendar-grid">
+              {group.map((day, index) => (
+                <button
+                  type="button"
+                  key={day.offset}
+                  data-day={day.offset}
+                  style={index === 0 ? { gridColumnStart: day.date.getDay() + 1 } : undefined}
+                  data-level={Math.min(day.total, 4)}
+                  aria-label={`${dateLabel.format(day.date)}. ${
+                    describeDay(day)
+                      .map(({ count, label }) => `${count} ${label}`)
+                      .join(", ") || "No activity"
+                  }`}
+                  aria-pressed={day.offset === activeDay}
+                  tabIndex={day.offset === activeDay ? 0 : -1}
+                  onClick={() => setSelected(day.offset)}
+                  onKeyDown={(event) => {
+                    const grid = event.currentTarget.closest(".activity-calendar-groups");
+                    const step = { ArrowUp: -7, ArrowDown: 7, ArrowLeft: -1, ArrowRight: 1 }[
+                      event.key
+                    ];
+                    if (step === undefined) return;
+                    event.preventDefault();
+                    const next = Math.max(1 - range, Math.min(0, day.offset + step));
+                    grid?.querySelector<HTMLButtonElement>(`[data-day="${next}"]`)?.focus();
+                    setSelected(next);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
       <p className="activity-calendar-detail" aria-live="polite">
