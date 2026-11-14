@@ -72,6 +72,7 @@
   border-radius: 2px;
   background: var(--activity-fill, var(--color-control-selected));
   aspect-ratio: 1;
+  transform-origin: top left;
   min-width: 0;
   padding: 0;
   cursor: pointer;
@@ -161,11 +162,15 @@
   view-transition-name: activity-calendar-odyssey;
 }
 
-.activity-range-transition::view-transition-old(activity-calendar-header) {
+/* Keep a single live image for the header and moving tiles. */
+.activity-range-transition::view-transition-old(activity-calendar-header),
+.activity-range-transition::view-transition-old(activity-calendar-grid) {
   display: none;
 }
 
-.activity-range-transition::view-transition-new(activity-calendar-header) {
+.activity-range-transition::view-transition-new(activity-calendar-header),
+.activity-range-transition::view-transition-group(activity-calendar-grid),
+.activity-range-transition::view-transition-new(activity-calendar-grid) {
   animation: none;
 }
 

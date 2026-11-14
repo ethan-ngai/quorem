@@ -1,4 +1,5 @@
 /** @file ActivityCalendar.tsx @description Daily practice and match activity in the dashboard preview. @module dashboard */
+import { motion } from "@quorem/ui/tokens";
 import { useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { BookOpen, Flame, Swords } from "lucide-react";
@@ -55,6 +56,38 @@ export function ActivityCalendar({
   const [period, setPeriod] = useState(String(activityHistoryDays));
   const [selected, setSelected] = useState(0);
   const rangeTransition = useRef<ViewTransition>(null);
+  const grid = useRef<HTMLDivElement>(null);
+  const tileAnimations = useRef<Animation[]>([]);
+
+  function updatePeriod(next: string) {
+    // Batch geometry reads on either side of the commit, then animate transforms only.
+    const before = new Map(
+      Array.from(grid.current?.querySelectorAll("button[data-day]") ?? [], (tile) => [
+        tile,
+        tile.getBoundingClientRect(),
+      ]),
+    );
+    for (const animation of tileAnimations.current) animation.cancel();
+    flushSync(() => setPeriod(next));
+
+    const tiles = Array.from(grid.current?.querySelectorAll("button[data-day]") ?? []);
+    const after = tiles.map((tile) => tile.getBoundingClientRect());
+    const timing = { duration: Number.parseFloat(motion.standard), easing: motion.easing };
+
+    tileAnimations.current = tiles.flatMap((tile, index) => {
+      const previous = before.get(tile);
+      if (!previous) return tile.animate([{ opacity: 0 }, { opacity: 1 }], timing);
+      const current = after[index]!;
+      const x = previous.left - current.left;
+      const y = previous.top - current.top;
+      if (!x && !y && previous.width === current.width) return [];
+      const scale = previous.width / current.width;
+      return tile.animate(
+        [{ transform: `translate(${x}px, ${y}px) scale(${scale})` }, { transform: "none" }],
+        timing,
+      );
+    });
+  }
 
   function changePeriod(next: string) {
     if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -64,8 +97,7 @@ export function ActivityCalendar({
 
     const root = document.documentElement;
     root.classList.add("activity-range-transition");
-    // Commit the new grid before the browser captures its positions.
-    const transition = document.startViewTransition(() => flushSync(() => setPeriod(next)));
+    const transition = document.startViewTransition(() => updatePeriod(next));
     rangeTransition.current = transition;
 
     const cleanup = () => {
@@ -149,6 +181,7 @@ export function ActivityCalendar({
           ))}
         </div>
         <div
+          ref={grid}
           className="activity-calendar-grid"
           role="group"
           aria-label="Daily activity. Use arrow keys to move between days."
