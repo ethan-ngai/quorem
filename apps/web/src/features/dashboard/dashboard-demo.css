@@ -126,9 +126,6 @@
   font-size: var(--text-small);
   font-weight: 600;
 }
-.dashboard-preview-title + .dashboard-caption {
-  margin-top: var(--space-1);
-}
 .dashboard-stages {
   display: flex;
   gap: var(--space-1);

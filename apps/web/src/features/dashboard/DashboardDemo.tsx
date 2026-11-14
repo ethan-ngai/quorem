@@ -215,7 +215,6 @@ export function DashboardDemo() {
               {hasOdyssey ? (
                 <>
                   <p className="dashboard-preview-title">Transit Operations</p>
-                  <p className="dashboard-caption">Stage 2 of 3</p>
                   <ol className="dashboard-stages" aria-label="Odyssey stages">
                     <li data-stage="complete">
                       <Check size={14} />
