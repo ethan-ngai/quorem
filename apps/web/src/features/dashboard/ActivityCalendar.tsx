@@ -54,19 +54,15 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
 
   const firstWeekday = days[0].date.getDay();
   const weeks = Math.ceil((firstWeekday + range) / 7);
-  const labels = new Map(
-    days.flatMap(({ date }, index) => {
-      const startsPeriod = range === 30 ? date.getDay() === 0 : date.getDate() === 1;
-      return index === 0 || startsPeriod
-        ? [
-            [
-              Math.floor((firstWeekday + index) / 7) + 1,
-              range === 30 ? shortDate.format(date) : monthLabel.format(date),
-            ] as const,
-          ]
-        : [];
-    }),
-  );
+  const monthLabels = new Map<number, string>();
+  const yearLabels = new Map<number, string>();
+  for (const [index, { date }] of days.entries()) {
+    const week = Math.floor((firstWeekday + index) / 7) + 1;
+    if (index === 0 || date.getDate() === 1) monthLabels.set(week, monthLabel.format(date));
+    if (index === 0 || (date.getMonth() === 0 && date.getDate() === 1)) {
+      yearLabels.set(week, String(date.getFullYear()));
+    }
+  }
 
   return (
     <section
@@ -93,13 +89,15 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
         className="activity-calendar-chart"
         style={{ "--activity-weeks": weeks } as CSSProperties}
       >
-        <div className="activity-calendar-labels" aria-hidden="true">
-          {[...labels].map(([week, label]) => (
-            <span key={week} style={{ gridColumn: week }} data-last={week === weeks}>
-              {label}
-            </span>
-          ))}
-        </div>
+        {[yearLabels, monthLabels].map((labels, row) => (
+          <div key={row} className="activity-calendar-labels" aria-hidden="true">
+            {[...labels].map(([week, label]) => (
+              <span key={week} style={{ gridColumn: week }} data-last={week === weeks}>
+                {label}
+              </span>
+            ))}
+          </div>
+        ))}
         <div
           className="activity-calendar-grid"
           role="group"
