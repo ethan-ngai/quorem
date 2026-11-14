@@ -33,8 +33,8 @@ export function DrawOfferControl({
         ? "You offered a draw"
         : `${offer.name} offered a draw`
       : "Offer a draw?";
-  const details = !accepted && (
-    <div className="persistent-action-toast-actions">
+  const actions = !accepted && (
+    <>
       {!offer ? (
         <button
           type="button"
@@ -73,7 +73,7 @@ export function DrawOfferControl({
           </button>
         </>
       )}
-    </div>
+    </>
   );
   return (
     <Popover.Root
@@ -92,15 +92,10 @@ export function DrawOfferControl({
       </Tooltip>
       <Popover.Portal>
         <Popover.Content className="draw-offer-popover" align="end" aria-label={title}>
-          <div className="persistent-action-toast-heading">
-            <span className="persistent-action-toast-icon" aria-hidden="true">
-              {icon}
-            </span>
-            <span className="persistent-action-toast-title" title={title}>
-              {title}
-            </span>
-          </div>
-          {details && <div className="persistent-action-toast">{details}</div>}
+          <h2 className="draw-offer-title" title={title}>
+            {title}
+          </h2>
+          {actions && <div className="draw-offer-actions">{actions}</div>}
         </Popover.Content>
       </Popover.Portal>
       {noticeId && (
@@ -113,7 +108,7 @@ export function DrawOfferControl({
           trigger={false}
           onMinimize={() => setMutedOfferId(noticeId)}
         >
-          {details}
+          {actions && <div className="persistent-action-toast-actions">{actions}</div>}
         </PersistentActionToast>
       )}
     </Popover.Root>
