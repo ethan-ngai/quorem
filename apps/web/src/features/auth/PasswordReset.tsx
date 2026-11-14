@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { authInputConstraints } from "./inputConstraints";
 import { NoticeRegion } from "../../ui/PersistentNotice";
@@ -121,9 +122,9 @@ export function PasswordReset() {
                     onChange={(event) => setConfirmation(event.target.value)}
                     disabled={busy}
                   />
-                  <button className="button button-primary auth-submit" disabled={busy}>
+                  <LoadingButton className="button button-primary auth-submit" pending={busy}>
                     {busy ? "Updating…" : "Update password"}
-                  </button>
+                  </LoadingButton>
                 </form>
               </NoticeRegion>
             </>
@@ -183,12 +184,13 @@ function ResetEmailRequest() {
             onChange={(event) => setEmail(event.target.value)}
             disabled={busy}
           />
-          <button
+          <LoadingButton
             className="button button-primary auth-submit"
-            disabled={busy || cooldown.remaining > 0}
+            disabled={cooldown.remaining > 0}
+            pending={busy}
           >
             {cooldown.remaining ? `Resend available in ${cooldown.remaining}s` : "Send reset link"}
-          </button>
+          </LoadingButton>
         </form>
       </NoticeRegion>
       {sent && (

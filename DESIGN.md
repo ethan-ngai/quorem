@@ -90,7 +90,7 @@ Tokens: `packages/ui/src/theme.css`; JavaScript layout/motion values: `packages/
 - Design empty, loading, disabled, pending, read-only, error, recovery and large-data states alongside success. Keep actions usable at narrow widths.
 - Animate language/content switches, disclosures, overlays, selections and row changes through shared owners. Use short, reversible transitions and shared motion tokens.
 - Apply state immediately. Retain old asynchronous content until its replacement is ready; transition content and dimensions smoothly.
-- Use spinners with accessible labels. Give loading indicators a 200 ms grace period by default. Acknowledge button actions immediately and show immediate spinners where they are the only feedback or a long wait is expected.
+- Use accessible loading status. Pending buttons lock immediately, keep their text visible and reserve the icon slot, and swap the icon for the shared spinner after a 200 ms grace period. Use immediate status indicators for long-running work outside buttons when they are the only feedback.
 - Respect reduced motion. Keep editing focused; pause decorative marketing motion offscreen or in hidden tabs.
 - Use the shared `ScrollCue` for overflow hints in scrollable panes. Match its axis to the scroll direction.
 - Support keyboard focus, accessible names and icon tooltips. Overlays own focus entry/restoration, trapping, dismissal and collision handling, including disappearing triggers.

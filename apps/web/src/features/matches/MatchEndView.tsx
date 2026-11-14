@@ -277,7 +277,7 @@ export function MatchEndView({
               )}
             />
             {party && !partyQuery.isError && member && (
-              <LeaveLobbyButton disabled={pending} onClick={() => void leaveLobby()} />
+              <LeaveLobbyButton pending={pending} onClick={() => void leaveLobby()} />
             )}
           </>
         }

@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useServerTable } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
@@ -193,12 +194,13 @@ export function PracticeBrowser() {
           {privateIdentityError || catalog.isError ? (
             <div className="practice-state" role="alert">
               <p>Questions couldn’t load. Please try again.</p>
-              <button
+              <LoadingButton
                 className="button button-secondary practice-retry"
                 onClick={() => void (privateIdentityError ? session.refetch() : catalog.refetch())}
+                pending={privateIdentityError ? session.isFetching : catalog.isFetching}
               >
                 Retry
-              </button>
+              </LoadingButton>
             </div>
           ) : catalog.isPending ? (
             <LoadingScreen inline label="Loading questions…" />

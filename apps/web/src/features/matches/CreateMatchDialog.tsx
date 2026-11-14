@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { CircleAlert, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
@@ -14,7 +15,7 @@ import {
   type Party,
   type PartySettings,
 } from "./party";
-import { LoadingIndicator, SpinnerSwap } from "../../ui/Spinner";
+import { LoadingIndicator } from "../../ui/Spinner";
 
 export function CreateMatchDialog({
   identity,
@@ -81,17 +82,15 @@ export function CreateMatchDialog({
             <CircleAlert size={18} aria-hidden="true" />
             <span>Lobby status unavailable</span>
           </div>
-          <button
+          <LoadingButton
             type="button"
             className="button button-secondary"
-            disabled={current.isFetching}
             onClick={() => void current.refetch()}
+            pending={current.isFetching}
+            icon={<RotateCcw size={16} />}
           >
-            <SpinnerSwap pending={current.isFetching}>
-              <RotateCcw size={16} />
-            </SpinnerSwap>
             Try again
-          </button>
+          </LoadingButton>
         </div>
       ) : (
         <form
@@ -129,9 +128,9 @@ export function CreateMatchDialog({
           {error && <p role="alert">{error}</p>}
           <footer className="competitive-dialog-actions">
             <span />
-            <button className="button button-primary" disabled={pending}>
+            <LoadingButton className="button button-primary" pending={pending}>
               {pending ? "Creating…" : recovering ? "Retry creation" : "Create lobby"}
-            </button>
+            </LoadingButton>
           </footer>
         </form>
       )}

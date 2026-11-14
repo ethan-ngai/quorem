@@ -65,11 +65,12 @@ function renderCases(
 }
 
 describe("pending case execution", () => {
-  it("shows indeterminate case loading before the judge returns public cases", () => {
+  it("reserves the delayed indicator before the judge returns public cases", () => {
     const html = renderCases(submission);
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('aria-label="Case 1: pending"');
-    expect(html).toContain('class="case-spinner" aria-hidden="true"');
+    expect(html).toContain('class="state-icon" data-active="false"');
+    expect(html).toContain('data-active="false" aria-hidden="true"');
     expect(html).toContain("Judging test case");
     expect(html).not.toContain("case-loading");
     expect(html).not.toContain('aria-label="Case 1: accepted"');
@@ -95,10 +96,10 @@ describe("pending case execution", () => {
   });
 
   it("keeps pending sample results out of the custom collection", () => {
-    expect(renderCases(submission, false, true)).not.toContain("case-spinner");
+    expect(renderCases(submission, false, true)).not.toContain("ui-spinner");
   });
 
-  it("shows all public and hidden spinners immediately when submitting", () => {
+  it("marks all public and hidden cases pending when submitting", () => {
     const html = renderCases(undefined, true, false, "submit");
     expect(html).toContain("Judging test case");
     expect(html).toContain('aria-label="Case 1: pending"');
@@ -125,7 +126,7 @@ describe("pending case execution", () => {
       state: "completed",
       publicCases: [{ index: 0, status: "accepted", actual: "[2,3,1]" }],
     });
-    expect(html).not.toContain("case-spinner");
+    expect(html).not.toContain('ui-spinner" data-active="true"');
     expect(html).toContain('aria-label="Case 1: accepted"');
     expect(stripSyntaxMarkup(html)).toContain("[2,3,1]");
   });

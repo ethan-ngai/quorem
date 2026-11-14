@@ -1,4 +1,5 @@
 /** @file AccountMenu.tsx @description Profile menu and accessible account dialogs. @module navigation */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useErrorNotification } from "../../ui/Notifications";
 import * as Popover from "../../ui/Popover";
 import { ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
@@ -153,9 +154,8 @@ export function AccountMenu({
                   ) : null}
                 </div>
                 <div className="account-menu-footer">
-                  <button
+                  <LoadingButton
                     className="account-logout"
-                    disabled={saving}
                     onClick={() => {
                       setSaving(true);
                       void signOut().catch(() => {
@@ -163,10 +163,12 @@ export function AccountMenu({
                         setSaving(false);
                       });
                     }}
+
+                    icon={<LogOut />}
+                    pending={saving}
                   >
-                    <LogOut />
                     <span>Log out</span>
-                  </button>
+                  </LoadingButton>
                 </div>
               </>
             ) : (

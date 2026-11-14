@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { authInputConstraints } from "./inputConstraints";
 import { inputConstraints } from "../../ui/input-constraints";
@@ -127,7 +128,7 @@ export function ProfileEditor({
                   disabled={busy}
                 />
                 <div className="profile-edit-actions">
-                  <FieldAction label="Save name" type="submit" disabled={busy}>
+                  <FieldAction label="Save name" type="submit" pending={busy}>
                     <Check size={16} />
                   </FieldAction>
                   {cancel}
@@ -159,7 +160,7 @@ export function ProfileEditor({
                     disabled={busy}
                   />
                   <div className="profile-edit-actions">
-                    <FieldAction label="Save username" type="submit" disabled={busy}>
+                    <FieldAction label="Save username" type="submit" pending={busy}>
                       <Check size={16} />
                     </FieldAction>
                     {cancel}
@@ -222,7 +223,8 @@ export function ProfileEditor({
                         ? `Retry in ${emailCooldown.remaining}s`
                         : "Verify email change"
                     }
-                    disabled={busy || email === profile.email || emailCooldown.remaining > 0}
+                    pending={busy}
+                    disabled={email === profile.email || emailCooldown.remaining > 0}
                   >
                     <Send size={16} />
                   </FieldAction>
@@ -322,28 +324,30 @@ function ProfileField({
 function FieldAction({
   label,
   children,
-  disabled,
+  disabled = false,
+  pending = false,
   type = "button",
   onClick,
 }: {
   label: string;
   children: ReactNode;
-  disabled: boolean;
+  disabled?: boolean;
+  pending?: boolean;
   type?: "button" | "submit";
   onClick?: () => void;
 }) {
   return (
     <Tooltip content={label}>
-      <button
+      <LoadingButton
         className="icon-button"
         aria-label={label}
         title={disabled ? label : undefined}
         type={type}
         disabled={disabled}
         onClick={onClick}
-      >
-        {children}
-      </button>
+        icon={children}
+        pending={pending}
+      />
     </Tooltip>
   );
 }

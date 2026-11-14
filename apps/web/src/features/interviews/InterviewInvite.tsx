@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
 import { userFacingErrorMessage } from "../../ui/errors";
@@ -149,9 +150,13 @@ export function InterviewInvite({ token }: { token: string }) {
                     Log in
                   </a>
                 )}
-                <button className="button button-primary" disabled={busy || account.isPending}>
+                <LoadingButton
+                  className="button button-primary"
+                  disabled={account.isPending}
+                  pending={busy}
+                >
                   {busy ? "Joining…" : "Join interview"}
-                </button>
+                </LoadingButton>
               </footer>
             </form>
           </SessionDialog>

@@ -871,22 +871,9 @@
   width: 15px;
   height: 15px;
 }
-.match-recovery-spinner {
-  animation: match-recovery-spin 1s linear infinite;
-}
-@keyframes match-recovery-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @media (max-width: 480px) {
   .match-recovery-actions .button {
     min-height: 44px;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .match-recovery-spinner {
-    animation: none;
   }
 }
 

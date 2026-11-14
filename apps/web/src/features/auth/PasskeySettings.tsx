@@ -1,4 +1,5 @@
 /** @file PasskeySettings.tsx @description Authenticated passkey enrollment and removal. @module auth */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { useErrorNotification } from "../../ui/Notifications";
 import { authErrorMessage } from "./errors";
@@ -21,11 +22,12 @@ export function PasskeySettings() {
     retry: false,
   });
   const add = useRef<HTMLButtonElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<string>();
+  const busy = operation !== undefined;
   const [error, setError] = useState("");
   useErrorNotification(error);
-  async function update(action: () => Promise<unknown>) {
-    setBusy(true);
+  async function update(operation: string, action: () => Promise<unknown>) {
+    setOperation(operation);
     setError("");
     try {
       await action();
@@ -33,7 +35,7 @@ export function PasskeySettings() {
     } catch (cause) {
       setError(authErrorMessage(cause, "Passkey update unavailable. Try again."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   return (
@@ -48,9 +50,13 @@ export function PasskeySettings() {
       ) : capabilities.isError ? (
         <p role="alert">
           Sign-in methods unavailable.{" "}
-          <button className="quiet-button" onClick={() => void capabilities.refetch()}>
+          <LoadingButton
+            className="quiet-button"
+            onClick={() => void capabilities.refetch()}
+            pending={capabilities.isFetching}
+          >
             Retry
-          </button>
+          </LoadingButton>
         </p>
       ) : !capabilities.data?.passkey ? (
         <p>Passkeys aren’t available on this server.</p>
@@ -61,9 +67,13 @@ export function PasskeySettings() {
           ) : keys.isError ? (
             <p role="alert">
               Passkeys unavailable.{" "}
-              <button className="quiet-button" onClick={() => void keys.refetch()}>
+              <LoadingButton
+                className="quiet-button"
+                onClick={() => void keys.refetch()}
+                pending={keys.isFetching}
+              >
                 Retry
-              </button>
+              </LoadingButton>
             </p>
           ) : (
             <AnimatedRows
@@ -75,14 +85,15 @@ export function PasskeySettings() {
               renderRow={(key) => (
                 <>
                   <span>{key.name || "Passkey"}</span>
-                  <button
+                  <LoadingButton
                     className="quiet-button"
                     disabled={busy}
-                    onClick={() => void update(() => deletePasskey(key.id))}
+                    onClick={() => void update(key.id, () => deletePasskey(key.id))}
                     aria-label={`Remove ${key.name || "passkey"}`}
+                    pending={operation === key.id}
                   >
                     Remove
-                  </button>
+                  </LoadingButton>
                 </>
               )}
             />
@@ -90,15 +101,15 @@ export function PasskeySettings() {
           {!keys.isPending && !keys.isError && !keys.data?.length && (
             <p className="motion-reveal">No passkeys added.</p>
           )}
-          <button
+          <LoadingButton
             className="button button-secondary"
             ref={add}
-            aria-busy={busy}
             disabled={busy || typeof PublicKeyCredential === "undefined"}
-            onClick={() => void update(() => addPasskey("Quorem"))}
+            onClick={() => void update("add", () => addPasskey("Quorem"))}
+            pending={operation === "add"}
           >
             Add a passkey
-          </button>
+          </LoadingButton>
           {typeof PublicKeyCredential === "undefined" ? (
             <p>Use a browser that supports passkeys.</p>
           ) : null}

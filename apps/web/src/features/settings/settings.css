@@ -242,14 +242,6 @@
     opacity var(--motion-fast),
     background-color var(--motion-fast);
 }
-.settings-spinner {
-  animation: settings-spin 800ms linear infinite;
-}
-@keyframes settings-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 @keyframes settings-state-in {
   from {
     opacity: 0;

@@ -1,4 +1,5 @@
 /** @file MatchAssistance.tsx @description Assistance reveals and confirmation of their effects. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Bell, Clock3, Trophy } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,7 +13,6 @@ import { matchRuleAction } from "./api";
 import * as Popover from "../../ui/Popover";
 import { useErrorNotification } from "../../ui/Notifications";
 import { Icon } from "../../ui/Icon";
-import { Spinner } from "../../ui/Spinner";
 import type { HiddenCaseDetails } from "../editor/components/TestCases";
 import { Tooltip } from "../../ui/Tooltip";
 import { ownParticipant } from "./matchState";
@@ -135,11 +135,10 @@ export function MatchAssistance({
     const loadingCase = !confirmingCase && sameCase(request);
     return {
       action: (
-        <button
+        <LoadingButton
           type="button"
           className="button button-secondary"
           aria-disabled={disabled}
-          aria-busy={loadingCase}
           aria-haspopup={access === "free" ? undefined : "dialog"}
           aria-expanded={access === "free" ? undefined : confirmingCase}
           onClick={(event) =>
@@ -162,10 +161,12 @@ export function MatchAssistance({
               },
             )
           }
+          icon={<Icon name="eye" />}
+          iconSize={18}
+          pending={loadingCase}
         >
-          {loadingCase ? <Spinner size={18} /> : <Icon name="eye" />}
           Reveal case
-        </button>
+        </LoadingButton>
       ),
     };
   }
@@ -256,11 +257,10 @@ export function MatchAssistance({
                 >
                   Cancel
                 </button>
-                <button
+                <LoadingButton
                   type="button"
                   className="button button-primary"
                   aria-disabled={disabled}
-                  aria-busy={!!request?.approval}
                   onClick={() =>
                     confirmation &&
                     anchor.current &&
@@ -270,10 +270,11 @@ export function MatchAssistance({
                       confirmation.onReveal,
                     )
                   }
+                  icon={<Icon name="eye" width={16} height={16} />}
+                  pending={!!request?.approval}
                 >
-                  {request?.approval ? <Spinner /> : <Icon name="eye" width={16} height={16} />}
                   Reveal {target}
-                </button>
+                </LoadingButton>
               </div>
             </Popover.Content>
           </Popover.Portal>

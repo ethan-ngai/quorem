@@ -1,4 +1,5 @@
 /** @file BulkQuestionImport.tsx @description Review and resume a batch of question drafts. @module admin */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { toast } from "sonner";
 import { notifyBatchResult, notificationAction } from "../../ui/Notifications";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -117,7 +118,8 @@ export function BulkQuestionImport({
 }) {
   const chooser = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<Row[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<"read" | "check" | "create">();
+  const busy = operation !== undefined;
   const [progress, setProgress] = useState("");
   const [notice, setNotice] = useState("");
   const [resultsOpen, setResultsOpen] = useState(false);
@@ -127,7 +129,7 @@ export function BulkQuestionImport({
     toast.error(message, { id: notification });
   }
   async function select(files: File[]) {
-    setBusy(true);
+    setOperation("read");
     setRows([]);
     setNotice("");
     setResultsOpen(false);
@@ -179,12 +181,12 @@ export function BulkQuestionImport({
         error instanceof Error ? error.message : "Could not read the selection.",
       );
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   async function run(preview: boolean) {
     const selected = rows.filter((row) => row.selected && eligible(row));
-    setBusy(true);
+    setOperation(preview ? "check" : "create");
     setNotice("");
     const batches: Row[][] = [];
     let bytes = 0;
@@ -303,7 +305,7 @@ export function BulkQuestionImport({
         });
       if (created) onCreated();
       setProgress("");
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   const selectedCount = rows.filter((row) => row.selected && eligible(row)).length;
@@ -413,20 +415,22 @@ export function BulkQuestionImport({
       )}
       {(busy || selectedCount > 0) && (
         <footer className="competitive-dialog-actions">
-          <button
+          <LoadingButton
             className="button button-secondary"
             disabled={busy || !selectedCount}
             onClick={() => void run(true)}
+            pending={operation === "check"}
           >
             Check files
-          </button>
-          <button
+          </LoadingButton>
+          <LoadingButton
             className="button button-primary"
             disabled={busy || !selectedCount}
             onClick={() => void run(false)}
+            pending={operation === "create"}
           >
             Create {selectedCount || ""} drafts
-          </button>
+          </LoadingButton>
         </footer>
       )}
     </SessionDialog>

@@ -1,4 +1,5 @@
 /** @file AdminDashboard.tsx @description Administrator account, content and retained-activity overview. @module admin */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { AdminOverview } from "@quorem/contracts";
@@ -8,7 +9,6 @@ import { canAccess } from "../auth/adminAccess";
 import { useSession } from "../auth/session";
 import { useTheme } from "../editor/useTheme";
 import { LoadingScreen } from "../../ui/LoadingScreen";
-import { DelayedSpinner } from "../../ui/Spinner";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { Table, TableRow } from "../../ui/Table";
 import { getAdminOverview } from "./api";
@@ -46,18 +46,15 @@ export function AdminDashboard() {
               label="Overview unavailable"
               actions={[{ label: "Retry", onClick: () => void overview.refetch() }]}
             />
-            <button
+            <LoadingButton
               className="button button-secondary"
-              disabled={overview.isFetching}
               onClick={() => void overview.refetch()}
+              icon={<RefreshCw size={14} aria-hidden="true" />}
+              iconSize={14}
+              pending={overview.isFetching}
             >
-              <DelayedSpinner
-                active={overview.isFetching && !!overview.data}
-                label="Refreshing overview"
-                fallback={<RefreshCw size={14} aria-hidden="true" />}
-              />
               Refresh
-            </button>
+            </LoadingButton>
             <Link
               className="button button-secondary"
               to="/questions"
@@ -79,13 +76,13 @@ export function AdminDashboard() {
           <div className="admin-overview-empty" role="alert">
             <h2>Overview unavailable</h2>
             <p>Platform data could not be loaded.</p>
-            <button
+            <LoadingButton
               className="button button-secondary"
-              disabled={overview.isFetching}
               onClick={() => void overview.refetch()}
+              pending={overview.isFetching}
             >
               Retry
-            </button>
+            </LoadingButton>
           </div>
         ) : (
           <LoadingScreen label="Loading overview…" inline />

@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { SessionDialog } from "../../ui/SessionDialog";
 import { useEffect, useRef } from "react";
 
@@ -37,13 +38,13 @@ export function InterviewLifecycleDialog({
         <button ref={keep} className="button button-secondary" disabled={busy} onClick={onClose}>
           {deleting ? "Keep interview" : "Keep interviewing"}
         </button>
-        <button
+        <LoadingButton
           className="button button-secondary button-destructive-hover"
-          disabled={busy}
           onClick={onConfirm}
+          pending={busy}
         >
           {deleting ? "Delete interview" : "End interview"}
-        </button>
+        </LoadingButton>
       </footer>
     </SessionDialog>
   );

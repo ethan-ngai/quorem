@@ -1,4 +1,5 @@
 /** @file PracticeRecommendations.tsx @description One visible recommendation above the practice catalog. @module practice */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -183,18 +184,18 @@ export function PracticeRecommendations({
                     </Link>
                     {id && (
                       <Tooltip content="Hide recommendation for 7 days">
-                        <button
+                        <LoadingButton
                           className="icon-button"
                           type="button"
                           aria-label={`Hide recommendation for ${question.title}`}
-                          disabled={dismissal.isPending}
                           onClick={() => {
                             viewport.current?.focus({ preventScroll: true });
                             dismissal.mutate(id);
                           }}
-                        >
-                          <X size={16} aria-hidden />
-                        </button>
+                          icon={<X size={16} />}
+                          disabled={dismissal.isPending}
+                          pending={dismissal.isPending && dismissal.variables === id}
+                        />
                       </Tooltip>
                     )}
                   </div>
@@ -211,13 +212,14 @@ export function PracticeRecommendations({
       ) : recommendations.isError ? (
         <div className="practice-recommendations-status" role="alert">
           Recommendations couldn’t load.
-          <button
+          <LoadingButton
             className="button button-secondary practice-retry"
             type="button"
             onClick={() => void recommendations.refetch()}
+            pending={recommendations.isFetching}
           >
             Retry
-          </button>
+          </LoadingButton>
         </div>
       ) : (
         <div className="practice-recommendations-status">

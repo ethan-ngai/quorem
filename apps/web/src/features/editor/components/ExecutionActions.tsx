@@ -1,9 +1,9 @@
 /** @file ExecutionActions.tsx @description One execution action row for every coding workspace. @module editor */
+import { LoadingButton } from "../../../ui/LoadingButton";
 import { workspaceShortcuts } from "../workspaceShortcuts";
 import { Icon } from "../../../ui/Icon";
 import { ShortcutHint } from "../../../ui/ShortcutKeys";
 import { Spinner } from "../../../ui/Spinner";
-import { StateIcon } from "../../../ui/StateIcon";
 import { Tooltip } from "../../../ui/Tooltip";
 
 export function ExecutionActions({
@@ -60,19 +60,16 @@ export function ExecutionActions({
           inert={!onCancel}
           aria-hidden={!onCancel}
         >
-          <button
+          <LoadingButton
             className="button button-danger"
             aria-label={abortPending ? "Aborting…" : "Abort"}
-            disabled={abortPending}
             onClick={onCancel}
+            icon={<Icon name="stop" />}
+            iconSize={18}
+            pending={!!abortPending}
           >
-            <StateIcon
-              active={!!abortPending}
-              off={<Icon name="stop" />}
-              on={<Spinner size={18} active={!!abortPending} />}
-            />
             Abort
-          </button>
+          </LoadingButton>
         </div>
         <div className="run-action-state" data-active={!onCancel} aria-hidden={!!onCancel}>
           <span className="button run-action-status" role="status">

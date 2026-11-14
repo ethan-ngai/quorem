@@ -1,3 +1,4 @@
+import { LoadingIcon } from "../../../ui/LoadingButton";
 import { caseGraphTargets, inferCaseGraph } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
@@ -663,14 +664,13 @@ function CaseIndicator({
   pending: boolean;
   status?: PublicCaseResult["status"];
 }) {
-  if (pending) return <span className="case-spinner" aria-hidden="true" />;
-  if (!status || status === "executed") return null;
-  return (
+  const icon = status && status !== "executed" && (
     <Icon
       name={status === "accepted" ? "submit" : "close"}
       className={status === "accepted" ? "verdict-success" : "verdict-error"}
     />
   );
+  return pending || icon ? <LoadingIcon pending={pending} icon={icon} size={14} /> : null;
 }
 
 /** Shared verdict for current and previous case groups. */

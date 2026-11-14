@@ -1,4 +1,5 @@
 /** @file ConcessionDialog.tsx @description Multiplayer-aware forfeit confirmation using shared session chrome. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useRef } from "react";
 import { Flag } from "lucide-react";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -52,9 +53,9 @@ export function ConcessionDialog({
         >
           Keep playing
         </button>
-        <button className="button button-danger" disabled={pending} onClick={onConfirm}>
+        <LoadingButton className="button button-danger" onClick={onConfirm} pending={pending}>
           {pending ? "Forfeiting…" : "Forfeit & leave"}
-        </button>
+        </LoadingButton>
       </div>
     </SessionDialog>
   );

@@ -1,6 +1,7 @@
 /** @file InterviewParticipants.tsx @description Readable participant roster and role management. @module interviews */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { AnimatedRows } from "../../ui/AnimatedRows";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { participantColor } from "../collaboration/participantColor";
 import type { InterviewSnapshot, InterviewRole } from "@quorem/contracts";
@@ -23,8 +24,9 @@ export function InterviewParticipants({
   onOpenChange: (open: boolean) => void;
   busy: boolean;
   onRole: (id: string, role: InterviewRole) => void;
-  onRemove: (id: string) => void;
+  onRemove: (id: string) => Promise<unknown>;
 }) {
+  const [removing, setRemoving] = useState<string>();
   const heading = useRef<HTMLHeadingElement>(null);
   const canManage = snapshot.role === "interviewer" && snapshot.state !== "closed";
   return (
@@ -103,15 +105,24 @@ export function InterviewParticipants({
                   )}
                   {editable && (
                     <Tooltip content="Remove participant">
-                      <button
+                      <LoadingButton
                         type="button"
                         className="icon-button destructive-icon"
                         aria-label={`Remove ${member.name}`}
                         disabled={busy}
-                        onClick={() => onRemove(member.userId)}
-                      >
-                        <Icon name="close" />
-                      </button>
+                        onClick={async () => {
+                          setRemoving(member.userId);
+                          try {
+                            await onRemove(member.userId);
+                          } finally {
+                            setRemoving(undefined);
+                          }
+                        }}
+
+                        icon={<Icon name="close" />}
+                        iconSize={18}
+                        pending={removing === member.userId}
+                      />
                     </Tooltip>
                   )}
                 </>

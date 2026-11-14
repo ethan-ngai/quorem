@@ -1,4 +1,5 @@
 /** @file WorkspaceRecovery.tsx @description Shared loading and reconnect presentation. @module ui */
+import { LoadingButton } from "./LoadingButton";
 import { ArrowLeft, RotateCcw, Unplug } from "lucide-react";
 import { useId, useState } from "react";
 import { LogoSpinner } from "./LoadingScreen";
@@ -29,9 +30,8 @@ export function WorkspaceRecovery({
       <p role={failed ? "alert" : "status"}>{message}</p>
       {failed && (
         <div className="match-recovery-actions">
-          <button
+          <LoadingButton
             className="button button-primary"
-            disabled={retrying}
             onClick={async () => {
               setRetrying(true);
               try {
@@ -40,10 +40,11 @@ export function WorkspaceRecovery({
                 setRetrying(false);
               }
             }}
+            icon={<RotateCcw />}
+            pending={retrying}
           >
-            <RotateCcw className={retrying ? "match-recovery-spinner" : undefined} />
             {retrying ? "Reconnecting…" : "Try again"}
-          </button>
+          </LoadingButton>
           <a className="button button-secondary" href={backHref}>
             <ArrowLeft />
             {backLabel}

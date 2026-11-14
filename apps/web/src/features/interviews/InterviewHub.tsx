@@ -1,4 +1,5 @@
 /** @file InterviewHub.tsx @description Gated interview hosting and resumable session discovery. @module interviews */
+import { LoadingButton } from "../../ui/LoadingButton";
 import type { paths } from "@quorem/contracts";
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
@@ -170,12 +171,13 @@ export function InterviewHub() {
           ) : sessions.isError ? (
             <div className="practice-state" role="alert">
               <p>Could not load interviews.</p>
-              <button
+              <LoadingButton
                 className="button button-secondary practice-retry"
                 onClick={() => void sessions.refetch()}
+                pending={sessions.isFetching}
               >
                 Retry
-              </button>
+              </LoadingButton>
             </div>
           ) : (
             <>

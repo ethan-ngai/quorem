@@ -1,4 +1,5 @@
 /** @file ShareActions.tsx @description Shared copy/native-share controls with consistent capability checks and tooltips. @module ui */
+import { LoadingButton } from "./LoadingButton";
 import "./share-actions.css";
 import { Tooltip } from "./Tooltip";
 import { Icon } from "./Icon";
@@ -36,15 +37,14 @@ export function ShareActions({
       </Tooltip>
       {canShareLink(data) && (
         <Tooltip content={shareLabel}>
-          <button
+          <LoadingButton
             type="button"
             className="icon-button"
             aria-label={shareLabel}
-            disabled={sharing}
             onClick={onShare}
-          >
-            <Icon name="share" />
-          </button>
+            icon={<Icon name="share" />}
+            pending={sharing}
+          />
         </Tooltip>
       )}
     </div>

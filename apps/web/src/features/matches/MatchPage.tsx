@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { DrawOfferControl } from "./DrawOfferControl";
 import { matchCompetitors, isMatchWinner } from "./competitors";
 import { FactionWorkspace } from "../factions/FactionWorkspace";
@@ -290,7 +291,7 @@ export function MatchPage({
 }) {
   const { identity, account } = useAccountIdentity();
   const { preference, setPreference } = useTheme();
-  const { snapshot, error, status, refetch } = useMatchSync(identity, matchId, true);
+  const { snapshot, error, status, isFetching, refetch } = useMatchSync(identity, matchId, true);
   const httpStatus = error instanceof ApiError ? error.status : undefined;
   const denied = isRouteDenied(httpStatus);
   const terminal = isMatchTerminal(snapshot);
@@ -397,12 +398,12 @@ export function MatchPage({
         accepted={accepted}
         pending={pending}
         onOffer={() =>
-          void command(async () => {
+          command(async () => {
             await matchDraw(identity, matchId, "offer");
           })
         }
         onRespond={(action, offerId) =>
-          void command(async () => {
+          command(async () => {
             if (action === "accept" && snapshot.shareFinalCode) await saveDraft?.();
             await matchDraw(identity, matchId, action, offerId);
           })
@@ -501,9 +502,13 @@ export function MatchPage({
           <>
             <h1>Workspace unavailable</h1>
             <p>Could not load your match workspace.</p>
-            <button className="button button-secondary" onClick={() => void refetch()}>
+            <LoadingButton
+              className="button button-secondary"
+              onClick={() => void refetch()}
+              pending={isFetching}
+            >
               Try again
-            </button>
+            </LoadingButton>
             {ledger()}
           </>
         )}

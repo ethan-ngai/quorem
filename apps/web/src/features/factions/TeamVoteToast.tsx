@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { Vote } from "lucide-react";
 import { useErrorNotification } from "../../ui/Notifications";
 /** @file TeamVoteToast.tsx @description Team ballots in persistent nonmodal notifications. @module factions */
@@ -52,16 +53,17 @@ export function TeamVoteToast({
   onCancel: (id: string) => Promise<void>;
 }) {
   const [localExpiry] = useState(() => Date.now() + vote.expiresAt - serverNow);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<"approve" | "reject" | "cancel">();
+  const busy = operation !== undefined;
   const acting = useRef(false);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string>();
   useErrorNotification(error);
   const [showCode, setShowCode] = useState(false);
-  async function act(fn: () => Promise<void>) {
+  async function act(operation: "approve" | "reject" | "cancel", fn: () => Promise<void>) {
     if (acting.current || Date.now() >= localExpiry) return;
     acting.current = true;
-    setBusy(true);
+    setOperation(operation);
     setError(undefined);
     try {
       await fn();
@@ -69,7 +71,7 @@ export function TeamVoteToast({
       setError(cause instanceof Error ? cause.message : "Vote could not be recorded. Try again.");
     } finally {
       acting.current = false;
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   const voted = Object.hasOwn(vote.ballots, identity);
@@ -120,22 +122,28 @@ export function TeamVoteToast({
       <div className="persistent-action-toast-actions">
         {!voted ? (
           <>
-            <button
+            <LoadingButton
               type="button"
               className="button button-primary"
               disabled={busy || expired}
-              onClick={() => void act(() => onVote(vote.id, true))}
+              onClick={() => void act("approve", () => onVote(vote.id, true))}
+              icon={<Check size={14} aria-hidden="true" />}
+              iconSize={14}
+              pending={operation === "approve"}
             >
-              <Check size={14} aria-hidden="true" /> Approve
-            </button>
-            <button
+              Approve
+            </LoadingButton>
+            <LoadingButton
               type="button"
               className="button button-secondary"
               disabled={busy || expired}
-              onClick={() => void act(() => onVote(vote.id, false))}
+              onClick={() => void act("reject", () => onVote(vote.id, false))}
+              icon={<X size={14} aria-hidden="true" />}
+              iconSize={14}
+              pending={operation === "reject"}
             >
-              <X size={14} aria-hidden="true" /> Reject
-            </button>
+              Reject
+            </LoadingButton>
           </>
         ) : (
           <span className="persistent-action-toast-ballot" role="status">
@@ -148,14 +156,15 @@ export function TeamVoteToast({
           </span>
         )}
         {vote.proposerId === identity && (
-          <button
+          <LoadingButton
             type="button"
             className="quiet-button persistent-action-toast-cancel"
             disabled={busy || expired}
-            onClick={() => void act(() => onCancel(vote.id))}
+            onClick={() => void act("cancel", () => onCancel(vote.id))}
+            pending={operation === "cancel"}
           >
             Cancel proposal
-          </button>
+          </LoadingButton>
         )}
         <PersistentNotice message={error} />
       </div>

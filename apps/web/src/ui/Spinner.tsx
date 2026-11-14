@@ -1,8 +1,7 @@
 /** @file Spinner.tsx @description Shared compact loading indicators. @module ui */
 import { LoaderCircle } from "lucide-react";
 import type { ReactNode } from "react";
-import { LoadingState, useLoadingVisibility } from "./LoadingState";
-import { StateIcon } from "./StateIcon";
+import { LoadingState } from "./LoadingState";
 import "./spinner.css";
 
 export function Spinner({ size = 16, active = true }: { size?: number; active?: boolean }) {
@@ -38,10 +37,4 @@ export function DelayedSpinner({
       </LoadingState>
     </span>
   );
-}
-
-/** Keep the button's resting content and spinner in the same slot. */
-export function SpinnerSwap({ pending, children }: { pending: boolean; children: ReactNode }) {
-  const visible = useLoadingVisibility(pending);
-  return <StateIcon active={visible} off={children} on={<Spinner active={visible} />} />;
 }

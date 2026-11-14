@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { authInputConstraints } from "./inputConstraints";
 import { inputConstraints } from "../../ui/input-constraints";
@@ -135,23 +136,24 @@ function LoginForm() {
         ? "Email verified. You can sign in now."
         : undefined,
   );
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<string>();
+  const busy = operation !== undefined;
   const passkeySupported = typeof PublicKeyCredential !== "undefined";
-  async function authenticate(action: () => Promise<unknown>) {
+  async function authenticate(operation: string, action: () => Promise<unknown>) {
     if (busy) return;
-    setBusy(true);
+    setOperation(operation);
     setError("");
     try {
       await action();
     } catch (cause) {
       setError(authErrorMessage(cause, "Sign in unavailable. Try again."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   function submit(event: FormEvent) {
     event.preventDefault();
-    void authenticate(async () => {
+    void authenticate("submit", async () => {
       if (creating) {
         if (!capabilities.data?.registration)
           throw new AuthError("Account creation is unavailable.");
@@ -281,23 +283,24 @@ function LoginForm() {
               >
                 Change email
               </button>
-              <button
+              <LoadingButton
                 type="button"
                 className="quiet-button"
                 disabled={busy || resend.remaining > 0}
                 onClick={() =>
-                  void authenticate(async () => {
+                  void authenticate("resend", async () => {
                     const sent = await beginRegistration(submittedEmail);
                     resend.start(sent.retryAfter);
                   })
                 }
+                pending={operation === "resend"}
               >
-                {busy
+                {operation === "resend"
                   ? "Sending…"
                   : resend.remaining > 0
                     ? `Resend email in ${resend.remaining}s`
                     : "Resend verification email"}
-              </button>
+              </LoadingButton>
 
               {finishing && /expired|another tab/.test(error) ? (
                 <button
@@ -319,12 +322,13 @@ function LoginForm() {
           ) : capabilities.isError ? (
             <>
               <p role="alert">Sign in unavailable.</p>
-              <button
+              <LoadingButton
                 className="button button-secondary"
                 onClick={() => void capabilities.refetch()}
+                pending={capabilities.isFetching}
               >
                 Try again
-              </button>
+              </LoadingButton>
             </>
           ) : (
             <>
@@ -334,20 +338,24 @@ function LoginForm() {
                     {socialProviders.map((provider) => {
                       const enabled = capabilities.data?.providers.includes(provider);
                       return (
-                        <button
+                        <LoadingButton
                           key={provider}
                           type="button"
                           className="button auth-provider"
                           disabled={busy || !enabled}
-                          onClick={() => void authenticate(() => signInWithProvider(provider))}
+                          onClick={() =>
+                            void authenticate(provider, () => signInWithProvider(provider))
+                          }
                           aria-describedby={!enabled ? "auth-provider-note" : undefined}
+                          icon={<SocialProviderIcon provider={provider} size={18} />}
+                          iconSize={18}
+                          pending={operation === provider}
                         >
-                          <SocialProviderIcon provider={provider} size={18} />
                           {socialProviderLabels[provider]}
                           {!creating && lastMethod.data === provider ? (
                             <span className="auth-last-used">Last used</span>
                           ) : null}
-                        </button>
+                        </LoadingButton>
                       );
                     })}
                   </div>
@@ -460,8 +468,13 @@ function LoginForm() {
                     ) : null}
                   </>
                 ) : null}
-                <button className="button button-primary auth-submit" type="submit" disabled={busy}>
-                  {busy
+                <LoadingButton
+                  className="button button-primary auth-submit"
+                  type="submit"
+                  disabled={busy}
+                  pending={operation === "submit"}
+                >
+                  {operation === "submit"
                     ? creating
                       ? finishing
                         ? "Creating account…"
@@ -479,7 +492,7 @@ function LoginForm() {
                   lastMethod.data === "email" ? (
                     <span className="auth-last-used">Last used</span>
                   ) : null}
-                </button>
+                </LoadingButton>
               </form>
               {!creating && capabilities.data?.registration && (
                 <a className="quiet-button auth-forgot" href="/login?reset=1">
@@ -492,17 +505,19 @@ function LoginForm() {
                 </p>
               ) : null}
               {!creating && capabilities.data?.passkey ? (
-                <button
+                <LoadingButton
                   className="button auth-passkey"
                   disabled={busy || !passkeySupported}
-                  onClick={() => void authenticate(signInWithPasskey)}
+                  onClick={() => void authenticate("passkey", signInWithPasskey)}
+                  icon={<Fingerprint size={18} />}
+                  iconSize={18}
+                  pending={operation === "passkey"}
                 >
-                  <Fingerprint size={18} />
                   Sign in with a passkey
                   {lastMethod.data === "passkey" ? (
                     <span className="auth-last-used">Last used</span>
                   ) : null}
-                </button>
+                </LoadingButton>
               ) : null}
               {!creating && capabilities.data?.passkey && !passkeySupported ? (
                 <p className="auth-note">Passkeys require a supported browser.</p>

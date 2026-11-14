@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { toast } from "sonner";
 import {
   updateAuthoringIssues,
@@ -175,7 +176,8 @@ function AuthoringWorkspace({
     enableBeforeUnload: false,
     withResolver: true,
   });
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<"impact" | "delete" | "save" | "publish" | "create">();
+  const busy = operation !== undefined;
   const [error, setError] = useState("");
   useErrorNotification(draft ? undefined : error);
   const [preview, setPreview] = useState(false);
@@ -187,19 +189,19 @@ function AuthoringWorkspace({
   const [deletion, setDeletion] = useState<Awaited<ReturnType<typeof fetchDeletionImpact>>>();
   async function requestDeletion() {
     if (!draft) return;
-    setBusy(true);
+    setOperation("impact");
     setError("");
     try {
       setDeletion(await fetchDeletionImpact(draft.id));
     } catch (cause) {
       setError(userFacingErrorMessage(cause, "Could not check what this question is used by."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   async function confirmDeletion() {
     if (!draft || !deletion) return;
-    setBusy(true);
+    setOperation("delete");
     setError("");
     try {
       await deleteQuestionPublication(draft);
@@ -214,7 +216,7 @@ function AuthoringWorkspace({
       setDeletion(undefined);
       setError(userFacingErrorMessage(cause, "Could not delete the published question."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   const saveStatus = dirty ? "Unsaved edits" : draft?.publishedVersionId ? "Published" : "Draft";
@@ -244,8 +246,13 @@ function AuthoringWorkspace({
       search: (previous) => ({ ...previous, draft: undefined, publication: undefined }),
     });
   }
-  async function perform(action: () => Promise<QuestionDraft>, message: string, failure: string) {
-    setBusy(true);
+  async function perform(
+    operation: "save" | "publish" | "create",
+    action: () => Promise<QuestionDraft>,
+    message: string,
+    failure: string,
+  ) {
+    setOperation(operation);
     setError("");
     try {
       const next = await action();
@@ -266,7 +273,7 @@ function AuthoringWorkspace({
     } catch (cause) {
       setError(userFacingErrorMessage(cause, failure));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   const locked = busy;
@@ -309,13 +316,15 @@ function AuthoringWorkspace({
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             className="button button-danger"
             disabled={busy}
             onClick={() => void confirmDeletion()}
+            icon={<Trash2 size={16} aria-hidden="true" />}
+            pending={operation === "delete"}
           >
-            <Trash2 size={16} aria-hidden="true" /> Delete question
-          </button>
+            Delete question
+          </LoadingButton>
         </footer>
       </SessionDialog>
       <BulkQuestionImport
@@ -355,19 +364,21 @@ function AuthoringWorkspace({
               >
                 Bulk import
               </button>
-              <button
+              <LoadingButton
                 className="button button-primary"
                 disabled={busy || bulkRunning}
                 onClick={() =>
                   void perform(
+                    "create",
                     () => createDraft(blankQuestion()),
                     "Draft created.",
                     "Could not create the draft.",
                   )
                 }
+                pending={operation === "create"}
               >
                 New question
-              </button>
+              </LoadingButton>
             </>
           )}
         </div>
@@ -445,19 +456,22 @@ function AuthoringWorkspace({
             )}
             {draft.publishedVersionId ? (
               <>
-                <button
+                <LoadingButton
                   className="button button-primary"
                   disabled={busy || !dirty || invalidFields.size > 0}
                   onClick={() =>
                     void perform(
+                      "save",
                       () => saveDraft(draft, content),
                       "Published changes saved.",
                       "Could not save the published changes. Your edits are still here.",
                     )
                   }
+                  icon={<Save size={16} aria-hidden="true" />}
+                  pending={operation === "save"}
                 >
-                  <Save size={16} aria-hidden="true" /> Save changes
-                </button>
+                  Save changes
+                </LoadingButton>
                 <Popover.Root open={optionsOpen} onOpenChange={setOptionsOpen}>
                   <Tooltip content="Publication options">
                     <Popover.Trigger asChild>
@@ -492,19 +506,22 @@ function AuthoringWorkspace({
               </>
             ) : (
               <>
-                <button
+                <LoadingButton
                   className="button button-secondary"
                   disabled={busy || !dirty || invalidFields.size > 0}
                   onClick={() =>
                     void perform(
+                      "save",
                       () => saveDraft(draft, content),
                       "Draft saved.",
                       "Could not save the draft. Your edits are still here.",
                     )
                   }
+                  icon={<Save size={16} aria-hidden="true" />}
+                  pending={operation === "save"}
                 >
-                  <Save size={16} aria-hidden="true" /> Save draft
-                </button>
+                  Save draft
+                </LoadingButton>
                 {admin && !draft.editVersionId && (
                   <SegmentedControl
                     label="Publish to"
@@ -526,11 +543,12 @@ function AuthoringWorkspace({
                     ]}
                   />
                 )}
-                <button
+                <LoadingButton
                   className="button button-primary"
                   disabled={busy || dirty || invalidFields.size > 0}
                   onClick={() =>
                     void perform(
+                      "publish",
                       () =>
                         publishDraft(
                           draft,
@@ -544,15 +562,16 @@ function AuthoringWorkspace({
                       "Could not publish the question. Try again.",
                     )
                   }
+                  pending={operation === "publish"}
                 >
-                  {busy
+                  {operation === "publish"
                     ? "Working…"
                     : draft.editVersionId
                       ? "Apply update"
                       : admin && visibility === "global"
                         ? "Publish globally"
                         : "Add to library"}
-                </button>
+                </LoadingButton>
               </>
             )}
           </div>

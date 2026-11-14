@@ -1,4 +1,5 @@
 /** @file InvitePage.tsx @description Accept a persistent party invitation. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { PartyInvitation } from "@quorem/contracts";
@@ -103,14 +104,14 @@ export function InvitePage({
                   Return to lobby
                 </a>
               ) : (
-                <button
+                <LoadingButton
                   ref={joinButton}
                   className="button button-primary"
-                  disabled={pending}
                   onClick={() => (guestEntry ? setDismissed(false) : void join())}
+                  pending={pending}
                 >
                   {pending ? "Joining…" : "Join lobby"}
-                </button>
+                </LoadingButton>
               )}
             </div>
             <div className="lobby-roster">
@@ -173,9 +174,13 @@ export function InvitePage({
                   >
                     Log in
                   </a>
-                  <button className="button button-primary" disabled={pending || !name.trim()}>
+                  <LoadingButton
+                    className="button button-primary"
+                    disabled={!name.trim()}
+                    pending={pending}
+                  >
                     {pending ? "Joining…" : "Continue as guest"}
-                  </button>
+                  </LoadingButton>
                 </footer>
               </form>
             </SessionDialog>

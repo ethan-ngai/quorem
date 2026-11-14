@@ -1,4 +1,5 @@
 /** @file GlobalNav.tsx @description Shared sidebar with persistent top-bar identity and workspace controls. @module navigation */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { catalogSearch } from "../practice/catalogSearch";
 import { SettingsDialog, type SettingsSection } from "../settings/SettingsDialog";
 import type { SettingsProps } from "../editor/components/WorkspaceSettings";
@@ -10,7 +11,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 import type { ThemePreference } from "../editor/editorSettings";
 import { Tooltip } from "../../ui/Tooltip";
-import { DelayedSpinner } from "../../ui/Spinner";
 import { CreateMatchDialog } from "../matches/CreateMatchDialog";
 import { ModeIcon } from "../matches/ModeIcon";
 import { ModeText } from "../matches/ModeText";
@@ -212,9 +212,9 @@ export function GlobalNav({
                         : "Create match"
                   }
                 >
-                  <button
+                  <LoadingButton
                     className="nav-match-action create-match-trigger"
-                    disabled={checkingMatch || activeMatch.failed}
+                    disabled={activeMatch.failed}
                     aria-label={
                       checkingMatch
                         ? "Checking active match"
@@ -231,12 +231,9 @@ export function GlobalNav({
                       }
                       (onCreateMatch ?? (() => setCreating(true)))();
                     }}
+                    icon={<Plus size={16} aria-hidden="true" />}
+                    pending={checkingMatch}
                   >
-                    <DelayedSpinner
-                      active={checkingMatch}
-                      label="Checking active match"
-                      fallback={<Plus size={16} aria-hidden="true" />}
-                    />
                     <span className="nav-match-action-label">
                       {activeMatch.failed
                         ? "Match status unavailable"
@@ -244,7 +241,7 @@ export function GlobalNav({
                           ? "Sign in to create a match"
                           : "Create match"}
                     </span>
-                  </button>
+                  </LoadingButton>
                 </Tooltip>
               )
             )}
