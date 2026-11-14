@@ -123,6 +123,10 @@
   font-variant-numeric: tabular-nums;
 }
 .dashboard-preview-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
   font-size: var(--text-small);
   font-weight: 600;
 }

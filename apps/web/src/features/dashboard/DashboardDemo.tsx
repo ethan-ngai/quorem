@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BookOpen, Check, Swords } from "lucide-react";
 import { useState } from "react";
+import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
@@ -214,7 +215,9 @@ export function DashboardDemo() {
               </div>
               {hasOdyssey ? (
                 <>
-                  <p className="dashboard-preview-title">Transit Operations</p>
+                  <p className="dashboard-preview-title">
+                    Transit Operations <DifficultyLabel difficulty="medium" />
+                  </p>
                   <ol className="dashboard-stages" aria-label="Odyssey stages">
                     <li data-stage="complete">
                       <Check size={14} />
