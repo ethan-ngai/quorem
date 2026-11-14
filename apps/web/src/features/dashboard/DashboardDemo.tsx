@@ -77,7 +77,10 @@ function sampleActivity(index: number, match: boolean) {
   return match
     ? {
         kind: "matchPlayed" as const,
-        title: `Showdown vs. ${sampleOpponents[index % sampleOpponents.length]}`,
+        title:
+          index % 6 === 4
+            ? "Free-for-all · 4 players"
+            : `Showdown vs. ${sampleOpponents[index % sampleOpponents.length]}`,
         outcome: index % 2 ? ("victory" as const) : ("loss" as const),
       }
     : {
