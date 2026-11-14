@@ -21,6 +21,7 @@
 }
 .activity-calendar-chart {
   --activity-gap: 3px;
+  --activity-tile-max: clamp(24px, 4vw, 36px);
   margin-block: var(--space-2) var(--space-3);
 }
 .activity-calendar-labels,
@@ -28,8 +29,12 @@
   display: grid;
   grid-template-columns: repeat(
     var(--activity-weeks),
-    calc((100% + var(--activity-gap)) / var(--activity-weeks) - var(--activity-gap))
+    min(
+      var(--activity-tile-max),
+      calc((100% + var(--activity-gap)) / var(--activity-weeks) - var(--activity-gap))
+    )
   );
+  justify-content: center;
   gap: var(--activity-gap);
 }
 .activity-calendar-labels {
