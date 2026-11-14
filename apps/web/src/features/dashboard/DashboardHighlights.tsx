@@ -27,12 +27,11 @@ const timelineKinds = {
   odyssey: { label: "Odyssey", Icon: Flag },
 } as const;
 
-type TimelineEvent = {
-  day: number;
-  kind: keyof typeof timelineKinds;
-  title: string;
-  detail: string;
-};
+type TimelineEvent = { day: number; title: string } & (
+  | { kind: "practiceAccepted"; difficulty: QuestionMetadata["difficulty"] }
+  | { kind: "matchPlayed"; outcome: "victory" | "loss" }
+  | { kind: "odyssey"; detail: string }
+);
 
 export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }) {
   if (!items.length) return null;
@@ -44,7 +43,8 @@ export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }
     >
       <h2 id="dashboard-timeline-title">Recent activity</h2>
       <ol>
-        {items.map(({ day, kind, title, detail }) => {
+        {items.map((item) => {
+          const { day, kind, title } = item;
           const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + day);
           const { label, Icon } = timelineKinds[kind];
           const dateTime = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
@@ -58,7 +58,17 @@ export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }
               </span>
               <div className="dashboard-timeline-event">
                 <strong>{title}</strong>
-                <p>{detail}</p>
+                <p>
+                  {item.kind === "practiceAccepted" ? (
+                    <DifficultyLabel difficulty={item.difficulty} />
+                  ) : item.kind === "matchPlayed" ? (
+                    <span className="dashboard-timeline-outcome" data-outcome={item.outcome}>
+                      {item.outcome === "victory" ? "Victory" : "Loss"}
+                    </span>
+                  ) : (
+                    item.detail
+                  )}
+                </p>
               </div>
               <time dateTime={dateTime}>{day === 0 ? "Today" : activityDate.format(date)}</time>
             </li>

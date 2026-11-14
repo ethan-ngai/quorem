@@ -65,7 +65,11 @@ const practiceInProgress = {
   difficulty: "medium",
   tags: ["Binary Trees", "Breadth-First Search"],
 } as const;
-const sampleProblems = ["Mirror Letters", "Segment Sums", "Quota Window"];
+const sampleProblems = [
+  { title: "Mirror Letters", difficulty: "easy" },
+  { title: "Segment Sums", difficulty: "medium" },
+  { title: "Quota Window", difficulty: "hard" },
+] as const;
 const sampleOpponents = ["Mira Chen", "Leo Park", "Nora Shah"];
 
 /** Keep sample highlight titles attached to the events that qualify for streaks. */
@@ -74,12 +78,11 @@ function sampleActivity(index: number, match: boolean) {
     ? {
         kind: "matchPlayed" as const,
         title: `Showdown vs. ${sampleOpponents[index % sampleOpponents.length]}`,
-        detail: "Won",
+        outcome: index % 2 ? ("victory" as const) : ("loss" as const),
       }
     : {
         kind: "practiceAccepted" as const,
-        title: sampleProblems[index % sampleProblems.length],
-        detail: "Accepted",
+        ...sampleProblems[index % sampleProblems.length],
       };
 }
 
@@ -126,7 +129,9 @@ export function DashboardDemo() {
           title: "Transit Operations",
           detail: hasOdyssey ? "Stage 1 cleared" : "Completed",
         },
-      ].sort((a, b) => b.day - a.day);
+      ]
+        .sort((a, b) => b.day - a.day)
+        .slice(0, 5);
   const client = useQueryClient();
   const options = practiceRecommendationOptions(client, actor, recommendationScope);
   const recommended = useQuery({ ...options, enabled: !hasPractice && options.enabled !== false });

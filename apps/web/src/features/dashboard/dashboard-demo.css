@@ -352,3 +352,10 @@
   color: var(--color-text-secondary);
   font-size: var(--text-label);
 }
+
+.dashboard-timeline-outcome[data-outcome="victory"] {
+  color: var(--color-warning);
+}
+.dashboard-timeline-outcome[data-outcome="loss"] {
+  color: var(--color-error);
+}
