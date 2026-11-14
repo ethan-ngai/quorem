@@ -26,10 +26,6 @@
 .select-field[aria-expanded="true"] {
   background-color: var(--color-control-selected);
 }
-.select-field:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
 .select-field:disabled {
   opacity: 0.5;
   cursor: default;

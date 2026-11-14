@@ -6,10 +6,6 @@
   color: var(--color-text-secondary);
   border-radius: var(--radius-full);
 }
-.match-duration:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: var(--space-1);
-}
 .match-duration-ring {
   display: grid;
   place-items: center;

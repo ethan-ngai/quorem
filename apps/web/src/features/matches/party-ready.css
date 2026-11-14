@@ -101,10 +101,6 @@
 .party-ready-check path {
   stroke: var(--color-background);
 }
-.party-readiness-indicator:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: var(--space-1);
-}
 
 .match-lobby-joined {
   margin-top: var(--space-4);

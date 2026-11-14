@@ -319,7 +319,10 @@ function LoginForm() {
           ) : capabilities.isError ? (
             <>
               <p role="alert">Sign in unavailable.</p>
-              <button className="button" onClick={() => void capabilities.refetch()}>
+              <button
+                className="button button-secondary"
+                onClick={() => void capabilities.refetch()}
+              >
                 Try again
               </button>
             </>
@@ -408,7 +411,7 @@ function LoginForm() {
                           </>
                         ) : null}
                         <label htmlFor="auth-password">Password</label>
-                        <div className="auth-password">
+                        <div className="auth-password focus-within-ring">
                           <TextInput
                             unstyled
                             constraint={authInputConstraints.password}

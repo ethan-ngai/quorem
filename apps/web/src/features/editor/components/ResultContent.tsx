@@ -54,7 +54,7 @@ function RunCaseResults({
       rail={cases.map((result, index) => (
         <button
           key={result.index}
-          className="case-selector"
+          className="quiet-button selection-feedback case-selector"
           aria-pressed={activeIndex === index}
           aria-label={`Case ${result.index + 1}: ${result.status.replaceAll("_", " ")}`}
           onClick={() => setSelectedIndex(index)}

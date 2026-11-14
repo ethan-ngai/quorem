@@ -43,7 +43,6 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-secondary);
-  text-decoration: none;
   font-size: var(--text-small);
   transition: color var(--motion-fast);
 }
@@ -124,7 +123,6 @@
   padding: var(--space-2);
   min-height: 44px;
   border-radius: var(--radius-sm);
-  text-decoration: none;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
   transition:
@@ -163,7 +161,6 @@
   border-top: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   font-size: var(--text-label);
-  text-decoration: none;
 }
 .legal-contact:hover {
   color: var(--color-primary);
@@ -211,14 +208,12 @@
   font-family: var(--font-code);
   font-size: var(--text-label);
 }
-.legal-section .text-link {
+.legal-email {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-4);
-  color: var(--color-primary);
   font-size: var(--text-small);
-  text-underline-offset: 4px;
 }
 .legal-end {
   display: flex;

@@ -92,7 +92,7 @@ export function LegalPage({ document: kind }: { document: "privacy" | "terms" })
                   <p key={paragraph}>{paragraph}</p>
                 ))}
                 {section.id === "contact" && (
-                  <a className="text-link" href="mailto:contact@quorem.app">
+                  <a className="legal-email" href="mailto:contact@quorem.app">
                     Email Quorem <ArrowRight size={14} aria-hidden="true" />
                   </a>
                 )}

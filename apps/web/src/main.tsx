@@ -103,11 +103,7 @@ const termsRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: () => (
-    <a className="text-link" href="/">
-      Open Quorem home
-    </a>
-  ),
+  component: () => <a href="/">Open Quorem home</a>,
 });
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,

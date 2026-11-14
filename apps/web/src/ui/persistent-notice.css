@@ -26,13 +26,11 @@
 .persistent-notice[data-severity="warning"] .persistent-notice-trigger {
   color: var(--color-warning);
 }
-.persistent-notice-trigger:hover,
-.persistent-notice-trigger[data-state="open"] {
-  background: var(--color-overlay);
+.persistent-notice-trigger:hover {
+  background: var(--color-control-hover);
 }
-.persistent-notice-trigger:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.persistent-notice-trigger[data-state="open"] {
+  background: var(--color-control-selected);
 }
 .persistent-notice-count {
   position: absolute;

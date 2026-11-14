@@ -84,7 +84,7 @@ export function ProblemStatement({
           </span>
           {showTopicsControl && (
             <button
-              className="topics-toggle"
+              className="quiet-button topics-toggle"
               aria-label={topicsVisible ? "Hide topics" : "Show topics"}
               aria-expanded={topicsVisible}
               aria-controls={topicsId}

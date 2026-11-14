@@ -85,7 +85,7 @@ export function PasswordReset() {
               <NoticeRegion message={error} label="Check password reset">
                 <form onSubmit={(event) => void submit(event)}>
                   <label htmlFor="reset-password">New password</label>
-                  <div className="auth-password">
+                  <div className="auth-password focus-within-ring">
                     <TextInput
                       unstyled
                       constraint={authInputConstraints.password}

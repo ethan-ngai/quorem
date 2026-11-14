@@ -11,14 +11,6 @@
   font-size: var(--text-label);
   line-height: 1.5;
 }
-.auth-content .auth-terms-notice a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.auth-terms-notice a:hover {
-  color: var(--color-primary);
-}
 .auth-brand {
   position: absolute;
   z-index: 2;
@@ -125,10 +117,6 @@
   color: var(--color-text);
   font: inherit;
 }
-.auth-content input:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
 .auth-password {
   /* Native password focus layers cannot cover the adjacent eye control. */
   display: flex;
@@ -136,10 +124,6 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-field);
-}
-.auth-password:focus-within {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
 }
 .auth-password input {
   flex: 1;
@@ -331,7 +315,6 @@
   margin-bottom: 12px;
   color: var(--color-text-secondary);
   font-size: 12px;
-  text-decoration: none;
   border-radius: var(--radius-sm);
 }
 .auth-back:hover {
@@ -359,9 +342,6 @@
   font-size: 14px;
 }
 
-.auth-content a {
-  text-decoration: none;
-}
 
 .auth-content .auth-forgot {
   padding-inline: 0;

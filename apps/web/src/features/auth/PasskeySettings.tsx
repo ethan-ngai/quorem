@@ -91,7 +91,7 @@ export function PasskeySettings() {
             <p className="motion-reveal">No passkeys added.</p>
           )}
           <button
-            className="button"
+            className="button button-secondary"
             ref={add}
             aria-busy={busy}
             disabled={busy || typeof PublicKeyCredential === "undefined"}

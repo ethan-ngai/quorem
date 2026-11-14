@@ -94,7 +94,7 @@ export function EditorialPanel({
       <div className="editorial-controls">
         {available && (
           <button
-            className="topics-toggle"
+            className="quiet-button topics-toggle"
             aria-label={active === "complexity" ? "Hide complexity" : "Show complexity"}
             aria-expanded={active === "complexity"}
             aria-disabled={!!requestComplexity && !grantedComplexity && complexityDisabled}
@@ -106,7 +106,7 @@ export function EditorialPanel({
         )}
         {solutionAvailable && (
           <button
-            className="topics-toggle"
+            className="quiet-button topics-toggle"
             aria-label={active === "solution" ? "Hide solution" : "Show solution"}
             aria-expanded={active === "solution"}
             onClick={(event) => toggle("solution", event.currentTarget)}

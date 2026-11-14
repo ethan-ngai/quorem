@@ -55,7 +55,6 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-secondary);
-  text-decoration: none;
   font-size: 14px;
   font-weight: 500;
   transition:

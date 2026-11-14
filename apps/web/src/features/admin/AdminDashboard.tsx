@@ -58,7 +58,11 @@ export function AdminDashboard() {
               />
               Refresh
             </button>
-            <Link className="button" to="/questions" search={{ section: "publications" }}>
+            <Link
+              className="button button-secondary"
+              to="/questions"
+              search={{ section: "publications" }}
+            >
               Question Editor <ArrowUpRight size={14} aria-hidden="true" />
             </Link>
           </div>

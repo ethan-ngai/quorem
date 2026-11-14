@@ -150,10 +150,6 @@
   background: var(--color-surface);
   transform: translateY(-1px);
 }
-.profile-photo-trigger:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
 .profile-photo-trigger .account-avatar {
   animation: settings-state-in var(--motion-standard) var(--settings-ease);
 }
@@ -396,10 +392,6 @@
 .social-account-disabled-action {
   display: inline-flex;
   border-radius: var(--radius-sm);
-}
-.social-account-disabled-action:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 .session-backdrop.social-disconnect-backdrop {

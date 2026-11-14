@@ -1,3 +1,4 @@
+import "../../../ui/selection-feedback.css";
 import "./results.css";
 /** @file CaseBrowserLayout.tsx @description Shared case rail/detail geometry for execution and authoring. @module editor */
 import { ScrollCue } from "../../../ui/ScrollCue";

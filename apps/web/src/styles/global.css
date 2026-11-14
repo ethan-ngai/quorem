@@ -8,7 +8,6 @@
   width: 32px;
   height: 32px;
   color: var(--color-text);
-  text-decoration: none;
 }
 .brand-mark {
   display: inline-block;
@@ -16,10 +15,6 @@
   height: 24px;
   background: currentColor;
   mask: url("/logo-pixel.svg") center / contain no-repeat;
-}
-
-* {
-  box-sizing: border-box;
 }
 
 html,
@@ -37,33 +32,6 @@ body {
   font-family: var(--font-interface);
   font-size: var(--text-body);
   line-height: 1.5;
-}
-
-button,
-input,
-select,
-textarea {
-  color: inherit;
-  font: inherit;
-}
-
-button,
-select,
-input[type="checkbox"] {
-  cursor: pointer;
-}
-
-button:focus-visible,
-a:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-summary:focus-visible,
-[role="separator"]:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  position: relative;
-  z-index: 2;
 }
 
 @media (prefers-reduced-motion: no-preference) {

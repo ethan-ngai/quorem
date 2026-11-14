@@ -112,15 +112,6 @@
   color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 550;
-  text-decoration: none;
-}
-.dashboard-link:hover {
-  color: var(--color-text);
-  text-decoration: underline;
-}
-.dashboard-demo :is(a, select):focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 .dashboard-recommendations h2,
 .dashboard-panel-heading {
@@ -136,7 +127,6 @@
   border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--color-text);
-  text-decoration: none;
   transition: background var(--motion-fast);
 }
 .dashboard-recommendations a:hover {

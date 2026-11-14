@@ -126,7 +126,6 @@
   display: inline-block;
   color: var(--color-text);
   font-weight: 500;
-  text-decoration: none;
 }
 .data-table a:hover,
 .data-table .table-title:not(:disabled):hover {

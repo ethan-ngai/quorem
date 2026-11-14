@@ -82,7 +82,7 @@ export function PageSizeControl({
     >
       <Popover.Anchor asChild>
         <div
-          className="page-size-control"
+          className="page-size-control focus-within-ring"
           data-disabled={disabled || undefined}
           onKeyDown={onKeyDown}
           onBlur={(event) => {

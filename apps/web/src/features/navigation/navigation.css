@@ -23,7 +23,6 @@
   flex-shrink: 0;
   min-height: 32px;
   color: var(--color-text);
-  text-decoration: none;
 }
 .nav-brand .brand-mark {
   flex-shrink: 0;
@@ -53,7 +52,6 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-field);
-  text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--motion-fast),
@@ -192,7 +190,6 @@
   font: inherit;
   font-size: 14px;
   text-align: left;
-  text-decoration: none;
   cursor: pointer;
 }
 .account-menu-rows svg,
@@ -334,7 +331,6 @@
   border: 1px solid var(--color-border);
   color: var(--color-text);
   background: var(--color-field);
-  text-decoration: none;
 }
 .nav-account-pending {
   width: 34px;

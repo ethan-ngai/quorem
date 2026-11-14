@@ -212,7 +212,7 @@ export function PracticeRecommendations({
         <div className="practice-recommendations-status" role="alert">
           Recommendations couldn’t load.
           <button
-            className="practice-retry"
+            className="button button-secondary practice-retry"
             type="button"
             onClick={() => void recommendations.refetch()}
           >

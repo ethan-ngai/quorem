@@ -64,10 +64,6 @@
 .room-alert-age:is(:hover, :focus-visible) {
   color: var(--color-text);
 }
-.room-alert-age:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 @media (prefers-reduced-motion: reduce) {
   .room-alert-age {
     transition: none;

@@ -170,7 +170,10 @@ export function InterviewHub() {
           ) : sessions.isError ? (
             <div className="practice-state" role="alert">
               <p>Could not load interviews.</p>
-              <button className="practice-retry" onClick={() => void sessions.refetch()}>
+              <button
+                className="button button-secondary practice-retry"
+                onClick={() => void sessions.refetch()}
+              >
                 Retry
               </button>
             </div>

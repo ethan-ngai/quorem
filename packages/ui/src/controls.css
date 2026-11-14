@@ -1,13 +1,41 @@
 /* Shared controls carry their defaults into every host, including Astro previews. */
-:where(.button, .icon-button, .quiet-button) {
+* {
   box-sizing: border-box;
+}
+
+:where(a:any-link) {
+  color: var(--link-color, var(--color-primary));
+  text-decoration: none;
+}
+
+:where(button, input, select, textarea) {
+  color: inherit;
+  font: inherit;
+}
+
+:where(button, select, summary, input[type="checkbox"]) {
+  cursor: pointer;
+}
+
+:where(a:any-link, button, input, select, textarea, summary, [tabindex], [role="separator"]):focus-visible,
+:where(.focus-within-ring):focus-within {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
+}
+
+:where(summary) {
+  list-style: none;
+}
+
+:where(summary)::-webkit-details-marker {
+  display: none;
+}
+
+:where(.button, .icon-button, .quiet-button) {
   font-family: var(--font-interface);
   line-height: 1.5;
   cursor: pointer;
-}
-:where(.button, .icon-button, .quiet-button):focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 .icon-button {
   display: inline-flex;
@@ -25,19 +53,17 @@
     color var(--motion-fast),
     background var(--motion-fast),
     translate var(--motion-fast) var(--motion-easing);
-  text-decoration: none;
 }
 .icon-button-danger {
   color: var(--color-error-button);
 }
-.icon-button[aria-pressed="true"] {
-  color: var(--color-primary);
-  background: var(--color-overlay);
-}
-.icon-button:hover:not(:disabled),
-.quiet-button:hover:not(:disabled) {
-  background: var(--color-overlay);
+:is(.icon-button, .quiet-button):hover:where(:not(:disabled, [aria-disabled="true"], [aria-pressed="true"], [aria-expanded="true"])) {
+  background: var(--control-hover-fill, var(--color-control-hover));
   color: var(--color-text);
+}
+:is(.icon-button, .quiet-button):is([aria-pressed="true"], [aria-expanded="true"]) {
+  background: var(--control-selected-fill, var(--color-control-selected));
+  color: var(--color-primary);
 }
 .quiet-button {
   display: inline-flex;
@@ -45,12 +71,12 @@
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  padding: 0 9px;
+  padding: 0 var(--space-2);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--text-label);
   transition:
     background-color var(--motion-fast) var(--motion-easing),
     color var(--motion-fast) var(--motion-easing),
@@ -60,15 +86,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: var(--control-height);
-  padding: 0 13px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: var(--text-small);
   font-weight: 550;
   white-space: nowrap;
-  text-decoration: none;
   transition:
     background var(--motion-fast),
     color var(--motion-fast),
@@ -78,8 +103,8 @@
   background: var(--color-surface);
   color: var(--color-text);
 }
-.button-secondary:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--color-overlay);
+.button-secondary:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--color-control-hover);
 }
 .button-ghost {
   border-color: transparent;
@@ -91,7 +116,7 @@
   padding-inline: 0;
 }
 .button-ghost:hover:not(:disabled):not([aria-disabled="true"]) {
-  background: var(--color-overlay);
+  background: var(--color-control-hover);
   color: var(--color-text);
 }
 .button-primary {
@@ -102,10 +127,7 @@
 .button-primary:hover:not(:disabled):not([aria-disabled="true"]) {
   filter: brightness(0.95);
 }
-.icon-button:disabled,
-.button[aria-disabled="true"],
-.button:disabled,
-.quiet-button:disabled {
+:is(.button, .icon-button, .quiet-button):is(:disabled, [aria-disabled="true"]) {
   cursor: not-allowed;
   opacity: 0.45;
 }

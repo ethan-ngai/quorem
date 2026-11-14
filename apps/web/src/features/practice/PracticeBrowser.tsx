@@ -177,7 +177,7 @@ export function PracticeBrowser() {
           {filtered && (
             <button
               type="button"
-              className="practice-clear"
+              className="button button-secondary practice-clear"
               aria-label="Clear filters"
               onClick={clear}
             >
@@ -194,7 +194,7 @@ export function PracticeBrowser() {
             <div className="practice-state" role="alert">
               <p>Questions couldn’t load. Please try again.</p>
               <button
-                className="practice-retry"
+                className="button button-secondary practice-retry"
                 onClick={() => void (privateIdentityError ? session.refetch() : catalog.refetch())}
               >
                 Retry
@@ -262,7 +262,7 @@ export function PracticeBrowser() {
                     companyFacets={companyFacets}
                   />
                   {filtered && (
-                    <button className="practice-retry" onClick={clear}>
+                    <button className="button button-secondary practice-retry" onClick={clear}>
                       Clear filters
                     </button>
                   )}

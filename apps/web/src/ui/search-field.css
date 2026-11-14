@@ -12,10 +12,6 @@
   transition: box-shadow var(--motion-fast) var(--motion-easing);
 }
 
-.search-field:focus-within {
-  box-shadow: var(--focus-ring);
-}
-
 .search-field input {
   flex: 1;
   width: 100%;

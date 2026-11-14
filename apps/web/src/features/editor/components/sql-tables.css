@@ -117,16 +117,12 @@
   flex: 1;
   padding: 4px 6px;
 }
-.sql-null-toggle {
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: 10px var(--font-code);
-  cursor: pointer;
-  padding: 4px;
-}
-.sql-null-toggle:hover {
-  color: var(--color-text);
+.sql-null-toggle.quiet-button {
+  min-height: 0;
+  padding: var(--space-1);
+  font-family: var(--font-code);
+  font-size: var(--text-xxs);
+  opacity: 0.35;
 }
 .sql-add-row {
   justify-self: start;
@@ -135,9 +131,6 @@
 .sql-cell-editor input,
 .sql-cell-editor select {
   width: 9ch;
-}
-.sql-null-toggle {
-  opacity: 0.35;
 }
 .sql-cell-editor:hover .sql-null-toggle,
 .sql-null-toggle:focus-visible {

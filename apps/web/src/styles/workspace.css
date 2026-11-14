@@ -40,21 +40,6 @@
 .problem-picker {
   position: relative;
 }
-summary {
-  list-style: none;
-  cursor: pointer;
-}
-summary::-webkit-details-marker {
-  display: none;
-}
-.identity-choice select,
-.match-settings select {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 5px 8px;
-  background: var(--color-field);
-  font-size: 12px;
-}
 kbd {
   font-family: var(--font-code);
   font-size: 10px;
@@ -349,22 +334,6 @@ kbd {
   gap: 16px;
   margin-top: 28px;
 }
-.match-settings {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
-.match-settings label {
-  display: grid;
-  gap: 8px;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-.match-settings select {
-  min-height: 40px;
-  color: var(--color-text);
-  font-size: 13px;
-}
 .lobby-settings .button {
   justify-self: start;
 }
@@ -425,20 +394,8 @@ kbd {
 .lobby-expiry {
   margin-top: 20px;
 }
-.text-link {
-  display: inline-block;
-  color: var(--color-primary);
-  text-decoration: none;
-  font-size: 13px;
-}
-.text-link:hover {
-  text-decoration: underline;
-}
 .invite-entry .button {
   margin: 16px 0 24px;
-}
-.invite-entry .text-link {
-  display: block;
 }
 .match-strip {
   min-width: 0;
@@ -516,9 +473,7 @@ kbd {
 }
 .match-terminal a {
   margin-left: auto;
-  color: var(--color-primary);
   white-space: nowrap;
-  text-decoration: none;
 }
 .sync-error {
   margin: 0;
@@ -535,9 +490,6 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.workspace-nav > a {
-  text-decoration: none;
 }
 .solution-pane {
   grid-area: solution;
@@ -557,21 +509,10 @@ kbd {
   flex-wrap: wrap;
   gap: 12px;
 }
-.topics-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.topics-toggle.quiet-button {
+  gap: var(--space-1);
   min-height: 26px;
-  padding: 0 4px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-.topics-toggle:hover {
-  background: var(--color-overlay);
-  color: var(--color-text);
+  padding-inline: var(--space-1);
 }
 .topics-toggle svg {
   width: 14px;
@@ -594,10 +535,6 @@ kbd {
 }
 .intelligence-status[data-status="unavailable"] {
   color: var(--color-error-accent);
-}
-.intelligence-status:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
 }
 .intelligence-dot {
   width: 8px;
@@ -793,9 +730,6 @@ kbd {
   .lobby-heading h1,
   .match-page-content > h1 {
     font-size: 30px;
-  }
-  .match-settings {
-    gap: 16px;
   }
   .lobby-actions {
     flex-wrap: wrap;

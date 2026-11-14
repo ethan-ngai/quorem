@@ -61,9 +61,6 @@
   transform: scaleX(1);
   opacity: 1;
 }
-.result-tabs[data-appearance="underline"] button:focus-visible {
-  outline: none;
-}
 .result-tabs[data-appearance="underline"] button:focus-visible::after {
   height: 3px;
 }

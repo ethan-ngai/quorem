@@ -77,6 +77,7 @@ All agents must apply this contract to UI planning, implementation, refactors an
 ## Shared ownership
 
 - Inspect analogous consumers first. Fix the lowest shared owner: React primitives in `apps/web/src/ui`, cross-app foundations in `packages/ui`.
+- Links use the shared blue text color in the workspace across visited and unvisited states, with no underline by default. Navigation and button variants set their own foreground.
 - Primitives own typography, padding, focus, disabled states, layering and motion. Features own composition, dimensions and domain policy. Extend primitives for recurring needs.
 - Share rendering/controls across practice, competition, interviews, authoring and previews. Previews own scale/composition and work independently of page ancestors.
 - Preserve authorization, private-test boundaries and admitted input/result snapshots.

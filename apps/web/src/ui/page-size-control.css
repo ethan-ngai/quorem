@@ -14,7 +14,6 @@
 }
 .page-size-control:focus-within {
   border-color: var(--color-primary);
-  box-shadow: var(--focus-ring);
 }
 .page-size-control input {
   box-sizing: content-box;
@@ -23,6 +22,7 @@
   padding: 0;
   border: 0;
   outline: none;
+  box-shadow: none;
   background: transparent;
   color: var(--color-text);
   font: inherit;
@@ -43,11 +43,12 @@
   color: inherit;
 }
 .page-size-control > button:hover:not(:disabled) {
-  background: var(--color-overlay);
+  background: var(--color-control-hover);
 }
 .page-size-control > button:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
+  box-shadow: none;
 }
 .page-size-control[data-disabled] {
   opacity: 0.5;
