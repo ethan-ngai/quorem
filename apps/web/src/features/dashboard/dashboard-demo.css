@@ -215,10 +215,14 @@
   display: flex;
   flex-direction: column;
 }
-.dashboard-streak-art.button {
+.dashboard-streak-art {
   width: 68px;
   height: 68px;
   padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
 }
 .dashboard-streak-art svg {
   display: block;
@@ -229,10 +233,19 @@
   --dashboard-tone: var(--color-text-disabled);
 }
 .dashboard-streak-number {
-  font-size: var(--text-small);
-  line-height: 1.2;
+  display: grid;
+  justify-items: center;
+  font-size: var(--text-body);
+  line-height: 1;
+  color: var(--color-text-secondary);
 }
-.dashboard-streak-number strong,
+.dashboard-streak-number strong {
+  color: var(--color-text);
+  font-size: clamp(36px, 5vw, 48px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
 .dashboard-total strong {
   font-size: var(--text-h1);
   font-weight: 600;
@@ -308,7 +321,7 @@
     gap: var(--space-1);
   }
 
-  .dashboard-streak-art.button {
+  .dashboard-streak-art {
     width: 60px;
     height: 60px;
   }

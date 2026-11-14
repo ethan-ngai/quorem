@@ -94,14 +94,14 @@ export function DashboardStreak({ days }: { days: number }) {
       <div className="dashboard-streak-summary" aria-live="polite">
         <button
           type="button"
-          className="button button-ghost dashboard-streak-art"
+          className="dashboard-streak-art"
           aria-label="Replay streak animation"
           onClick={() => setReplay((count) => count + 1)}
         >
           <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
         </button>
         <p className="dashboard-streak-number">
-          <strong>{days}</strong> {days === 1 ? "day" : "days"}
+          <strong>{days}</strong> <span>{days === 1 ? "day" : "days"}</span>
         </p>
       </div>
     </section>

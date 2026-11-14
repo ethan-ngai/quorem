@@ -52,36 +52,39 @@ export function StreakArtwork({ active }: { active: boolean }) {
     <svg className="smoke-sequence" aria-hidden="true" viewBox="0 -12 100 119">
       <defs>
         <linearGradient id={`smokeGrad-${id}`} x1="0%" y1="100%" x2="0%" y2="0%">
-          <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.8" />
-          <stop offset="50%" stopColor="#cbd5e1" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#f1f5f9" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--color-text-secondary)" stopOpacity="0.68" />
+          <stop offset="50%" stopColor="var(--color-text-secondary)" stopOpacity="0.32" />
+          <stop offset="100%" stopColor="var(--color-text-secondary)" stopOpacity="0" />
         </linearGradient>
+        <filter id={`smokeSoftness-${id}`} x="-40%" y="-30%" width="180%" height="160%">
+          <feGaussianBlur stdDeviation="1.8" />
+        </filter>
         <linearGradient id={`coalGrad-${id}`} x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stopColor="#334155" />
           <stop offset="100%" stopColor="#0f172a" />
         </linearGradient>
       </defs>
       <circle className="puff" cx="50" cy="90" r="0" fill="#64748b" />
-      <g>
+      <g filter={`url(#smokeSoftness-${id})`}>
         <path
           className="wisp wisp-1"
-          d="M 45,90 Q 20,60 50,30 T 40,-10"
+          d="M 46,90 C 45,77 33,73 39,62 S 53,51 46,41"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
-          strokeWidth="12"
+          strokeWidth="9"
           strokeLinecap="round"
         />
         <path
           className="wisp wisp-2"
-          d="M 55,85 Q 80,55 50,25 T 65,-5"
+          d="M 54,89 C 52,76 67,73 63,62 S 48,53 57,43"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
-          strokeWidth="16"
+          strokeWidth="10"
           strokeLinecap="round"
         />
         <path
           className="wisp wisp-3"
-          d="M 50,88 Q 35,65 60,40 T 50,0"
+          d="M 50,90 C 55,79 42,73 48,61 S 64,50 61,38"
           fill="none"
           stroke={`url(#smokeGrad-${id})`}
           strokeWidth="10"

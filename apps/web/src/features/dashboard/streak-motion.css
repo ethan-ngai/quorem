@@ -1,4 +1,4 @@
-/* Sharpnd ignition and ember sequences settle after each replay. */
+/* Sharpnd entrance sequences give way to continuous flicker and smoke. */
 @media (prefers-reduced-motion: no-preference) {
   .ignite-sequence .shockwave {
     r: 12px;
@@ -9,13 +9,13 @@
   .ignite-sequence .fire-group {
     animation:
       streak-igniteFire 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards,
-      streak-flicker 2s 0.8s 2 alternate ease-in-out;
+      streak-flicker 2s 0.8s infinite alternate ease-in-out;
     transform-origin: 50px 85px;
     transform: scale(0);
   }
 
   .ignite-sequence .spark {
-    animation: streak-sparkFly 1.5s 1 ease-in;
+    animation: streak-sparkFly 1.5s infinite ease-in;
     transform-origin: 50px 80px;
     opacity: 0;
   }
@@ -49,21 +49,21 @@
   }
 
   .smoke-sequence .wisp {
-    animation: streak-riseUp 3.5s 1 linear;
+    animation: streak-riseUp 3.8s infinite ease-out;
     opacity: 0;
     transform-origin: 50px 90px;
   }
 
   .smoke-sequence .wisp-1 {
-    animation-delay: 0.5s;
+    animation-delay: 0.65s;
   }
 
   .smoke-sequence .wisp-2 {
-    animation-delay: 1.6s;
+    animation-delay: 1.9s;
   }
 
   .smoke-sequence .wisp-3 {
-    animation-delay: 2.8s;
+    animation-delay: 3.15s;
   }
 
   @keyframes streak-explode {
@@ -152,14 +152,17 @@
 
   @keyframes streak-riseUp {
     0% {
-      transform: translateY(10px) scale(0.8) skewX(0deg);
+      transform: translateY(4px) scale(0.72);
       opacity: 0;
     }
-    20% {
-      opacity: 0.7;
+    24% {
+      opacity: 0.8;
+    }
+    66% {
+      opacity: 0.45;
     }
     100% {
-      transform: translateY(-60px) scale(1.8) skewX(10deg);
+      transform: translate(7px, -29px) scale(1.28, 1.12) skewX(8deg);
       opacity: 0;
     }
   }
