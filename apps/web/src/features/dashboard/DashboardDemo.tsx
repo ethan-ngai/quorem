@@ -110,7 +110,6 @@ export function DashboardDemo() {
   const isNew = scenario === "new";
   const doneToday = qualifyingDays.has(today);
   const length = streakLength(qualifyingDays, today);
-  const best = isNew ? 0 : 12;
   const recentMatches = matches.filter(({ when }) => scenario !== "broken" || when !== "Fri");
   const activity = isNew
     ? []
@@ -251,7 +250,7 @@ export function DashboardDemo() {
             <DashboardActivity items={activity} />
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
-            <DashboardStreak days={length} best={best} doneToday={doneToday} />
+            <DashboardStreak days={length} />
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
               <div className="dashboard-panel-heading">
                 <h2 id="dashboard-solves-title">
