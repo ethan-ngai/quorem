@@ -248,7 +248,7 @@ export function DashboardDemo() {
                 </Link>
               </div>
               <p className="dashboard-total">
-                <strong>{isNew ? 0 : 42}</strong> unique problems
+                <strong>{isNew ? 0 : 42}</strong> problems
               </p>
               <DashboardDistribution
                 label="Solved problems by difficulty"
