@@ -13,7 +13,7 @@
 }
 .persistent-action-toast-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--text-small);
@@ -29,7 +29,9 @@
 .persistent-action-toast-title {
   flex: 1;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .persistent-action-toast {
   display: grid;
@@ -87,7 +89,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-1);
-  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) 0 0;
+  margin: calc(-1 * var(--space-1));
 }
 .persistent-action-toast-disclosure.quiet-button {
   justify-self: start;
