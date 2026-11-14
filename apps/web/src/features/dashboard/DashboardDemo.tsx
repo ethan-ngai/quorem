@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
+import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import fire from "./fire.svg";
@@ -27,6 +28,13 @@ const scenarios = {
   broken: { through: -2, days: 7 },
   new: { through: today, days: 0 },
 };
+
+const scenarioOptions = [
+  { value: "active", label: "Active streak" },
+  { value: "pending", label: "Today pending" },
+  { value: "broken", label: "Broken streak" },
+  { value: "new", label: "New player" },
+];
 
 type StreakEvent = {
   day: number;
@@ -109,54 +117,14 @@ export function DashboardDemo() {
       <GlobalNav theme={preference} onThemeChange={setPreference} />
       <main className="dashboard-demo">
         <header className="dashboard-title">
-          <h1>
-            Good {greeting},<br /> Alex.
-          </h1>
-          <label className="dashboard-scenario">
-            Preview state
-            <select
-              value={scenario}
-              onChange={(event) => setScenario(event.target.value as keyof typeof scenarios)}
-            >
-              <option value="active">Active streak</option>
-              <option value="pending">Today pending</option>
-              <option value="broken">Broken streak</option>
-              <option value="new">New player</option>
-            </select>
-          </label>
+          <h1>Good {greeting}, Alex.</h1>
+          <SelectField
+            label="Preview state"
+            value={scenario}
+            options={scenarioOptions}
+            onChange={(value) => setScenario(value as keyof typeof scenarios)}
+          />
         </header>
-
-        <section
-          className="dashboard-panel dashboard-solves"
-          aria-labelledby="dashboard-solves-title"
-        >
-          <div className="dashboard-panel-heading">
-            <h2 id="dashboard-solves-title">
-              <Check size={17} /> Problems solved
-            </h2>
-            <Link className="dashboard-link" to="/practice">
-              Practice <ArrowRight size={14} />
-            </Link>
-          </div>
-          <p className="dashboard-total">
-            <strong>{isNew ? 0 : 42}</strong> unique problems
-          </p>
-          <div className="dashboard-solve-bar" aria-hidden="true">
-            {!isNew &&
-              difficulty.map(({ label, color, solved }) => (
-                <span key={label} data-tone={color} style={{ flexGrow: solved }} />
-              ))}
-          </div>
-          <ul className="dashboard-difficulty">
-            {difficulty.map(({ label, solved, color }) => (
-              <li key={label}>
-                <span className="dashboard-dot" data-tone={color} />
-                {label}
-                <strong>{isNew ? 0 : solved}</strong>
-              </li>
-            ))}
-          </ul>
-        </section>
 
         <div className="dashboard-columns">
           <div className="dashboard-main">
@@ -350,6 +318,35 @@ export function DashboardDemo() {
                 </span>
               </div>
             </section>
+            <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
+              <div className="dashboard-panel-heading">
+                <h2 id="dashboard-solves-title">
+                  <Check size={17} /> Problems solved
+                </h2>
+                <Link className="dashboard-link" to="/practice">
+                  Practice <ArrowRight size={14} />
+                </Link>
+              </div>
+              <p className="dashboard-total">
+                <strong>{isNew ? 0 : 42}</strong> unique problems
+              </p>
+              <div className="dashboard-solve-bar" aria-hidden="true">
+                {!isNew &&
+                  difficulty.map(({ label, color, solved }) => (
+                    <span key={label} data-tone={color} style={{ flexGrow: solved }} />
+                  ))}
+              </div>
+              <ul className="dashboard-difficulty">
+                {difficulty.map(({ label, solved, color }) => (
+                  <li key={label}>
+                    <span className="dashboard-dot" data-tone={color} />
+                    {label}
+                    <strong>{isNew ? 0 : solved}</strong>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
             <section
               className="dashboard-panel dashboard-matches"
               aria-labelledby="dashboard-matches-title"
