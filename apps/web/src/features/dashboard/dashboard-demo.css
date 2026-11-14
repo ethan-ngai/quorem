@@ -314,25 +314,29 @@
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-recent-activity {
+.dashboard-recent-highlights {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
   font-size: var(--text-small);
 }
-.dashboard-recent-activity summary {
-  width: fit-content;
-  cursor: pointer;
-  font-weight: 600;
-}
-.dashboard-demo .dashboard-recent-activity ul {
-  margin-top: var(--space-2);
-}
-.dashboard-recent-activity li {
+.dashboard-demo .dashboard-recent-highlights ul {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-2);
-  padding-block: var(--space-1);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: var(--space-4) var(--space-5);
+  margin-top: var(--space-3);
 }
-.dashboard-recent-activity li > :last-child {
+.dashboard-recent-highlights li {
+  display: grid;
+  gap: var(--space-1);
+}
+.dashboard-highlight-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dashboard-highlight-kind,
+.dashboard-recent-highlights li p {
   color: var(--color-text-secondary);
   font-size: var(--text-label);
 }

@@ -13,7 +13,7 @@ import {
 } from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
-  DashboardActivity,
+  DashboardRecentHighlights,
   DashboardDistribution,
   DashboardQuestionMetadata,
   DashboardStreak,
@@ -66,15 +66,15 @@ const practiceInProgress = {
   tags: ["Binary Trees", "Breadth-First Search"],
 } as const;
 const sampleProblems = ["Mirror Letters", "Segment Sums", "Quota Window"];
-const sampleOpponents = ["Mira Chen", "Leo Park", "3 players"];
+const sampleOpponents = ["Mira Chen", "Leo Park", "Nora Shah"];
 
-/** Give every preview event the details shown when its day is expanded. */
+/** Keep sample highlight titles attached to the events that qualify for streaks. */
 function sampleActivity(index: number, match: boolean) {
   return match
     ? {
         kind: "matchPlayed" as const,
-        title: "Showdown",
-        detail: sampleOpponents[index % sampleOpponents.length],
+        title: `Showdown vs. ${sampleOpponents[index % sampleOpponents.length]}`,
+        detail: "Won",
       }
     : {
         kind: "practiceAccepted" as const,
@@ -116,6 +116,18 @@ export function DashboardDemo() {
   const length = streakLength(qualifyingDays, today);
   const hasPractice = !isNew && scenario !== "noPractice" && scenario !== "caughtUp";
   const hasOdyssey = !isNew && scenario !== "noOdyssey" && scenario !== "caughtUp";
+  const highlights = isNew
+    ? []
+    : [
+        events.find(({ kind }) => kind === "practiceAccepted"),
+        events.find(({ kind }) => kind === "matchPlayed"),
+        {
+          kind: "odyssey" as const,
+          day: -9,
+          title: "Transit Operations",
+          detail: hasOdyssey ? "Stage 1 cleared" : "Completed",
+        },
+      ].filter((item) => item !== undefined);
   const client = useQueryClient();
   const options = practiceRecommendationOptions(client, actor, recommendationScope);
   const recommended = useQuery({ ...options, enabled: !hasPractice && options.enabled !== false });
@@ -217,7 +229,6 @@ export function DashboardDemo() {
                 </p>
               )}
             </section>
-            {!isNew && <DashboardActivity items={events.slice(0, 4)} />}
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
@@ -282,6 +293,7 @@ export function DashboardDemo() {
             </section>
           </aside>
         </div>
+        <DashboardRecentHighlights items={highlights} />
       </main>
     </>
   );

@@ -1,6 +1,5 @@
-/** @file DashboardHighlights.tsx @description Streak, question metadata, and stat charts. @module dashboard */
-import { BookOpen, Swords } from "lucide-react";
-import type { ActivityEvent } from "./ActivityCalendar";
+/** @file DashboardHighlights.tsx @description Player highlights, streak, question metadata, and stat charts. @module dashboard */
+import { BookOpen, Flag, Swords } from "lucide-react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { useState } from "react";
@@ -22,32 +21,45 @@ export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
-export function DashboardActivity({
-  items,
-}: {
-  items: readonly (ActivityEvent & { title: string; detail: string })[];
-}) {
+const highlightKinds = {
+  practiceAccepted: { label: "Latest solve", Icon: BookOpen },
+  matchPlayed: { label: "Latest match", Icon: Swords },
+  odyssey: { label: "Odyssey milestone", Icon: Flag },
+} as const;
+
+type Highlight = { day: number; kind: keyof typeof highlightKinds; title: string; detail: string };
+
+export function DashboardRecentHighlights({ items }: { items: readonly Highlight[] }) {
   if (!items.length) return null;
   const today = new Date();
   return (
-    <details className="dashboard-recent-activity">
-      <summary>Recent activity</summary>
+    <section
+      className="dashboard-panel dashboard-recent-highlights"
+      aria-labelledby="dashboard-highlights-title"
+    >
+      <h2 id="dashboard-highlights-title">Highlights</h2>
       <ul>
         {items.map(({ day, kind, title, detail }) => {
           const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + day);
-          const Icon = kind === "matchPlayed" ? Swords : BookOpen;
+          const { label, Icon } = highlightKinds[kind];
+          const dateTime = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+            .map((part) => String(part).padStart(2, "0"))
+            .join("-");
           return (
-            <li key={day}>
-              <Icon size={14} aria-hidden="true" />
-              <span>
-                <strong>{title}</strong> · {detail}
+            <li key={kind}>
+              <span className="dashboard-highlight-kind">
+                <Icon size={14} aria-hidden="true" /> {label}
               </span>
-              <span>{day === 0 ? "Today" : activityDate.format(date)}</span>
+              <strong>{title}</strong>
+              <p>
+                {detail} ·{" "}
+                <time dateTime={dateTime}>{day === 0 ? "Today" : activityDate.format(date)}</time>
+              </p>
             </li>
           );
         })}
       </ul>
-    </details>
+    </section>
   );
 }
 
