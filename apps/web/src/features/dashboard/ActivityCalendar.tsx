@@ -2,6 +2,7 @@
 import { useState, type CSSProperties } from "react";
 import { BookOpen, Flame, Swords } from "lucide-react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { DashboardStreak } from "./DashboardHighlights";
 import "./activity-calendar.css";
 
 export const activityHistoryDays = 180;
@@ -43,7 +44,13 @@ function describeDay(day: { practice: number; matches: number }) {
   ].filter(({ count }) => count > 0);
 }
 
-export function ActivityCalendar({ activity }: { activity: ReturnType<typeof summarizeActivity> }) {
+export function ActivityCalendar({
+  activity,
+  streakDays,
+}: {
+  activity: ReturnType<typeof summarizeActivity>;
+  streakDays: number;
+}) {
   const [period, setPeriod] = useState(String(activityHistoryDays));
   const [selected, setSelected] = useState(0);
   const range = Number(period);
@@ -78,15 +85,18 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
       aria-labelledby="activity-calendar-title"
     >
       <div className="activity-calendar-header">
-        <div>
-          <h2 id="activity-calendar-title">Activity calendar</h2>
-          <p className="dashboard-caption activity-calendar-active-days">
-            <Flame size={14} aria-hidden="true" />
-            <span>
-              {activeDays} {activeDays === 1 ? "day" : "days"}
-            </span>
-            <span className="sr-only">with activity. Sample data.</span>
-          </p>
+        <div className="activity-calendar-overview">
+          <div>
+            <h2 id="activity-calendar-title">Activity calendar</h2>
+            <p className="dashboard-caption activity-calendar-active-days">
+              <Flame size={14} aria-hidden="true" />
+              <span>
+                {activeDays} {activeDays === 1 ? "day" : "days"}
+              </span>
+              <span className="sr-only">with activity. Sample data.</span>
+            </p>
+          </div>
+          <DashboardStreak days={streakDays} />
         </div>
         <SegmentedControl
           label="Activity period"

@@ -18,7 +18,6 @@ import {
   DashboardTimeline,
   DashboardDistribution,
   DashboardQuestionMetadata,
-  DashboardStreak,
 } from "./DashboardHighlights";
 import { ActivityCalendar, activityHistoryDays, summarizeActivity } from "./ActivityCalendar";
 import "./dashboard-demo.css";
@@ -193,11 +192,11 @@ export function DashboardDemo() {
               </Link>
             </div>
           </section>
-          <DashboardStreak days={length} />
+          <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
         </div>
 
         <div className="dashboard-columns">
-          <ActivityCalendar activity={qualifyingDays} />
+          <ActivityCalendar activity={qualifyingDays} streakDays={length} />
           <aside className="dashboard-progress" aria-label="Progress">
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
               <div className="dashboard-panel-heading">
@@ -263,50 +262,47 @@ export function DashboardDemo() {
         </div>
 
         <div className="dashboard-columns">
-          <div className="dashboard-resources">
-            <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
-            <section
-              className="dashboard-panel dashboard-odyssey"
-              aria-labelledby="dashboard-odyssey-title"
-            >
-              <div className="dashboard-panel-heading">
-                <h2 id="dashboard-odyssey-title">
-                  <OdysseyIcon /> Odysseys
-                </h2>
-                <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
-                  Browse Odysseys <ArrowRight size={14} />
-                </Link>
-              </div>
-              {hasOdyssey ? (
-                <>
-                  <p className="dashboard-preview-title">
-                    Transit Operations <DifficultyLabel difficulty="medium" />
-                  </p>
-                  <ol className="dashboard-stages" aria-label="Odyssey stages">
-                    <li data-stage="complete">
-                      <Check size={14} />
-                      <span className="sr-only">Stage 1 complete</span>
-                    </li>
-                    <li aria-current="step">
-                      2<span className="sr-only">, current stage</span>
-                    </li>
-                    <li>
-                      3<span className="sr-only">, upcoming stage</span>
-                    </li>
-                  </ol>
-                </>
-              ) : isNew ? (
-                <p className="dashboard-caption">
-                  Solve a series of questions that build on each other.
+          <section
+            className="dashboard-panel dashboard-odyssey"
+            aria-labelledby="dashboard-odyssey-title"
+          >
+            <div className="dashboard-panel-heading">
+              <h2 id="dashboard-odyssey-title">
+                <OdysseyIcon /> Odysseys
+              </h2>
+              <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
+                Browse Odysseys <ArrowRight size={14} />
+              </Link>
+            </div>
+            {hasOdyssey ? (
+              <>
+                <p className="dashboard-preview-title">
+                  Transit Operations <DifficultyLabel difficulty="medium" />
                 </p>
-              ) : null}
-              {!isNew && (
-                <p className="dashboard-caption dashboard-odyssey-completed">
-                  <strong>4</strong> Odysseys completed
-                </p>
-              )}
-            </section>
-          </div>
+                <ol className="dashboard-stages" aria-label="Odyssey stages">
+                  <li data-stage="complete">
+                    <Check size={14} />
+                    <span className="sr-only">Stage 1 complete</span>
+                  </li>
+                  <li aria-current="step">
+                    2<span className="sr-only">, current stage</span>
+                  </li>
+                  <li>
+                    3<span className="sr-only">, upcoming stage</span>
+                  </li>
+                </ol>
+              </>
+            ) : isNew ? (
+              <p className="dashboard-caption">
+                Solve a series of questions that build on each other.
+              </p>
+            ) : null}
+            {!isNew && (
+              <p className="dashboard-caption dashboard-odyssey-completed">
+                <strong>4</strong> Odysseys completed
+              </p>
+            )}
+          </section>
           <DashboardTimeline items={timeline} />
         </div>
       </main>

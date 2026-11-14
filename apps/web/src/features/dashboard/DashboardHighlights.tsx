@@ -84,17 +84,17 @@ export function DashboardStreak({ days }: { days: number }) {
   const [replay, setReplay] = useState(0);
   return (
     <section className="dashboard-streak" aria-labelledby="dashboard-streak-title">
-      <h2 id="dashboard-streak-title">Daily streak</h2>
-      <div className="dashboard-streak-summary" aria-live="polite">
-        <button
-          type="button"
-          className="dashboard-streak-art"
-          aria-label="Replay streak animation"
-          onClick={() => setReplay((count) => count + 1)}
-        >
-          <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
-        </button>
-        <p className="dashboard-streak-number">
+      <button
+        type="button"
+        className="dashboard-streak-art"
+        aria-label="Replay streak animation"
+        onClick={() => setReplay((count) => count + 1)}
+      >
+        <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
+      </button>
+      <div>
+        <h3 id="dashboard-streak-title">Daily streak</h3>
+        <p className="dashboard-streak-number" aria-live="polite">
           <strong>{days}</strong> <span>{days === 1 ? "day" : "days"}</span>
         </p>
       </div>

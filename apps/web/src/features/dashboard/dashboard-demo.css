@@ -37,7 +37,6 @@
   align-items: start;
   margin-top: var(--space-5);
 }
-.dashboard-resources,
 .dashboard-progress {
   display: grid;
   min-width: 0;
@@ -106,7 +105,7 @@
 .dashboard-panel-heading {
   margin-bottom: var(--space-2);
 }
-.dashboard-resources > .practice-recommendations {
+.dashboard-top > .practice-recommendations {
   min-width: 0;
   margin-block-end: 0;
 }
@@ -153,26 +152,18 @@
   color: var(--color-info);
   background: var(--color-brand-secondary);
 }
-.dashboard-streak h2 {
+.dashboard-streak h3 {
   font-size: var(--text-small);
   font-weight: 600;
 }
-.dashboard-streak-summary {
+.dashboard-streak {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-}
-.dashboard-streak {
-  width: min(100%, 17rem);
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  align-self: center;
   gap: var(--space-1);
 }
 .dashboard-streak-art {
-  width: 68px;
-  height: 68px;
+  width: 52px;
+  height: 52px;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -188,15 +179,16 @@
   --dashboard-tone: var(--color-text-disabled);
 }
 .dashboard-streak-number {
-  display: grid;
-  justify-items: center;
-  font-size: var(--text-body);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: var(--text-small);
   line-height: 1;
   color: var(--color-text-secondary);
 }
 .dashboard-streak-number strong {
   color: var(--color-text);
-  font-size: clamp(36px, 5vw, 48px);
+  font-size: var(--text-h1);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
@@ -261,25 +253,11 @@
   color: var(--color-text);
 }
 @media (max-width: 760px) {
-  .dashboard-top {
-    grid-template-columns: minmax(0, 1fr) clamp(90px, 24vw, 160px);
-    gap: var(--space-2);
-  }
-
-  .dashboard-streak-summary {
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-
-  .dashboard-streak-art {
-    width: 60px;
-    height: 60px;
-  }
-
   .dashboard-actions .button {
     white-space: normal;
   }
 
+  .dashboard-top,
   .dashboard-columns {
     grid-template-columns: minmax(0, 1fr);
   }
