@@ -196,53 +196,8 @@ export function DashboardDemo() {
           <DashboardStreak days={length} />
         </div>
 
-        <ActivityCalendar activity={qualifyingDays} />
-
         <div className="dashboard-columns">
-          <div className="dashboard-main">
-            <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
-            <section
-              className="dashboard-panel dashboard-odyssey"
-              aria-labelledby="dashboard-odyssey-title"
-            >
-              <div className="dashboard-panel-heading">
-                <h2 id="dashboard-odyssey-title">
-                  <OdysseyIcon /> Odysseys
-                </h2>
-                <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
-                  Browse Odysseys <ArrowRight size={14} />
-                </Link>
-              </div>
-              {hasOdyssey ? (
-                <>
-                  <p className="dashboard-preview-title">
-                    Transit Operations <DifficultyLabel difficulty="medium" />
-                  </p>
-                  <ol className="dashboard-stages" aria-label="Odyssey stages">
-                    <li data-stage="complete">
-                      <Check size={14} />
-                      <span className="sr-only">Stage 1 complete</span>
-                    </li>
-                    <li aria-current="step">
-                      2<span className="sr-only">, current stage</span>
-                    </li>
-                    <li>
-                      3<span className="sr-only">, upcoming stage</span>
-                    </li>
-                  </ol>
-                </>
-              ) : isNew ? (
-                <p className="dashboard-caption">
-                  Solve a series of questions that build on each other.
-                </p>
-              ) : null}
-              {!isNew && (
-                <p className="dashboard-caption dashboard-odyssey-completed">
-                  <strong>4</strong> Odysseys completed
-                </p>
-              )}
-            </section>
-          </div>
+          <ActivityCalendar activity={qualifyingDays} />
           <aside className="dashboard-progress" aria-label="Progress">
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
               <div className="dashboard-panel-heading">
@@ -305,6 +260,51 @@ export function DashboardDemo() {
               )}
             </section>
           </aside>
+        </div>
+
+        <div className="dashboard-columns">
+          <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
+          <section
+            className="dashboard-panel dashboard-odyssey"
+            aria-labelledby="dashboard-odyssey-title"
+          >
+            <div className="dashboard-panel-heading">
+              <h2 id="dashboard-odyssey-title">
+                <OdysseyIcon /> Odysseys
+              </h2>
+              <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
+                Browse Odysseys <ArrowRight size={14} />
+              </Link>
+            </div>
+            {hasOdyssey ? (
+              <>
+                <p className="dashboard-preview-title">
+                  Transit Operations <DifficultyLabel difficulty="medium" />
+                </p>
+                <ol className="dashboard-stages" aria-label="Odyssey stages">
+                  <li data-stage="complete">
+                    <Check size={14} />
+                    <span className="sr-only">Stage 1 complete</span>
+                  </li>
+                  <li aria-current="step">
+                    2<span className="sr-only">, current stage</span>
+                  </li>
+                  <li>
+                    3<span className="sr-only">, upcoming stage</span>
+                  </li>
+                </ol>
+              </>
+            ) : isNew ? (
+              <p className="dashboard-caption">
+                Solve a series of questions that build on each other.
+              </p>
+            ) : null}
+            {!isNew && (
+              <p className="dashboard-caption dashboard-odyssey-completed">
+                <strong>4</strong> Odysseys completed
+              </p>
+            )}
+          </section>
         </div>
         <DashboardTimeline items={timeline} />
       </main>

@@ -37,7 +37,6 @@
   align-items: start;
   margin-top: var(--space-6);
 }
-.dashboard-main,
 .dashboard-progress {
   display: grid;
   min-width: 0;
@@ -107,7 +106,7 @@
 .dashboard-panel-heading {
   margin-bottom: var(--space-2);
 }
-.dashboard-main > .practice-recommendations {
+.dashboard-columns > .practice-recommendations {
   min-width: 0;
   margin-block-end: 0;
 }
