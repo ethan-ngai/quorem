@@ -1698,12 +1698,7 @@
           "minimum": 0
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "accepted",
-            "wrong_answer",
-            "time_limit"
-          ]
+          "$ref": "#/$defs/Verdict"
         }
       },
       "required": [

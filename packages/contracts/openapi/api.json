@@ -6721,8 +6721,7 @@
             "minimum": 0
           },
           "status": {
-            "type": "string",
-            "enum": ["accepted", "wrong_answer", "time_limit"]
+            "$ref": "#/components/schemas/Verdict"
           }
         },
         "required": ["index", "status"],

@@ -1789,8 +1789,7 @@ export interface components {
         };
         HiddenCaseResult: {
             index: number;
-            /** @enum {string} */
-            status: "accepted" | "wrong_answer" | "time_limit";
+            status: components["schemas"]["Verdict"];
         };
         Submission: {
             /** @description False when the viewer can read the submission but does not own it. */

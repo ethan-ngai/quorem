@@ -193,8 +193,7 @@ async function streamSnapshot(
         const progress = (
           await tx.execute<{ index: number; status: string; hidden: boolean }>(sql`
             SELECT CASE WHEN ${row.kind} = 'run' OR v.ordinal<i.case_count THEN v.ordinal ELSE v.ordinal-i.case_count END AS index,
-              CASE WHEN ${row.kind} = 'submit' AND v.ordinal<i.case_count AND v.status NOT IN ('accepted','time_limit')
-                THEN 'wrong_answer' ELSE v.status END AS status,
+              v.status,
               ${row.kind} = 'submit' AND v.ordinal<i.case_count AS hidden
             FROM execution_jobs j
             JOIN runner_job_inputs i ON i.job_id=j.id AND i.sealed

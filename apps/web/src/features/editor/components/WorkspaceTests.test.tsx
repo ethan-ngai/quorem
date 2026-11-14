@@ -431,7 +431,7 @@ it("keeps public results separate from hidden case statuses", () => {
     />,
   );
   expect(html).toContain('aria-label="Hidden case 1: passed"');
-  expect(html).toContain('aria-label="Hidden case 2: time limit exceeded"');
+  expect(html).toContain('aria-label="Hidden case 2: time limit"');
   expect(html).toContain("public-output");
   expect(html).not.toContain('class="locked-case"');
 });
@@ -489,7 +489,7 @@ it.each(["coding", "sql"] as const)(
     expect(html).not.toContain('id="tests-hidden-tab"');
     expect(html).toContain('class="case-group-label case-group-label--locked"');
     expect(html).toContain('aria-label="Hidden case 1: passed"');
-    expect(html).toContain('aria-label="Hidden case 2: failed"');
+    expect(html).toContain('aria-label="Hidden case 2: wrong answer"');
     expect(html).toContain("public-result");
     expect(html).toContain(kind === "sql" ? "Tables" : 'class="parameter-name">values');
     expect(html).toContain('aria-label="Select test case"');
@@ -514,7 +514,7 @@ it("renders verified live verdicts at their actual case indexes", () => {
       }}
     />,
   );
-  expect(html).toContain('aria-label="Hidden case 3: failed"');
+  expect(html).toContain('aria-label="Hidden case 3: wrong answer"');
   expect(html).toContain('aria-label="Case 2: accepted"');
   expect(html).toContain('aria-label="Case 1: pending"');
 });
@@ -564,4 +564,32 @@ it("shows a shared custom run separately from local drafts", () => {
   expect(html).toContain("inputs may differ from your drafts");
   expect(html).toContain('aria-label="Select run result"');
   expect(html).toContain("42");
+});
+
+it("keeps the passing hidden suite selectable when there are no examples", () => {
+  const html = renderToStaticMarkup(
+    <WorkspaceTests
+      problem={{ ...problem, examples: [] }}
+      busy={false}
+      submission={{
+        id: "submit",
+        kind: "submit",
+        state: "completed",
+        sourceHash: "s",
+        admittedAt: "",
+        updatedAt: "",
+        verdict: "accepted",
+        score: { passed: 2, total: 2 },
+        hiddenCases: [
+          { index: 0, status: "accepted" },
+          { index: 1, status: "accepted" },
+        ],
+      }}
+    />,
+  );
+  expect(html).toContain("2/2 cases passed");
+  expect(html).toContain('<details class="case-group disclosure" open="">');
+  expect(html).toContain('aria-pressed="true" aria-label="Hidden case 1: passed"');
+  expect(html).toContain('aria-label="Hidden case 2: passed"');
+  expect(html).not.toContain("No sample cases available.");
 });

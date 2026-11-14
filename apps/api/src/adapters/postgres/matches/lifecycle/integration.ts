@@ -1469,7 +1469,7 @@ for (const accepted of [false, true])
       JSON.stringify({
         workspaceId: workspace,
         kind: "submit",
-        source: `class Solution:\n def f(self,x): return x${accepted ? "+1" : ""}`,
+        source: `class Solution:\n def f(self,x): print(f"case={x}"); return x${accepted ? "+1" : " // 0"}`,
       }),
       "hidden-run",
     );
@@ -1527,7 +1527,7 @@ for (const accepted of [false, true])
       ).json()) as import("@quorem/contracts").Submission;
       assert.equal(live.state, "running");
       assert.deepEqual(live.hiddenCases, [
-        { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+        { index: 0, status: accepted ? "accepted" : "runtime_error" },
       ]);
       assert.ok(live.publicCases?.length);
       assert.ok(live.publicCases.every((item) => Object.keys(item).length === 2));
@@ -1541,9 +1541,10 @@ for (const accepted of [false, true])
       await new Response(await submissionSnapshots(run).read(room.actor, admitted.id)).text(),
     );
     assert.deepEqual(publicResult.hiddenCases, [
-      { index: 0, status: accepted ? "accepted" : "wrong_answer" },
+      { index: 0, status: accepted ? "accepted" : "runtime_error" },
     ]);
-    assert.equal(publicResult.verdict, accepted ? "accepted" : "wrong_answer");
+    assert.equal(publicResult.verdict, accepted ? "accepted" : "runtime_error");
+    assert.ok(!JSON.stringify(publicResult).includes("case=3"));
     const request = { kind: "hiddenCase" as const, submissionId: admitted.id, caseIndex: 0 };
     const quoted = await repo.ruleAction(room.actor, room.id, "hidden-quote", request);
     assert.equal(quoted.revealed, undefined);
@@ -1556,9 +1557,11 @@ for (const accepted of [false, true])
       ...request,
       approval: ruleApproval(quoted.quote),
     });
-    assert.equal(JSON.parse(revealed.revealed!.result!).actual, accepted ? 4 : 3);
-    assert.equal(JSON.parse(revealed.revealed!.result!).expected, 4);
+    const result = JSON.parse(revealed.revealed!.result!);
+    assert.equal(result.actual, accepted ? 4 : undefined);
+    assert.equal(result.expected, accepted ? 4 : undefined);
     assert.ok(revealed.revealed!.input!.includes("3"));
+    if (accepted) assert.equal(result.stdout?.trim(), "case=3");
     const again = await repo.ruleAction(room.actor, room.id, "hidden-again", request);
     assert.equal(again.quote.points, 0);
   });
