@@ -272,8 +272,6 @@ export function DashboardDemo() {
               </section>
             </section>
 
-            <DashboardTimeline items={timeline} />
-
             <section
               className="dashboard-panel dashboard-matches"
               aria-labelledby="dashboard-matches-title"
@@ -297,6 +295,7 @@ export function DashboardDemo() {
                 </>
               )}
             </section>
+            <DashboardTimeline items={timeline} />
           </aside>
         </div>
       </main>
