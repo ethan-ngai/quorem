@@ -18,7 +18,6 @@ import { useTheme } from "../editor/useTheme";
 import { GlobalNav } from "../navigation/GlobalNav";
 import fire from "./fire.svg";
 import embers from "./embers.svg";
-import "../../ui/difficulty.css";
 import "./dashboard-demo.css";
 
 const today = 0;
@@ -125,8 +124,8 @@ export function DashboardDemo() {
           </label>
         </header>
 
-        <div className="dashboard-overview">
-          <div className="dashboard-start">
+        <div className="dashboard-columns">
+          <div className="dashboard-main">
             <section
               className="dashboard-panel dashboard-next"
               aria-labelledby="dashboard-next-title"
@@ -135,9 +134,6 @@ export function DashboardDemo() {
                 <BookOpen size={17} /> Practice
               </h2>
               <div className="dashboard-next-content">
-                <p className="dashboard-caption">
-                  {isNew ? "Get started" : "Pick up where you left off"}
-                </p>
                 <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
                 {!isNew && (
                   <p className="dashboard-next-meta">
@@ -183,223 +179,221 @@ export function DashboardDemo() {
                         <strong>{title}</strong>
                         <small>{topic}</small>
                       </span>
-                      <span className={`difficulty-${difficulty.toLowerCase()}`}>{difficulty}</span>
+                      <span className="dashboard-recommendation-difficulty">{difficulty}</span>
                       <ArrowRight size={15} aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
             </section>
-          </div>
-
-          <section
-            className="dashboard-streak"
-            aria-labelledby="dashboard-streak-title"
-            data-active={length > 0}
-          >
-            <div aria-live="polite">
-              <p className="dashboard-streak-label">Streak</p>
-              <h2 id="dashboard-streak-title">{length ? "Daily streak" : "No active streak"}</h2>
-              <p className="dashboard-caption">
-                {doneToday
-                  ? "Today complete"
-                  : length
-                    ? "Today still open"
-                    : "Start a streak today"}
-              </p>
-              <div className="dashboard-streak-summary">
-                <p className="dashboard-streak-number">
-                  <strong>{length}</strong>
-                  <span>{length === 1 ? "day active" : "days active"}</span>
-                </p>
-                <img src={length ? fire : embers} alt="" width={144} height={144} />
-              </div>
-            </div>
-            <div className="dashboard-streak-footer">
-              <p>Play a match or submit an accepted practice solution.</p>
-              <span>
-                Best <strong>{best} days</strong>
-              </span>
-            </div>
-          </section>
-        </div>
-
-        <div className="dashboard-sections">
-          <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
-            <div className="dashboard-panel-heading">
-              <h2 id="dashboard-solves-title">
-                <Check size={17} /> Problems solved
-              </h2>
-              <Link className="dashboard-link" to="/practice">
-                Practice <ArrowRight size={14} />
-              </Link>
-            </div>
-            <p className="dashboard-total">
-              <strong>{isNew ? 0 : 42}</strong> unique problems
-            </p>
-            <div className="dashboard-solve-bar" aria-hidden="true">
-              {!isNew &&
-                difficulty.map(({ label, color, solved }) => (
-                  <span key={label} data-tone={color} style={{ flexGrow: solved }} />
-                ))}
-            </div>
-            <ul className="dashboard-difficulty">
-              {difficulty.map(({ label, solved, color }) => (
-                <li key={label}>
-                  <span className="dashboard-dot" data-tone={color} />
-                  {label}
-                  <strong>{isNew ? 0 : solved}</strong>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section
-            className="dashboard-panel dashboard-matches"
-            aria-labelledby="dashboard-matches-title"
-          >
-            <div className="dashboard-panel-heading">
-              <h2 id="dashboard-matches-title">
-                <Swords size={17} /> Competition
-              </h2>
-              <Link className="dashboard-link" to="/practice" search={{ create: "match" }}>
-                Create match <ArrowRight size={14} />
-              </Link>
-            </div>
-            {isNew ? (
-              <p className="dashboard-caption">Play your first match to build your record.</p>
-            ) : (
-              <>
-                <div className="dashboard-record">
-                  <span>
-                    <strong>14</strong> wins
-                  </span>
-                  <span>
-                    <strong>3</strong> draws
-                  </span>
-                  <span>
-                    <strong>8</strong> losses
-                  </span>
-                  <span className="dashboard-caption">Last 30 days</span>
+            <div className="dashboard-destinations">
+              <section className="dashboard-panel" aria-labelledby="dashboard-odyssey-title">
+                <div className="dashboard-panel-heading">
+                  <h2 id="dashboard-odyssey-title">
+                    <Flag size={17} /> Odysseys
+                  </h2>
+                  <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
+                    Browse <ArrowRight size={14} />
+                  </Link>
                 </div>
-                <ul className="dashboard-rows" aria-label="Recent matches">
-                  {matches
-                    .filter(({ when }) => scenario !== "broken" || when !== "Fri")
-                    .map(({ mode, opponent, when, result, icon: Icon, tone }) => (
-                      <li key={opponent}>
-                        <span>
-                          <strong>{mode}</strong>
-                          <small>{opponent}</small>
-                        </span>
-                        <span className="dashboard-match-result" data-tone={tone}>
-                          <Icon size={15} />
-                          {result}
-                        </span>
-                        <time>{when}</time>
+                {isNew ? (
+                  <p className="dashboard-caption">
+                    Solve a series of questions that build on each other.
+                  </p>
+                ) : (
+                  <>
+                    <p className="dashboard-preview-title">Transit Operations</p>
+                    <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
+                    <ol className="dashboard-stages" aria-label="Odyssey stages">
+                      <li data-stage="complete">
+                        <Check size={14} />
+                        <span className="sr-only">Stage 1 complete</span>
                       </li>
-                    ))}
-                </ul>
-              </>
-            )}
-          </section>
+                      <li aria-current="step">
+                        2<span className="sr-only">, current stage</span>
+                      </li>
+                      <li>
+                        3<span className="sr-only">, upcoming stage</span>
+                      </li>
+                    </ol>
+                  </>
+                )}
+              </section>
 
-          <section className="dashboard-panel" aria-labelledby="dashboard-odyssey-title">
-            <div className="dashboard-panel-heading">
-              <h2 id="dashboard-odyssey-title">
-                <Flag size={17} /> Odysseys
-              </h2>
-              <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
-                Browse <ArrowRight size={14} />
-              </Link>
+              <section className="dashboard-panel" aria-labelledby="dashboard-interviews-title">
+                <div className="dashboard-panel-heading">
+                  <h2 id="dashboard-interviews-title">
+                    <Users size={17} /> Interviews
+                  </h2>
+                  <Link className="dashboard-link" to="/interviews">
+                    Open interviews <ArrowRight size={14} />
+                  </Link>
+                </div>
+                {isNew ? (
+                  <p className="dashboard-caption">Create a room for a mock interview.</p>
+                ) : (
+                  <>
+                    <p className="dashboard-preview-title">Mock interview with Mira</p>
+                    <p className="dashboard-caption dashboard-inline">
+                      <Clock3 size={14} /> Last opened yesterday
+                    </p>
+                    <p className="dashboard-caption">2 rooms</p>
+                  </>
+                )}
+              </section>
             </div>
-            {isNew ? (
-              <p className="dashboard-caption">
-                Solve a series of questions that build on each other.
-              </p>
-            ) : (
-              <>
-                <p className="dashboard-preview-title">Transit Operations</p>
-                <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
-                <ol className="dashboard-stages" aria-label="Odyssey stages">
-                  <li data-stage="complete">
-                    <Check size={14} />
-                    <span className="sr-only">Stage 1 complete</span>
-                  </li>
-                  <li aria-current="step">
-                    2<span className="sr-only">, current stage</span>
-                  </li>
-                  <li>
-                    3<span className="sr-only">, upcoming stage</span>
-                  </li>
-                </ol>
-              </>
-            )}
-          </section>
-
-          <section className="dashboard-panel" aria-labelledby="dashboard-interviews-title">
-            <div className="dashboard-panel-heading">
-              <h2 id="dashboard-interviews-title">
-                <Users size={17} /> Interviews
-              </h2>
-              <Link className="dashboard-link" to="/interviews">
-                Open interviews <ArrowRight size={14} />
-              </Link>
-            </div>
-            {isNew ? (
-              <p className="dashboard-caption">Create a room for a mock interview.</p>
-            ) : (
-              <>
-                <p className="dashboard-preview-title">Mock interview with Mira</p>
-                <p className="dashboard-caption dashboard-inline">
-                  <Clock3 size={14} /> Last opened yesterday
+            <section
+              className="dashboard-panel dashboard-activity"
+              aria-labelledby="dashboard-activity-title"
+            >
+              <div className="dashboard-panel-heading">
+                <h2 id="dashboard-activity-title">
+                  <Clock3 size={17} /> Recent activity
+                </h2>
+              </div>
+              {isNew ? (
+                <p className="dashboard-caption">
+                  Your judged submissions and matches will appear here.
                 </p>
-                <p className="dashboard-caption">2 rooms</p>
-              </>
-            )}
-          </section>
-          <section
-            className="dashboard-panel dashboard-activity"
-            aria-labelledby="dashboard-activity-title"
-          >
-            <div className="dashboard-panel-heading">
-              <h2 id="dashboard-activity-title">
-                <Clock3 size={17} /> Recent activity
-              </h2>
-            </div>
-            {isNew ? (
-              <p className="dashboard-caption">
-                Your judged submissions and matches will appear here.
+              ) : (
+                <ul className="dashboard-rows">
+                  {doneToday && (
+                    <li>
+                      <span>
+                        <strong>Mirror Letters</strong>
+                        <small>Practice accepted</small>
+                      </span>
+                      <time>Today</time>
+                    </li>
+                  )}
+                  {scenario !== "broken" && (
+                    <li>
+                      <span>
+                        <strong>Showdown</strong>
+                        <small>Won against Mira Chen</small>
+                      </span>
+                      <time>Fri</time>
+                    </li>
+                  )}
+                  <li>
+                    <span>
+                      <strong>Race</strong>
+                      <small>Played with 3 players</small>
+                    </span>
+                    <time>Thu</time>
+                  </li>
+                </ul>
+              )}
+            </section>
+          </div>
+          <aside className="dashboard-progress" aria-label="Progress">
+            <section
+              className="dashboard-streak"
+              aria-labelledby="dashboard-streak-title"
+              data-active={length > 0}
+            >
+              <div aria-live="polite">
+                <h2 id="dashboard-streak-title">{length ? "Daily streak" : "No active streak"}</h2>
+                <p className="dashboard-caption">
+                  {doneToday
+                    ? "Today complete"
+                    : length
+                      ? "Today still open"
+                      : "Start a streak today"}
+                </p>
+                <div className="dashboard-streak-summary">
+                  <p className="dashboard-streak-number">
+                    <strong>{length}</strong>
+                    <span>{length === 1 ? "day active" : "days active"}</span>
+                  </p>
+                  <img src={length ? fire : embers} alt="" width={144} height={144} />
+                </div>
+              </div>
+              <div className="dashboard-streak-footer">
+                <p>Play a match or submit an accepted practice solution.</p>
+                <span>
+                  Best <strong>{best} days</strong>
+                </span>
+              </div>
+            </section>
+            <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
+              <div className="dashboard-panel-heading">
+                <h2 id="dashboard-solves-title">
+                  <Check size={17} /> Problems solved
+                </h2>
+                <Link className="dashboard-link" to="/practice">
+                  Practice <ArrowRight size={14} />
+                </Link>
+              </div>
+              <p className="dashboard-total">
+                <strong>{isNew ? 0 : 42}</strong> unique problems
               </p>
-            ) : (
-              <ul className="dashboard-rows">
-                {doneToday && (
-                  <li>
-                    <span>
-                      <strong>Mirror Letters</strong>
-                      <small>Practice accepted</small>
-                    </span>
-                    <time>Today</time>
+              <div className="dashboard-solve-bar" aria-hidden="true">
+                {!isNew &&
+                  difficulty.map(({ label, color, solved }) => (
+                    <span key={label} data-tone={color} style={{ flexGrow: solved }} />
+                  ))}
+              </div>
+              <ul className="dashboard-difficulty">
+                {difficulty.map(({ label, solved, color }) => (
+                  <li key={label}>
+                    <span className="dashboard-dot" data-tone={color} />
+                    {label}
+                    <strong>{isNew ? 0 : solved}</strong>
                   </li>
-                )}
-                {scenario !== "broken" && (
-                  <li>
-                    <span>
-                      <strong>Showdown</strong>
-                      <small>Won against Mira Chen</small>
-                    </span>
-                    <time>Fri</time>
-                  </li>
-                )}
-                <li>
-                  <span>
-                    <strong>Race</strong>
-                    <small>Played with 3 players</small>
-                  </span>
-                  <time>Thu</time>
-                </li>
+                ))}
               </ul>
-            )}
-          </section>
+            </section>
+
+            <section
+              className="dashboard-panel dashboard-matches"
+              aria-labelledby="dashboard-matches-title"
+            >
+              <div className="dashboard-panel-heading">
+                <h2 id="dashboard-matches-title">
+                  <Swords size={17} /> Competition
+                </h2>
+                <Link className="dashboard-link" to="/practice" search={{ create: "match" }}>
+                  Create match <ArrowRight size={14} />
+                </Link>
+              </div>
+              {isNew ? (
+                <p className="dashboard-caption">Play your first match to build your record.</p>
+              ) : (
+                <>
+                  <div className="dashboard-record">
+                    <span>
+                      <strong>14</strong> wins
+                    </span>
+                    <span>
+                      <strong>3</strong> draws
+                    </span>
+                    <span>
+                      <strong>8</strong> losses
+                    </span>
+                    <span className="dashboard-caption">Last 30 days</span>
+                  </div>
+                  <ul className="dashboard-rows" aria-label="Recent matches">
+                    {matches
+                      .filter(({ when }) => scenario !== "broken" || when !== "Fri")
+                      .map(({ mode, opponent, when, result, icon: Icon, tone }) => (
+                        <li key={opponent}>
+                          <span>
+                            <strong>{mode}</strong>
+                            <small>{opponent}</small>
+                          </span>
+                          <span className="dashboard-match-result" data-tone={tone}>
+                            <Icon size={15} />
+                            {result}
+                          </span>
+                          <time>{when}</time>
+                        </li>
+                      ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          </aside>
         </div>
       </main>
     </>
