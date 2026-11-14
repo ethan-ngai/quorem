@@ -1,3 +1,4 @@
+import { guestLobbyClosed } from "../../matches/review/lifetime.ts";
 import { workspaceAccess } from "../../workspace/access.ts";
 /** @file repository.ts @description Authorized submission reads and atomic cancellation. @module judging */
 import { sql } from "drizzle-orm";
@@ -80,6 +81,11 @@ async function assertScope(tx: Transaction, who: Principal, row: Row): Promise<v
   if (row.reviewMatch && row.reviewSource) {
     await authorizeReview(tx, who, row.reviewMatch, row.reviewSource);
     return;
+  }
+  if (row.match) {
+    const closed = await tx.execute(sql`SELECT 1 FROM matches m WHERE m.id=${row.match}::uuid
+      AND m.state IN ('completed','cancelled') AND ${guestLobbyClosed(sql`m`)}`);
+    if (closed.rows.length) throw missing();
   }
   if (who.kind !== "guest") return;
   if (who.scope.kind === "interview") {

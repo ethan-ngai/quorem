@@ -4,6 +4,7 @@ import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import { guestMayReadMatch } from "../../identity/guest.ts";
+import { guestLobbyClosed } from "./lifetime.ts";
 import { reviewPending } from "./pending.ts";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,6 +41,7 @@ export async function authorizeReview(
     JOIN users u ON u.id=viewer.owner_id AND NOT u.disabled JOIN users host ON host.id=m.host_owner_id
     WHERE m.id=${matchId}::uuid AND m.started_at IS NOT NULL AND m.state IN ('completed','cancelled')
       AND m.completed_at>clock_timestamp()-interval '24 hours' AND m.publication_id IS NOT NULL
+      AND NOT (${guestLobbyClosed(sql`m`)})
       AND (${!settled} OR NOT (${reviewPending(sql`m.id`)}))
       AND NOT EXISTS (SELECT 1 FROM match_participants later JOIN matches next ON next.id=later.match_id
         WHERE later.owner_id=viewer.owner_id AND next.started_at IS NOT NULL AND (next.started_at,next.id)>(m.started_at,m.id))
