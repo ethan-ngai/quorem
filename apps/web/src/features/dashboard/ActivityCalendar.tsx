@@ -1,7 +1,7 @@
 /** @file ActivityCalendar.tsx @description Daily practice and match activity in the dashboard preview. @module dashboard */
 import { useState, type CSSProperties } from "react";
-import { SelectField } from "../../ui/SelectField";
-import "../../ui/text-control.css";
+import { BookOpen, Swords } from "lucide-react";
+import { SegmentedControl } from "../../ui/SegmentedControl";
 import "./activity-calendar.css";
 
 export const activityHistoryDays = 180;
@@ -22,25 +22,25 @@ export function summarizeActivity(events: readonly ActivityEvent[]) {
   return days;
 }
 
-const periods = [30, 90, activityHistoryDays]
-  .map((days) => ({
-    value: String(days),
-    label: `Last ${days} days`,
-  }))
-  .concat({ value: "custom", label: "Custom period" });
+const periods = [30, 90, activityHistoryDays].map((days) => ({
+  value: String(days),
+  label: `${days} days`,
+}));
 
 const dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "long" });
 const monthLabel = new Intl.DateTimeFormat(undefined, { month: "short" });
 
 function describeDay(day: { practice: number; matches: number }) {
-  return `${day.practice} accepted practice ${day.practice === 1 ? "submission" : "submissions"} · ${day.matches} ${day.matches === 1 ? "match" : "matches"}`;
+  return [
+    { count: day.matches, label: day.matches === 1 ? "match" : "matches", Icon: Swords },
+    { count: day.practice, label: day.practice === 1 ? "problem" : "problems", Icon: BookOpen },
+  ].filter(({ count }) => count > 0);
 }
 
 export function ActivityCalendar({ activity }: { activity: ReturnType<typeof summarizeActivity> }) {
   const [period, setPeriod] = useState(String(activityHistoryDays));
-  const [customDays, setCustomDays] = useState(60);
   const [selected, setSelected] = useState(0);
-  const range = period === "custom" ? customDays : Number(period);
+  const range = Number(period);
   const current = new Date();
   const days = Array.from({ length: range }, (_, index) => {
     const offset = index - range + 1;
@@ -71,36 +71,12 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
             {days.filter(({ total }) => total > 0).length} active days · Sample data
           </p>
         </div>
-        <div className="activity-calendar-controls">
-          <SelectField
-            label="Activity period"
-            value={period}
-            options={periods}
-            onChange={setPeriod}
-          />
-          {period === "custom" && (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                setCustomDays(Number(new FormData(event.currentTarget).get("days")));
-              }}
-            >
-              <input
-                name="days"
-                className="text-control"
-                type="number"
-                required
-                min={1}
-                max={activityHistoryDays}
-                defaultValue={customDays}
-                aria-label="Number of days"
-              />
-              <button className="button button-secondary" type="submit">
-                Apply
-              </button>
-            </form>
-          )}
-        </div>
+        <SegmentedControl
+          label="Activity period"
+          value={period}
+          options={periods}
+          onChange={setPeriod}
+        />
       </div>
       <div
         className="activity-calendar-chart"
@@ -133,7 +109,11 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
                 gridRow: day.date.getDay() + 1,
                 gridColumn: Math.floor((index + firstWeekday) / 7) + 1,
               }}
-              aria-label={`${dateLabel.format(day.date)}. ${describeDay(day)}`}
+              aria-label={`${dateLabel.format(day.date)}. ${
+                describeDay(day)
+                  .map(({ count, label }) => `${count} ${label}`)
+                  .join(", ") || "No activity"
+              }`}
               aria-pressed={day.offset === activeDay}
               tabIndex={day.offset === activeDay ? 0 : -1}
               onClick={() => setSelected(day.offset)}
@@ -151,18 +131,14 @@ export function ActivityCalendar({ activity }: { activity: ReturnType<typeof sum
           ))}
         </div>
       </div>
-      <div className="activity-calendar-footer">
-        <p aria-live="polite">
-          <strong>{dateLabel.format(detail.date)}</strong> · {describeDay(detail)}
-        </p>
-        <div className="activity-calendar-legend" aria-label="Activity intensity">
-          Less{" "}
-          {[0, 1, 2, 3, 4].map((level) => (
-            <span key={level} data-level={level} aria-hidden="true" />
-          ))}{" "}
-          More
-        </div>
-      </div>
+      <p className="activity-calendar-detail" aria-live="polite">
+        <strong>{dateLabel.format(detail.date)}</strong>
+        {describeDay(detail).map(({ count, label, Icon }) => (
+          <span key={label}>
+            <Icon size={14} aria-hidden="true" /> {count} {label}
+          </span>
+        ))}
+      </p>
     </section>
   );
 }
