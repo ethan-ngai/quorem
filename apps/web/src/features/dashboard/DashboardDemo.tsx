@@ -146,46 +146,49 @@ export function DashboardDemo() {
           />
         </header>
 
+        <div className="dashboard-top">
+          <section
+            className="dashboard-panel dashboard-next"
+            aria-labelledby="dashboard-next-title"
+          >
+            <h2 id="dashboard-next-title">
+              <BookOpen size={17} /> Practice
+            </h2>
+            <div className="dashboard-next-content">
+              <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
+              {!isNew && (
+                <DashboardQuestionMetadata
+                  difficulty="medium"
+                  tags={["Binary Trees", "Breadth-First Search"]}
+                />
+              )}
+            </div>
+            <div className="dashboard-actions">
+              {isNew ? (
+                <Link className="button button-primary" to="/practice">
+                  Find a problem <ArrowRight size={16} />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    className="button button-primary"
+                    to="/practice/$slug"
+                    params={{ slug: "level-spreads" }}
+                  >
+                    Resume practice <ArrowRight size={16} />
+                  </Link>
+                  <Link className="dashboard-link" to="/practice">
+                    Browse problems
+                  </Link>
+                </>
+              )}
+            </div>
+          </section>
+          <DashboardStreak days={length} />
+        </div>
+
         <div className="dashboard-columns">
           <div className="dashboard-main">
-            <section
-              className="dashboard-panel dashboard-next"
-              aria-labelledby="dashboard-next-title"
-            >
-              <h2 id="dashboard-next-title">
-                <BookOpen size={17} /> Practice
-              </h2>
-              <div className="dashboard-next-content">
-                <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
-                {!isNew && (
-                  <DashboardQuestionMetadata
-                    difficulty="medium"
-                    tags={["Binary Trees", "Breadth-First Search"]}
-                  />
-                )}
-              </div>
-              <div className="dashboard-actions">
-                {isNew ? (
-                  <Link className="button button-primary" to="/practice">
-                    Find a problem <ArrowRight size={16} />
-                  </Link>
-                ) : (
-                  <>
-                    <Link
-                      className="button button-primary"
-                      to="/practice/$slug"
-                      params={{ slug: "level-spreads" }}
-                    >
-                      Resume practice <ArrowRight size={16} />
-                    </Link>
-                    <Link className="dashboard-link" to="/practice">
-                      Browse problems
-                    </Link>
-                  </>
-                )}
-              </div>
-            </section>
-
             <DashboardRecommendations items={recommendations} />
             <div className="dashboard-destinations">
               <section className="dashboard-panel" aria-labelledby="dashboard-odyssey-title">
@@ -246,7 +249,6 @@ export function DashboardDemo() {
             <DashboardActivity items={activity} />
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
-            <DashboardStreak days={length} />
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">
               <div className="dashboard-panel-heading">
                 <h2 id="dashboard-solves-title">
