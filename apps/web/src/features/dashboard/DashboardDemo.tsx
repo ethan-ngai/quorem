@@ -1,12 +1,16 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, BookOpen, Check, Flag, Swords } from "lucide-react";
 import { useState } from "react";
 import { SelectField } from "../../ui/SelectField";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
-import { PracticeRecommendations } from "../practice/PracticeRecommendations";
+import {
+  PracticeRecommendations,
+  practiceRecommendationOptions,
+} from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
   DashboardActivity,
@@ -14,12 +18,7 @@ import {
   DashboardQuestionMetadata,
   DashboardStreak,
 } from "./DashboardHighlights";
-import {
-  ActivityCalendar,
-  activityHistoryDays,
-  summarizeActivity,
-  type ActivityEvent,
-} from "./ActivityCalendar";
+import { ActivityCalendar, activityHistoryDays, summarizeActivity } from "./ActivityCalendar";
 import "./dashboard-demo.css";
 
 const today = 0;
@@ -28,6 +27,9 @@ const scenarios = {
   pending: { through: -1, days: 6 },
   broken: { through: -2, days: 7 },
   new: { through: today, days: 0 },
+  noPractice: { through: today, days: 7 },
+  noOdyssey: { through: today, days: 7 },
+  caughtUp: { through: today, days: 7 },
 };
 
 const scenarioOptions = [
@@ -35,19 +37,10 @@ const scenarioOptions = [
   { value: "pending", label: "Today pending" },
   { value: "broken", label: "Broken streak" },
   { value: "new", label: "New player" },
+  { value: "noPractice", label: "No practice in progress" },
+  { value: "noOdyssey", label: "No Odyssey in progress" },
+  { value: "caughtUp", label: "Nothing to resume" },
 ];
-
-const sampleHistory: ActivityEvent[] = Array.from(
-  { length: activityHistoryDays - 10 },
-  (_, index) => {
-    const day = -10 - index;
-    const count = ((index * 41) ^ (index >> 1)) % 7;
-    return Array.from({ length: Math.max(0, count - 2) }, (_, event) => ({
-      day,
-      kind: (index + event) % 3 === 0 ? ("matchPlayed" as const) : ("practiceAccepted" as const),
-    }));
-  },
-).flat();
 
 const difficulty = [
   { label: "Easy", count: 18, tone: "success" },
@@ -65,26 +58,39 @@ const matchRecord = [
   { label: "Losses", count: 8, tone: "error" },
 ];
 const matchTotal = matchRecord.reduce((total, { count }) => total + count, 0);
-const matches = [
-  {
-    mode: "Showdown",
-    opponent: "Mira Chen",
-    when: "Fri",
-    result: "Win",
-  },
-  {
-    mode: "Race",
-    opponent: "3 players",
-    when: "Thu",
-    result: "Loss",
-  },
-  {
-    mode: "Showdown",
-    opponent: "Leo Park",
-    when: "Tue",
-    result: "Draw",
-  },
-] as const;
+const recommendationScope = { type: defaultCatalogFormat } as const;
+const practiceInProgress = {
+  slug: "level-spreads",
+  title: "Level Spreads",
+  difficulty: "medium",
+  tags: ["Binary Trees", "Breadth-First Search"],
+} as const;
+const sampleProblems = ["Mirror Letters", "Segment Sums", "Quota Window"];
+const sampleOpponents = ["Mira Chen", "Leo Park", "3 players"];
+
+/** Give every preview event the details shown when its day is expanded. */
+function sampleActivity(index: number, match: boolean) {
+  return match
+    ? {
+        kind: "matchPlayed" as const,
+        title: "Showdown",
+        detail: sampleOpponents[index % sampleOpponents.length],
+      }
+    : {
+        kind: "practiceAccepted" as const,
+        title: sampleProblems[index % sampleProblems.length],
+        detail: "Accepted",
+      };
+}
+
+const sampleHistory = Array.from({ length: activityHistoryDays - 10 }, (_, index) => {
+  const day = -10 - index;
+  const count = ((index * 41) ^ (index >> 1)) % 7;
+  return Array.from({ length: Math.max(0, count - 2) }, (_, event) => ({
+    day,
+    ...sampleActivity(index + event, (index + event) % 3 === 0),
+  }));
+}).flat();
 
 /** Count distinct qualifying calendar days, allowing today to remain open until midnight. */
 function streakLength(qualifyingDays: ReadonlyMap<number, unknown>, day: number) {
@@ -101,38 +107,19 @@ export function DashboardDemo() {
   const actor = account.data === undefined ? undefined : identity;
   const [scenario, setScenario] = useState<keyof typeof scenarios>("active");
   const { through, days: count } = scenarios[scenario];
-  const events: ActivityEvent[] = Array.from({ length: count }, (_, index) => ({
+  const events = Array.from({ length: count }, (_, index) => ({
     day: through - index,
-    kind: index % 3 === 1 ? "matchPlayed" : "practiceAccepted",
+    ...sampleActivity(index, index % 3 === 1),
   }));
-  if (scenario === "pending") events.push({ day: today, kind: "practiceRejected" });
   const qualifyingDays = summarizeActivity(scenario === "new" ? [] : [...sampleHistory, ...events]);
   const isNew = scenario === "new";
-  const doneToday = qualifyingDays.has(today);
   const length = streakLength(qualifyingDays, today);
-  const recentMatches = matches.filter(({ when }) => scenario !== "broken" || when !== "Fri");
-  const activity = isNew
-    ? []
-    : [
-        ...(doneToday
-          ? [
-              {
-                id: "mirror-letters",
-                title: "Mirror Letters",
-                detail: "Practice accepted",
-                when: "Today",
-                kind: "practice" as const,
-              },
-            ]
-          : []),
-        ...recentMatches.map(({ mode, opponent, result, when }) => ({
-          id: opponent,
-          title: mode,
-          detail: `${result} · ${opponent}`,
-          when,
-          kind: "match" as const,
-        })),
-      ];
+  const hasPractice = !isNew && scenario !== "noPractice" && scenario !== "caughtUp";
+  const hasOdyssey = !isNew && scenario !== "noOdyssey" && scenario !== "caughtUp";
+  const client = useQueryClient();
+  const options = practiceRecommendationOptions(client, actor, recommendationScope);
+  const recommended = useQuery({ ...options, enabled: !hasPractice && options.enabled !== false });
+  const nextProblem = hasPractice ? practiceInProgress : recommended.data?.items[0];
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
 
@@ -159,33 +146,30 @@ export function DashboardDemo() {
               <BookOpen size={17} /> Practice
             </h2>
             <div className="dashboard-next-content">
-              <h3>{isNew ? "Find your first problem" : "Level Spreads"}</h3>
-              {!isNew && (
+              <h3>{nextProblem?.title ?? "Find a problem"}</h3>
+              {nextProblem && (
                 <DashboardQuestionMetadata
-                  difficulty="medium"
-                  tags={["Binary Trees", "Breadth-First Search"]}
+                  difficulty={nextProblem.difficulty}
+                  tags={nextProblem.tags}
                 />
               )}
             </div>
             <div className="dashboard-actions">
-              {isNew ? (
-                <Link className="button button-primary" to="/practice">
-                  Find a problem <ArrowRight size={16} />
+              {nextProblem && (
+                <Link
+                  className="button button-primary"
+                  to="/practice/$slug"
+                  params={{ slug: nextProblem.slug }}
+                >
+                  {hasPractice ? "Resume practice" : "Start practice"} <ArrowRight size={16} />
                 </Link>
-              ) : (
-                <>
-                  <Link
-                    className="button button-primary"
-                    to="/practice/$slug"
-                    params={{ slug: "level-spreads" }}
-                  >
-                    Resume practice <ArrowRight size={16} />
-                  </Link>
-                  <Link className="dashboard-link" to="/practice">
-                    Browse problems
-                  </Link>
-                </>
               )}
+              <Link
+                className={nextProblem ? "dashboard-link" : "button button-primary"}
+                to="/practice"
+              >
+                Browse problems
+              </Link>
             </div>
           </section>
           <DashboardStreak days={length} />
@@ -195,11 +179,7 @@ export function DashboardDemo() {
 
         <div className="dashboard-columns">
           <div className="dashboard-main">
-            <PracticeRecommendations
-              key={actor}
-              actor={actor}
-              scope={{ type: defaultCatalogFormat }}
-            />
+            <PracticeRecommendations key={actor} actor={actor} scope={recommendationScope} />
             <section
               className="dashboard-panel dashboard-odyssey"
               aria-labelledby="dashboard-odyssey-title"
@@ -209,14 +189,10 @@ export function DashboardDemo() {
                   <Flag size={17} /> Odysseys
                 </h2>
                 <Link className="dashboard-link" to="/practice" search={{ type: "odyssey" }}>
-                  Browse <ArrowRight size={14} />
+                  Browse Odysseys <ArrowRight size={14} />
                 </Link>
               </div>
-              {isNew ? (
-                <p className="dashboard-caption">
-                  Solve a series of questions that build on each other.
-                </p>
-              ) : (
+              {hasOdyssey ? (
                 <>
                   <p className="dashboard-preview-title">Transit Operations</p>
                   <p className="dashboard-caption">Stage 2 of 3 · 4 Odysseys completed</p>
@@ -233,9 +209,15 @@ export function DashboardDemo() {
                     </li>
                   </ol>
                 </>
+              ) : (
+                <p className="dashboard-caption">
+                  {isNew
+                    ? "Solve a series of questions that build on each other."
+                    : "4 Odysseys completed"}
+                </p>
               )}
             </section>
-            <DashboardActivity items={activity} />
+            {!isNew && <DashboardActivity items={events.slice(0, 4)} />}
           </div>
           <aside className="dashboard-progress" aria-label="Progress">
             <section className="dashboard-panel" aria-labelledby="dashboard-solves-title">

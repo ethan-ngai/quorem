@@ -24,16 +24,27 @@ const reasonLabels = {
   practice: "Keep practicing",
 };
 
+type RecommendationScope = Pick<CatalogSearch, "library" | "sql" | "type">;
+
+/** Keep the dashboard's next problem and the Practice carousel on the same query. */
+export function practiceRecommendationOptions(
+  client: ReturnType<typeof useQueryClient>,
+  actor: ProblemActor,
+  scope: RecommendationScope,
+) {
+  return catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
+}
+
 export function PracticeRecommendations({
   actor,
   scope,
 }: {
   actor: ProblemActor;
-  scope: Pick<CatalogSearch, "library" | "sql" | "type">;
+  scope: RecommendationScope;
 }) {
   const heading = useId();
   const client = useQueryClient();
-  const options = catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
+  const options = practiceRecommendationOptions(client, actor, scope);
   const recommendations = useQuery(options);
   const items = recommendations.data?.items;
   const viewport = useRef<HTMLDivElement>(null);

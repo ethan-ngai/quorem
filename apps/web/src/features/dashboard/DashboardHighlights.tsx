@@ -1,5 +1,6 @@
-/** @file DashboardHighlights.tsx @description Streak, question metadata, and activity previews. @module dashboard */
-import { Check, Clock3, Swords } from "lucide-react";
+/** @file DashboardHighlights.tsx @description Streak, question metadata, and stat charts. @module dashboard */
+import { BookOpen, Swords } from "lucide-react";
+import type { ActivityEvent } from "./ActivityCalendar";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { useState } from "react";
@@ -8,14 +9,6 @@ import { StreakArtwork } from "./StreakArtwork";
 type QuestionMetadata = {
   difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"];
   tags: readonly string[];
-};
-
-type Activity = {
-  id: string;
-  title: string;
-  detail: string;
-  when: string;
-  kind: "practice" | "match";
 };
 
 export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata) {
@@ -27,35 +20,34 @@ export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata
   );
 }
 
-export function DashboardActivity({ items }: { items: readonly Activity[] }) {
+const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+
+export function DashboardActivity({
+  items,
+}: {
+  items: readonly (ActivityEvent & { title: string; detail: string })[];
+}) {
+  if (!items.length) return null;
+  const today = new Date();
   return (
-    <section className="dashboard-panel" aria-labelledby="dashboard-activity-title">
-      <h2 id="dashboard-activity-title">
-        <Clock3 aria-hidden="true" /> Recent activity
-      </h2>
-      {items.length ? (
-        <ol className="dashboard-activity">
-          {items.map(({ id, title, detail, when, kind }) => (
-            <li key={id}>
-              <span className="dashboard-activity-date">
-                {kind === "practice" ? (
-                  <Check size={14} aria-hidden="true" />
-                ) : (
-                  <Swords size={14} aria-hidden="true" />
-                )}
-                {when}
+    <details className="dashboard-recent-activity">
+      <summary>Recent activity</summary>
+      <ul>
+        {items.map(({ day, kind, title, detail }) => {
+          const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + day);
+          const Icon = kind === "matchPlayed" ? Swords : BookOpen;
+          return (
+            <li key={day}>
+              <Icon size={14} aria-hidden="true" />
+              <span>
+                <strong>{title}</strong> · {detail}
               </span>
-              <strong>{title}</strong>
-              <small>{detail}</small>
+              <span>{day === 0 ? "Today" : activityDate.format(date)}</span>
             </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="dashboard-highlight-empty dashboard-caption">
-          Your judged submissions and matches will appear here.
-        </p>
-      )}
-    </section>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
