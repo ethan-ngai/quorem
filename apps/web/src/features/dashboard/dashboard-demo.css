@@ -314,29 +314,41 @@
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-recent-highlights {
+.dashboard-timeline {
   margin-top: var(--space-6);
   padding-top: var(--space-4);
   border-top: 1px solid var(--color-border);
   font-size: var(--text-small);
 }
-.dashboard-demo .dashboard-recent-highlights ul {
+.dashboard-demo .dashboard-timeline ol {
+  margin-top: var(--space-2);
+}
+.dashboard-timeline li {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
-  gap: var(--space-4) var(--space-5);
-  margin-top: var(--space-3);
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
 }
-.dashboard-recent-highlights li {
+.dashboard-timeline li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-2) + 24px) auto calc(-1 * var(--space-2)) 11.5px;
+  width: 1px;
+  background: var(--color-border);
+}
+.dashboard-timeline-marker {
   display: grid;
-  gap: var(--space-1);
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
 }
-.dashboard-highlight-kind {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.dashboard-highlight-kind,
-.dashboard-recent-highlights li p {
+.dashboard-timeline-event p,
+.dashboard-timeline time {
   color: var(--color-text-secondary);
   font-size: var(--text-label);
 }

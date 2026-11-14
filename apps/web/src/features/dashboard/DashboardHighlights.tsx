@@ -1,4 +1,4 @@
-/** @file DashboardHighlights.tsx @description Player highlights, streak, question metadata, and stat charts. @module dashboard */
+/** @file DashboardHighlights.tsx @description Activity timeline, streak, question metadata, and stat charts. @module dashboard */
 import { BookOpen, Flag, Swords } from "lucide-react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
@@ -21,44 +21,50 @@ export function DashboardQuestionMetadata({ difficulty, tags }: QuestionMetadata
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
-const highlightKinds = {
-  practiceAccepted: { label: "Latest solve", Icon: BookOpen },
-  matchPlayed: { label: "Latest match", Icon: Swords },
-  odyssey: { label: "Odyssey milestone", Icon: Flag },
+const timelineKinds = {
+  practiceAccepted: { label: "Practice", Icon: BookOpen },
+  matchPlayed: { label: "Match", Icon: Swords },
+  odyssey: { label: "Odyssey", Icon: Flag },
 } as const;
 
-type Highlight = { day: number; kind: keyof typeof highlightKinds; title: string; detail: string };
+type TimelineEvent = {
+  day: number;
+  kind: keyof typeof timelineKinds;
+  title: string;
+  detail: string;
+};
 
-export function DashboardRecentHighlights({ items }: { items: readonly Highlight[] }) {
+export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }) {
   if (!items.length) return null;
   const today = new Date();
   return (
     <section
-      className="dashboard-panel dashboard-recent-highlights"
-      aria-labelledby="dashboard-highlights-title"
+      className="dashboard-panel dashboard-timeline"
+      aria-labelledby="dashboard-timeline-title"
     >
-      <h2 id="dashboard-highlights-title">Highlights</h2>
-      <ul>
+      <h2 id="dashboard-timeline-title">Recent activity</h2>
+      <ol>
         {items.map(({ day, kind, title, detail }) => {
           const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + day);
-          const { label, Icon } = highlightKinds[kind];
+          const { label, Icon } = timelineKinds[kind];
           const dateTime = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
             .map((part) => String(part).padStart(2, "0"))
             .join("-");
           return (
-            <li key={kind}>
-              <span className="dashboard-highlight-kind">
-                <Icon size={14} aria-hidden="true" /> {label}
+            <li key={`${day}:${kind}`}>
+              <span className="dashboard-timeline-marker" title={label}>
+                <Icon size={14} aria-hidden="true" />
+                <span className="sr-only">{label}</span>
               </span>
-              <strong>{title}</strong>
-              <p>
-                {detail} ·{" "}
-                <time dateTime={dateTime}>{day === 0 ? "Today" : activityDate.format(date)}</time>
-              </p>
+              <div className="dashboard-timeline-event">
+                <strong>{title}</strong>
+                <p>{detail}</p>
+              </div>
+              <time dateTime={dateTime}>{day === 0 ? "Today" : activityDate.format(date)}</time>
             </li>
           );
         })}
-      </ul>
+      </ol>
     </section>
   );
 }

@@ -13,7 +13,7 @@ import {
 } from "../practice/PracticeRecommendations";
 import { GlobalNav } from "../navigation/GlobalNav";
 import {
-  DashboardRecentHighlights,
+  DashboardTimeline,
   DashboardDistribution,
   DashboardQuestionMetadata,
   DashboardStreak,
@@ -116,18 +116,17 @@ export function DashboardDemo() {
   const length = streakLength(qualifyingDays, today);
   const hasPractice = !isNew && scenario !== "noPractice" && scenario !== "caughtUp";
   const hasOdyssey = !isNew && scenario !== "noOdyssey" && scenario !== "caughtUp";
-  const highlights = isNew
+  const timeline = isNew
     ? []
     : [
-        events.find(({ kind }) => kind === "practiceAccepted"),
-        events.find(({ kind }) => kind === "matchPlayed"),
+        ...events,
         {
           kind: "odyssey" as const,
           day: -9,
           title: "Transit Operations",
           detail: hasOdyssey ? "Stage 1 cleared" : "Completed",
         },
-      ].filter((item) => item !== undefined);
+      ].sort((a, b) => b.day - a.day);
   const client = useQueryClient();
   const options = practiceRecommendationOptions(client, actor, recommendationScope);
   const recommended = useQuery({ ...options, enabled: !hasPractice && options.enabled !== false });
@@ -293,7 +292,7 @@ export function DashboardDemo() {
             </section>
           </aside>
         </div>
-        <DashboardRecentHighlights items={highlights} />
+        <DashboardTimeline items={timeline} />
       </main>
     </>
   );
