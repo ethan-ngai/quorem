@@ -6,7 +6,7 @@ import type { DevelopmentIdentity } from "@quorem/contracts";
 import { api, requireData } from "../../../api/client";
 import { Braces, Clock3 } from "lucide-react";
 import { SolutionDisplay } from "./SolutionDisplay";
-import { ComplexityDetails } from "./ComplexityDetails";
+import { ComplexityBounds } from "./ComplexityDetails";
 import type { EditorTheme } from "../PythonEditor";
 import type { EditorScheme } from "../editorSchemes";
 import "./editorial.css";
@@ -137,15 +137,10 @@ export function EditorialPanel({
                 )}
               </p>
             ) : complexityData?.optimal ? (
-              <>
-                <ComplexityDetails label="Optimal" value={complexityData.optimal} />
-                {complexityData.accepted && (
-                  <ComplexityDetails
-                    label="Least efficient accepted"
-                    value={complexityData.accepted}
-                  />
-                )}
-              </>
+              <ComplexityBounds
+                optimal={complexityData.optimal}
+                accepted={complexityData.accepted}
+              />
             ) : (
               <p>No published complexity.</p>
             )

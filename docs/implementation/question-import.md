@@ -79,13 +79,13 @@ Include at least one public example and hidden case per question or Odyssey leve
 
 `approaches` owns the explanation, complexity, and notes per algorithm. Explain why the algorithm works and define the variables in its LaTeX time and auxiliary space bounds. Each implementation contains `language` and `source`. `canonicalApproachId` chooses the approach with the Python judging reference, or PostgreSQL for SQL. Its title is optional and its default language is inferred. Alternatives require a title and a `defaultLanguage` present in their implementations.
 
-Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`.
+Group languages that implement the same algorithm under one approach. Use separate approaches for distinct algorithms or complexity. Store each solution once under `implementations`. Order `approaches` from most to least efficient, considering time first and auxiliary space when time bounds tie. The complexity hint uses the first and last approaches with valid bounds and shows one pair when those bounds match.
 
 Apply the statement's Markdown conventions to `explanationMarkdown` and `complexityNotes` too. Write costs as LaTeX, such as `$O(n^{2})$`, and put code accesses such as `dp[i][j]` in backticks. For hash-table algorithms, use the expected running time, such as `$O(n)$` expected, and put the constant-time lookup assumption in the notes when it matters. Use amortized bounds for costs analyzed across a sequence of operations.
 
 ## Acceptance profiles
 
-Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Existing acceptance profile metadata can supply the efficient complexity shown in the hint. Its case counts do not select tests.
+Every Submit uses the full hidden suite, regardless of lobby preset. High Score awards the percentage of verified cases passed. Acceptance profile case counts do not select tests.
 
 ## Native case budgets
 

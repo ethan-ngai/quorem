@@ -98,8 +98,22 @@
   font-size: var(--text-small);
   line-height: 1.55;
 }
-.editorial-complexity + .editorial-complexity {
-  margin-top: var(--space-3);
+.editorial-complexity-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--space-2);
+}
+.editorial-complexity-comparison > .editorial-complexity {
+  align-content: start;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+}
+.editorial-complexity-label {
+  font-size: var(--text-label);
+  font-weight: 600;
+  color: var(--color-text-secondary);
 }
 .editorial-complexity dl {
   display: flex;
