@@ -1,7 +1,7 @@
 /** @file DashboardDemo.tsx @description Fixture-backed player dashboard and streak states. @module dashboard */
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BookOpen, Check, CircleDashed, Swords } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Swords } from "lucide-react";
 import { useState } from "react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
@@ -161,15 +161,15 @@ export function DashboardDemo() {
                 className="dashboard-practice-resume"
                 aria-labelledby="dashboard-resume-title"
               >
-                <h3 id="dashboard-resume-title">
-                  <CircleDashed size={16} aria-hidden /> In progress
-                </h3>
+                <h3 id="dashboard-resume-title">In progress</h3>
                 <div className="dashboard-practice-problem">
-                  <div className="dashboard-practice-title">
-                    <h4>{practiceInProgress.title}</h4>
-                    <DifficultyLabel difficulty={practiceInProgress.difficulty} />
+                  <div>
+                    <div className="dashboard-practice-title">
+                      <h4>{practiceInProgress.title}</h4>
+                      <DifficultyLabel difficulty={practiceInProgress.difficulty} />
+                    </div>
+                    <QuestionTopics tags={practiceInProgress.tags} linkToFilter />
                   </div>
-                  <QuestionTopics tags={practiceInProgress.tags} linkToFilter />
                   <Link
                     className="button button-primary"
                     to="/practice/$slug"

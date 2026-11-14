@@ -78,7 +78,6 @@
 .dashboard-practice-resume h3 {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
   min-height: var(--control-height);
   margin-bottom: var(--space-2);
   color: var(--color-text-secondary);
@@ -87,8 +86,9 @@
 }
 .dashboard-practice-problem {
   display: grid;
-  justify-items: start;
-  gap: var(--space-1);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
 }
 .dashboard-practice-title {
   display: flex;
@@ -97,10 +97,7 @@
   gap: var(--space-1) var(--space-2);
 }
 .dashboard-practice-problem .practice-topic-list {
-  margin: 0;
-}
-.dashboard-practice-problem > .button {
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
 }
 .dashboard-practice-problem h4 {
   margin: 0;

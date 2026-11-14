@@ -91,18 +91,17 @@
   padding: var(--space-1);
 }
 
-.practice-recommendations[data-embedded] .practice-recommendation-slide {
-  flex-direction: column;
-  align-items: stretch;
+.practice-recommendations[data-embedded] .practice-recommendations-header {
+  flex-wrap: wrap;
+}
+
+.practice-recommendations[data-embedded] .practice-recommendations-controls {
+  gap: var(--space-1);
 }
 
 .practice-recommendations[data-embedded] .practice-recommendation-title {
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-2);
-}
-
-.practice-recommendations[data-embedded] .practice-recommendation-actions {
-  justify-content: space-between;
 }
 
 .practice-recommendation-details {
@@ -143,7 +142,7 @@
 }
 
 @media (max-width: 650px) {
-  .practice-recommendation-slide {
+  .practice-recommendations:not([data-embedded]) .practice-recommendation-slide {
     flex-direction: column;
     align-items: stretch;
   }

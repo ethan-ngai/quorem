@@ -87,6 +87,23 @@ export function PracticeRecommendations({
     track.scrollTo({ left: next * track.clientWidth });
   };
 
+  const hideRecommendation = (id: string, title: string) => (
+    <Tooltip content="Hide recommendation for 7 days">
+      <LoadingButton
+        className="icon-button"
+        type="button"
+        aria-label={`Hide recommendation for ${title}`}
+        onClick={() => {
+          viewport.current?.focus({ preventScroll: true });
+          dismissal.mutate(id);
+        }}
+        icon={embedded ? <EyeOff size={16} /> : <X size={16} />}
+        disabled={dismissal.isPending}
+        pending={dismissal.isPending && dismissal.variables === id}
+      />
+    </Tooltip>
+  );
+
   if (!count && recommendations.isSuccess && !recommendations.isError) return null;
   return (
     <section
@@ -99,36 +116,41 @@ export function PracticeRecommendations({
         <Heading className="practice-recommendations-heading" id={heading}>
           <Lightbulb size={16} aria-hidden /> Recommended
         </Heading>
-        {count > 1 && (
+        {(count > 1 || (embedded && impression)) && (
           <div className="practice-recommendations-controls">
-            <span aria-hidden="true">
-              {active + 1} / {count}
-            </span>
-            <span className="sr-only" aria-live="polite" aria-atomic="true">
-              {item?.title}, {active + 1} of {count}
-            </span>
-            <Tooltip content="Previous recommendation">
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Previous recommendation"
-                aria-disabled={active === 0}
-                onClick={() => move(-1)}
-              >
-                <ChevronLeft size={16} aria-hidden />
-              </button>
-            </Tooltip>
-            <Tooltip content="Next recommendation">
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Next recommendation"
-                aria-disabled={active === count - 1}
-                onClick={() => move(1)}
-              >
-                <ChevronRight size={16} aria-hidden />
-              </button>
-            </Tooltip>
+            {count > 1 && (
+              <>
+                <span aria-hidden="true">
+                  {active + 1} / {count}
+                </span>
+                <span className="sr-only" aria-live="polite" aria-atomic="true">
+                  {item?.title}, {active + 1} of {count}
+                </span>
+                <Tooltip content="Previous recommendation">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Previous recommendation"
+                    aria-disabled={active === 0}
+                    onClick={() => move(-1)}
+                  >
+                    <ChevronLeft size={16} aria-hidden />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Next recommendation">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Next recommendation"
+                    aria-disabled={active === count - 1}
+                    onClick={() => move(1)}
+                  >
+                    <ChevronRight size={16} aria-hidden />
+                  </button>
+                </Tooltip>
+              </>
+            )}
+            {embedded && item && impression && hideRecommendation(impression, item.title)}
           </div>
         )}
       </div>
@@ -192,24 +214,7 @@ export function PracticeRecommendations({
                     >
                       Start practice
                     </Link>
-                    {id && (
-                      <Tooltip content="Hide recommendation for 7 days">
-                        <LoadingButton
-                          className={embedded ? "button button-ghost" : "icon-button"}
-                          type="button"
-                          aria-label={`Hide recommendation for ${question.title}`}
-                          onClick={() => {
-                            viewport.current?.focus({ preventScroll: true });
-                            dismissal.mutate(id);
-                          }}
-                          icon={embedded ? <EyeOff size={16} /> : <X size={16} />}
-                          disabled={dismissal.isPending}
-                          pending={dismissal.isPending && dismissal.variables === id}
-                        >
-                          {embedded && "Hide"}
-                        </LoadingButton>
-                      </Tooltip>
-                    )}
+                    {!embedded && id && hideRecommendation(id, question.title)}
                   </div>
                 </div>
               );
