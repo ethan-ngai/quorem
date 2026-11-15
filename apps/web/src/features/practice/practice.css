@@ -70,6 +70,9 @@
   grid-area: count;
   white-space: nowrap;
 }
+.practice-recommendations-row .daily-streak-number strong {
+  font-size: var(--daily-streak-art-size);
+}
 .practice-recommendations-row > .practice-recommendations + .daily-streak {
   padding-inline-start: var(--space-4);
   border-inline-start: 1px solid var(--color-border);
