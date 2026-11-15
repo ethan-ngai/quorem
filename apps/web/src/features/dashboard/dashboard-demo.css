@@ -22,7 +22,7 @@
   margin-bottom: var(--space-5);
 }
 .dashboard-title h1 {
-  font-size: var(--text-h1);
+  font-size: clamp(28px, 3vw, 32px);
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.025em;

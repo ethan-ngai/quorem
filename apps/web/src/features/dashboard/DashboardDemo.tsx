@@ -137,7 +137,7 @@ export function DashboardDemo() {
       <GlobalNav theme={preference} onThemeChange={setPreference} />
       <main className="dashboard-demo">
         <header className="dashboard-title">
-          <h1>Good {greeting}, Alex.</h1>
+          <h1>Good {greeting}, Alex</h1>
           <SelectField
             label="Preview state"
             value={scenario}
