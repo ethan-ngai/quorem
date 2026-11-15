@@ -68,7 +68,13 @@
 }
 .practice-recommendations-row .daily-streak-number {
   grid-area: count;
+  color: var(--color-text);
+  font-size: var(--text-h3);
   white-space: nowrap;
+}
+.practice-recommendations-row .daily-streak-number strong {
+  font-size: inherit;
+  letter-spacing: inherit;
 }
 .practice-recommendations-row > .practice-recommendations + .daily-streak {
   padding-inline-start: var(--space-4);
@@ -151,8 +157,8 @@
     gap: var(--space-3);
   }
   .practice-recommendations-row > .daily-streak {
-    grid-template-areas: "flame label count";
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "label flame count";
+    grid-template-columns: minmax(0, 1fr) auto auto;
   }
   .practice-recommendations-row > .practice-recommendations + .daily-streak {
     padding-inline-start: 0;
