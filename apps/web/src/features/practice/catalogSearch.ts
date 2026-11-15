@@ -1,3 +1,4 @@
+import { topicGroupSelection } from "@quorem/contracts/catalog-filter";
 import { pageSizeSchema } from "@quorem/contracts/pagination";
 import type { FilterMatch } from "@quorem/contracts";
 
@@ -12,6 +13,7 @@ export type CatalogSearch = {
   company?: string;
   companyMatch?: FilterMatch;
   groupBy?: "topic";
+  hiddenGroups?: (string | null)[];
   sort?: "difficulty";
   order?: "desc";
   page?: number;
@@ -41,6 +43,11 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   if (companies.length) result.company = companies.join(",");
   if (search.companyMatch === "all") result.companyMatch = "all";
   if (search.groupBy === "topic") result.groupBy = search.groupBy;
+  const hiddenGroups = topicGroupSelection.safeParse(search.hiddenGroups);
+  if (hiddenGroups.success && hiddenGroups.data.length)
+    result.hiddenGroups = [...new Set(hiddenGroups.data)].sort((a, b) =>
+      (a ?? "").localeCompare(b ?? ""),
+    );
   if (search.sort === "difficulty") result.sort = search.sort;
   if (search.order === "desc") result.order = "desc";
   const page = Number(search.page);
@@ -74,6 +81,7 @@ export const catalogKind = (search: Pick<CatalogSearch, "sql" | "type">) =>
 export function catalogKindChange(change: Pick<CatalogSearch, "sql" | "type">) {
   return {
     ...change,
+    hiddenGroups: undefined,
     topic: undefined,
     topicMatch: undefined,
     company: undefined,

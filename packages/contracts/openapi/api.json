@@ -907,6 +907,11 @@
                         "additionalProperties": false
                       }
                     },
+                    "topicGroupOptions": {
+                      "type": "array",
+                      "description": "Groups matching the catalog filters across all pages, including hidden groups. Null denotes Other questions.",
+                      "items": { "type": ["string", "null"] }
+                    },
                     "topicGroups": {
                       "type": "object",
                       "description": "Foundational group label by publication ID for the returned page. Null denotes Other questions.",
@@ -985,6 +990,12 @@
             "in": "query",
             "description": "Group by the first foundational topic before pagination. Available for title and difficulty sorts.",
             "schema": { "type": "string", "enum": ["topic"] }
+          },
+          {
+            "name": "hiddenGroups",
+            "in": "query",
+            "description": "JSON array of group labels to hide, with null for Other questions. Requires groupBy=topic.",
+            "schema": { "type": "string", "maxLength": 16000 }
           },
           {
             "name": "topicMatch",

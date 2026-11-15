@@ -3308,6 +3308,8 @@ export interface operations {
                 difficulty?: string;
                 /** @description Group by the first foundational topic before pagination. Available for title and difficulty sorts. */
                 groupBy?: "topic";
+                /** @description JSON array of group labels to hide, with null for Other questions. Requires groupBy=topic. */
+                hiddenGroups?: string;
                 topicMatch?: components["schemas"]["FilterMatch"];
                 /** @description Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each. */
                 topic?: string;
@@ -3346,6 +3348,8 @@ export interface operations {
                             tier: "faang" | "top" | "quant" | "mid-tier" | "other";
                             count: number;
                         }[];
+                        /** @description Groups matching the catalog filters across all pages, including hidden groups. Null denotes Other questions. */
+                        topicGroupOptions?: (string | null)[];
                         /** @description Foundational group label by publication ID for the returned page. Null denotes Other questions. */
                         topicGroups?: {
                             [key: string]: string | null;

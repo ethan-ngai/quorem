@@ -352,6 +352,23 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const remainder = await catalogIn("groupBy=topic&limit=2&page=2");
         expect(remainder.topicGroups).toEqual({ [versions[0]]: null });
         expect(remainder.solvedIds).toEqual([versions[0]]);
+        expect(grouped.topicGroupOptions).toEqual(["Heap", null]);
+        expect(remainder.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        const hide = (labels: (string | null)[]) =>
+          catalogIn(
+            `groupBy=topic&limit=1&hiddenGroups=${encodeURIComponent(JSON.stringify(labels))}`,
+          );
+        const hiddenHeap = await hide(["Heap"]);
+        expect(hiddenHeap.total).toBe(1);
+        expect(hiddenHeap.topicGroups).toEqual({ [versions[0]]: null });
+        expect(hiddenHeap.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        const hiddenOther = await hide([null]);
+        expect(hiddenOther.total).toBe(2);
+        expect(hiddenOther.topicGroups).toEqual({ [versions[1]]: "Heap" });
+        const hiddenAll = await hide(["Heap", null]);
+        expect(hiddenAll.total).toBe(0);
+        expect(hiddenAll.items).toEqual([]);
+        expect(hiddenAll.topicGroupOptions).toEqual(grouped.topicGroupOptions);
         await pool.query("UPDATE odyssey_progress SET completed=true WHERE scope_id=$1", [solo[2]]);
         expect((await catalogIn("library=global")).solvedIds).toEqual([versions[0], versions[2]]);
         const otherAccount = JSON.parse(

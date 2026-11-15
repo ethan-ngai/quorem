@@ -9,6 +9,7 @@ export interface CatalogFilter {
   company: string;
   companyMatch?: FilterMatch;
   groupBy?: "topic";
+  hiddenGroups?: (string | null)[];
   sort: "title" | "difficulty" | "recommended";
   order: "asc" | "desc";
   library: "" | "global" | "private";

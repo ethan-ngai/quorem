@@ -25,6 +25,7 @@ const automaticOptions = {
   random: { label: "Random", icon: Dices },
 } as const;
 type AutomaticMode = keyof typeof automaticOptions;
+type PickerFilters = Omit<CatalogSearch, "groupBy" | "hiddenGroups">;
 
 const pageSize = 30;
 const prefetchLeadMs = 600;
@@ -53,8 +54,8 @@ export function ProblemPicker({
   identity?: DevelopmentIdentity;
   library?: "private" | "global";
   difficulties?: readonly string[];
-  filters?: CatalogSearch;
-  onFiltersChange?: (filters: CatalogSearch, topicValues: ReadonlyMap<string, string>) => void;
+  filters?: PickerFilters;
+  onFiltersChange?: (filters: PickerFilters, topicValues: ReadonlyMap<string, string>) => void;
   label?: string;
   discloseFilters?: boolean;
   exclusiveKind?: boolean;
@@ -64,9 +65,9 @@ export function ProblemPicker({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const inputSearch = useServerSearch(search, setSearch);
-  const [localFilters, setLocalFilters] = useState<CatalogSearch>({});
+  const [localFilters, setLocalFilters] = useState<PickerFilters>({});
   const savedFilters = onFiltersChange ? (externalFilters ?? {}) : localFilters;
-  const filters: CatalogSearch =
+  const filters: PickerFilters =
     exclusiveKind && !savedFilters.type
       ? { ...savedFilters, type: defaultCatalogFormat }
       : savedFilters;
@@ -148,7 +149,7 @@ export function ProblemPicker({
       return requireData(data, error);
     },
   });
-  const update = (change: Partial<CatalogSearch>) => {
+  const update = (change: Partial<PickerFilters>) => {
     if (!exclusiveKind && ("type" in change || "sql" in change)) change = catalogKindChange(change);
     if (onFiltersChange)
       onFiltersChange(

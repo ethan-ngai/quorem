@@ -165,18 +165,35 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
         : sql``
     }`,
     visibility = catalogVisibility(actor, f.library);
-  const [{ total }] = (
-    await tx.execute<{ total: string }>(
-      sql`SELECT count(*)::text AS total FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE ${where}`,
-    )
-  ).rows;
+  const restricted = await restrictedTopicIds(tx, actor);
+  const grouped = f.groupBy === "topic";
+  const group = sql`CASE WHEN v.id <> ALL(${sql.param(restricted)}::uuid[])
+    THEN ${primaryFoundationalTopic(sql`v.id`)} END`;
+  const hidden = new Set(f.hiddenGroups);
+  const groups = grouped
+    ? (
+        await tx.execute<{ label: string | null; count: string }>(
+          sql`SELECT ${group} AS label, count(*)::text AS count ${from}
+          WHERE ${where} GROUP BY 1 ORDER BY label ASC NULLS LAST`,
+        )
+      ).rows
+    : undefined;
+  const total = groups
+    ? groups.reduce((count, row) => (hidden.has(row.label) ? count : count + BigInt(row.count)), 0n)
+    : BigInt(
+        (
+          await tx.execute<{ total: string }>(
+            sql`SELECT count(*)::text AS total ${from} WHERE ${where}`,
+          )
+        ).rows[0].total,
+      );
   const direction = sql.raw(f.order === "desc" ? "DESC" : "ASC");
   const ordering =
     f.sort === "difficulty"
       ? sql`${rank} ${direction}, lower(v.title) ${direction}, p.slug ${direction}`
       : sql`lower(v.title) ${direction}, p.slug ${direction}`;
   const requestedOffset = BigInt(f.page - 1) * BigInt(f.limit);
-  const offset = (requestedOffset > BigInt(total) ? BigInt(total) : requestedOffset).toString();
+  const offset = (requestedOffset > total ? total : requestedOffset).toString();
   const context =
     f.sort === "recommended"
       ? await recommendationContext(tx, account ? [account] : [])
@@ -209,12 +226,16 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       })()
     : undefined;
   const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
-  const restricted = await restrictedTopicIds(tx, actor);
-  const grouped = f.groupBy === "topic";
-  const group = sql`CASE WHEN v.id <> ALL(${sql.param(restricted)}::uuid[])
-    THEN ${primaryFoundationalTopic(sql`v.id`)} END`;
-  const groupProjection = grouped ? sql`, ${group} AS "groupLabel"` : sql``;
-  const groupOrdering = grouped ? sql`"groupLabel" ASC NULLS LAST, ` : sql``;
+  const groupJoin = grouped ? sql`CROSS JOIN LATERAL (SELECT ${group} AS label) grouping` : sql``;
+  const groupProjection = grouped ? sql`, grouping.label AS "groupLabel"` : sql``;
+  const groupOrdering = grouped ? sql`grouping.label ASC NULLS LAST, ` : sql``;
+  const groupFilter =
+    grouped && hidden.size
+      ? sql`AND NOT EXISTS (
+      SELECT 1 FROM unnest(${sql.param([...hidden])}::text[]) AS hidden(label)
+      WHERE hidden.label IS NOT DISTINCT FROM grouping.label
+    )`
+      : sql``;
   const viewer = actor && !actor.guestScope ? actor.userId : undefined;
   const progress =
     viewer && !context
@@ -233,7 +254,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
     await tx.execute<Projected & { groupLabel?: string | null; solved?: boolean }>(
       recommendedIds
         ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
-        : sql`SELECT ${rowProjection}${groupProjection}${progress} ${from} WHERE ${where} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
+        : sql`SELECT ${rowProjection}${groupProjection}${progress} ${from} ${groupJoin} WHERE ${where} ${groupFilter} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
   if (recommendedIds) {
@@ -292,7 +313,8 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
         return value;
       }),
     ),
-    ...(grouped && {
+    ...(groups && {
+      topicGroupOptions: groups.map(({ label }) => label),
       topicGroups: Object.fromEntries(rows.map(({ id, groupLabel }) => [id, groupLabel ?? null])),
     }),
     ...(viewer && !context && { solvedIds: rows.filter((row) => row.solved).map(({ id }) => id) }),

@@ -353,3 +353,16 @@ it("isolates global progress by account and requests the grouped view separately
     (await cache.fetchQuery(catalogQueryOptions(cache, "anonymous", search))).solvedIds,
   ).toBeUndefined();
 });
+
+it("sends hidden topic groups only for the grouped catalog", async () => {
+  const cache = client();
+  const hiddenGroups = ["Heap", null];
+  await cache.fetchQuery(
+    catalogQueryOptions(cache, "anonymous", { groupBy: "topic", hiddenGroups }),
+  );
+  await cache.fetchQuery(catalogQueryOptions(cache, "anonymous", { hiddenGroups }));
+  expect(requests.map((request) => new URL(request.url).searchParams.get("hiddenGroups"))).toEqual([
+    '["Heap",null]',
+    null,
+  ]);
+});

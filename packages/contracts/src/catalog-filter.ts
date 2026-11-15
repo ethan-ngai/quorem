@@ -16,6 +16,20 @@ const selection = (item: z.ZodType) =>
 const label = z
   .string()
   .refine((value) => value.length > 0 && !value.includes("\0") && Array.from(value).length <= 80);
+export const topicGroupSelection = z.array(z.union([label, z.null()])).max(100);
+const hiddenGroups = z
+  .string()
+  .max(16000)
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Invalid hidden topic groups" });
+      return z.NEVER;
+    }
+  })
+  .pipe(topicGroupSelection)
+  .optional();
 const match = z.enum(["any", "all"]).optional();
 export const catalogQuery = z.strictObject({
   q: z
@@ -34,6 +48,7 @@ export const catalogQuery = z.strictObject({
   page: z.string().optional(),
   limit: z.string().optional(),
   groupBy: z.literal("topic").optional(),
+  hiddenGroups,
   sort: z.string().optional(),
   order: z.string().optional(),
 });

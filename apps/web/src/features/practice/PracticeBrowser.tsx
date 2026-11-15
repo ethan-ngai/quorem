@@ -27,6 +27,7 @@ import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { addFilter, catalogSearch, filterValues } from "./catalogSearch";
+import { PracticeTopicChecklist, topicGroupLabel } from "./PracticeTopicChecklist";
 import { PracticeRecommendations } from "./PracticeRecommendations";
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import type { CatalogSearch } from "./catalogSearch";
@@ -85,6 +86,7 @@ export function PracticeBrowser() {
       company: undefined,
       companyMatch: undefined,
       library: undefined,
+      hiddenGroups: undefined,
     });
   };
   const pageSize = search.limit ?? catalogPageSize;
@@ -109,6 +111,15 @@ export function PracticeBrowser() {
   const total = catalog.data?.total ?? 0;
   const solvedIds = new Set(catalog.data?.solvedIds);
   const groups = catalog.data?.topicGroups;
+  const groupOptions = catalog.data?.topicGroupOptions;
+  const hiddenGroups = new Set(search.hiddenGroups);
+  const allGroupsHidden =
+    !!groupOptions?.length && groupOptions.every((group) => hiddenGroups.has(group));
+  const pageItems = catalog.data?.items ?? [];
+  const items =
+    catalog.isPlaceholderData && groups && hiddenGroups.size
+      ? pageItems.filter(({ id }) => !hiddenGroups.has(groups[id]))
+      : pageItems;
   return (
     <div className="practice-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -175,7 +186,10 @@ export function PracticeBrowser() {
               label="Question library"
               value={search.library ?? "all"}
               onChange={(value) =>
-                update({ library: value === "all" ? undefined : (value as "private" | "global") })
+                update({
+                  library: value === "all" ? undefined : (value as "private" | "global"),
+                  hiddenGroups: undefined,
+                })
               }
               options={[
                 {
@@ -207,110 +221,133 @@ export function PracticeBrowser() {
             </button>
           )}
         </div>
-        <section
-          className="practice-catalog"
-          aria-label="Practice questions"
-          aria-busy={catalog.isFetching}
-        >
-          {privateIdentityError || catalog.isError ? (
-            <div className="practice-state" role="alert">
-              <p>Questions couldn’t load. Please try again.</p>
-              <LoadingButton
-                className="button button-secondary practice-retry"
-                onClick={() => void (privateIdentityError ? session.refetch() : catalog.refetch())}
-                pending={privateIdentityError ? session.isFetching : catalog.isFetching}
-              >
-                Retry
-              </LoadingButton>
-            </div>
-          ) : catalog.isPending ? (
-            <LoadingScreen inline label="Loading questions…" />
-          ) : (
-            <>
-              <Table
-                label="Practice questions"
-                heading={
-                  <tr>
-                    <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
-                    <TableSortHeader column={table.getColumn("difficulty")!}>
-                      Difficulty
-                    </TableSortHeader>
-                    <th aria-label="Question details and actions" />
-                  </tr>
-                }
-              >
-                {catalog.data.items.map((problem, index, items) => (
-                  <Fragment key={problem.id}>
-                    {groups &&
-                      (index === 0 || groups[problem.id] !== groups[items[index - 1].id]) && (
-                        <tr className="practice-topic-group">
-                          <th colSpan={3}>{groups[problem.id] ?? "Other questions"}</th>
-                        </tr>
-                      )}
-                    <TableRow
-                      onPointerEnter={warmWorkspacePage}
-                      onFocusCapture={warmWorkspacePage}
-                      onOpen={(event) => {
-                        const href = `/practice/${problem.slug}`;
-                        if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
-                        else
-                          void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
-                      }}
-                    >
-                      <td>
-                        <Link to="/practice/$slug" params={{ slug: problem.slug }}>
-                          {problem.title}
-                        </Link>
-                        <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
-                      </td>
-                      <td>
-                        <QuestionDifficulty
-                          difficulty={problem.difficulty}
-                          onFilter={(difficulty) =>
-                            update({ difficulty: addFilter(search.difficulty, difficulty) })
-                          }
-                        />
-                      </td>
-                      <td className="practice-format">
-                        {(problem.isPrivate || solvedIds.has(problem.id)) && (
-                          <QuestionIndicators
-                            privateQuestion={!!problem.isPrivate}
-                            solved={solvedIds.has(problem.id)}
-                          />
-                        )}
-                      </td>
-                    </TableRow>
-                  </Fragment>
-                ))}
-              </Table>
-              {catalog.data.items.length === 0 && (
-                <div className="practice-state">
-                  <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
-                  <p>
-                    {filtered
-                      ? "Try another topic or a broader search."
-                      : "Check back when new questions are published."}
-                  </p>
-                  <CompanyFilter
-                    search={search}
-                    update={update}
-                    companies={companies}
-                    companyFacets={companyFacets}
-                  />
-                  {filtered && (
-                    <button className="button button-secondary practice-retry" onClick={clear}>
-                      Clear filters
-                    </button>
-                  )}
-                </div>
-              )}
-              <TablePagination
-                table={table}
-                snapshot={catalog.isPlaceholderData ? catalog.data : undefined}
-              />
-            </>
+        <div className="practice-results">
+          {search.groupBy && !!groupOptions?.length && (
+            <PracticeTopicChecklist
+              options={groupOptions}
+              hidden={hiddenGroups}
+              onChange={(hiddenGroups) => update({ hiddenGroups })}
+            />
           )}
-        </section>
+          <section
+            className="practice-catalog"
+            aria-label="Practice questions"
+            aria-busy={catalog.isFetching}
+          >
+            {privateIdentityError || catalog.isError ? (
+              <div className="practice-state" role="alert">
+                <p>Questions couldn’t load. Please try again.</p>
+                <LoadingButton
+                  className="button button-secondary practice-retry"
+                  onClick={() =>
+                    void (privateIdentityError ? session.refetch() : catalog.refetch())
+                  }
+                  pending={privateIdentityError ? session.isFetching : catalog.isFetching}
+                >
+                  Retry
+                </LoadingButton>
+              </div>
+            ) : catalog.isPending ? (
+              <LoadingScreen inline label="Loading questions…" />
+            ) : (
+              <>
+                <Table
+                  label="Practice questions"
+                  heading={
+                    <tr>
+                      <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
+                      <TableSortHeader column={table.getColumn("difficulty")!}>
+                        Difficulty
+                      </TableSortHeader>
+                      <th aria-label="Question details and actions" />
+                    </tr>
+                  }
+                >
+                  {items.map((problem, index) => (
+                    <Fragment key={problem.id}>
+                      {groups &&
+                        (index === 0 || groups[problem.id] !== groups[items[index - 1].id]) && (
+                          <tr className="practice-topic-group">
+                            <th colSpan={3}>{topicGroupLabel(groups[problem.id])}</th>
+                          </tr>
+                        )}
+                      <TableRow
+                        onPointerEnter={warmWorkspacePage}
+                        onFocusCapture={warmWorkspacePage}
+                        onOpen={(event) => {
+                          const href = `/practice/${problem.slug}`;
+                          if (event.metaKey || event.ctrlKey)
+                            window.open(href, "_blank", "noopener");
+                          else
+                            void navigate({
+                              to: "/practice/$slug",
+                              params: { slug: problem.slug },
+                            });
+                        }}
+                      >
+                        <td>
+                          <Link to="/practice/$slug" params={{ slug: problem.slug }}>
+                            {problem.title}
+                          </Link>
+                          <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
+                        </td>
+                        <td>
+                          <QuestionDifficulty
+                            difficulty={problem.difficulty}
+                            onFilter={(difficulty) =>
+                              update({ difficulty: addFilter(search.difficulty, difficulty) })
+                            }
+                          />
+                        </td>
+                        <td className="practice-format">
+                          {(problem.isPrivate || solvedIds.has(problem.id)) && (
+                            <QuestionIndicators
+                              privateQuestion={!!problem.isPrivate}
+                              solved={solvedIds.has(problem.id)}
+                            />
+                          )}
+                        </td>
+                      </TableRow>
+                    </Fragment>
+                  ))}
+                </Table>
+                {allGroupsHidden ? (
+                  <div className="practice-state">
+                    <h2>All topics hidden</h2>
+                  </div>
+                ) : (
+                  catalog.data.items.length === 0 && (
+                    <div className="practice-state">
+                      <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
+                      <p>
+                        {filtered
+                          ? "Try another topic or a broader search."
+                          : "Check back when new questions are published."}
+                      </p>
+                      <CompanyFilter
+                        search={search}
+                        update={update}
+                        companies={companies}
+                        companyFacets={companyFacets}
+                      />
+                      {filtered && (
+                        <button className="button button-secondary practice-retry" onClick={clear}>
+                          Clear filters
+                        </button>
+                      )}
+                    </div>
+                  )
+                )}
+                {!allGroupsHidden && (
+                  <TablePagination
+                    table={table}
+                    snapshot={catalog.isPlaceholderData ? catalog.data : undefined}
+                  />
+                )}
+              </>
+            )}
+          </section>
+        </div>
       </CatalogLayout>
     </div>
   );
