@@ -16,15 +16,15 @@ const selection = (item: z.ZodType) =>
 const label = z
   .string()
   .refine((value) => value.length > 0 && !value.includes("\0") && Array.from(value).length <= 80);
-export const topicGroupSelection = z.array(z.union([label, z.null()])).max(100);
-const hiddenGroups = z
+export const topicGroupSelection = z.union([label, z.null()]);
+const topicGroup = z
   .string()
-  .max(16000)
+  .max(512)
   .transform((value, ctx) => {
     try {
       return JSON.parse(value) as unknown;
     } catch {
-      ctx.addIssue({ code: "custom", message: "Invalid hidden topic groups" });
+      ctx.addIssue({ code: "custom", message: "Invalid topic group" });
       return z.NEVER;
     }
   })
@@ -48,7 +48,7 @@ export const catalogQuery = z.strictObject({
   page: z.string().optional(),
   limit: z.string().optional(),
   groupBy: z.literal("topic").optional(),
-  hiddenGroups,
+  topicGroup,
   sort: z.string().optional(),
   order: z.string().optional(),
 });

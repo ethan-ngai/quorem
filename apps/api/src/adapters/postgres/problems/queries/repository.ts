@@ -169,7 +169,6 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const grouped = f.groupBy === "topic";
   const group = sql`CASE WHEN v.id <> ALL(${sql.param(restricted)}::uuid[])
     THEN ${primaryFoundationalTopic(sql`v.id`)} END`;
-  const hidden = new Set(f.hiddenGroups);
   const groups = grouped
     ? (
         await tx.execute<{ label: string | null; count: string }>(
@@ -179,7 +178,13 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       ).rows
     : undefined;
   const total = groups
-    ? groups.reduce((count, row) => (hidden.has(row.label) ? count : count + BigInt(row.count)), 0n)
+    ? groups.reduce(
+        (count, row) =>
+          f.topicGroup === undefined || row.label === f.topicGroup
+            ? count + BigInt(row.count)
+            : count,
+        0n,
+      )
     : BigInt(
         (
           await tx.execute<{ total: string }>(
@@ -230,11 +235,8 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const groupProjection = grouped ? sql`, grouping.label AS "groupLabel"` : sql``;
   const groupOrdering = grouped ? sql`grouping.label ASC NULLS LAST, ` : sql``;
   const groupFilter =
-    grouped && hidden.size
-      ? sql`AND NOT EXISTS (
-      SELECT 1 FROM unnest(${sql.param([...hidden])}::text[]) AS hidden(label)
-      WHERE hidden.label IS NOT DISTINCT FROM grouping.label
-    )`
+    grouped && f.topicGroup !== undefined
+      ? sql`AND grouping.label IS NOT DISTINCT FROM ${f.topicGroup}::text`
       : sql``;
   const viewer = actor && !actor.guestScope ? actor.userId : undefined;
   const progress =

@@ -79,10 +79,10 @@ export function catalogQueryOptions(
           library: actor === "anonymous" ? (search.library ?? "global") : search.library,
         }
       : catalogContext(actor, search.library);
-  const { hiddenGroups, ...selection } = search;
+  const { topicGroup, ...selection } = search;
   const filters = {
     ...selection,
-    ...(search.groupBy && hiddenGroups?.length && { hiddenGroups: JSON.stringify(hiddenGroups) }),
+    ...(search.groupBy && topicGroup !== undefined && { topicGroup: JSON.stringify(topicGroup) }),
     sql: catalogKind(search)[0],
     library: context.library,
     page: search.page ?? 1,

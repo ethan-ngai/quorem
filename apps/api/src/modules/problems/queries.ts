@@ -22,7 +22,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     type,
     sql,
     groupBy,
-    hiddenGroups,
+    topicGroup,
   } = parsed.data;
   const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty", "recommended"], {
     page: 1,
@@ -32,7 +32,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
   });
   if (sort === "recommended" && (order !== "asc" || page !== 1 || limit > 20 || groupBy))
     throw invalid();
-  if (hiddenGroups && !groupBy) throw invalid();
+  if (topicGroup !== undefined && !groupBy) throw invalid();
   return {
     query,
     difficulty,
@@ -41,7 +41,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     company,
     ...(companyMatch === "all" && { companyMatch }),
     ...(groupBy && { groupBy }),
-    ...(hiddenGroups?.length && { hiddenGroups }),
+    ...(topicGroup !== undefined && { topicGroup }),
     sort,
     order,
     library,

@@ -27,7 +27,7 @@ import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { addFilter, catalogSearch, filterValues } from "./catalogSearch";
-import { PracticeTopicChecklist, topicGroupLabel } from "./PracticeTopicChecklist";
+import { PracticeTopicIndex, topicGroupLabel } from "./PracticeTopicIndex";
 import { PracticeRecommendations } from "./PracticeRecommendations";
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import type { CatalogSearch } from "./catalogSearch";
@@ -49,10 +49,20 @@ export function PracticeBrowser() {
     session.data?.user.role === "admin" || !!session.data?.capabilities?.authorCustomQuestions;
   const library = search.library;
   const navigate = useNavigate({ from: "/practice" });
-  const update = (change: Partial<CatalogSearch>, replace = false) => {
-    void navigate({ search: (previous) => ({ ...previous, page: undefined, ...change }), replace });
+  const update = (
+    change: Partial<CatalogSearch>,
+    options?: { replace?: boolean; resetScroll?: boolean },
+  ) => {
+    void navigate({
+      search: (previous) => ({ ...previous, page: undefined, ...change }),
+      ...options,
+    });
   };
-  const query = useServerSearch(search.q ?? "", (q) => update({ q: q || undefined }, true), search);
+  const query = useServerSearch(
+    search.q ?? "",
+    (q) => update({ q: q || undefined }, { replace: true }),
+    search,
+  );
   const catalog = useQuery(catalogQueryOptions(queryClient, actor, { ...search, ...scope }));
   useEffect(() => {
     if (!catalog.data) return;
@@ -86,7 +96,7 @@ export function PracticeBrowser() {
       company: undefined,
       companyMatch: undefined,
       library: undefined,
-      hiddenGroups: undefined,
+      topicGroup: undefined,
     });
   };
   const pageSize = search.limit ?? catalogPageSize;
@@ -112,13 +122,10 @@ export function PracticeBrowser() {
   const solvedIds = new Set(catalog.data?.solvedIds);
   const groups = catalog.data?.topicGroups;
   const groupOptions = catalog.data?.topicGroupOptions;
-  const hiddenGroups = new Set(search.hiddenGroups);
-  const allGroupsHidden =
-    !!groupOptions?.length && groupOptions.every((group) => hiddenGroups.has(group));
   const pageItems = catalog.data?.items ?? [];
   const items =
-    catalog.isPlaceholderData && groups && hiddenGroups.size
-      ? pageItems.filter(({ id }) => !hiddenGroups.has(groups[id]))
+    catalog.isPlaceholderData && groups && search.topicGroup !== undefined
+      ? pageItems.filter(({ id }) => groups[id] === search.topicGroup)
       : pageItems;
   return (
     <div className="practice-page">
@@ -188,7 +195,7 @@ export function PracticeBrowser() {
               onChange={(value) =>
                 update({
                   library: value === "all" ? undefined : (value as "private" | "global"),
-                  hiddenGroups: undefined,
+                  topicGroup: undefined,
                 })
               }
               options={[
@@ -223,10 +230,10 @@ export function PracticeBrowser() {
         </div>
         <div className="practice-results">
           {search.groupBy && !!groupOptions?.length && (
-            <PracticeTopicChecklist
+            <PracticeTopicIndex
               options={groupOptions}
-              hidden={hiddenGroups}
-              onChange={(hiddenGroups) => update({ hiddenGroups })}
+              selected={search.topicGroup}
+              onChange={(topicGroup) => update({ topicGroup }, { resetScroll: false })}
             />
           )}
           <section
@@ -311,39 +318,35 @@ export function PracticeBrowser() {
                     </Fragment>
                   ))}
                 </Table>
-                {allGroupsHidden ? (
+                {catalog.data.items.length === 0 && (
                   <div className="practice-state">
-                    <h2>All topics hidden</h2>
+                    <h2>
+                      {filtered || search.topicGroup !== undefined
+                        ? "No matching questions"
+                        : "No questions available"}
+                    </h2>
+                    <p>
+                      {filtered || search.topicGroup !== undefined
+                        ? "Try another topic or a broader search."
+                        : "Check back when new questions are published."}
+                    </p>
+                    <CompanyFilter
+                      search={search}
+                      update={update}
+                      companies={companies}
+                      companyFacets={companyFacets}
+                    />
+                    {filtered && (
+                      <button className="button button-secondary practice-retry" onClick={clear}>
+                        Clear filters
+                      </button>
+                    )}
                   </div>
-                ) : (
-                  catalog.data.items.length === 0 && (
-                    <div className="practice-state">
-                      <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
-                      <p>
-                        {filtered
-                          ? "Try another topic or a broader search."
-                          : "Check back when new questions are published."}
-                      </p>
-                      <CompanyFilter
-                        search={search}
-                        update={update}
-                        companies={companies}
-                        companyFacets={companyFacets}
-                      />
-                      {filtered && (
-                        <button className="button button-secondary practice-retry" onClick={clear}>
-                          Clear filters
-                        </button>
-                      )}
-                    </div>
-                  )
                 )}
-                {!allGroupsHidden && (
-                  <TablePagination
-                    table={table}
-                    snapshot={catalog.isPlaceholderData ? catalog.data : undefined}
-                  />
-                )}
+                <TablePagination
+                  table={table}
+                  snapshot={catalog.isPlaceholderData ? catalog.data : undefined}
+                />
               </>
             )}
           </section>

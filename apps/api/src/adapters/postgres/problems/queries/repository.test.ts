@@ -354,21 +354,20 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         expect(remainder.solvedIds).toEqual([versions[0]]);
         expect(grouped.topicGroupOptions).toEqual(["Heap", null]);
         expect(remainder.topicGroupOptions).toEqual(grouped.topicGroupOptions);
-        const hide = (labels: (string | null)[]) =>
+        const selectGroup = (label: string | null, suffix = "") =>
           catalogIn(
-            `groupBy=topic&limit=1&hiddenGroups=${encodeURIComponent(JSON.stringify(labels))}`,
+            `groupBy=topic&limit=1&topicGroup=${encodeURIComponent(JSON.stringify(label))}${suffix}`,
           );
-        const hiddenHeap = await hide(["Heap"]);
-        expect(hiddenHeap.total).toBe(1);
-        expect(hiddenHeap.topicGroups).toEqual({ [versions[0]]: null });
-        expect(hiddenHeap.topicGroupOptions).toEqual(grouped.topicGroupOptions);
-        const hiddenOther = await hide([null]);
-        expect(hiddenOther.total).toBe(2);
-        expect(hiddenOther.topicGroups).toEqual({ [versions[1]]: "Heap" });
-        const hiddenAll = await hide(["Heap", null]);
-        expect(hiddenAll.total).toBe(0);
-        expect(hiddenAll.items).toEqual([]);
-        expect(hiddenAll.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        const heap = await selectGroup("Heap");
+        expect(heap.total).toBe(2);
+        expect(heap.topicGroups).toEqual({ [versions[1]]: "Heap" });
+        expect(heap.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        const heapNext = await selectGroup("Heap", "&page=2");
+        expect(heapNext.topicGroups).toEqual({ [versions[2]]: "Heap" });
+        const otherGroup = await selectGroup(null);
+        expect(otherGroup.total).toBe(1);
+        expect(otherGroup.topicGroups).toEqual({ [versions[0]]: null });
+        expect(otherGroup.topicGroupOptions).toEqual(grouped.topicGroupOptions);
         await pool.query("UPDATE odyssey_progress SET completed=true WHERE scope_id=$1", [solo[2]]);
         expect((await catalogIn("library=global")).solvedIds).toEqual([versions[0], versions[2]]);
         const otherAccount = JSON.parse(

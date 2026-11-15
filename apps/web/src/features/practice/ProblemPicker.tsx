@@ -25,7 +25,7 @@ const automaticOptions = {
   random: { label: "Random", icon: Dices },
 } as const;
 type AutomaticMode = keyof typeof automaticOptions;
-type PickerFilters = Omit<CatalogSearch, "groupBy" | "hiddenGroups">;
+type PickerFilters = Omit<CatalogSearch, "groupBy" | "topicGroup">;
 
 const pageSize = 30;
 const prefetchLeadMs = 600;

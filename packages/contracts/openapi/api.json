@@ -909,7 +909,7 @@
                     },
                     "topicGroupOptions": {
                       "type": "array",
-                      "description": "Groups matching the catalog filters across all pages, including hidden groups. Null denotes Other questions.",
+                      "description": "Groups matching the catalog filters across all pages, regardless of the selected group. Null denotes Other questions.",
                       "items": { "type": ["string", "null"] }
                     },
                     "topicGroups": {
@@ -992,10 +992,10 @@
             "schema": { "type": "string", "enum": ["topic"] }
           },
           {
-            "name": "hiddenGroups",
+            "name": "topicGroup",
             "in": "query",
-            "description": "JSON array of group labels to hide, with null for Other questions. Requires groupBy=topic.",
-            "schema": { "type": "string", "maxLength": 16000 }
+            "description": "JSON-encoded group label to show, with null for Other questions. Requires groupBy=topic.",
+            "schema": { "type": "string", "maxLength": 512 }
           },
           {
             "name": "topicMatch",
