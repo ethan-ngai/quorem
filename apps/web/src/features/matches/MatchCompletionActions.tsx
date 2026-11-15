@@ -51,7 +51,7 @@ export function MatchCompletionActions({
       {lobby === "create" && (
         <a
           className={`button button-primary${review ? "" : " match-completion-primary"}`}
-          href="/practice?create=match"
+          href="/party/create"
         >
           <Plus size={16} aria-hidden="true" />
           Create lobby
