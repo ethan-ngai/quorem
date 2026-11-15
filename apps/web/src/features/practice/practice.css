@@ -66,6 +66,10 @@
 .practice-recommendations-row .daily-streak-art {
   grid-area: flame;
 }
+/* The flame sits below the center of its SVG to leave room for sparks. */
+.practice-recommendations-row .daily-streak-art .ignite-sequence {
+  translate: 0 -5px;
+}
 .practice-recommendations-row .daily-streak-number {
   grid-area: count;
   white-space: nowrap;
