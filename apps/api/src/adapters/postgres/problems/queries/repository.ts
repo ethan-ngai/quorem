@@ -169,26 +169,42 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const grouped = f.groupBy === "topic";
   const group = sql`CASE WHEN v.id <> ALL(${sql.param(restricted)}::uuid[])
     THEN ${primaryFoundationalTopic(sql`v.id`)} END`;
-  const groups = grouped
-    ? (
-        await tx.execute<{ label: string | null; count: string }>(
-          sql`SELECT ${group} AS label, count(*)::text AS count ${from}
+  const groupJoin = grouped ? sql`CROSS JOIN LATERAL (SELECT ${group} AS label) grouping` : sql``;
+  const groupProjection = grouped ? sql`, grouping.label AS "groupLabel"` : sql``;
+  const groupOrdering = grouped ? sql`grouping.label ASC NULLS LAST, ` : sql``;
+  const groupFilter =
+    grouped && f.topicGroup !== undefined
+      ? sql`AND grouping.label IS NOT DISTINCT FROM ${f.topicGroup}::text`
+      : sql``;
+  const viewer = f.sort !== "recommended" && actor && !actor.guestScope ? actor.userId : undefined;
+  const progress = viewer
+    ? sql`EXISTS (
+    SELECT 1 FROM workspaces w
+    WHERE w.owner_id=${viewer} AND w.publication_id=v.id AND w.kind='solo'
+      AND CASE WHEN v.odyssey IS NULL THEN
+        EXISTS (SELECT 1 FROM practice_target_progress p WHERE p.workspace_id=w.id)
+        OR EXISTS (SELECT 1 FROM practice_solves s WHERE s.workspace_id=w.id)
+      ELSE EXISTS (
+        SELECT 1 FROM odyssey_progress o WHERE o.scope_id=w.id AND o.publication_id=v.id AND o.completed
+      ) END
+  )`
+    : sql``;
+  const groupProgress = viewer ? sql`, count(*) FILTER (WHERE ${progress})::text AS solved` : sql``;
+  const groups =
+    grouped && f.topicGroup === undefined
+      ? (
+          await tx.execute<{ label: string | null; count: string; solved?: string }>(
+            sql`SELECT grouping.label, count(*)::text AS count ${groupProgress} ${from} ${groupJoin}
           WHERE ${where} GROUP BY 1 ORDER BY label ASC NULLS LAST`,
-        )
-      ).rows
-    : undefined;
+          )
+        ).rows
+      : undefined;
   const total = groups
-    ? groups.reduce(
-        (count, row) =>
-          f.topicGroup === undefined || row.label === f.topicGroup
-            ? count + BigInt(row.count)
-            : count,
-        0n,
-      )
+    ? groups.reduce((count, row) => count + BigInt(row.count), 0n)
     : BigInt(
         (
           await tx.execute<{ total: string }>(
-            sql`SELECT count(*)::text AS total ${from} WHERE ${where}`,
+            sql`SELECT count(*)::text AS total ${from} ${groupJoin} WHERE ${where} ${groupFilter}`,
           )
         ).rows[0].total,
       );
@@ -231,32 +247,12 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       })()
     : undefined;
   const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
-  const groupJoin = grouped ? sql`CROSS JOIN LATERAL (SELECT ${group} AS label) grouping` : sql``;
-  const groupProjection = grouped ? sql`, grouping.label AS "groupLabel"` : sql``;
-  const groupOrdering = grouped ? sql`grouping.label ASC NULLS LAST, ` : sql``;
-  const groupFilter =
-    grouped && f.topicGroup !== undefined
-      ? sql`AND grouping.label IS NOT DISTINCT FROM ${f.topicGroup}::text`
-      : sql``;
-  const viewer = actor && !actor.guestScope ? actor.userId : undefined;
-  const progress =
-    viewer && !context
-      ? sql`, EXISTS (
-    SELECT 1 FROM workspaces w
-    WHERE w.owner_id=${viewer} AND w.publication_id=v.id AND w.kind='solo'
-      AND CASE WHEN v.odyssey IS NULL THEN
-        EXISTS (SELECT 1 FROM practice_target_progress p WHERE p.workspace_id=w.id)
-        OR EXISTS (SELECT 1 FROM practice_solves s WHERE s.workspace_id=w.id)
-      ELSE EXISTS (
-        SELECT 1 FROM odyssey_progress o WHERE o.scope_id=w.id AND o.publication_id=v.id AND o.completed
-      ) END
-  ) AS solved`
-      : sql``;
+  const progressProjection = viewer ? sql`, ${progress} AS solved` : sql``;
   const rows = (
     await tx.execute<Projected & { groupLabel?: string | null; solved?: boolean }>(
       recommendedIds
         ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
-        : sql`SELECT ${rowProjection}${groupProjection}${progress} ${from} ${groupJoin} WHERE ${where} ${groupFilter} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
+        : sql`SELECT ${rowProjection}${groupProjection}${progressProjection} ${from} ${groupJoin} WHERE ${where} ${groupFilter} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
   if (recommendedIds) {
@@ -316,10 +312,16 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       }),
     ),
     ...(groups && {
-      topicGroupOptions: groups.map(({ label }) => label),
+      topicGroupStats: groups.map(({ label, count, solved }) => ({
+        label,
+        total: new JsonNumber(count),
+        ...(solved !== undefined && { solved: new JsonNumber(solved) }),
+      })),
+    }),
+    ...(grouped && {
       topicGroups: Object.fromEntries(rows.map(({ id, groupLabel }) => [id, groupLabel ?? null])),
     }),
-    ...(viewer && !context && { solvedIds: rows.filter((row) => row.solved).map(({ id }) => id) }),
+    ...(viewer && { solvedIds: rows.filter((row) => row.solved).map(({ id }) => id) }),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),

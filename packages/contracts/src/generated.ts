@@ -3348,8 +3348,12 @@ export interface operations {
                             tier: "faang" | "top" | "quant" | "mid-tier" | "other";
                             count: number;
                         }[];
-                        /** @description Groups matching the catalog filters across all pages, regardless of the selected group. Null denotes Other questions. */
-                        topicGroupOptions?: (string | null)[];
+                        /** @description Group totals and optional account completion counts across all matching pages. Returned for grouped browsing without a selected group. */
+                        topicGroupStats?: {
+                            label: string | null;
+                            total: number;
+                            solved?: number;
+                        }[];
                         /** @description Foundational group label by publication ID for the returned page. Null denotes Other questions. */
                         topicGroups?: {
                             [key: string]: string | null;

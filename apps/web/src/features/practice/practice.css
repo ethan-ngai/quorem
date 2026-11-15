@@ -434,10 +434,6 @@
 .practice-solved {
   color: var(--color-success);
 }
-.practice-topic-group th {
-  font-weight: 600;
-  border-top: 1px solid var(--color-border);
-}
 .practice-format {
   text-align: right;
   color: var(--color-text-secondary);
@@ -455,83 +451,83 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.practice-results:has(.practice-topic-index) {
+.practice-topic-accordions {
   display: grid;
-  grid-template-areas: "questions topics";
-  grid-template-columns: minmax(0, 1fr) minmax(12rem, 26%);
-  gap: var(--space-5);
-  align-items: start;
+  gap: var(--space-2);
 }
-.practice-results > .practice-catalog {
-  grid-area: questions;
+.practice-topic-accordion {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
-.practice-topic-index {
-  grid-area: topics;
-  position: sticky;
-  inset-block-start: calc(var(--navigation-height) + var(--space-4));
-  max-block-size: calc(100dvh - var(--navigation-height) - 2 * var(--space-4));
-  overflow: auto;
-}
-.practice-topic-index ul {
+.practice-topic-accordion summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  min-block-size: var(--narrow-touch-target);
+  border-radius: var(--radius-md);
   list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.practice-topic-index li {
-  border-block-start: 1px solid var(--color-border);
-}
-.practice-topic-index button {
-  display: block;
-  position: relative;
-  inline-size: 100%;
-  min-block-size: var(--control-height);
-  padding: var(--space-2) var(--space-1);
-  border: 0;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  text-align: start;
+  font-weight: 600;
   cursor: pointer;
 }
-.practice-topic-index button:is(:hover, :focus-visible, [aria-current]) {
-  color: var(--color-text);
+.practice-topic-accordion summary::-webkit-details-marker {
+  display: none;
 }
-.practice-topic-index button[aria-current] {
-  font-weight: 600;
+.practice-topic-accordion summary:is(:hover, :focus-visible) {
+  background: var(--color-control-hover);
 }
-.practice-topic-index button::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  border-block-end: 2px solid var(--color-primary);
-  transform: scaleX(0);
-  transform-origin: left;
-  pointer-events: none;
+.practice-topic-accordion[open] summary {
+  border-block-end: 1px solid var(--color-border);
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
-.practice-topic-index button[aria-current]::after {
-  transform: scaleX(1);
+.practice-topic-chevron,
+.practice-topic-progress {
+  color: var(--color-text-secondary);
+}
+.practice-topic-accordion[open] .practice-topic-chevron {
+  rotate: 90deg;
+}
+.practice-topic-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-small);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.practice-topic-progress progress {
+  appearance: none;
+  inline-size: clamp(3rem, 17vw, 12rem);
+  block-size: 0.375rem;
+  border: 0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-border);
+}
+.practice-topic-progress progress::-webkit-progress-bar {
+  background: var(--color-border);
+}
+.practice-topic-progress progress::-webkit-progress-value {
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+}
+.practice-topic-progress progress::-moz-progress-bar {
+  background: var(--color-success);
+  border-radius: var(--radius-full);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .practice-topic-index button::after {
-    transition: transform var(--motion-standard) var(--motion-easing);
+  .practice-topic-chevron {
+    transition: rotate var(--motion-fast) var(--motion-easing);
   }
 }
 @media (max-width: 650px) {
-  .practice-results:has(.practice-topic-index) {
-    grid-template-areas: "topics" "questions";
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-3);
+  .practice-topic-accordion summary {
+    gap: var(--space-2);
+    padding-inline: var(--space-3);
   }
-  .practice-topic-index {
-    position: static;
-    max-block-size: 10rem;
-  }
-  .practice-topic-index ul {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
-    column-gap: var(--space-2);
-  }
-  .practice-topic-index button {
-    min-block-size: var(--narrow-touch-target);
+  .practice-topic-progress {
+    gap: var(--space-2);
   }
 }

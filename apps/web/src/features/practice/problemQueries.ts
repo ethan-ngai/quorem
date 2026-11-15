@@ -6,7 +6,8 @@ import { catalogKind, type CatalogSearch } from "./catalogSearch";
 import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
-type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
+export type CatalogPage =
+  paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
 export type FoundationalTopic = NonNullable<CatalogPage["foundationalTopics"]>[number];
 export type CompanyFacet = NonNullable<CatalogPage["companyFacets"]>[number];
 type CatalogFacets = Pick<
@@ -18,7 +19,7 @@ const pendingScope = "pending";
 const signedOutPrivateScope = "signed-out-private";
 const staleTime = 30_000;
 export const catalogPageSize = 20;
-type CatalogRequest = Omit<CatalogSearch, "sort"> & {
+export type CatalogRequest = Omit<CatalogSearch, "sort"> & {
   sort?: CatalogSearch["sort"] | "recommended";
 };
 
@@ -47,7 +48,14 @@ type CatalogKind = Parameters<typeof catalogKind>[0];
 const facetsKey = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
   ["public-problem-facets", scope, library, ...catalogKind(search)] as const;
 const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogRequest) =>
-  ["public-problems", scope, library, ...catalogKind(search), search.groupBy] as const;
+  [
+    "public-problems",
+    scope,
+    library,
+    ...catalogKind(search),
+    search.groupBy,
+    JSON.stringify(search.topicGroup),
+  ] as const;
 
 export function invalidatePracticeCatalog(client: QueryClient, identity: DevelopmentIdentity) {
   return client.invalidateQueries({ queryKey: ["public-problems", identity] });

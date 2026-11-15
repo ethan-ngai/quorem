@@ -352,8 +352,11 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const remainder = await catalogIn("groupBy=topic&limit=2&page=2");
         expect(remainder.topicGroups).toEqual({ [versions[0]]: null });
         expect(remainder.solvedIds).toEqual([versions[0]]);
-        expect(grouped.topicGroupOptions).toEqual(["Heap", null]);
-        expect(remainder.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        expect(grouped.topicGroupStats).toEqual([
+          { label: "Heap", total: 2, solved: 1 },
+          { label: null, total: 1, solved: 1 },
+        ]);
+        expect(remainder.topicGroupStats).toEqual(grouped.topicGroupStats);
         const selectGroup = (label: string | null, suffix = "") =>
           catalogIn(
             `groupBy=topic&limit=1&topicGroup=${encodeURIComponent(JSON.stringify(label))}${suffix}`,
@@ -361,13 +364,12 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const heap = await selectGroup("Heap");
         expect(heap.total).toBe(2);
         expect(heap.topicGroups).toEqual({ [versions[1]]: "Heap" });
-        expect(heap.topicGroupOptions).toEqual(grouped.topicGroupOptions);
+        expect(heap).not.toHaveProperty("topicGroupStats");
         const heapNext = await selectGroup("Heap", "&page=2");
         expect(heapNext.topicGroups).toEqual({ [versions[2]]: "Heap" });
         const otherGroup = await selectGroup(null);
         expect(otherGroup.total).toBe(1);
         expect(otherGroup.topicGroups).toEqual({ [versions[0]]: null });
-        expect(otherGroup.topicGroupOptions).toEqual(grouped.topicGroupOptions);
         await pool.query("UPDATE odyssey_progress SET completed=true WHERE scope_id=$1", [solo[2]]);
         expect((await catalogIn("library=global")).solvedIds).toEqual([versions[0], versions[2]]);
         const otherAccount = JSON.parse(
