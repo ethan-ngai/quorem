@@ -162,6 +162,7 @@ describe("account identity transport", () => {
   it("returns to local work after login without accepting external destinations", async () => {
     const { signInDestination } = await import("./session");
     expect(signInDestination("?returnTo=%2Fpractice%2Frun-widths")).toBe("/practice/run-widths");
+    expect(signInDestination("?returnTo=%2Fhome")).toBe("/home");
     expect(signInDestination("?returnTo=%2Fpractice%3Fq%3Dtree")).toBe("/practice?q=tree");
     expect(signInDestination("?returnTo=%2Fquestions%3Fsection%3Ddrafts%23cases")).toBe(
       "/questions?section=drafts#cases",

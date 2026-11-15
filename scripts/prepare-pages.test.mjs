@@ -23,6 +23,7 @@ await test("static routes expose metadata before JavaScript; private routes and 
     const read = (name) => readFileSync(join(artifact, name), "utf8");
     const redirects = read("_redirects").split("\n");
     const routes = {
+      "/home": "home",
       "/privacy": "privacy",
       "/terms": "terms",
       "/practice": "practice",

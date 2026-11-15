@@ -159,9 +159,9 @@ export function GlobalNav({
             author={canAccess(session.data, "authoring")}
             interviews={!!session.data?.capabilities?.interviews}
           />
-          <a className="nav-brand" href="/" aria-label="Quorem home">
+          <Link className="nav-brand" to="/home" aria-label="Quorem home">
             <span className="brand-mark" aria-hidden="true" />
-          </a>
+          </Link>
           <div className="nav-actions">
             {children}
 

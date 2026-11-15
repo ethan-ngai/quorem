@@ -27,6 +27,11 @@ export function primaryFoundationalTopic(publication: SQL) {
   return sql`(${questionTopics(publication, true)} LIMIT 1)`;
 }
 
+/** Match assistance applies to every surface that displays publication topics. */
+export function restrictedTopicPublications(owner: string) {
+  return sql`SELECT m.publication_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${owner} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`;
+}
+
 export function topicProjection(publication: SQL) {
   return sql`to_jsonb(ARRAY(${questionTopics(publication)}))`;
 }

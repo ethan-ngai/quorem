@@ -122,7 +122,8 @@ describe("global navigation", () => {
     expect(html).toContain('href="/login"');
     expect(html).not.toContain("Guest");
     expect(html).not.toContain('aria-label="Profile"');
-    expect(html).toContain('href="/"');
+    expect(html).toContain('aria-label="Home"');
+    expect(html).toContain('href="/home"');
     expect(html).toContain('aria-label="Expand sidebar"');
     expect(html.indexOf('aria-label="Expand sidebar"')).toBeLessThan(
       html.indexOf('aria-label="Quorem home"'),

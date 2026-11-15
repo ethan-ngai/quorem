@@ -10,6 +10,12 @@
     },
     {
       "method": "GET",
+      "path": "/v1/me/dashboard",
+      "contract": "packages/contracts/openapi/api.json",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
       "path": "/v1/admin/overview",
       "registration": "apps/api/src/runtime/composition/http.ts"
     },

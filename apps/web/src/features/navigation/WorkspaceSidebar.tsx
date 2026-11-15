@@ -105,9 +105,9 @@ export function WorkspaceSidebar({
             <Dialog.Close className="icon-button sidebar-toggle" aria-label="Close navigation">
               <NavigationToggleIcon open={open} />
             </Dialog.Close>
-            <a className="nav-brand" href="/" aria-label="Quorem home">
+            <Link className="nav-brand" to="/home" aria-label="Quorem home">
               <span className="brand-mark" aria-hidden="true" />
-            </a>
+            </Link>
           </div>
           <SidebarLinks pathname={pathname} admin={admin} author={author} interviews={interviews} />
         </Dialog.Content>
@@ -139,7 +139,7 @@ function SidebarLinks({
       className="sidebar-content"
     >
       {[
-        { href: "/", label: "Home", icon: Home, active: pathname === "/" },
+        { href: "/home", label: "Home", icon: Home, active: pathname === "/home" },
         {
           href: "/practice",
           label: "Practice",
@@ -179,7 +179,6 @@ function SidebarLinks({
       ].map(({ href, label, icon: LinkIcon, active }) => (
         <Tooltip key={href} content={label} side="right" disabled={!peek}>
           <Link
-            reloadDocument={href === "/"}
             className="sidebar-link"
             to={href}
             aria-label={label}
