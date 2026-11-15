@@ -146,7 +146,7 @@
   view-transition-name: activity-calendar-range;
 }
 
-.activity-range-transition .activity-calendar-detail {
+.activity-range-transition .activity-calendar-caption {
   view-transition-name: activity-calendar-detail;
 }
 
