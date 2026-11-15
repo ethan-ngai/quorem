@@ -1,11 +1,14 @@
 /** @file PracticeTopicAccordion.tsx @description Topic progress and on-demand practice questions. @module practice */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { TableBody } from "../../ui/Table";
+import { TablePagination } from "../../ui/TableControls";
 import { ChevronRight } from "lucide-react";
 import { LoadingButton } from "../../ui/LoadingButton";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import {
-  PracticeQuestionTable,
+  PracticeQuestionRows,
+  usePracticeTable,
   type PracticeRowFilters,
   type PracticeTableState,
 } from "./PracticeQuestionTable";
@@ -28,8 +31,8 @@ function TopicQuestions({ actor, filters, rowFilters }: TopicPanelProps) {
   const [state, setState] = useState<PracticeTableState>({
     page: 1,
     limit: catalogPageSize,
-    sort: "title",
-    order: "asc",
+    sort: filters.sort === "difficulty" ? "difficulty" : "title",
+    order: filters.order ?? "asc",
   });
   const query = useQuery(
     catalogQueryOptions(client, actor, {
@@ -39,30 +42,55 @@ function TopicQuestions({ actor, filters, rowFilters }: TopicPanelProps) {
       order: state.order === "asc" ? undefined : state.order,
     }),
   );
-  if (query.isPending) return <LoadingScreen inline label="Loading questions…" />;
+  if (query.isPending)
+    return (
+      <tr className="practice-topic-message">
+        <td colSpan={3}>
+          <LoadingScreen inline label="Loading questions…" />
+        </td>
+      </tr>
+    );
   if (query.isError)
     return (
-      <div className="practice-state" role="alert">
-        <p>Questions couldn’t load.</p>
-        <LoadingButton
-          className="button button-secondary"
-          pending={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          Retry
-        </LoadingButton>
-      </div>
+      <tr className="practice-topic-message">
+        <td colSpan={3}>
+          <div className="practice-state" role="alert">
+            <p>Questions couldn’t load.</p>
+            <LoadingButton
+              className="button button-secondary"
+              pending={query.isFetching}
+              onClick={() => void query.refetch()}
+            >
+              Retry
+            </LoadingButton>
+          </div>
+        </td>
+      </tr>
     );
   return (
-    <PracticeQuestionTable
-      data={query.data}
-      placeholder={query.isPlaceholderData}
-      fetching={query.isFetching}
-      state={state}
-      onChange={setState}
-      showPagination={query.data.total > catalogPageSize}
-      {...rowFilters}
-    />
+    <>
+      <PracticeQuestionRows data={query.data} {...rowFilters} />
+      {query.data.total > catalogPageSize && (
+        <TopicPagination
+          data={query.data}
+          placeholder={query.isPlaceholderData}
+          fetching={query.isFetching}
+          state={state}
+          onChange={setState}
+        />
+      )}
+    </>
+  );
+}
+
+function TopicPagination(props: Parameters<typeof usePracticeTable>[0]) {
+  const table = usePracticeTable(props);
+  return (
+    <tr className="practice-topic-message">
+      <td colSpan={3}>
+        <TablePagination table={table} snapshot={props.placeholder ? props.data : undefined} />
+      </td>
+    </tr>
   );
 }
 
@@ -80,27 +108,27 @@ export function PracticeTopicAccordion({
   const label = group.label ?? "Other questions";
 
   return (
-    <details
-      className="practice-topic-accordion"
-      open={open}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary>
-        <ChevronRight className="practice-topic-chevron" size={16} aria-hidden="true" />
-        <span>{label}</span>
-        {group.solved === undefined ? (
-          <span className="practice-topic-progress">
-            {group.total} {group.total === 1 ? "question" : "questions"}
-          </span>
-        ) : (
-          <span className="practice-topic-progress">
-            <span aria-label={`${group.solved} of ${group.total} solved`}>
-              {group.solved}/{group.total}
-            </span>
-            <progress value={group.solved} max={group.total} aria-label={`${label} progress`} />
-          </span>
-        )}
-      </summary>
+    <TableBody>
+      <tr className="practice-topic-heading">
+        <th scope="rowgroup" colSpan={3}>
+          <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+            <ChevronRight className="practice-topic-chevron" size={16} aria-hidden="true" />
+            <span>{label}</span>
+            {group.solved === undefined ? (
+              <span className="practice-topic-progress">
+                {group.total} {group.total === 1 ? "question" : "questions"}
+              </span>
+            ) : (
+              <span className="practice-topic-progress">
+                <span aria-label={`${group.solved} of ${group.total} solved`}>
+                  {group.solved}/{group.total}
+                </span>
+                <progress value={group.solved} max={group.total} aria-label={`${label} progress`} />
+              </span>
+            )}
+          </button>
+        </th>
+      </tr>
       {open && (
         <TopicQuestions
           key={JSON.stringify(filters)}
@@ -109,6 +137,6 @@ export function PracticeTopicAccordion({
           rowFilters={rowFilters}
         />
       )}
-    </details>
+    </TableBody>
   );
 }

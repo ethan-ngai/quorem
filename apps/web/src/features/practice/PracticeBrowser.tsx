@@ -231,36 +231,38 @@ export function PracticeBrowser() {
             <LoadingScreen inline label="Loading questions…" />
           ) : (
             <>
-              {grouped ? (
-                <div className="practice-topic-accordions">
-                  {catalog.data.topicGroupStats?.map((group) => (
-                    <PracticeTopicAccordion
-                      key={JSON.stringify([group.label, actor, library, sql, type])}
-                      actor={actor}
-                      filters={filters}
-                      group={group}
-                      initiallyOpen={topicGroup === group.label}
-                      rowFilters={rowFilters}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <PracticeQuestionTable
-                  data={catalog.data}
-                  placeholder={catalog.isPlaceholderData}
-                  fetching={catalog.isFetching || (actor === undefined && library !== "global")}
-                  state={tableState}
-                  onChange={(next) =>
-                    update({
+              <PracticeQuestionTable
+                data={catalog.data}
+                placeholder={catalog.isPlaceholderData}
+                fetching={catalog.isFetching || (actor === undefined && library !== "global")}
+                state={tableState}
+                onChange={(next) =>
+                  update(
+                    {
                       page: next.page === 1 ? undefined : next.page,
                       limit: next.limit,
                       sort: next.sort === "title" ? undefined : next.sort,
                       order: next.order === "asc" ? undefined : next.order,
-                    })
-                  }
-                  {...rowFilters}
-                />
-              )}
+                    },
+                    { resetScroll: !grouped },
+                  )
+                }
+                groupBodies={
+                  grouped
+                    ? (catalog.data.topicGroupStats?.map((group) => (
+                        <PracticeTopicAccordion
+                          key={JSON.stringify([group.label, actor, library, sql, type])}
+                          actor={actor}
+                          filters={{ ...filters, sort, order }}
+                          group={group}
+                          initiallyOpen={topicGroup === group.label}
+                          rowFilters={rowFilters}
+                        />
+                      )) ?? [])
+                    : undefined
+                }
+                {...rowFilters}
+              />
               {total === 0 && (
                 <div className="practice-state">
                   <h2>{filtered ? "No matching questions" : "No questions available"}</h2>
