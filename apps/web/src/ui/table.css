@@ -28,10 +28,6 @@
 .data-table tbody tr {
   transition: background var(--motion-fast);
 }
-.data-table tbody tr:nth-child(even) {
-  background: var(--color-surface);
-}
-
 .data-table tbody tr[data-openable="true"] {
   cursor: pointer;
 }
