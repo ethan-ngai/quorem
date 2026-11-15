@@ -121,7 +121,7 @@ export function PracticeTopicAccordion({
     const timer = window.setTimeout(() => setClosing(false), Number.parseFloat(motion.standard));
     return () => window.clearTimeout(timer);
   }, [closing]);
-  const label = group.label ?? "Other questions";
+  const label = group.label ?? "Other";
 
   return (
     <TableBody animateChanges={false}>
