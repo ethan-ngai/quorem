@@ -39,8 +39,18 @@ body {
   transition: background-color var(--motion-standard) var(--motion-easing);
 }
 
-/* Fixed layers stop at the native gutter. Dim the root canvas behind it too. */
-:root:has(.viewport-backdrop[data-state="open"]) {
+/* Scroll lock replaces the native gutter with its measured body margin. */
+:root:has(> body[data-scroll-locked]) {
+  scrollbar-gutter: auto;
+}
+
+body[data-scroll-locked] {
+  --locked-viewport-gutter: var(--viewport-gutter-width, var(--removed-body-scroll-bar-size, 0px));
+  width: calc(100% - var(--locked-viewport-gutter));
+}
+
+/* Nonmodal backdrops leave the native scrollbar in place. */
+:root:has(.viewport-backdrop[data-state="open"]):not(:has(> body[data-scroll-locked])) {
   background-color: color-mix(
     in srgb,
     black var(--viewport-backdrop-strength),

@@ -1,7 +1,7 @@
 /** @file PageLayout.tsx @description Root page frame reserves footer space without covering the editor. @module navigation */
 import { Outlet, useLocation } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { EditorAppearance } from "../editor/EditorAppearance";
 import { PageMetadata } from "./PageMetadata";
 import { SiteFooter } from "../../ui/SiteFooter";
@@ -12,6 +12,20 @@ import { currentMatchQueryKey } from "../matches/useActiveMatch";
 import type { DevelopmentIdentity } from "@quorem/contracts";
 
 export function PageLayout() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    function measureGutter() {
+      // Keep the unlocked width while a modal temporarily removes the native gutter.
+      if (document.body.hasAttribute("data-scroll-locked")) return;
+      const width = window.innerWidth - root.getBoundingClientRect().width;
+      root.style.setProperty("--viewport-gutter-width", `${Math.max(0, width)}px`);
+    }
+    measureGutter();
+    const observer =
+      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measureGutter);
+    observer?.observe(root);
+    return () => observer?.disconnect();
+  }, []);
   const session = useSession();
   const identity = (session.data?.user.id ?? "anonymous") as DevelopmentIdentity;
   usePlatformPresence(identity, !!session.data);
