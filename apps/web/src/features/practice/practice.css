@@ -481,7 +481,7 @@
   overflow: clip;
 }
 .practice-grouped-table .practice-cell-content {
-  padding: var(--space-4);
+  padding: var(--space-4) var(--table-cell-inline-padding);
 }
 .practice-grouped-table .practice-topic-message .practice-cell-content {
   padding: 0;
