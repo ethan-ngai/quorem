@@ -4,6 +4,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { BookOpen, Flame, Swords } from "lucide-react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
+import { useChangeMotion } from "../../ui/useChangeMotion";
 import { DashboardStreak } from "./DashboardHighlights";
 import "./activity-calendar.css";
 
@@ -55,6 +56,7 @@ export function ActivityCalendar({
 }) {
   const [period, setPeriod] = useState(String(activityHistoryDays));
   const [selected, setSelected] = useState(0);
+  const caption = useChangeMotion<HTMLParagraphElement>(selected);
   const rangeTransition = useRef<ViewTransition>(null);
   const grid = useRef<HTMLDivElement>(null);
   const tileAnimations = useRef<Animation[]>([]);
@@ -217,7 +219,7 @@ export function ActivityCalendar({
           ))}
         </div>
       </div>
-      <p className="activity-calendar-detail" aria-live="polite">
+      <p ref={caption} className="activity-calendar-detail" aria-live="polite">
         <strong className="activity-calendar-date-full">{dateLabel.format(detail.date)}</strong>
         <strong className="activity-calendar-date-compact">
           {compactDateLabel.format(detail.date)}
