@@ -14,17 +14,32 @@ import type { DevelopmentIdentity } from "@quorem/contracts";
 export function PageLayout() {
   useLayoutEffect(() => {
     const root = document.documentElement;
-    function measureGutter() {
-      // Keep the unlocked width while a modal temporarily removes the native gutter.
-      if (document.body.hasAttribute("data-scroll-locked")) return;
-      const width = window.innerWidth - root.getBoundingClientRect().width;
-      root.style.setProperty("--viewport-gutter-width", `${Math.max(0, width)}px`);
+    const probe = document.createElement("div");
+    probe.className = "viewport-scrollbar-probe";
+    probe.setAttribute("aria-hidden", "true");
+    document.body.append(probe);
+
+    function updateInset() {
+      const nativeWidth = probe.offsetWidth - probe.clientWidth;
+      const occupiedWidth = window.innerWidth - root.getBoundingClientRect().width;
+      root.style.setProperty(
+        "--viewport-layout-inset",
+        `${Math.max(0, nativeWidth - occupiedWidth)}px`,
+      );
     }
-    measureGutter();
+
+    root.dataset.viewportLayout = "";
+    updateInset();
     const observer =
-      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measureGutter);
+      typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(updateInset);
     observer?.observe(root);
-    return () => observer?.disconnect();
+    observer?.observe(probe);
+    return () => {
+      observer?.disconnect();
+      probe.remove();
+      delete root.dataset.viewportLayout;
+      root.style.removeProperty("--viewport-layout-inset");
+    };
   }, []);
   const session = useSession();
   const identity = (session.data?.user.id ?? "anonymous") as DevelopmentIdentity;

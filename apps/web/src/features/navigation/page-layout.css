@@ -9,6 +9,8 @@
   flex: 1;
   min-width: 0;
   min-height: var(--page-height);
+  padding-right: var(--viewport-layout-inset, 0px);
+  background-color: var(--color-background);
 }
 .page-layout:has(.workspace-grid),
 .page-layout:has(.auth-page) {

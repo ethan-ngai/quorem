@@ -39,14 +39,19 @@ body {
   transition: background-color var(--motion-standard) var(--motion-easing);
 }
 
-/* Scroll lock replaces the native gutter with its measured body margin. */
-:root:has(> body[data-scroll-locked]) {
+/* Reserve unused scrollbar space inside the layout so full-bleed surfaces can paint it. */
+:root[data-viewport-layout] {
   scrollbar-gutter: auto;
 }
 
-body[data-scroll-locked] {
-  --locked-viewport-gutter: var(--viewport-gutter-width, var(--removed-body-scroll-bar-size, 0px));
-  width: calc(100% - var(--locked-viewport-gutter));
+.viewport-scrollbar-probe {
+  position: fixed;
+  inset: 0 auto auto 0;
+  width: 64px;
+  height: 64px;
+  overflow: scroll;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Nonmodal backdrops leave the native scrollbar in place. */
