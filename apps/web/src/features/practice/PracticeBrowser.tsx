@@ -130,7 +130,7 @@ export function PracticeBrowser() {
             actor={actor}
             scope={{ ...scope, library }}
           />
-          {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} sample />}
+          {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} />}
         </div>
         <div className="practice-toolbar">
           <SearchField
