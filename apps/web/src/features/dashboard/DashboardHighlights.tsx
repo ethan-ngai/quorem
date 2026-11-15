@@ -1,9 +1,7 @@
-/** @file DashboardHighlights.tsx @description Activity timeline, streak, question metadata, and stat charts. @module dashboard */
+/** @file DashboardHighlights.tsx @description Activity timeline and stat charts. @module dashboard */
 import { BookOpen, Swords } from "lucide-react";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
-import { useState } from "react";
-import { StreakArtwork } from "./StreakArtwork";
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
@@ -61,28 +59,6 @@ export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }
           );
         })}
       </ol>
-    </section>
-  );
-}
-
-export function DashboardStreak({ days }: { days: number }) {
-  const [replay, setReplay] = useState(0);
-  return (
-    <section className="dashboard-streak" aria-labelledby="dashboard-streak-title">
-      <button
-        type="button"
-        className="dashboard-streak-art"
-        aria-label="Replay streak animation"
-        onClick={() => setReplay((count) => count + 1)}
-      >
-        <StreakArtwork key={`${days}:${replay}`} active={days > 0} />
-      </button>
-      <div className="dashboard-streak-stat">
-        <h3 id="dashboard-streak-title">Daily streak</h3>
-        <p className="dashboard-streak-number" aria-live="polite">
-          <strong>{days}</strong> <span>{days === 1 ? "day" : "days"}</span>
-        </p>
-      </div>
     </section>
   );
 }

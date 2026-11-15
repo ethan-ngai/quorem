@@ -1,4 +1,4 @@
-/** @file StreakArtwork.tsx @description Sharpnd flame and ember artwork. @module dashboard */
+/** @file StreakArtwork.tsx @description Sharpnd flame and ember artwork. @module activity */
 import { useId } from "react";
 import "./streak-motion.css";
 

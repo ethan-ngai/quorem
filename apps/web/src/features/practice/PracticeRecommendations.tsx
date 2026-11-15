@@ -3,7 +3,7 @@ import { LoadingButton } from "../../ui/LoadingButton";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, EyeOff, Lightbulb, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, EyeOff, Lightbulb } from "lucide-react";
 import { api } from "../../api/client";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { LoadingIndicator } from "../../ui/Spinner";
@@ -97,7 +97,7 @@ export function PracticeRecommendations({
           viewport.current?.focus({ preventScroll: true });
           dismissal.mutate(id);
         }}
-        icon={embedded ? <EyeOff size={16} /> : <X size={16} />}
+        icon={<EyeOff size={16} />}
         disabled={dismissal.isPending}
         pending={dismissal.isPending && dismissal.variables === id}
       />

@@ -159,54 +159,8 @@
   color: var(--color-info);
   background: var(--color-brand-secondary);
 }
-.dashboard-streak {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.dashboard-streak-stat {
-  display: grid;
-  gap: var(--space-1);
-  white-space: nowrap;
-}
-.dashboard-streak h3 {
-  color: var(--color-text-secondary);
-  font-size: var(--text-label);
-  font-weight: 500;
-  line-height: 1;
-}
-.dashboard-streak-art {
-  flex: none;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  cursor: pointer;
-}
-.dashboard-streak-art svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 .dashboard-demo [data-tone="neutral"] {
   --dashboard-tone: var(--color-text-disabled);
-}
-.dashboard-streak-number {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-1);
-  font-size: var(--text-small);
-  line-height: 1;
-  color: var(--color-text-secondary);
-}
-.dashboard-streak-number strong {
-  color: var(--color-text);
-  font-size: var(--text-h1);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
 }
 .dashboard-total strong {
   font-size: var(--text-h1);

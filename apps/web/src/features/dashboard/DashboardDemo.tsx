@@ -10,6 +10,7 @@ import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { QuestionTopics } from "../practice/QuestionRowMetadata";
 import { PracticeRecommendations } from "../practice/PracticeRecommendations";
+import { sampleActiveStreakDays } from "../activity/streakFixtures";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { DashboardTimeline, DashboardDistribution } from "./DashboardHighlights";
 import { ActivityCalendar, activityHistoryDays, summarizeActivity } from "./ActivityCalendar";
@@ -17,13 +18,13 @@ import "./dashboard-demo.css";
 
 const today = 0;
 const scenarios = {
-  active: { through: today, days: 7 },
+  active: { through: today, days: sampleActiveStreakDays },
   pending: { through: -1, days: 6 },
   broken: { through: -2, days: 7 },
   new: { through: today, days: 0 },
-  noPractice: { through: today, days: 7 },
-  noOdyssey: { through: today, days: 7 },
-  caughtUp: { through: today, days: 7 },
+  noPractice: { through: today, days: sampleActiveStreakDays },
+  noOdyssey: { through: today, days: sampleActiveStreakDays },
+  caughtUp: { through: today, days: sampleActiveStreakDays },
 };
 
 const scenarioOptions = [

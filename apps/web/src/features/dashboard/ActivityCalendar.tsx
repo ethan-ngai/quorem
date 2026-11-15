@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import { BookOpen, Flame, Swords } from "lucide-react";
 import { SegmentedControl } from "../../ui/SegmentedControl";
 import { ContentTransition } from "../../ui/ContentTransition";
-import { DashboardStreak } from "./DashboardHighlights";
+import { DailyStreak } from "../activity/DailyStreak";
 import "./activity-calendar.css";
 
 export const activityHistoryDays = 180;
@@ -152,7 +152,7 @@ export function ActivityCalendar({
               <span className="sr-only">with activity. Sample data.</span>
             </p>
           </div>
-          <DashboardStreak days={streakDays} />
+          <DailyStreak days={streakDays} />
         </div>
         <SegmentedControl
           label="Activity period"

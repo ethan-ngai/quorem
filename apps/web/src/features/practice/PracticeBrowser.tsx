@@ -20,6 +20,8 @@ import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQu
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
+import { DailyStreak } from "../activity/DailyStreak";
+import { sampleActiveStreakDays } from "../activity/streakFixtures";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
@@ -112,10 +114,15 @@ export function PracticeBrowser() {
         title="Practice"
         description="Browse questions by topic, company and difficulty."
         actions={
-          catalog.data && (
-            <span className="practice-total">
-              {total} {total === 1 ? "question" : "questions"}
-            </span>
+          (catalog.data || import.meta.env.DEV) && (
+            <div className="practice-heading-actions practice-catalog-heading-actions">
+              {catalog.data && (
+                <span className="practice-total">
+                  {total} {total === 1 ? "question" : "questions"}
+                </span>
+              )}
+              {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} sample />}
+            </div>
           )
         }
       >
