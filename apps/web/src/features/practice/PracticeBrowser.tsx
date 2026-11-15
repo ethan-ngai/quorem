@@ -14,7 +14,7 @@ import { CatalogLayout } from "./CatalogLayout";
 import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { X, Layers, Globe, LockKeyhole } from "lucide-react";
+import { X, Layers, Globe, List, ListTree, LockKeyhole } from "lucide-react";
 import { Fragment, useEffect, useMemo } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
@@ -144,13 +144,17 @@ export function PracticeBrowser() {
             refreshing={catalog.isFetching && !!catalog.data}
           />
           <SegmentedControl
-            compact
+            iconOnly
             label="Question layout"
             value={search.groupBy ?? "list"}
             onChange={(value) => update({ groupBy: value === "topic" ? value : undefined })}
             options={[
-              { value: "list", label: "List" },
-              { value: "topic", label: "Group by topic" },
+              { value: "list", label: "List", icon: <List size={16} aria-hidden="true" /> },
+              {
+                value: "topic",
+                label: "Group by topic",
+                icon: <ListTree size={16} aria-hidden="true" />,
+              },
             ]}
           />
         </div>
