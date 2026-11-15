@@ -26,7 +26,7 @@ import { GlobalNav } from "../navigation/GlobalNav";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { matchModeLabels } from "./ModeIcon";
 import { readPendingCommand } from "./commandRecovery";
-import { Trash2, UserMinus, DoorOpen, DoorClosed } from "lucide-react";
+import { Check, DoorClosed, DoorOpen, Trash2, UserMinus, X } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { LeaveLobbyButton } from "./LeaveLobbyButton";
 import { SessionDialog } from "../../ui/SessionDialog";
@@ -221,6 +221,7 @@ export function PartyPage() {
                 disabled={!!recovery || !own?.online || (!own.ready && !factionsReady)}
                 onClick={() => void run("ready", { ready: !own?.ready })}
                 pending={readyPending}
+                icon={own?.ready ? <X size={16} /> : <Check size={16} />}
               >
                 {readyLabel}
               </LoadingButton>
