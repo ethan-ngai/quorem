@@ -218,7 +218,11 @@ export function ActivityCalendar({
           ))}
         </div>
       </div>
-      <ContentTransition className="activity-calendar-caption" contentKey={String(selected)}>
+      <ContentTransition
+        className="activity-calendar-caption"
+        contentKey={String(selected)}
+        slideUp
+      >
         <p className="activity-calendar-detail" aria-live="polite">
           <strong className="activity-calendar-date-full">{dateLabel.format(detail.date)}</strong>
           <strong className="activity-calendar-date-compact">
