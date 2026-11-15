@@ -86,7 +86,7 @@ function errorMessage(error: unknown) {
 /** Opens one public problem in the resizable practice workspace. */
 import { guestWorkspace } from "./guestWorkspace";
 import { useSession } from "../auth/session";
-import { problemQueryOptions } from "../practice/problemQueries";
+import { invalidatePracticeCatalog, problemQueryOptions } from "../practice/problemQueries";
 import { usePageTitle } from "../navigation/PageMetadata";
 import { matchModeLabels } from "../matches/ModeIcon";
 import { languageFileNames, type EditorLanguage } from "./editorLanguages";
@@ -831,6 +831,8 @@ export function WorkspacePage({
                               execution.clearResult();
                               setSelectedLevel(undefined);
                               queryClient.setQueryData(["odyssey", workspace.id], progress);
+                              if (workspace.kind === "solo")
+                                void invalidatePracticeCatalog(queryClient, identity);
                             } catch (cause) {
                               setActionError(errorMessage(cause));
                             } finally {

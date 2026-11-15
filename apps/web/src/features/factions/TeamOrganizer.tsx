@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { InlineNameEditor } from "../../ui/InlineNameEditor";
 import { factionName, factionNameInputSchema, factionNameSchema } from "@quorem/contracts/factions";
 import type { InputConstraint } from "../../ui/input-constraints";
@@ -45,16 +46,16 @@ export function TeamOrganizer({
 }) {
   const client = useQueryClient();
   const query = useFactionLobby(party.id);
-  const [busy, setBusy] = useState(false);
-  const [lockPending, setLockPending] = useState(false);
+  const [operation, setOperation] = useState<Record<string, unknown>>();
+  const busy = operation !== undefined;
+  const lockPending = operation?.action === "lock";
   const controlsBusy = busy && !lockPending;
   const [error, setError] = useState<string>();
   const host = party.hostUserId === identity;
   const changesLocked = !!party.settings.factionChangesLocked;
   async function change(body: Record<string, unknown>) {
     if (busy) return;
-    setBusy(true);
-    setLockPending(body.action === "lock");
+    setOperation(body);
     setError(undefined);
     try {
       const next = await organizeFactions(party.id, body);
@@ -65,8 +66,7 @@ export function TeamOrganizer({
       setError("Could not update factions. Try again.");
       return false;
     } finally {
-      setBusy(false);
-      setLockPending(false);
+      setOperation(undefined);
     }
   }
   if (!query.data)
@@ -118,45 +118,47 @@ export function TeamOrganizer({
             {host && (
               <>
                 <Tooltip content={teamCount >= 4 ? "Maximum four factions" : "Add faction"}>
-                  <button
+                  <LoadingButton
                     type="button"
                     className="button button-secondary"
                     disabled={controlsBusy || teamCount >= 4}
                     onClick={() => void change({ action: "create" })}
+                    icon={<Plus size={16} aria-hidden="true" />}
+                    pending={operation?.action === "create"}
                   >
-                    <Plus size={16} aria-hidden="true" />
                     Add faction
-                  </button>
+                  </LoadingButton>
                 </Tooltip>
                 <Tooltip
                   content={changesLocked ? "Unlock faction changes" : "Lock faction changes"}
                 >
-                  <button
+                  <LoadingButton
                     type="button"
                     className="icon-button"
                     aria-label={changesLocked ? "Unlock faction changes" : "Lock faction changes"}
                     aria-pressed={changesLocked}
-                    aria-busy={lockPending}
                     disabled={busy}
                     onClick={() => void change({ action: "lock", locked: !changesLocked })}
-                  >
-                    <StateIcon
-                      active={changesLocked}
-                      on={<LockKeyhole size={16} />}
-                      off={<UnlockKeyhole size={16} />}
-                    />
-                  </button>
+                    icon={
+                      <StateIcon
+                        active={changesLocked}
+                        on={<LockKeyhole size={16} />}
+                        off={<UnlockKeyhole size={16} />}
+                      />
+                    }
+                    pending={lockPending}
+                  />
                 </Tooltip>
                 <Tooltip content="Auto-balance factions">
-                  <button
+                  <LoadingButton
                     type="button"
                     className="icon-button"
                     aria-label="Auto-balance factions"
                     disabled={controlsBusy}
                     onClick={() => void change({ action: "balance" })}
-                  >
-                    <Shuffle size={16} aria-hidden="true" />
-                  </button>
+                    icon={<Shuffle size={16} aria-hidden="true" />}
+                    pending={operation?.action === "balance"}
+                  />
                 </Tooltip>
               </>
             )}
@@ -178,16 +180,16 @@ export function TeamOrganizer({
                 action={
                   host && teamCount > 2 ? (
                     <Tooltip content="Delete faction and reassign its players">
-                      <button
+                      <LoadingButton
                         type="button"
                         className="icon-button destructive-icon icon-button-danger faction-delete"
                         data-reveal
                         aria-label={`Delete ${factionName(team, names)}`}
                         disabled={controlsBusy}
                         onClick={() => void change({ action: "delete", team })}
-                      >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </button>
+                        icon={<Trash2 size={16} aria-hidden="true" />}
+                        pending={operation?.action === "delete" && operation.team === team}
+                      />
                     </Tooltip>
                   ) : undefined
                 }
@@ -233,14 +235,20 @@ export function TeamOrganizer({
                   )}
                 />
                 {team > 0 && assignments.find((a) => a.userId === identity)?.team !== team && (
-                  <button
+                  <LoadingButton
                     className="button button-secondary faction-join"
                     aria-label={`Join ${factionName(team, names)}`}
                     disabled={controlsBusy || (!host && changesLocked)}
                     onClick={() => void change({ action: "assign", userId: identity, team })}
+                    icon={<UserPlus size={16} aria-hidden="true" />}
+                    pending={
+                      operation?.action === "assign" &&
+                      operation.userId === identity &&
+                      operation.team === team
+                    }
                   >
-                    <UserPlus size={16} aria-hidden="true" /> Join
-                  </button>
+                    Join
+                  </LoadingButton>
                 )}
               </FactionDropZone>
             );

@@ -55,7 +55,7 @@ export function SequenceTestsEditor({
               <button
                 type="button"
                 key={test.id}
-                className="case-selector"
+                className="quiet-button selection-feedback case-selector"
                 aria-pressed={test === selected}
                 onClick={() => onSelect(test.id)}
               >
@@ -64,7 +64,7 @@ export function SequenceTestsEditor({
             ))}
             <button
               type="button"
-              className="case-selector add-case"
+              className="quiet-button selection-feedback case-selector add-case"
               disabled={!methods.length || value.length >= 20}
               onClick={() => {
                 const test = sequenceDraft(methods[0]!);

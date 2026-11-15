@@ -9,6 +9,7 @@ import "@fontsource-variable/geist";
 import "@fontsource/jetbrains-mono/400.css";
 import "@quorem/ui/theme.css";
 import "../styles/global.css";
+import "../ui/text-control.css";
 
 if (!import.meta.env.DEV) throw new Error("Development fixture only");
 
@@ -49,6 +50,8 @@ function EditorPreview() {
       <label>
         Language{" "}
         <select
+          className="text-control"
+          style={{ width: "auto" }}
           value={language}
           onChange={(event) =>
             setLanguage(event.target.value === "python" ? "python" : "typescript")
@@ -58,7 +61,11 @@ function EditorPreview() {
           <option value="typescript">TypeScript</option>
         </select>
       </label>{" "}
-      <button type="button" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+      <button
+        className="button button-secondary"
+        type="button"
+        onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      >
         {theme === "light" ? "Dark theme" : "Light theme"}
       </button>
       <p role="status">Language service {status}</p>

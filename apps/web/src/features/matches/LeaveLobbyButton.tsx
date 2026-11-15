@@ -1,24 +1,27 @@
 /** @file LeaveLobbyButton.tsx @description Explicit lobby exit, separate from dismissing results. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { LogOut } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 
 export function LeaveLobbyButton({
-  disabled,
+  disabled = false,
+  pending = false,
   onClick,
 }: {
-  disabled: boolean;
+  disabled?: boolean;
+  pending?: boolean;
   onClick: () => void;
 }) {
   return (
     <Tooltip content="Leave lobby">
-      <button
+      <LoadingButton
         className="icon-button destructive-icon completion-leave"
         aria-label="Leave lobby"
         disabled={disabled}
         onClick={onClick}
-      >
-        <LogOut size={16} aria-hidden="true" />
-      </button>
+        icon={<LogOut size={16} aria-hidden="true" />}
+        pending={pending}
+      />
     </Tooltip>
   );
 }

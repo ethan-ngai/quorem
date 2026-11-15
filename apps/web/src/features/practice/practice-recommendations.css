@@ -1,4 +1,5 @@
-.practice-recommendations {
+.practice-recommendations,
+.practice-recommendations-row:has(.daily-streak) {
   margin-block-end: var(--space-5);
   padding: var(--space-3);
   border: 1px solid var(--color-border);
@@ -17,13 +18,14 @@
 }
 
 .practice-recommendations-header {
+  flex-wrap: wrap;
   justify-content: space-between;
   min-height: var(--control-height);
   margin-block-end: var(--space-2);
   padding-inline: var(--space-1);
 }
 
-.practice-recommendations-header h2 {
+.practice-recommendations-heading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -32,7 +34,7 @@
   font-weight: 600;
 }
 
-.practice-recommendations-header h2 svg {
+.practice-recommendations-heading svg {
   color: var(--color-info);
 }
 
@@ -44,7 +46,9 @@
 }
 
 .practice-recommendations-controls {
+  margin-inline-start: auto;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .practice-recommendations-controls button[aria-disabled="true"] {
@@ -62,9 +66,29 @@
   border-radius: var(--radius-sm);
 }
 
+.practice-recommendations[data-embedded],
+.practice-recommendations-row:has(.daily-streak) > .practice-recommendations {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.practice-recommendations[data-embedded]
+  :is(.practice-recommendations-header, .practice-recommendation-slide) {
+  padding: 0;
+}
+
+.practice-recommendations[data-embedded] .practice-recommendations-track {
+  align-items: flex-start;
+}
+
 .practice-recommendation-slide {
   display: flex;
   flex: 0 0 100%;
+  min-width: 0;
   box-sizing: border-box;
   scroll-snap-align: start;
   align-items: center;
@@ -73,11 +97,15 @@
   padding: var(--space-1);
 }
 
+.practice-recommendations[data-embedded] .practice-recommendations-controls {
+  gap: var(--space-1);
+}
+
 .practice-recommendation-details {
   min-width: 0;
 }
 
-.practice-recommendation-details h3 {
+.practice-recommendation-name {
   margin: 0;
   font-size: var(--text-h3);
   font-weight: 600;
@@ -86,6 +114,8 @@
 
 .practice-recommendation-title {
   align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
   font-size: var(--text-small);
 }
 
@@ -111,13 +141,21 @@
 }
 
 @media (max-width: 650px) {
-  .practice-recommendation-slide {
+  .practice-recommendations-track {
+    align-items: flex-start;
+  }
+
+  .practice-recommendations:not([data-embedded]) .practice-recommendation-slide {
     flex-direction: column;
     align-items: stretch;
   }
 
   .practice-recommendation-actions {
     justify-content: space-between;
+  }
+
+  .practice-recommendations-controls {
+    gap: var(--space-1);
   }
 
   .practice-recommendations .icon-button {

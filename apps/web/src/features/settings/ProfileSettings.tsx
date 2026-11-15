@@ -1,5 +1,6 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useErrorNotification } from "../../ui/Notifications";
-import { Pencil, LoaderCircle, X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { useId, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,13 +29,14 @@ export function ProfileSettings({
   const photoInput = useRef<HTMLInputElement>(null);
   const profile = useProfile(userId);
   const client = useQueryClient();
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<"upload" | "remove" | number>();
+  const busy = operation !== undefined;
   const [editingColor, setEditingColor] = useState(false);
   const colorOptionsId = useId();
   const [error, setError] = useState("");
   useErrorNotification(error);
   async function changePhoto(file?: File) {
-    setBusy(true);
+    setOperation(file ? "upload" : "remove");
     setError("");
     try {
       const updated = file ? await uploadProfilePhoto(file) : await removeProfilePhoto();
@@ -42,11 +44,11 @@ export function ProfileSettings({
     } catch (cause) {
       setError(authErrorMessage(cause, "Photo update unavailable. Try again."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   async function changeColor(color: number) {
-    setBusy(true);
+    setOperation(color);
     setError("");
     try {
       const updated = await updateProfileColor(color);
@@ -56,7 +58,7 @@ export function ProfileSettings({
     } catch (cause) {
       setError(authErrorMessage(cause, "Color update unavailable. Try again."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   if (profile.isPending) return <LoadingIndicator label="Loading account…" />;
@@ -64,9 +66,13 @@ export function ProfileSettings({
     return (
       <p role="alert">
         Account unavailable.{" "}
-        <button className="quiet-button" onClick={() => void profile.refetch()}>
+        <LoadingButton
+          className="quiet-button"
+          onClick={() => void profile.refetch()}
+          pending={profile.isFetching}
+        >
           Retry
-        </button>
+        </LoadingButton>
       </p>
     );
   const account = profile.data;
@@ -76,12 +82,14 @@ export function ProfileSettings({
         {section === "profile" && (
           <div className="account-photo-editor">
             <Tooltip content="Change profile photo · JPEG, PNG or WebP · up to 5 MB and 16 megapixels.">
-              <button
+              <LoadingButton
                 className="profile-photo-trigger"
                 aria-label="Change profile photo"
-                aria-busy={busy}
-                disabled={busy}
                 onClick={() => photoInput.current?.click()}
+                icon={<Pencil size={12} />}
+                iconSize={12}
+                iconClassName="profile-photo-pencil"
+                pending={operation === "upload"}
               >
                 <AccountAvatar
                   key={account.image || "initials"}
@@ -91,14 +99,7 @@ export function ProfileSettings({
                   color={participantColor(userId, account.color)}
                   large
                 />
-                <span className="profile-photo-pencil" aria-hidden="true">
-                  {busy ? (
-                    <LoaderCircle className="settings-spinner" size={12} />
-                  ) : (
-                    <Pencil size={12} />
-                  )}
-                </span>
-              </button>
+              </LoadingButton>
             </Tooltip>
             <input
               ref={photoInput}
@@ -116,9 +117,14 @@ export function ProfileSettings({
             />
             <div>
               {account.image && (
-                <button className="quiet-button" disabled={busy} onClick={() => void changePhoto()}>
+                <LoadingButton
+                  className="quiet-button"
+                  disabled={busy}
+                  onClick={() => void changePhoto()}
+                  pending={operation === "remove"}
+                >
                   Remove photo
-                </button>
+                </LoadingButton>
               )}
             </div>
           </div>

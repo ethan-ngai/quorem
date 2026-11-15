@@ -797,10 +797,6 @@
 .admin-field-icon {
   display: inline-flex;
   color: var(--color-text-secondary);
-}
-.admin-field-icon:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
 .admin-field-unit {
@@ -951,10 +947,6 @@
   height: var(--control-height);
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
-}
-.authoring-solution-status:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 .authoring-language-actions > .select-field {
   width: auto;

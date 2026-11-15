@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { inputConstraints, validateInput, withMaxCharacters } from "../../ui/input-constraints";
 import { PersistentNotice } from "../../ui/PersistentNotice";
@@ -378,9 +379,9 @@ export function QuestionSetup({
         )}
         <footer className="competitive-dialog-actions">
           <PersistentNotice message={error} label="Question setup needs attention" />
-          <button className="button button-primary" disabled={busy}>
+          <LoadingButton className="button button-primary" pending={busy}>
             {busy ? "Working…" : label}
-          </button>
+          </LoadingButton>
         </footer>
       </form>
     </QuestionLanguage.Provider>

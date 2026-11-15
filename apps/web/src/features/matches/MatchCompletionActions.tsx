@@ -1,7 +1,7 @@
 /** @file MatchCompletionActions.tsx @description Shared post-match navigation and quick readiness. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { FileSearch, Plus, RotateCcw, Users, X, Zap } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
-import { SpinnerSwap } from "../../ui/Spinner";
 
 export function PlayerCodeReviewButton({ name, onClick }: { name: string; onClick: () => void }) {
   const label = `Review code for ${name}`;
@@ -58,23 +58,23 @@ export function MatchCompletionActions({
         </a>
       )}
       {readiness && (
-        <button
+        <LoadingButton
           className={`button match-completion-primary ${readiness.ready ? "button-secondary" : "button-primary"}`}
-          disabled={readiness.disabled || readiness.pending}
-          aria-busy={readiness.pending}
+          disabled={readiness.disabled}
           onClick={readiness.onClick}
-        >
-          <SpinnerSwap pending={readiness.pending}>
-            {readiness.retry ? (
+          icon={
+            readiness.retry ? (
               <RotateCcw size={16} />
             ) : readiness.ready ? (
               <X size={16} />
             ) : (
               <Zap size={16} />
-            )}
-          </SpinnerSwap>
+            )
+          }
+          pending={readiness.pending}
+        >
           {readiness.retry ? "Retry readiness" : readiness.ready ? "Unready" : "Quick ready"}
-        </button>
+        </LoadingButton>
       )}
     </div>
   );

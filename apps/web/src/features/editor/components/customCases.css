@@ -103,7 +103,6 @@
   margin: 0;
   color: var(--color-text-secondary);
 }
-.case-selector:disabled,
 .custom-case-heading button:disabled {
   opacity: 0.5;
   cursor: default;

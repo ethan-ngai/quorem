@@ -8,7 +8,6 @@
   width: 32px;
   height: 32px;
   color: var(--color-text);
-  text-decoration: none;
 }
 .brand-mark {
   display: inline-block;
@@ -16,10 +15,6 @@
   height: 24px;
   background: currentColor;
   mask: url("/logo-pixel.svg") center / contain no-repeat;
-}
-
-* {
-  box-sizing: border-box;
 }
 
 html,
@@ -39,31 +34,34 @@ body {
   line-height: 1.5;
 }
 
-button,
-input,
-select,
-textarea {
-  color: inherit;
-  font: inherit;
+:root {
+  --viewport-backdrop-strength: 40%;
+  transition: background-color var(--motion-standard) var(--motion-easing);
 }
 
-button,
-select,
-input[type="checkbox"] {
-  cursor: pointer;
+/* Scroll lock replaces the native gutter with its measured body margin. */
+:root:has(> body[data-scroll-locked]) {
+  scrollbar-gutter: auto;
 }
 
-button:focus-visible,
-a:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-summary:focus-visible,
-[role="separator"]:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  position: relative;
-  z-index: 2;
+body[data-scroll-locked] {
+  --locked-viewport-gutter: var(--viewport-gutter-width, var(--removed-body-scroll-bar-size, 0px));
+  width: calc(100% - var(--locked-viewport-gutter));
+}
+
+/* Nonmodal backdrops leave the native scrollbar in place. */
+:root:has(.viewport-backdrop[data-state="open"]):not(:has(> body[data-scroll-locked])) {
+  background-color: color-mix(
+    in srgb,
+    black var(--viewport-backdrop-strength),
+    var(--color-background)
+  );
+}
+
+.viewport-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black var(--viewport-backdrop-strength), transparent);
 }
 
 @media (prefers-reduced-motion: no-preference) {

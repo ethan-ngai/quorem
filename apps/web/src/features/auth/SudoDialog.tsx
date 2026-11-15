@@ -1,4 +1,5 @@
 /** @file SudoDialog.tsx @description Reauthentication through enabled account methods. @module auth */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { sudoLifetimeSeconds } from "@quorem/contracts/auth-policy";
 import { useState, useSyncExternalStore } from "react";
 import { KeyRound, Fingerprint, Mail } from "lucide-react";
@@ -148,10 +149,11 @@ function SudoPrompt({ status }: { status: SudoStatus }) {
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             type="submit"
             className="button button-primary"
-            disabled={busy || !methods.length}
+            disabled={!methods.length}
+            pending={busy}
           >
             {busy
               ? "Verifying…"
@@ -160,7 +162,7 @@ function SudoPrompt({ status }: { status: SudoStatus }) {
                 : method === "passkey"
                   ? "Use passkey"
                   : "Confirm"}
-          </button>
+          </LoadingButton>
         </footer>
       </form>
     </SessionDialog>

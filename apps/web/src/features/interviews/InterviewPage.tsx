@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { SubmissionCelebration } from "../completion/SubmissionCelebration";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { UserFacingError, userFacingErrorMessage } from "../../ui/errors";
@@ -555,7 +556,7 @@ function InterviewPad({
                 onOpenChange={setMembers}
                 busy={busy}
                 onRole={(userId, role) => void mutate("members", { userId, role })}
-                onRemove={(userId) => void mutate(`members/${encodeURIComponent(userId)}/remove`)}
+                onRemove={(userId) => mutate(`members/${encodeURIComponent(userId)}/remove`)}
               />
               {interviewer && !closed && (
                 <Tooltip content="Change question">
@@ -695,9 +696,13 @@ function InterviewPad({
           {result.isError && (
             <p className="result-message" role="alert">
               Could not load results.{" "}
-              <button className="quiet-button" onClick={() => void result.refetch()}>
+              <LoadingButton
+                className="quiet-button"
+                onClick={() => void result.refetch()}
+                pending={result.isFetching}
+              >
                 Retry
-              </button>
+              </LoadingButton>
             </p>
           )}
         </>

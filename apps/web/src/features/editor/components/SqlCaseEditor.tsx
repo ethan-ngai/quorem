@@ -96,7 +96,7 @@ function EditableTable({
                         <Tooltip content={value === null ? "Set value" : "Set NULL"}>
                           <button
                             type="button"
-                            className="sql-null-toggle"
+                            className="quiet-button sql-null-toggle"
                             aria-label={`${value === null ? "Set value for" : "Set NULL for"} ${label}`}
                             onClick={() =>
                               setCell(

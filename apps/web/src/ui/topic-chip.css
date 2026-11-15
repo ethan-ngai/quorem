@@ -11,3 +11,17 @@
 .topic-chip:hover {
   color: var(--color-text);
 }
+
+.practice-topic-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 650px) {
+  .practice-topic-list button {
+    min-height: 28px;
+    padding: var(--space-1) var(--space-2);
+  }
+}

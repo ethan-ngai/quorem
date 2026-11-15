@@ -1,3 +1,4 @@
+import { LoadingIcon } from "../../../ui/LoadingButton";
 import { caseGraphTargets, inferCaseGraph } from "@quorem/questions";
 import { primarySignature } from "@quorem/questions";
 import { PersistentNotice } from "../../../ui/PersistentNotice";
@@ -295,7 +296,7 @@ export function TestCases({
       <button
         type="button"
         key={customMode ? (item as CustomCaseDraft).id : index}
-        className="case-selector"
+        className="quiet-button selection-feedback case-selector"
         aria-pressed={!showingHidden && index === (customMode ? customIndex : sampleIndex)}
         aria-label={`Case ${index + 1}${runningCase ? ": pending" : statuses[index] ? `: ${statuses[index]!.replaceAll("_", " ")}` : ""}`}
         onClick={() => {
@@ -406,7 +407,7 @@ export function TestCases({
                     type="button"
                     key={index}
                     ref={activeHidden === index ? hiddenSelector : undefined}
-                    className="case-selector"
+                    className="quiet-button selection-feedback case-selector"
                     aria-pressed={activeHidden === index}
                     aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : (status?.replaceAll("_", " ") ?? "pending")}`}
                     onClick={() => setSelectedHidden(index)}
@@ -421,7 +422,7 @@ export function TestCases({
           {customMode && (
             <button
               type="button"
-              className="case-selector add-case"
+              className="quiet-button selection-feedback case-selector add-case"
               disabled={drafts.length >= maximumCases}
               onClick={() => {
                 const added = {
@@ -663,14 +664,13 @@ function CaseIndicator({
   pending: boolean;
   status?: PublicCaseResult["status"];
 }) {
-  if (pending) return <span className="case-spinner" aria-hidden="true" />;
-  if (!status || status === "executed") return null;
-  return (
+  const icon = status && status !== "executed" && (
     <Icon
       name={status === "accepted" ? "submit" : "close"}
       className={status === "accepted" ? "verdict-success" : "verdict-error"}
     />
   );
+  return pending || icon ? <LoadingIcon pending={pending} icon={icon} size={14} /> : null;
 }
 
 /** Shared verdict for current and previous case groups. */

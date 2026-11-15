@@ -98,13 +98,8 @@
   padding-top: var(--space-1);
 }
 .admin-overview-link {
-  color: var(--color-primary);
   white-space: nowrap;
   font-size: var(--text-small);
-  text-decoration: none;
-}
-.admin-overview-link:hover {
-  text-decoration: underline;
 }
 .admin-overview-table {
   overflow-x: auto;
@@ -152,7 +147,6 @@
 }
 .admin-overview-drafts a {
   color: var(--color-text);
-  text-decoration: none;
   justify-content: space-between;
   font-size: var(--text-small);
   font-weight: 500;

@@ -16,6 +16,20 @@ const selection = (item: z.ZodType) =>
 const label = z
   .string()
   .refine((value) => value.length > 0 && !value.includes("\0") && Array.from(value).length <= 80);
+export const topicGroupSelection = z.union([label, z.null()]);
+const topicGroup = z
+  .string()
+  .max(512)
+  .transform((value, ctx) => {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Invalid topic group" });
+      return z.NEVER;
+    }
+  })
+  .pipe(topicGroupSelection)
+  .optional();
 const match = z.enum(["any", "all"]).optional();
 export const catalogQuery = z.strictObject({
   q: z
@@ -33,6 +47,8 @@ export const catalogQuery = z.strictObject({
   sql: z.enum(["", "true", "false"]).default(""),
   page: z.string().optional(),
   limit: z.string().optional(),
+  groupBy: z.literal("topic").optional(),
+  topicGroup,
   sort: z.string().optional(),
   order: z.string().optional(),
 });

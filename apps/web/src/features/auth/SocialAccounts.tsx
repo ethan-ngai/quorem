@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Link, Unlink } from "lucide-react";
@@ -21,7 +22,8 @@ export function SocialAccounts({ userId }: { userId: string }) {
     queryFn: fetchAuthCapabilities,
   });
   const accounts = useQuery({ queryKey: ["account-connections", userId], queryFn: listAccounts });
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<SocialProvider | "disconnect">();
+  const busy = operation !== undefined;
   const [error, setError] = useState("");
   const [disconnect, setDisconnect] = useState<{
     provider: SocialProvider;
@@ -30,7 +32,7 @@ export function SocialAccounts({ userId }: { userId: string }) {
   const cancelDisconnect = useRef<HTMLButtonElement>(null);
   useErrorNotification(error);
   async function update(provider: SocialProvider, account?: ConnectedAccount) {
-    setBusy(true);
+    setOperation(account ? "disconnect" : provider);
     setError("");
     try {
       if (account) {
@@ -43,7 +45,7 @@ export function SocialAccounts({ userId }: { userId: string }) {
     } catch (cause) {
       setError(authErrorMessage(cause, "Connection update unavailable."));
     } finally {
-      setBusy(false);
+      setOperation(undefined);
     }
   }
   const providers = socialProviders.filter(
@@ -119,14 +121,15 @@ export function SocialAccounts({ userId }: { userId: string }) {
                   })
                 ) : (
                   <Tooltip content={`Connect ${labels[provider]}`}>
-                    <button
+                    <LoadingButton
                       className="icon-button"
                       disabled={busy || !capabilities.data?.providers.includes(provider)}
                       onClick={() => void update(provider)}
                       aria-label={`Connect ${labels[provider]}`}
-                    >
-                      <Link size={18} />
-                    </button>
+                      icon={<Link size={18} />}
+                      iconSize={18}
+                      pending={operation === provider}
+                    />
                   </Tooltip>
                 )}
               </li>
@@ -155,7 +158,7 @@ export function SocialAccounts({ userId }: { userId: string }) {
           </>
         }
         description={`You won’t be able to sign in with ${disconnect ? labels[disconnect.provider] : "this account"} until you connect it again.`}
-        pending={busy}
+        pending={operation === "disconnect"}
         initialFocus={cancelDisconnect}
       >
         <div className="competitive-dialog-actions">
@@ -167,15 +170,15 @@ export function SocialAccounts({ userId }: { userId: string }) {
           >
             Cancel
           </button>
-          <button
+          <LoadingButton
             className="button button-danger"
-            disabled={busy}
             onClick={() => {
               if (disconnect) void update(disconnect.provider, disconnect.account);
             }}
+            pending={operation === "disconnect"}
           >
-            {busy ? "Disconnecting…" : "Disconnect"}
-          </button>
+            {operation === "disconnect" ? "Disconnecting…" : "Disconnect"}
+          </LoadingButton>
         </div>
       </SessionDialog>
     </section>

@@ -103,11 +103,7 @@ const termsRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: () => (
-    <a className="text-link" href="/">
-      Open Quorem home
-    </a>
-  ),
+  component: () => <a href="/">Open Quorem home</a>,
 });
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -284,7 +280,12 @@ const CompletionDemo = lazy(() =>
     default: module.CompletionDemo,
   })),
 );
-const completionDemoRoutes = import.meta.env.DEV
+const DashboardDemo = lazy(() =>
+  import("./features/dashboard/DashboardDemo").then((module) => ({
+    default: module.DashboardDemo,
+  })),
+);
+const demoRoutes = import.meta.env.DEV
   ? [
       createRoute({
         getParentRoute: () => rootRoute,
@@ -295,11 +296,20 @@ const completionDemoRoutes = import.meta.env.DEV
           </Suspense>
         ),
       }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/dev/dashboard",
+        component: () => (
+          <Suspense fallback={<LoadingScreen label="Opening dashboard demo…" />}>
+            <DashboardDemo />
+          </Suspense>
+        ),
+      }),
     ]
   : [];
 
 const routeTree = rootRoute.addChildren([
-  ...completionDemoRoutes,
+  ...demoRoutes,
   privacyRoute,
   termsRoute,
   interviewsRoute,

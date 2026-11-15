@@ -1,7 +1,8 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useFactionLobby } from "../factions/useFactionLobby";
 import { allFactionsOccupied } from "@quorem/contracts/factions";
 import { StateIcon } from "../../ui/StateIcon";
-import { LoadingIndicator, SpinnerSwap } from "../../ui/Spinner";
+import { LoadingIndicator } from "../../ui/Spinner";
 import { TeamOrganizer } from "../factions/TeamOrganizer";
 /** @file PartyPage.tsx @description Persistent lobby and shared readiness controls. @module matches */
 import { participantUserId } from "@quorem/contracts";
@@ -47,7 +48,8 @@ export function PartyPage() {
   const [pendingOperation, setPendingOperation] = useState<string>();
   const pending = pendingOperation !== undefined;
   const readyPending = pendingOperation === "ready";
-  const [joiningPending, setJoiningPending] = useState(false);
+  const [joiningAction, setJoiningAction] = useState<"guest" | "lock">();
+  const joiningPending = joiningAction !== undefined;
   const [pendingSettings, setPendingSettings] = useState<{
     partyId: string;
     value: PartySettings;
@@ -90,7 +92,12 @@ export function PartyPage() {
       }))
       .find((entry) => entry.command);
   const inviteUrl = party ? readPartyInvitation(party.id) : undefined;
-  const run = async (operation: string, body?: unknown, method = "POST", scope = "all") => {
+  const run = async (
+    operation: string,
+    body?: unknown,
+    method = "POST",
+    scope?: "guest" | "lock",
+  ) => {
     if (!party) return;
     const settings = operation === "settings" ? (body as PartySettings) : undefined;
     if (activeCommand.current) {
@@ -98,7 +105,7 @@ export function PartyPage() {
         settings &&
         activeCommand.current.operation === "settings" &&
         activeCommand.current.partyId === party.id &&
-        scope !== "joining"
+        !scope
       ) {
         queuedSettings.current = settings;
         setPendingSettings({ partyId: party.id, value: settings });
@@ -107,7 +114,7 @@ export function PartyPage() {
     }
     activeCommand.current = { operation, partyId: party.id };
     setPendingOperation(operation);
-    setJoiningPending(scope === "joining");
+    setJoiningAction(scope);
     if (settings) setPendingSettings({ partyId: party.id, value: settings });
     setError("");
     const path = `/v1/parties/${party.id}/${operation}`;
@@ -147,7 +154,7 @@ export function PartyPage() {
       activeCommand.current = undefined;
       queuedSettings.current = undefined;
       setPendingOperation(undefined);
-      setJoiningPending(false);
+      setJoiningAction(undefined);
       setPendingSettings(undefined);
     }
   };
@@ -170,9 +177,13 @@ export function PartyPage() {
         {nav}
         <section className="match-page-content">
           <h1>Lobby unavailable</h1>
-          <button className="button button-secondary" onClick={() => void query.refetch()}>
+          <LoadingButton
+            className="button button-secondary"
+            onClick={() => void query.refetch()}
+            pending={query.isFetching}
+          >
             Try again
-          </button>
+          </LoadingButton>
           <Link className="button button-secondary" to="/practice">
             Back to practice
           </Link>
@@ -203,15 +214,15 @@ export function PartyPage() {
         <div className="lobby-ready-actions">
           {!party.currentMatchId && (
             <Tooltip content={factionReadyHint} disabled={!!own?.ready || factionsReady}>
-              <button
+              <LoadingButton
                 className={`button ${own?.ready ? "button-secondary" : "button-primary"}`}
                 aria-label={readyLabel}
-                aria-busy={readyPending}
                 disabled={!!recovery || !own?.online || (!own.ready && !factionsReady)}
                 onClick={() => void run("ready", { ready: !own?.ready })}
+                pending={readyPending}
               >
-                <SpinnerSwap pending={readyPending}>{readyLabel}</SpinnerSwap>
-              </button>
+                {readyLabel}
+              </LoadingButton>
             </Tooltip>
           )}
         </div>
@@ -244,6 +255,7 @@ export function PartyPage() {
                 <GuestAccessToggle
                   allowed={guestsAllowed}
                   disabled={joiningPending || !!recovery}
+                  pending={joiningAction === "guest"}
                   onToggle={() =>
                     void run(
                       "settings",
@@ -252,7 +264,7 @@ export function PartyPage() {
                         accessMode: guestsAllowed ? "accounts_only" : "guests_allowed",
                       },
                       "PUT",
-                      "joining",
+                      "guest",
                     )
                   }
                 />
@@ -265,7 +277,7 @@ export function PartyPage() {
                       : "Lock lobby joining"
                   }
                 >
-                  <button
+                  <LoadingButton
                     type="button"
                     className="icon-button"
                     aria-label={
@@ -274,32 +286,36 @@ export function PartyPage() {
                         : "Lock lobby joining"
                     }
                     aria-pressed={!!displayedSettings.admissionLocked}
-                    aria-busy={joiningPending}
-                    disabled={joiningPending || !!recovery}
                     onClick={() =>
                       void run(
                         "settings",
                         { ...party.settings, admissionLocked: !party.settings.admissionLocked },
                         "PUT",
-                        "joining",
+                        "lock",
                       )
                     }
-                  >
-                    <StateIcon
-                      active={!!displayedSettings.admissionLocked}
-                      on={<DoorClosed size={16} />}
-                      off={<DoorOpen size={16} />}
-                    />
-                  </button>
+                    icon={
+                      <StateIcon
+                        active={!!displayedSettings.admissionLocked}
+                        on={<DoorClosed size={16} />}
+                        off={<DoorOpen size={16} />}
+                      />
+                    }
+                    disabled={joiningPending || !!recovery}
+                    pending={joiningAction === "lock"}
+                  />
                 </Tooltip>
               )}
-              <LeaveLobbyButton disabled={!!recovery} onClick={() => void run("leave")} />
+              <LeaveLobbyButton
+                pending={pendingOperation === "leave"}
+                disabled={!!recovery}
+                onClick={() => void run("leave")}
+              />
               {host && !party.currentMatchId && (
                 <Tooltip content="Disband lobby">
                   <button
                     className="icon-button destructive-icon"
                     aria-label="Disband lobby"
-                    disabled={!!recovery}
                     onClick={() => setDisbanding(true)}
                   >
                     <Trash2 size={16} aria-hidden="true" />
@@ -397,13 +413,14 @@ export function PartyPage() {
             >
               Cancel
             </button>
-            <button
+            <LoadingButton
               className="button button-danger"
               disabled={controlsPending}
               onClick={() => kicking && void run("kick", { userId: kicking.userId })}
+              pending={pendingOperation === "kick"}
             >
               Remove player
-            </button>
+            </LoadingButton>
           </div>
         </SessionDialog>
         <SessionDialog
@@ -421,13 +438,14 @@ export function PartyPage() {
             >
               Cancel
             </button>
-            <button
+            <LoadingButton
               className="button button-danger"
               disabled={controlsPending}
               onClick={() => void run("disband")}
+              pending={pendingOperation === "disband"}
             >
               Disband
-            </button>
+            </LoadingButton>
           </div>
         </SessionDialog>
       </section>

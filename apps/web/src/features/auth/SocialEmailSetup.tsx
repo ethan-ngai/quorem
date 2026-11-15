@@ -1,3 +1,4 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { TextInput } from "../../ui/TextControl";
 import { authInputConstraints } from "./inputConstraints";
 import { emailSchema } from "@quorem/contracts/auth";
@@ -106,7 +107,11 @@ export function SocialEmailSetup() {
               <p role="status">Check {email} for a verification link. Open it in this browser.</p>
             )}
             <NoticeRegion message={error} label="Email verification needs attention">
-              <button className="button button-primary" disabled={busy || cooldown.remaining > 0}>
+              <LoadingButton
+                className="button button-primary"
+                disabled={cooldown.remaining > 0}
+                pending={busy}
+              >
                 {busy
                   ? "Continuing…"
                   : token
@@ -116,7 +121,7 @@ export function SocialEmailSetup() {
                       : sent
                         ? "Resend verification"
                         : "Verify email"}
-              </button>
+              </LoadingButton>
             </NoticeRegion>
           </form>
         </section>
