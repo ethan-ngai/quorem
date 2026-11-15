@@ -24,6 +24,7 @@ import {
 import {
   isTopic,
   primaryFoundationalTopic,
+  restrictedTopicPublications,
   topicColumns,
   topicJoin,
   topicMatches,
@@ -135,11 +136,8 @@ function projected(row: Projected): JsonValue {
 }
 async function restrictedTopicIds(tx: Transaction, actor: ProblemActor | undefined) {
   if (!actor?.userId) return [];
-  const restricted = (
-    await tx.execute<{ id: string }>(
-      sql`SELECT m.publication_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${actor.userId} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`,
-    )
-  ).rows;
+  const restricted = (await tx.execute<{ id: string }>(restrictedTopicPublications(actor.userId)))
+    .rows;
   return restricted.map(({ id }) => id);
 }
 function redactMatchTopics(restricted: string[], values: JsonValue[]) {

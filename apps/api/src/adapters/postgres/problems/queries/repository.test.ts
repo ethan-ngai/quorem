@@ -8,6 +8,8 @@ import {
 } from "@quorem/database/core";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
+import { dashboardRoutes } from "../../../../modules/dashboard/routes.ts";
+import { playerDashboard } from "../../dashboard/repository.ts";
 import { problemQueries } from "./repository.ts";
 import { createApp } from "../../../../app.ts";
 import { problemRoutes } from "../../../../modules/problems/routes.ts";
@@ -172,6 +174,65 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         "INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2)",
         [solo[2], versions[2]],
       );
+      const dashboard = playerDashboard((operation) =>
+        withNodeConnection(pool, { lifetimeMs: 5000 }, operation),
+      );
+      await pool.query(
+        `INSERT INTO question_learning_events
+          (submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at,observed_at)
+          SELECT gen_random_uuid(),$1,$2,'easy','{}',accepted,'practice',at,at
+          FROM (VALUES
+            (true, (now() AT TIME ZONE 'UTC')::date - 1 + time '12:00'),
+            (true, (now() AT TIME ZONE 'UTC')::date - 2 + time '12:00'),
+            (false, (now() AT TIME ZONE 'UTC')::date - 3 + time '12:00')
+          ) AS samples(accepted,at)`,
+        [owner, versions[0]],
+      );
+      expect(await dashboard(owner, "UTC")).toMatchObject({
+        streakDays: 2,
+        activity: [
+          { day: -2, practice: 1, matches: 0 },
+          { day: -1, practice: 1, matches: 0 },
+        ],
+        solved: { easy: 2, medium: 0, hard: 0 },
+        odyssey: { slug: `${uid}-2`, stage: 2 },
+        practice: null,
+      });
+      expect(await dashboard(other, "UTC")).toMatchObject({
+        streakDays: 0,
+        activity: [],
+        recent: [],
+        solved: { easy: 0, medium: 0, hard: 0 },
+      });
+      const home = createApp({ allowedOrigins: [], requestId: () => "dashboard-test" }).route(
+        "/",
+        dashboardRoutes({
+          identify: async (request) =>
+            request.headers.has("Authorization")
+              ? {
+                  kind: "local",
+                  userId: owner,
+                  displayName: "Owner",
+                  admin: false,
+                  emailVerified: true,
+                  sessionId: "dashboard-test",
+                  strongUntil: 0,
+                }
+              : undefined,
+          read: dashboard,
+        }),
+      );
+      expect((await home.request("/v1/me/dashboard")).status).toBe(401);
+      const response = await home.request(`/v1/me/dashboard?timeZone=UTC&owner=${other}`, {
+        headers: { Authorization: "test" },
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ streakDays: 2 });
+      expect(response.headers.get("cache-control")).toContain("no-store");
+      const invalidZone = await home.request("/v1/me/dashboard?timeZone=Invalid/Zone", {
+        headers: { Authorization: "test" },
+      });
+      expect(invalidZone.status).toBe(400);
       const role = `catalog_${uid}`;
       const rolePassword = crypto.randomUUID();
       await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${rolePassword}'`);

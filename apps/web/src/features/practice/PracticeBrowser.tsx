@@ -16,7 +16,7 @@ import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
 import { useAccountIdentity } from "../matches/MatchControls";
 import { DailyStreak } from "../activity/DailyStreak";
-import { sampleActiveStreakDays } from "../activity/streakFixtures";
+import { playerDashboardQuery } from "../activity/playerDashboardQuery";
 import { GlobalNav } from "../navigation/GlobalNav";
 import { SearchField } from "../../ui/SearchField";
 import { useServerSearch } from "../../ui/useServerSearch";
@@ -34,6 +34,9 @@ export function PracticeBrowser() {
   const { identity, account: session } = useAccountIdentity();
   const queryClient = useQueryClient();
   const actor = session.data === undefined ? undefined : identity;
+  const dashboard = useQuery(
+    playerDashboardQuery(identity, !!session.data && session.data.kind !== "guest"),
+  );
   const { preference, setPreference } = useTheme();
   const rawSearch = useSearch({ from: "/practice" });
   const search = useMemo(() => catalogSearch(rawSearch), [rawSearch]);
@@ -133,7 +136,7 @@ export function PracticeBrowser() {
             actor={actor}
             scope={{ ...scope, library }}
           />
-          {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} />}
+          {dashboard.data && <DailyStreak days={dashboard.data.streakDays} />}
         </div>
         <div className="practice-toolbar">
           <SearchField

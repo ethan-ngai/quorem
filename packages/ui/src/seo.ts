@@ -9,6 +9,7 @@ export const publicPaths = ["/", "/practice", "/privacy", "/terms"];
 
 const pages: Record<string, { title: string; description: string }> = {
   "/": { title: siteTitle, description: siteDescription },
+  "/home": { title: "Home - Quorem", description: "Your Quorem practice and match activity." },
   "/practice": {
     title: "Coding Practice - Quorem",
     description:

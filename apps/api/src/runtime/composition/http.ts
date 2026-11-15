@@ -1,3 +1,5 @@
+import { dashboardRoutes } from "../../modules/dashboard/routes.ts";
+import { playerDashboard } from "../../adapters/postgres/dashboard/repository.ts";
 import { factionRoutes } from "../../modules/factions/routes.ts";
 import { factionRepository } from "../../adapters/postgres/factions/repository.ts";
 import { teamActionExecutor } from "../../adapters/postgres/factions/actions.ts";
@@ -132,6 +134,7 @@ export function composeHttp(ports: HttpPorts) {
       ),
     }),
   );
+  app.route("/", dashboardRoutes({ identify, read: playerDashboard(run) }));
   app.route("/", adminRoutes({ identify, overview: adminOverview(run) }));
   app.route("/", problemRoutes({ queries: problemQueries(run), identify }));
   app.route(

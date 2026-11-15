@@ -15,6 +15,64 @@
     }
   ],
   "paths": {
+    "/v1/me/dashboard": {
+      "get": {
+        "operationId": "getPlayerDashboard",
+        "description": "Private dashboard for the current account. Calendar days use the requested time zone.",
+        "parameters": [
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current player summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerDashboard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid timezone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Account required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/overview": {
       "get": {
         "operationId": "getAdminOverview",
@@ -5215,6 +5273,238 @@
       }
     },
     "schemas": {
+      "PlayerDashboard": {
+        "type": "object",
+        "properties": {
+          "streakDays": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "integer"
+                },
+                "practice": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "matches": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": ["day", "practice", "matches"]
+            }
+          },
+          "solved": {
+            "type": "object",
+            "properties": {
+              "easy": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "medium": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hard": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["easy", "medium", "hard"]
+          },
+          "odysseysCompleted": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "topic": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": ["topic", "count"]
+            }
+          },
+          "matches": {
+            "type": "object",
+            "properties": {
+              "victory": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "draw": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "loss": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["victory", "draw", "loss"]
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "day": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["practiceAccepted"]
+                    },
+                    "difficulty": {
+                      "type": "string",
+                      "enum": ["easy", "medium", "hard"]
+                    }
+                  },
+                  "required": ["id", "day", "title", "kind", "difficulty"]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "day": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["matchPlayed"]
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": ["victory", "draw", "loss"]
+                    }
+                  },
+                  "required": ["id", "day", "title", "kind", "outcome"]
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "day": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["odyssey"]
+                    },
+                    "difficulty": {
+                      "type": "string",
+                      "enum": ["easy", "medium", "hard"]
+                    }
+                  },
+                  "required": ["id", "day", "title", "kind", "difficulty"]
+                }
+              ]
+            }
+          },
+          "practice": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": ["easy", "medium", "hard"]
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["slug", "title", "difficulty", "tags"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "odyssey": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "slug": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": ["easy", "medium", "hard"]
+                  },
+                  "stage": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "stages": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["slug", "title", "difficulty", "stage", "stages"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "streakDays",
+          "activity",
+          "solved",
+          "odysseysCompleted",
+          "topics",
+          "matches",
+          "recent",
+          "practice",
+          "odyssey"
+        ]
+      },
       "FactionLobby": {
         "type": "object",
         "properties": {

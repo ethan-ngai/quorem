@@ -105,6 +105,21 @@ const indexRoute = createRoute({
   path: "/",
   component: () => <a href="/">Open Quorem home</a>,
 });
+const DashboardPage = lazy(() =>
+  import("./features/dashboard/DashboardPage").then(({ DashboardPage }) => ({
+    default: DashboardPage,
+  })),
+);
+const homeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/home",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href),
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening home…" />}>
+      <DashboardPage />
+    </Suspense>
+  ),
+});
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/practice",
@@ -318,6 +333,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute.addChildren([adminIndexRoute, adminUnknownRoute]),
   questionsRoute,
   indexRoute,
+  homeRoute,
   loginRoute,
   practiceRoute,
   problemRoute,
