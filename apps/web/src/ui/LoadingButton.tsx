@@ -1,5 +1,4 @@
 import type { ComponentProps, ReactNode } from "react";
-import { RotateCw } from "lucide-react";
 import { Spinner } from "./Spinner";
 import { StateIcon } from "./StateIcon";
 import { useLoadingVisibility } from "./LoadingState";
@@ -34,9 +33,7 @@ export function LoadingButton({
   iconSize?: number;
   iconClassName?: string;
 }) {
-  const indicator = (
-    <LoadingIcon pending={pending} size={iconSize} icon={icon ?? <RotateCw size={iconSize} />} />
-  );
+  const indicator = <LoadingIcon pending={pending} size={iconSize} icon={icon} />;
   return (
     <button
       {...props}
