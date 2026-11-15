@@ -1,6 +1,7 @@
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
 import { invalidateAvatarHints } from "./avatarCache";
+import { isSignInReturnPath } from "./signInReferral";
 export type Session = {
   authSubject?: string;
   avatar?: { name?: string; image?: string; color?: number };
@@ -160,13 +161,7 @@ export function useSession() {
 }
 export function signInDestination(search: string = location.search ?? ""): string {
   const requested = new URLSearchParams(search).get("returnTo") ?? "";
-  return /^\/(practice|match|party|invite|admin|questions|interviews|interview|interview-invite)(\/|\?|#|$)/.test(
-    requested,
-  ) &&
-    !requested.includes("\\") &&
-    !/[\r\n]/.test(requested)
-    ? requested
-    : "/practice";
+  return isSignInReturnPath(requested) ? requested : "/practice";
 }
 export async function signInWithPassword(username: string, password: string) {
   const response = await fetch(

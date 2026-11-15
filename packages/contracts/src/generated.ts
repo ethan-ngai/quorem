@@ -7,6 +7,23 @@ export type WireValue = null | number | boolean | string | WireValue[] | {
     [key: string]: WireValue;
 };
 export interface paths {
+    "/v1/me/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Private dashboard for the current account. Calendar days use the requested time zone. */
+        get: operations["getPlayerDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/overview": {
         parameters: {
             query?: never;
@@ -1374,6 +1391,69 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PlayerDashboard: {
+            streakDays: number;
+            activity: {
+                day: number;
+                practice: number;
+                matches: number;
+            }[];
+            solved: {
+                easy: number;
+                medium: number;
+                hard: number;
+            };
+            odysseysCompleted: number;
+            topics: {
+                topic: string;
+                count: number;
+            }[];
+            matches: {
+                victory: number;
+                draw: number;
+                loss: number;
+            };
+            recent: ({
+                id: string;
+                day: number;
+                title: string;
+                /** @enum {string} */
+                kind: "practiceAccepted";
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+            } | {
+                id: string;
+                day: number;
+                title: string;
+                /** @enum {string} */
+                kind: "matchPlayed";
+                /** @enum {string} */
+                outcome: "victory" | "draw" | "loss";
+            } | {
+                id: string;
+                day: number;
+                title: string;
+                /** @enum {string} */
+                kind: "odyssey";
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+            })[];
+            practice: {
+                slug: string;
+                title: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                tags: string[];
+            } | null;
+            odyssey: {
+                slug: string;
+                title: string;
+                /** @enum {string} */
+                difficulty: "easy" | "medium" | "hard";
+                stage: number;
+                stages: number;
+            } | null;
+        };
         FactionLobby: {
             teamCount: number;
             assignments: {
@@ -2689,6 +2769,55 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getPlayerDashboard: {
+        parameters: {
+            query?: {
+                timeZone?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current player summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlayerDashboard"];
+                };
+            };
+            /** @description Invalid timezone */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Account required */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     getAdminOverview: {
         parameters: {
             query?: never;

@@ -1,3 +1,4 @@
+import { playerDashboardKey } from "../activity/playerDashboardQuery";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { DevelopmentIdentity, paths, PublishedQuestion } from "@quorem/contracts";
 import { api, publicApi, requireData } from "../../api/client";
@@ -58,7 +59,10 @@ const catalogScope = (scope: string, library: CatalogSearch["library"], search: 
   ] as const;
 
 export function invalidatePracticeCatalog(client: QueryClient, identity: DevelopmentIdentity) {
-  return client.invalidateQueries({ queryKey: ["public-problems", identity] });
+  return Promise.all([
+    client.invalidateQueries({ queryKey: ["public-problems", identity] }),
+    client.invalidateQueries({ queryKey: playerDashboardKey(identity) }),
+  ]);
 }
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {

@@ -1,6 +1,7 @@
 /** @file DashboardHighlights.tsx @description Activity timeline and stat charts. @module dashboard */
 import { BookOpen, Swords } from "lucide-react";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
+import type { PlayerDashboard } from "@quorem/contracts";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
@@ -11,13 +12,9 @@ const timelineKinds = {
   odyssey: { label: "Odyssey", Icon: OdysseyIcon },
 } as const;
 
-type TimelineEvent = { day: number; title: string } & (
-  | { kind: "practiceAccepted"; difficulty: Parameters<typeof DifficultyLabel>[0]["difficulty"] }
-  | { kind: "matchPlayed"; outcome: "victory" | "loss" }
-  | { kind: "odyssey"; detail: string }
-);
+const outcomeLabels = { victory: "Victory", loss: "Loss", draw: "Draw" };
 
-export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }) {
+export function DashboardTimeline({ items }: { items: PlayerDashboard["recent"] }) {
   if (!items.length) return null;
   const today = new Date();
   return (
@@ -35,7 +32,7 @@ export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }
             .map((part) => String(part).padStart(2, "0"))
             .join("-");
           return (
-            <li key={`${day}:${kind}`}>
+            <li key={`${kind}:${item.id}`}>
               <span className="dashboard-timeline-marker" title={label}>
                 <Icon size={14} aria-hidden="true" />
                 <span className="sr-only">{label}</span>
@@ -43,14 +40,12 @@ export function DashboardTimeline({ items }: { items: readonly TimelineEvent[] }
               <div className="dashboard-timeline-event">
                 <strong>{title}</strong>
                 <p>
-                  {item.kind === "practiceAccepted" ? (
+                  {item.kind !== "matchPlayed" ? (
                     <DifficultyLabel difficulty={item.difficulty} />
-                  ) : item.kind === "matchPlayed" ? (
-                    <span className="dashboard-timeline-outcome" data-outcome={item.outcome}>
-                      {item.outcome === "victory" ? "Victory" : "Loss"}
-                    </span>
                   ) : (
-                    item.detail
+                    <span className="dashboard-timeline-outcome" data-outcome={item.outcome}>
+                      {outcomeLabels[item.outcome]}
+                    </span>
                   )}
                 </p>
               </div>
