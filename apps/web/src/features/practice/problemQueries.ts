@@ -27,7 +27,7 @@ function catalogContext(actor: ProblemActor, library: CatalogSearch["library"]) 
   if (actor === "anonymous" && library === "private")
     return { scope: signedOutPrivateScope, library };
   const scope =
-    library === "global" || actor === "anonymous" || (actor === undefined && library !== "private")
+    actor === "anonymous" || (actor === undefined && library !== "private")
       ? publicScope
       : (actor ?? pendingScope);
   return {
@@ -46,8 +46,12 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
 type CatalogKind = Parameters<typeof catalogKind>[0];
 const facetsKey = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
   ["public-problem-facets", scope, library, ...catalogKind(search)] as const;
-const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
-  ["public-problems", scope, library, ...catalogKind(search)] as const;
+const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogRequest) =>
+  ["public-problems", scope, library, ...catalogKind(search), search.groupBy] as const;
+
+export function invalidatePracticeCatalog(client: QueryClient, identity: DevelopmentIdentity) {
+  return client.invalidateQueries({ queryKey: ["public-problems", identity] });
+}
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();

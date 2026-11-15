@@ -3306,6 +3306,8 @@ export interface operations {
                 q?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 difficulty?: string;
+                /** @description Group by the first foundational topic before pagination. Available for title and difficulty sorts. */
+                groupBy?: "topic";
                 topicMatch?: components["schemas"]["FilterMatch"];
                 /** @description Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each. */
                 topic?: string;
@@ -3344,6 +3346,12 @@ export interface operations {
                             tier: "faang" | "top" | "quant" | "mid-tier" | "other";
                             count: number;
                         }[];
+                        /** @description Foundational group label by publication ID for the returned page. Null denotes Other questions. */
+                        topicGroups?: {
+                            [key: string]: string | null;
+                        };
+                        /** @description Publication IDs on this page completed in solo practice by the current account. */
+                        solvedIds?: string[];
                         topicAliases?: {
                             [key: string]: string;
                         };

@@ -15,7 +15,7 @@ import { TableRow, Table } from "../../ui/Table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { X, Layers, Globe, LockKeyhole } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { catalogQueryOptions, catalogFacets, catalogPageSize } from "./problemQueries";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { useTheme } from "../editor/useTheme";
@@ -107,6 +107,8 @@ export function PracticeBrowser() {
       }),
   });
   const total = catalog.data?.total ?? 0;
+  const solvedIds = new Set(catalog.data?.solvedIds);
+  const groups = catalog.data?.topicGroups;
   return (
     <div className="practice-page">
       <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />
@@ -140,6 +142,16 @@ export function PracticeBrowser() {
             value={query.text}
             onChange={(event) => query.change(event.target.value)}
             refreshing={catalog.isFetching && !!catalog.data}
+          />
+          <SegmentedControl
+            compact
+            label="Question layout"
+            value={search.groupBy ?? "list"}
+            onChange={(value) => update({ groupBy: value === "topic" ? value : undefined })}
+            options={[
+              { value: "list", label: "List" },
+              { value: "topic", label: "Group by topic" },
+            ]}
           />
         </div>
         <div className="practice-filters">
@@ -223,35 +235,48 @@ export function PracticeBrowser() {
                   </tr>
                 }
               >
-                {catalog.data.items.map((problem) => (
-                  <TableRow
-                    key={problem.id}
-                    onPointerEnter={warmWorkspacePage}
-                    onFocusCapture={warmWorkspacePage}
-                    onOpen={(event) => {
-                      const href = `/practice/${problem.slug}`;
-                      if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
-                      else void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
-                    }}
-                  >
-                    <td>
-                      <Link to="/practice/$slug" params={{ slug: problem.slug }}>
-                        {problem.title}
-                      </Link>
-                      <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
-                    </td>
-                    <td>
-                      <QuestionDifficulty
-                        difficulty={problem.difficulty}
-                        onFilter={(difficulty) =>
-                          update({ difficulty: addFilter(search.difficulty, difficulty) })
-                        }
-                      />
-                    </td>
-                    <td className="practice-format">
-                      {problem.isPrivate && <QuestionIndicators privateQuestion />}
-                    </td>
-                  </TableRow>
+                {catalog.data.items.map((problem, index, items) => (
+                  <Fragment key={problem.id}>
+                    {groups &&
+                      (index === 0 || groups[problem.id] !== groups[items[index - 1].id]) && (
+                        <tr className="practice-topic-group">
+                          <th colSpan={3}>{groups[problem.id] ?? "Other questions"}</th>
+                        </tr>
+                      )}
+                    <TableRow
+                      onPointerEnter={warmWorkspacePage}
+                      onFocusCapture={warmWorkspacePage}
+                      onOpen={(event) => {
+                        const href = `/practice/${problem.slug}`;
+                        if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
+                        else
+                          void navigate({ to: "/practice/$slug", params: { slug: problem.slug } });
+                      }}
+                    >
+                      <td>
+                        <Link to="/practice/$slug" params={{ slug: problem.slug }}>
+                          {problem.title}
+                        </Link>
+                        <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
+                      </td>
+                      <td>
+                        <QuestionDifficulty
+                          difficulty={problem.difficulty}
+                          onFilter={(difficulty) =>
+                            update({ difficulty: addFilter(search.difficulty, difficulty) })
+                          }
+                        />
+                      </td>
+                      <td className="practice-format">
+                        {(problem.isPrivate || solvedIds.has(problem.id)) && (
+                          <QuestionIndicators
+                            privateQuestion={!!problem.isPrivate}
+                            solved={solvedIds.has(problem.id)}
+                          />
+                        )}
+                      </td>
+                    </TableRow>
+                  </Fragment>
                 ))}
               </Table>
               {catalog.data.items.length === 0 && (

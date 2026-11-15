@@ -57,11 +57,13 @@ beforeEach(() => {
       requests.push(request);
       const url = new URL(request.url);
       if (url.pathname === "/v1/problems") {
-        const personalized =
-          url.searchParams.get("library") !== "global" &&
-          request.headers.get("Authorization") === "Bearer account-a";
+        const owner = request.headers.get("Authorization") === "Bearer account-a";
+        const includePrivate = owner && url.searchParams.get("library") !== "global";
         return Promise.resolve(
-          Response.json(page(personalized ? [publicProblem, privateProblem] : [publicProblem])),
+          Response.json({
+            ...page(includePrivate ? [publicProblem, privateProblem] : [publicProblem]),
+            ...(owner && { solvedIds: [publicProblem.id] }),
+          }),
         );
       }
       if (url.pathname.endsWith("/private-question")) {
@@ -329,4 +331,25 @@ it("does not reuse rows or facets across categories or formats", async () => {
   } finally {
     stop();
   }
+});
+
+it("isolates global progress by account and requests the grouped view separately", async () => {
+  const cache = client();
+  const search = { library: "global", groupBy: "topic" } as const;
+  const account = actor("account-a");
+  const options = catalogQueryOptions(cache, account, search);
+  expect((await cache.fetchQuery(options)).solvedIds).toEqual([publicProblem.id]);
+  const url = new URL(requests[0]!.url);
+  expect(url.searchParams.get("groupBy")).toBe("topic");
+  expect(url.searchParams.get("library")).toBe("global");
+  expect(requests[0]!.headers.get("Authorization")).toBe("Bearer account-a");
+  expect(options.queryKey).not.toEqual(
+    catalogQueryOptions(cache, account, { library: "global" }).queryKey,
+  );
+  auth.actor = "account-b";
+  const other = new QueryObserver(cache, catalogQueryOptions(cache, actor("account-b"), search));
+  expect(other.getCurrentResult().data).toBeUndefined();
+  expect(
+    (await cache.fetchQuery(catalogQueryOptions(cache, "anonymous", search))).solvedIds,
+  ).toBeUndefined();
 });

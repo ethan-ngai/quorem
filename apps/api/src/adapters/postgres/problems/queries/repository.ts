@@ -23,6 +23,7 @@ import {
 } from "./public-projection.ts";
 import {
   isTopic,
+  primaryFoundationalTopic,
   topicColumns,
   topicJoin,
   topicMatches,
@@ -132,18 +133,17 @@ function projected(row: Projected): JsonValue {
   projectQuestionRuntime(value);
   return value;
 }
-async function redactMatchTopics(
-  tx: Transaction,
-  actor: ProblemActor | undefined,
-  values: JsonValue[],
-) {
-  if (!actor?.userId) return values;
+async function restrictedTopicIds(tx: Transaction, actor: ProblemActor | undefined) {
+  if (!actor?.userId) return [];
   const restricted = (
     await tx.execute<{ id: string }>(
       sql`SELECT m.publication_id::text AS id FROM matches m JOIN match_participants p ON p.match_id=m.id AND p.owner_id=${actor.userId} WHERE m.state IN ('active','finalizing') AND m.rules->'assistance'->'topics'->>'access'<>'free' AND NOT EXISTS(SELECT 1 FROM match_rule_events e WHERE e.match_id=m.id AND e.competitor_id=COALESCE(p.competitor_id,p.owner_id) AND e.kind='topics' AND e.resource_key='topics')`,
     )
   ).rows;
-  const ids = new Set(restricted.map((r) => r.id));
+  return restricted.map(({ id }) => id);
+}
+function redactMatchTopics(restricted: string[], values: JsonValue[]) {
+  const ids = new Set(restricted);
   for (const value of values) {
     const problem = object(value);
     if (typeof problem.id === "string" && ids.has(problem.id)) {
@@ -209,18 +209,37 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       })()
     : undefined;
   const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
+  const restricted = await restrictedTopicIds(tx, actor);
+  const grouped = f.groupBy === "topic";
+  const group = sql`CASE WHEN v.id <> ALL(${sql.param(restricted)}::uuid[])
+    THEN ${primaryFoundationalTopic(sql`v.id`)} END`;
+  const groupProjection = grouped ? sql`, ${group} AS "groupLabel"` : sql``;
+  const groupOrdering = grouped ? sql`"groupLabel" ASC NULLS LAST, ` : sql``;
+  const viewer = actor && !actor.guestScope ? actor.userId : undefined;
+  const progress =
+    viewer && !context
+      ? sql`, EXISTS (
+    SELECT 1 FROM workspaces w
+    WHERE w.owner_id=${viewer} AND w.publication_id=v.id AND w.kind='solo'
+      AND CASE WHEN v.odyssey IS NULL THEN
+        EXISTS (SELECT 1 FROM practice_target_progress p WHERE p.workspace_id=w.id)
+        OR EXISTS (SELECT 1 FROM practice_solves s WHERE s.workspace_id=w.id)
+      ELSE EXISTS (
+        SELECT 1 FROM odyssey_progress o WHERE o.scope_id=w.id AND o.publication_id=v.id AND o.completed
+      ) END
+  ) AS solved`
+      : sql``;
   const rows = (
-    await tx.execute<Projected>(
+    await tx.execute<Projected & { groupLabel?: string | null; solved?: boolean }>(
       recommendedIds
         ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
-        : sql`SELECT ${rowProjection} ${from} WHERE ${where} ORDER BY ${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
+        : sql`SELECT ${rowProjection}${groupProjection}${progress} ${from} WHERE ${where} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
   if (recommendedIds) {
     const positions = new Map(recommendedIds.map((id, index) => [id, index]));
     rows.sort((a, b) => positions.get(a.id)! - positions.get(b.id)!);
   }
-  const items = rows;
   const topicRows = (
     await tx.execute<{
       tag: string;
@@ -264,16 +283,19 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   if (!Number.isSafeInteger(n)) throw new Error("catalog total exceeds safe range");
   const reasons = new Map(recommendations?.map((item) => [item.question.id, item.reason]));
   const result: { [key: string]: JsonValue } = {
-    items: await redactMatchTopics(
-      tx,
-      actor,
-      items.map((row) => {
+    items: redactMatchTopics(
+      restricted,
+      rows.map((row) => {
         const value = object(projected(row));
         const reason = reasons.get(row.id);
         if (reason) value.recommendationReason = reason;
         return value;
       }),
     ),
+    ...(grouped && {
+      topicGroups: Object.fromEntries(rows.map(({ id, groupLabel }) => [id, groupLabel ?? null])),
+    }),
+    ...(viewer && !context && { solvedIds: rows.filter((row) => row.solved).map(({ id }) => id) }),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),
@@ -286,7 +308,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   return {
     result,
     account,
-    ids: items.map((row) => row.id),
+    ids: rows.map((row) => row.id),
     model: context?.modelId ?? null,
     explore,
   };
@@ -306,7 +328,9 @@ async function byValue(
     )
   ).rows;
   return rows.length
-    ? stringifyLosslessJson((await redactMatchTopics(tx, actor, [projected(rows[0])]))[0])
+    ? stringifyLosslessJson(
+        redactMatchTopics(await restrictedTopicIds(tx, actor), [projected(rows[0])])[0],
+      )
     : null;
 }
 /** Projects a publication after the caller has authorized its specific context. */
@@ -321,7 +345,9 @@ export async function projectAuthorizedPublication(
     )
   ).rows;
   return rows.length
-    ? stringifyLosslessJson((await redactMatchTopics(tx, actor, [projected(rows[0])]))[0])
+    ? stringifyLosslessJson(
+        redactMatchTopics(await restrictedTopicIds(tx, actor), [projected(rows[0])])[0],
+      )
     : null;
 }
 async function readEditorials(

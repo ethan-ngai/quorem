@@ -21,6 +21,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     library,
     type,
     sql,
+    groupBy,
   } = parsed.data;
   const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty", "recommended"], {
     page: 1,
@@ -28,7 +29,8 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     sort: "title",
     order: "asc",
   });
-  if (sort === "recommended" && (order !== "asc" || page !== 1 || limit > 20)) throw invalid();
+  if (sort === "recommended" && (order !== "asc" || page !== 1 || limit > 20 || groupBy))
+    throw invalid();
   return {
     query,
     difficulty,
@@ -36,6 +38,7 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     ...(topicMatch === "all" && { topicMatch }),
     company,
     ...(companyMatch === "all" && { companyMatch }),
+    ...(groupBy && { groupBy }),
     sort,
     order,
     library,

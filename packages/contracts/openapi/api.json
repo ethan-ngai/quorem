@@ -907,6 +907,16 @@
                         "additionalProperties": false
                       }
                     },
+                    "topicGroups": {
+                      "type": "object",
+                      "description": "Foundational group label by publication ID for the returned page. Null denotes Other questions.",
+                      "additionalProperties": { "type": ["string", "null"] }
+                    },
+                    "solvedIds": {
+                      "type": "array",
+                      "description": "Publication IDs on this page completed in solo practice by the current account.",
+                      "items": { "type": "string", "format": "uuid" }
+                    },
                     "topicAliases": {
                       "type": "object",
                       "additionalProperties": { "type": "string" }
@@ -969,6 +979,12 @@
               "maxLength": 1295
             },
             "description": "Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each."
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "description": "Group by the first foundational topic before pagination. Available for title and difficulty sorts.",
+            "schema": { "type": "string", "enum": ["topic"] }
           },
           {
             "name": "topicMatch",

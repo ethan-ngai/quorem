@@ -11,6 +11,7 @@ export type CatalogSearch = {
   topicMatch?: FilterMatch;
   company?: string;
   companyMatch?: FilterMatch;
+  groupBy?: "topic";
   sort?: "difficulty";
   order?: "desc";
   page?: number;
@@ -39,6 +40,7 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   ).map((value) => Array.from(value).slice(0, 80).join(""));
   if (companies.length) result.company = companies.join(",");
   if (search.companyMatch === "all") result.companyMatch = "all";
+  if (search.groupBy === "topic") result.groupBy = search.groupBy;
   if (search.sort === "difficulty") result.sort = search.sort;
   if (search.order === "desc") result.order = "desc";
   const page = Number(search.page);

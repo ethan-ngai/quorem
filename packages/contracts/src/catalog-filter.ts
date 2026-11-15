@@ -33,6 +33,7 @@ export const catalogQuery = z.strictObject({
   sql: z.enum(["", "true", "false"]).default(""),
   page: z.string().optional(),
   limit: z.string().optional(),
+  groupBy: z.literal("topic").optional(),
   sort: z.string().optional(),
   order: z.string().optional(),
 });
