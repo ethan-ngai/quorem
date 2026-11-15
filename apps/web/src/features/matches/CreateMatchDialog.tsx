@@ -1,5 +1,5 @@
 import { LoadingButton } from "../../ui/LoadingButton";
-import { CircleAlert, RotateCcw } from "lucide-react";
+import { CircleAlert, Plus, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { DevelopmentIdentity } from "@quorem/contracts";
@@ -128,7 +128,11 @@ export function CreateMatchDialog({
           {error && <p role="alert">{error}</p>}
           <footer className="competitive-dialog-actions">
             <span />
-            <LoadingButton className="button button-primary" pending={pending}>
+            <LoadingButton
+              className="button button-primary"
+              pending={pending}
+              icon={recovering ? <RotateCcw size={16} /> : <Plus size={16} />}
+            >
               {pending ? "Creating…" : recovering ? "Retry creation" : "Create lobby"}
             </LoadingButton>
           </footer>
