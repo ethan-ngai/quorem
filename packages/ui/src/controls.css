@@ -66,10 +66,11 @@
   color: var(--color-primary);
 }
 .quiet-button {
+  --control-content-gap: 6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--control-content-gap);
   min-height: 32px;
   padding: 0 var(--space-2);
   border: 0;
@@ -83,10 +84,11 @@
     translate var(--motion-fast) var(--motion-easing);
 }
 .button {
+  --control-content-gap: var(--space-2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  gap: var(--control-content-gap);
   min-height: var(--control-height);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);

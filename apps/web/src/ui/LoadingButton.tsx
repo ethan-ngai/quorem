@@ -1,7 +1,8 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { Spinner } from "./Spinner";
 import { StateIcon } from "./StateIcon";
 import { useLoadingVisibility } from "./LoadingState";
+import "./loading-button.css";
 
 export function LoadingIcon({
   pending,
@@ -48,8 +49,20 @@ export function LoadingButton({
         onClick?.(event);
       }}
     >
-      {iconClassName ? <span className={iconClassName}>{indicator}</span> : indicator}
-      {children}
+      {icon == null && !iconClassName && children != null ? (
+        <span
+          className="loading-button-content"
+          style={{ "--loading-button-icon-size": `${iconSize}px` } as CSSProperties}
+        >
+          {indicator}
+          <span className="loading-button-label">{children}</span>
+        </span>
+      ) : (
+        <>
+          {iconClassName ? <span className={iconClassName}>{indicator}</span> : indicator}
+          {children}
+        </>
+      )}
     </button>
   );
 }
