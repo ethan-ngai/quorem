@@ -46,7 +46,7 @@ export function SessionDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className={`session-backdrop ${overlayClassName}`} />
+        <Dialog.Overlay className={`viewport-backdrop session-backdrop ${overlayClassName}`} />
         <Dialog.Content
           className={`competitive-dialog ${className}`}
           onOpenAutoFocus={(event) => {

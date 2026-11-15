@@ -76,10 +76,7 @@
   gap: 8px;
 }
 .session-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 60;
-  background: #0005;
   animation: session-backdrop-in 160ms ease-out;
 }
 .session-backdrop[data-state="closed"] {

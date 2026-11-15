@@ -34,6 +34,26 @@ body {
   line-height: 1.5;
 }
 
+:root {
+  --viewport-backdrop-strength: 40%;
+  transition: background-color var(--motion-standard) var(--motion-easing);
+}
+
+/* Fixed layers stop at the native gutter. Dim the root canvas behind it too. */
+:root:has(.viewport-backdrop[data-state="open"]) {
+  background-color: color-mix(
+    in srgb,
+    black var(--viewport-backdrop-strength),
+    var(--color-background)
+  );
+}
+
+.viewport-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, black var(--viewport-backdrop-strength), transparent);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   :where(:is([role="tabpanel"], [role="status"], [role="alert"]):not(.sr-only)) {
     transition: opacity var(--motion-fast) var(--motion-easing);

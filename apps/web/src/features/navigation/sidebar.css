@@ -78,10 +78,7 @@
   color: var(--color-primary);
 }
 .sidebar-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 41;
-  background: oklch(0 0 0 / 0.4);
 }
 .workspace-sidebar[data-state="open"] {
   animation: sidebar-enter var(--sidebar-duration) var(--sidebar-easing) both;
@@ -170,10 +167,7 @@
   flex-shrink: 0;
 }
 .sidebar-desktop-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 1;
-  background: oklch(0 0 0 / 0.4);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--sidebar-duration) var(--sidebar-easing);

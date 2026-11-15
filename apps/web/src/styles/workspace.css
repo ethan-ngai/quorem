@@ -866,10 +866,7 @@ kbd {
   }
 }
 .settings-backdrop {
-  position: fixed;
-  inset: 0;
   z-index: 60;
-  background: #0005;
   animation: settings-backdrop-in 160ms ease-out;
 }
 .settings-backdrop[data-state="closed"] {
