@@ -1988,10 +1988,10 @@ export interface components {
             factionNames?: string[];
         };
         /**
-         * @description Match any selected value by default, or require all selected values.
+         * @description Match any selected value by default, require all, or exclude matches to any selected value.
          * @enum {string}
          */
-        FilterMatch: "any" | "all";
+        FilterMatch: "any" | "all" | "not";
         MatchQuestionFilters: {
             /** @enum {string} */
             type?: "classic" | "odyssey";
@@ -3440,7 +3440,7 @@ export interface operations {
                 /** @description JSON-encoded group label to show, with null for Other questions. Requires groupBy=topic. */
                 topicGroup?: string;
                 topicMatch?: components["schemas"]["FilterMatch"];
-                /** @description Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each. */
+                /** @description Comma-separated tags or values from foundationalTopics. Use topicMatch to require all or exclude any selected value. Maximum 16 values, 80 characters each. */
                 topic?: string;
                 companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;

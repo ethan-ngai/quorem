@@ -2402,9 +2402,10 @@
       "type": "string",
       "enum": [
         "any",
-        "all"
+        "all",
+        "not"
       ],
-      "description": "Match any selected value by default, or require all selected values."
+      "description": "Match any selected value by default, require all, or exclude matches to any selected value."
     },
     "MatchQuestionFilters": {
       "type": "object",

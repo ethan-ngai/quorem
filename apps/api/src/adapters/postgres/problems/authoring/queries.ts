@@ -1,4 +1,5 @@
 /** @file queries.ts @description Transaction-bound authoring lists and facets. @module problems */
+import type { FilterMatch } from "@quorem/contracts";
 import { sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
 import { ApplicationError } from "../../../../application/error.ts";
@@ -7,6 +8,14 @@ import type {
   AuthoringFilters,
   QuestionAuthoring,
 } from "../../../../modules/problems/authoring/ports.ts";
+
+/** @returns Whether the metadata array satisfies the selected filter. */
+function matchesArray(values: SQL, selection: string, match?: FilterMatch): SQL {
+  if (!selection) return sql`TRUE`;
+  const operator = match === "all" ? sql`@>` : sql`&&`;
+  const predicate = sql`${values} ${operator} string_to_array(${selection},',')`;
+  return match === "not" ? sql`NOT (${predicate})` : predicate;
+}
 
 /** Match catalog metadata before sorting and pagination. */
 function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
@@ -26,8 +35,8 @@ function matchesAuthoringFilters(filters?: AuthoringFilters): SQL {
     AND (${language}='' OR "isSql"=(${language}='true'))
     AND (${type}='' OR "isOdyssey"=(${type}='odyssey'))
     AND (${difficulty}='' OR difficulty=ANY(string_to_array(${difficulty},',')))
-    AND (${topic}='' OR tags ${topicMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${topic},','))
-    AND (${company}='' OR companies ${companyMatch === "all" ? sql`@>` : sql`&&`} string_to_array(${company},','))
+    AND ${matchesArray(sql`tags`, topic, topicMatch)}
+    AND ${matchesArray(sql`companies`, company, companyMatch)}
     AND (${source}='' OR "fromLeetCode"=(${source}='leetcode'))
   `;
 }

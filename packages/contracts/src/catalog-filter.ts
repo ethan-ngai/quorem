@@ -30,7 +30,7 @@ const topicGroup = z
   })
   .pipe(topicGroupSelection)
   .optional();
-const match = z.enum(["any", "all"]).optional();
+export const filterMatch = z.enum(["any", "all", "not"]);
 export const catalogQuery = z.strictObject({
   q: z
     .string()
@@ -39,9 +39,9 @@ export const catalogQuery = z.strictObject({
     .default(""),
   difficulty: selection(z.enum(["easy", "medium", "hard"])),
   topic: selection(label),
-  topicMatch: match,
+  topicMatch: filterMatch.optional(),
   company: selection(label),
-  companyMatch: match,
+  companyMatch: filterMatch.optional(),
   library: z.enum(["", "global", "private"]).default(""),
   type: z.enum(["", "classic", "odyssey"]).default(""),
   sql: z.enum(["", "true", "false"]).default(""),
