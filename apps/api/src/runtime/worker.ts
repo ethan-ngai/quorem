@@ -37,7 +37,7 @@ import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/
 import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
-import type { Notice, NoticeStream } from "../modules/events/dispatch/ports.ts";
+import type { Notice, NoticeStream, Stream } from "../modules/events/dispatch/ports.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
 import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
@@ -131,10 +131,10 @@ function notices(env: Env) {
   };
 }
 const realtimeStreams = ["submission", "interview", "match"] as const;
-async function publishNotices(
+async function publishStreams(
   env: Env,
   run: ReturnType<typeof runFor>,
-  streams: readonly NoticeStream[],
+  streams: readonly Stream[],
 ) {
   const store = postgresDispatch(run),
     publisher = notices(env),
@@ -472,8 +472,8 @@ export default {
     ctx?: { waitUntil(work: Promise<unknown>): void },
   ): Promise<Response> {
     const defer = ctx ? (work: Promise<unknown>) => ctx.waitUntil(work) : undefined;
-    const publish = async (streams: readonly NoticeStream[]) => {
-      const work = publishNotices(env, runFor(env), streams);
+    const publish = async (streams: readonly Stream[]) => {
+      const work = publishStreams(env, runFor(env), streams);
       if (defer) defer(work);
       else await work;
     };
@@ -567,7 +567,11 @@ export default {
             ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
             : request;
           const response = await composed.app.fetch(incoming);
-          if (response.status < 400 && mutation) await publish(realtimeStreams);
+          if (response.status < 400 && mutation) {
+            const cancellation =
+              request.method === "POST" && /^\/v1\/submissions\/[^/]+\/cancel$/.test(path);
+            await publish(cancellation ? [...realtimeStreams, "execution"] : realtimeStreams);
+          }
           return response;
         };
         if (

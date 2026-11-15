@@ -11,6 +11,7 @@ import {
 import { savePrivateResultFrame } from "../../interviews/question/private-frame.ts";
 import { reconcileMatch } from "../../matches/reconcile/repository.ts";
 import { validateCompletionStream } from "./staging.ts";
+import { retryJudgingLock } from "./frame-lock.ts";
 import { advanceOdyssey } from "./complete.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
@@ -22,9 +23,10 @@ export function postgresCompletionPromotion(
   seal = false,
   wakeMatchDeadline?: (match: string) => Promise<void>,
 ) {
+  const retryLocked: Run = (operation) => retryJudgingLock(() => run(operation));
   return async (job: Job, proof: AttemptFence): Promise<void> => {
     assertAttemptFence(job, proof);
-    const deadlineMatch = await run((scope) =>
+    const deadlineMatch = await retryLocked((scope) =>
       scope.transaction({ statementTimeoutMs: 5000, lockTimeoutMs: 1000 }, async (tx) => {
         const initial = (
           await tx.execute<{ match: string | null; paidTime: boolean }>(

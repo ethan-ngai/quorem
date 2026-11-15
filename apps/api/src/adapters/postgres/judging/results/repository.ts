@@ -20,6 +20,7 @@ import { resultCase } from "./projection.ts";
 import { projectedObject } from "./projected-stream.ts";
 import { StreamingJsonReader } from "@quorem/questions";
 import { interviewAccess } from "./interview.ts";
+import { insertExecutionIntent } from "../../events/dispatch.ts";
 import { ResultArray } from "./array-stream.ts";
 type Run = <T>(fn: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>) => Promise<T>;
 type Row = {
@@ -139,6 +140,13 @@ export function submissionSnapshots(run: Run): SubmissionSnapshots {
             await assertScope(tx, who, row);
             return stringifyLosslessJson(object(parseLosslessJson(replay.response)));
           }
+          // Match the runner's job-before-submission lock order.
+          const job = (
+            await tx.execute<{ id: string }>(
+              sql`SELECT j.id::text FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id
+                WHERE s.id=${id}::uuid AND s.owner_id=${who.userId} AND NOT j.finished FOR UPDATE OF j`,
+            )
+          ).rows[0];
           const row = await load(tx, id, who.userId, true);
           await assertScope(tx, who, row);
           if (row.state === "queued") {
@@ -148,11 +156,14 @@ export function submissionSnapshots(run: Run): SubmissionSnapshots {
             await tx.execute(
               sql`UPDATE submissions SET state='cancelled',cancel_requested=true,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
             );
-          } else if (row.state === "running")
-            await tx.execute(
-              sql`UPDATE submissions SET cancel_requested=true,updated_at=clock_timestamp() WHERE id=${id}::uuid`,
+          } else if (row.state === "running") {
+            const requested = await tx.execute(
+              sql`UPDATE submissions SET cancel_requested=true,updated_at=clock_timestamp()
+                WHERE id=${id}::uuid AND NOT cancel_requested RETURNING id`,
             );
-          else if (row.state !== "cancelled")
+            if (job && requested.rows.length)
+              await insertExecutionIntent(tx, crypto.randomUUID(), job.id);
+          } else if (row.state !== "cancelled")
             throw new ApplicationError("invalid_transition", "Execution already finished", 409);
           const response = encode(snapshot(await load(tx, id, who.userId), true));
           await tx.execute(
