@@ -42,6 +42,7 @@ const settingsReadyHint =
 
 export function PartyPage() {
   const { identity, account } = useAccountIdentity();
+  const ownUserId = participantUserId(identity);
   const { preference, setPreference } = useTheme();
   const query = useParty(identity, !!account.data);
   const client = useQueryClient();
@@ -158,9 +159,9 @@ export function PartyPage() {
       setPendingSettings(undefined);
     }
   };
-  const own = party?.members.find((member) => member.userId === identity);
+  const own = party?.members.find((member) => member.userId === ownUserId);
   const readyLabel = own?.ready ? "Unready" : "Ready up";
-  const host = party?.hostUserId === identity;
+  const host = party?.hostUserId === ownUserId;
   const nav = <GlobalNav identity={identity} theme={preference} onThemeChange={setPreference} />;
   if (account.isPending || query.isPending)
     return (
@@ -194,7 +195,7 @@ export function PartyPage() {
     pendingSettings?.partyId === party.id ? pendingSettings.value : party.settings;
   const guestsAllowed = displayedSettings.accessMode === "guests_allowed";
   const memberActions = (member: { userId: string; displayName: string }) =>
-    host && !party.currentMatchId && member.userId !== identity ? (
+    host && !party.currentMatchId && member.userId !== ownUserId ? (
       <Tooltip content={`Remove ${member.displayName}`}>
         <button
           type="button"
@@ -354,7 +355,7 @@ export function PartyPage() {
               <TeamOrganizer party={party} identity={identity} memberActions={memberActions} />
             ) : (
               <PartyMemberReadiness
-                ownUserId={participantUserId(identity)}
+                ownUserId={ownUserId}
                 members={party.members}
                 actions={memberActions}
                 hostUserId={party.hostUserId}
