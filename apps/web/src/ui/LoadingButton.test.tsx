@@ -1,8 +1,17 @@
 // @vitest-environment happy-dom
 import { act, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { LoadingButton } from "./LoadingButton";
+
+it("leaves the idle icon slot empty when no icon is supplied", () => {
+  const container = document.createElement("div");
+  container.innerHTML = renderToStaticMarkup(<LoadingButton pending={false}>Save</LoadingButton>);
+
+  expect(container.querySelector(".state-icon-off")).not.toBeNull();
+  expect(container.querySelector(".state-icon-off")?.childNodes).toHaveLength(0);
+});
 
 it("locks immediately, skips short loads and replaces the icon after 200 ms", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

@@ -1,0 +1,25 @@
+.loading-button-content {
+  --loading-button-gap: var(--control-content-gap, var(--space-2));
+  display: inline-flex;
+  align-items: center;
+  gap: var(--loading-button-gap);
+}
+
+.loading-button-label {
+  --loading-button-center-offset: calc((var(--loading-button-icon-size) + var(--loading-button-gap)) / 2);
+  transition: translate var(--motion-fast) var(--motion-easing);
+}
+
+.loading-button-content > .state-icon[data-active="false"] + .loading-button-label {
+  translate: calc(-1 * var(--loading-button-center-offset));
+}
+
+.loading-button-content > .state-icon[data-active="false"] + .loading-button-label:dir(rtl) {
+  translate: var(--loading-button-center-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-button-label {
+    transition: none;
+  }
+}
