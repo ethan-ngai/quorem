@@ -42,6 +42,10 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           runner_publication_input_cases: "publication_id,channel,stage",
           problem_tags: "publication_id,tag,ordinal",
           foundational_topics: "slug,label,aliases,is_foundational",
+          workspaces: "id,owner_id,publication_id,kind",
+          practice_solves: "workspace_id",
+          practice_target_progress: "workspace_id",
+          odyssey_progress: "scope_id,publication_id,completed",
           question_exposure: "owner_id,publication_id,last_seen_at",
           question_learning_events:
             "submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at,observed_at",
