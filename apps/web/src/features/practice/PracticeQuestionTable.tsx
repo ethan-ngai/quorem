@@ -1,5 +1,5 @@
 /** @file PracticeQuestionTable.tsx @description Question rows and pagination shared by both practice layouts. @module practice */
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
@@ -71,11 +71,24 @@ export function PracticeQuestionTable({
   );
 }
 
+export function PracticeQuestionCell({ children, ...props }: ComponentPropsWithoutRef<"td">) {
+  return (
+    <td {...props}>
+      <div className="practice-cell-reveal">
+        <div className="practice-cell-clip">
+          <div className="practice-cell-content">{children}</div>
+        </div>
+      </div>
+    </td>
+  );
+}
+
 export function PracticeQuestionRows({
   data,
   filterTopic,
   filterDifficulty,
-}: PracticeRowFilters & { data: CatalogPage }) {
+  inert,
+}: PracticeRowFilters & { data: CatalogPage; inert?: boolean }) {
   const navigate = useNavigate({ from: "/practice" });
   const solvedIds = new Set(data.solvedIds);
   return (
@@ -83,6 +96,7 @@ export function PracticeQuestionRows({
       {data.items.map((problem) => (
         <TableRow
           key={problem.id}
+          inert={inert}
           onPointerEnter={warmWorkspacePage}
           onFocusCapture={warmWorkspacePage}
           onOpen={(event) => {
@@ -95,23 +109,23 @@ export function PracticeQuestionRows({
               });
           }}
         >
-          <td>
+          <PracticeQuestionCell>
             <Link to="/practice/$slug" params={{ slug: problem.slug }}>
               {problem.title}
             </Link>
             <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
-          </td>
-          <td>
+          </PracticeQuestionCell>
+          <PracticeQuestionCell>
             <QuestionDifficulty difficulty={problem.difficulty} onFilter={filterDifficulty} />
-          </td>
-          <td className="practice-format">
+          </PracticeQuestionCell>
+          <PracticeQuestionCell className="practice-format">
             {(problem.isPrivate || solvedIds.has(problem.id)) && (
               <QuestionIndicators
                 privateQuestion={!!problem.isPrivate}
                 solved={solvedIds.has(problem.id)}
               />
             )}
-          </td>
+          </PracticeQuestionCell>
         </TableRow>
       ))}
     </>

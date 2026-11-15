@@ -31,9 +31,17 @@ export function Table({
   );
 }
 
-export function TableBody({ children }: { children: ReactNode }) {
+export function TableBody({
+  children,
+  animateChanges = true,
+}: {
+  children: ReactNode;
+  animateChanges?: boolean;
+}) {
   const rowKeys = Children.toArray(children).map((row) => (isValidElement(row) ? row.key : row));
-  const body = useChangeMotion<HTMLTableSectionElement>(JSON.stringify(rowKeys));
+  const body = useChangeMotion<HTMLTableSectionElement>(
+    animateChanges ? JSON.stringify(rowKeys) : undefined,
+  );
   return (
     <tbody ref={body} className="motion-reveal">
       {children}
