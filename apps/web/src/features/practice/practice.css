@@ -71,7 +71,7 @@
   white-space: nowrap;
 }
 .practice-recommendations-row .daily-streak-number strong {
-  font-size: var(--daily-streak-art-size);
+  font-size: 36px;
 }
 .practice-recommendations-row > .practice-recommendations + .daily-streak {
   padding-inline-start: var(--space-4);
