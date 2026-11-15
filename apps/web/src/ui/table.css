@@ -37,7 +37,7 @@
   position: absolute;
   inset-inline: var(--table-cell-inline-padding);
   inset-block-end: 0;
-  border-block-end: 1px solid var(--color-border);
+  border-block-end: 1px solid color-mix(in oklab, var(--color-border) 50%, transparent);
   pointer-events: none;
 }
 .data-table tbody tr[data-openable="true"] {
