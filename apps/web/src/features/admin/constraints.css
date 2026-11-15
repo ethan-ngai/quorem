@@ -64,10 +64,6 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
 }
-.constraint-measure:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 .constraint-expression[data-kind="comparison"],
 .constraint-expression[data-kind="property"] {
   column-gap: var(--space-3);
@@ -208,10 +204,6 @@
   display: inline-flex;
   color: var(--color-text-secondary);
   border-radius: var(--radius-sm);
-}
-.constraint-semantics:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 .constraint-target-settings {

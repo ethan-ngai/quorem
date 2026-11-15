@@ -1,5 +1,7 @@
 .selection-feedback {
   --interaction-hover-filter: none;
+  --control-hover-fill: transparent;
+  --control-selected-fill: transparent;
   --selection-hover-opacity: 1;
   position: relative;
   isolation: isolate;
@@ -26,7 +28,7 @@
   opacity: 1;
 }
 @media (hover: hover) {
-  .selection-feedback:not(:disabled):not([aria-pressed="true"]):hover::before {
+  .selection-feedback:not(:disabled, [aria-disabled="true"], [aria-pressed="true"]):hover::before {
     opacity: var(--selection-hover-opacity);
   }
 }

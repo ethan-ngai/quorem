@@ -3,10 +3,16 @@ import { Component, type ReactNode } from "react";
 import { prepareContentChangeMotion } from "./contentChangeMotion";
 import "./content-transition.css";
 
-type Props = { contentKey: string; className?: string; inline?: boolean; children: ReactNode };
+type Props = {
+  contentKey: string;
+  className?: string;
+  inline?: boolean;
+  slideUp?: boolean;
+  children: ReactNode;
+};
 type StartMotion = NonNullable<ReturnType<typeof prepareContentChangeMotion>> | null;
 
-/** Crossfade React content and resize its surface when its layout changes. */
+/** Transition React content and resize its surface when its layout changes. */
 export class ContentTransition extends Component<Props, object, StartMotion> {
   private surface: HTMLElement | null = null;
   private readonly setSurface = (surface: HTMLElement | null) => {
@@ -17,7 +23,12 @@ export class ContentTransition extends Component<Props, object, StartMotion> {
   getSnapshotBeforeUpdate(previous: Props): StartMotion {
     if (previous.contentKey === this.props.contentKey || !this.surface) return null;
     this.stopMotion?.();
-    return prepareContentChangeMotion(this.surface, this.props.inline) ?? null;
+    return (
+      prepareContentChangeMotion(this.surface, {
+        resizeWidth: this.props.inline,
+        slideUp: this.props.slideUp,
+      }) ?? null
+    );
   }
 
   componentDidUpdate(_previous: Props, _state: object, start: StartMotion) {

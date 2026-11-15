@@ -41,7 +41,7 @@ export function SearchField({
   );
 
   return (
-    <label className={className ? `search-field ${className}` : "search-field"}>
+    <label className={`search-field focus-within-ring${className ? ` ${className}` : ""}`}>
       <DelayedSpinner
         active={!!refreshing}
         label="Updating results"

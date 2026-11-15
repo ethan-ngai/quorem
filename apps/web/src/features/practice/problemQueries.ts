@@ -6,7 +6,8 @@ import { catalogKind, type CatalogSearch } from "./catalogSearch";
 import { scopedPlaceholder } from "../../ui/scopedPlaceholder";
 
 export type ProblemActor = DevelopmentIdentity | "anonymous" | undefined;
-type CatalogPage = paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
+export type CatalogPage =
+  paths["/v1/problems"]["get"]["responses"][200]["content"]["application/json"];
 export type FoundationalTopic = NonNullable<CatalogPage["foundationalTopics"]>[number];
 export type CompanyFacet = NonNullable<CatalogPage["companyFacets"]>[number];
 type CatalogFacets = Pick<
@@ -18,7 +19,7 @@ const pendingScope = "pending";
 const signedOutPrivateScope = "signed-out-private";
 const staleTime = 30_000;
 export const catalogPageSize = 20;
-type CatalogRequest = Omit<CatalogSearch, "sort"> & {
+export type CatalogRequest = Omit<CatalogSearch, "sort"> & {
   sort?: CatalogSearch["sort"] | "recommended";
 };
 
@@ -27,7 +28,7 @@ function catalogContext(actor: ProblemActor, library: CatalogSearch["library"]) 
   if (actor === "anonymous" && library === "private")
     return { scope: signedOutPrivateScope, library };
   const scope =
-    library === "global" || actor === "anonymous" || (actor === undefined && library !== "private")
+    actor === "anonymous" || (actor === undefined && library !== "private")
       ? publicScope
       : (actor ?? pendingScope);
   return {
@@ -46,8 +47,19 @@ function freshState<T>(client: QueryClient, key: readonly unknown[]) {
 type CatalogKind = Parameters<typeof catalogKind>[0];
 const facetsKey = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
   ["public-problem-facets", scope, library, ...catalogKind(search)] as const;
-const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogKind) =>
-  ["public-problems", scope, library, ...catalogKind(search)] as const;
+const catalogScope = (scope: string, library: CatalogSearch["library"], search: CatalogRequest) =>
+  [
+    "public-problems",
+    scope,
+    library,
+    ...catalogKind(search),
+    search.groupBy,
+    JSON.stringify(search.topicGroup),
+  ] as const;
+
+export function invalidatePracticeCatalog(client: QueryClient, identity: DevelopmentIdentity) {
+  return client.invalidateQueries({ queryKey: ["public-problems", identity] });
+}
 
 function seedQuestions(client: QueryClient, scope: string, page: CatalogPage, started: number) {
   const updatedAt = Date.now();
@@ -75,8 +87,10 @@ export function catalogQueryOptions(
           library: actor === "anonymous" ? (search.library ?? "global") : search.library,
         }
       : catalogContext(actor, search.library);
+  const { topicGroup, ...selection } = search;
   const filters = {
-    ...search,
+    ...selection,
+    ...(search.groupBy && topicGroup !== undefined && { topicGroup: JSON.stringify(topicGroup) }),
     sql: catalogKind(search)[0],
     library: context.library,
     page: search.page ?? 1,

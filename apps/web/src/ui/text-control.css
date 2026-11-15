@@ -16,10 +16,6 @@
 .text-control:hover:not(:disabled):not(:read-only) {
   border-color: var(--color-text-secondary);
 }
-.text-control:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
 .text-control:disabled {
   opacity: 0.5;
   cursor: default;

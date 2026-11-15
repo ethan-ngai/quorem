@@ -49,6 +49,7 @@ export function useMatchSync(
   snapshot: MatchSnapshot | undefined;
   error: Error | null;
   status: MatchSyncStatus;
+  isFetching: boolean;
   refetch: () => Promise<unknown>;
 } {
   const queryClient = useQueryClient();
@@ -137,6 +138,7 @@ export function useMatchSync(
     snapshot: deniedThisVisit ? undefined : query.data,
     error: accessFailed && !deniedThisVisit ? null : query.error,
     status,
+    isFetching: query.isFetching,
     refetch: query.refetch,
   };
 }

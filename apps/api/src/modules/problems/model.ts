@@ -8,6 +8,8 @@ export interface CatalogFilter {
   topicMatch?: FilterMatch;
   company: string;
   companyMatch?: FilterMatch;
+  groupBy?: "topic";
+  topicGroup?: string | null;
   sort: "title" | "difficulty" | "recommended";
   order: "asc" | "desc";
   library: "" | "global" | "private";

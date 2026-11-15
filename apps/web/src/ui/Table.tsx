@@ -14,22 +14,38 @@ export function Table({
   heading,
   children,
   className,
+  rowGroups = false,
 }: {
   label: string;
   heading: ReactNode;
   children: ReactNode;
   className?: string;
+  rowGroups?: boolean;
 }) {
-  const rowKeys = Children.toArray(children).map((row) => (isValidElement(row) ? row.key : row));
-  const body = useChangeMotion<HTMLTableSectionElement>(JSON.stringify(rowKeys));
   return (
     <table className={className ? `data-table ${className}` : "data-table"}>
       <caption className="sr-only">{label}</caption>
       <thead>{heading}</thead>
-      <tbody ref={body} className="motion-reveal">
-        {children}
-      </tbody>
+      {rowGroups ? children : <TableBody>{children}</TableBody>}
     </table>
+  );
+}
+
+export function TableBody({
+  children,
+  animateChanges = true,
+}: {
+  children: ReactNode;
+  animateChanges?: boolean;
+}) {
+  const rowKeys = Children.toArray(children).map((row) => (isValidElement(row) ? row.key : row));
+  const body = useChangeMotion<HTMLTableSectionElement>(
+    animateChanges ? JSON.stringify(rowKeys) : undefined,
+  );
+  return (
+    <tbody ref={body} className="motion-reveal">
+      {children}
+    </tbody>
   );
 }
 

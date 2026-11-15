@@ -1,7 +1,8 @@
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useErrorNotification } from "../../ui/Notifications";
 import { useState } from "react";
 import * as Popover from "../../ui/Popover";
-import { Pencil, Mail, Check, LoaderCircle, X } from "lucide-react";
+import { Pencil, Mail, Check, X } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { useCooldown } from "../../ui/useCooldown";
 import { AccountRateLimitError, requestPasswordReset } from "./account";
@@ -105,13 +106,13 @@ export function PasswordResetSetting({
               )}
             </div>
 
-            <button
+            <LoadingButton
               className="button button-primary"
-              disabled={busy || cooldown.remaining > 0}
-              aria-busy={busy}
+              disabled={cooldown.remaining > 0}
               onClick={() => void send()}
+              icon={<Mail size={16} />}
+              pending={busy}
             >
-              {busy ? <LoaderCircle className="settings-spinner" size={16} /> : <Mail size={16} />}
               {busy
                 ? "Sending…"
                 : cooldown.remaining
@@ -121,7 +122,7 @@ export function PasswordResetSetting({
                     : hasPassword
                       ? "Send reset link"
                       : "Send setup link"}
-            </button>
+            </LoadingButton>
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

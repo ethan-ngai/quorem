@@ -1,10 +1,11 @@
 /** @file PracticeRecommendations.tsx @description One visible recommendation above the practice catalog. @module practice */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Lightbulb, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, EyeOff, Lightbulb } from "lucide-react";
 import { api } from "../../api/client";
-import { formatLabel } from "../../ui/formatLabel";
+import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { LoadingIndicator } from "../../ui/Spinner";
 import { Tooltip } from "../../ui/Tooltip";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
@@ -12,7 +13,6 @@ import type { CatalogSearch } from "./catalogSearch";
 import { catalogQueryOptions, type ProblemActor } from "./problemQueries";
 import { QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
-import "../../ui/difficulty.css";
 import "./practice-recommendations.css";
 
 const reasonLabels = {
@@ -23,14 +23,22 @@ const reasonLabels = {
   practice: "Keep practicing",
 };
 
+type RecommendationScope = Pick<CatalogSearch, "library" | "sql" | "type">;
+
 export function PracticeRecommendations({
   actor,
   scope,
+  embedded = false,
+  primaryAction = false,
 }: {
   actor: ProblemActor;
-  scope: Pick<CatalogSearch, "library" | "sql" | "type">;
+  scope: RecommendationScope;
+  embedded?: boolean;
+  primaryAction?: boolean;
 }) {
   const heading = useId();
+  const Heading = embedded ? "h3" : "h2";
+  const QuestionHeading = embedded ? "h4" : "h3";
   const client = useQueryClient();
   const options = catalogQueryOptions(client, actor, { ...scope, sort: "recommended", limit: 5 });
   const recommendations = useQuery(options);
@@ -79,47 +87,70 @@ export function PracticeRecommendations({
     track.scrollTo({ left: next * track.clientWidth });
   };
 
+  const hideRecommendation = (id: string, title: string) => (
+    <Tooltip content="Hide recommendation for 7 days">
+      <LoadingButton
+        className="icon-button"
+        type="button"
+        aria-label={`Hide recommendation for ${title}`}
+        onClick={() => {
+          viewport.current?.focus({ preventScroll: true });
+          dismissal.mutate(id);
+        }}
+        icon={<EyeOff size={16} />}
+        disabled={dismissal.isPending}
+        pending={dismissal.isPending && dismissal.variables === id}
+      />
+    </Tooltip>
+  );
+
   if (!count && recommendations.isSuccess && !recommendations.isError) return null;
   return (
     <section
       className="practice-recommendations"
+      data-embedded={embedded || undefined}
       aria-labelledby={heading}
       aria-roledescription="carousel"
     >
       <div className="practice-recommendations-header">
-        <h2 id={heading}>
+        <Heading className="practice-recommendations-heading" id={heading}>
           <Lightbulb size={16} aria-hidden /> Recommended
-        </h2>
-        {count > 1 && (
+        </Heading>
+        {(count > 1 || (embedded && impression)) && (
           <div className="practice-recommendations-controls">
-            <span aria-hidden="true">
-              {active + 1} / {count}
-            </span>
-            <span className="sr-only" aria-live="polite" aria-atomic="true">
-              {item?.title}, {active + 1} of {count}
-            </span>
-            <Tooltip content="Previous recommendation">
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Previous recommendation"
-                aria-disabled={active === 0}
-                onClick={() => move(-1)}
-              >
-                <ChevronLeft size={16} aria-hidden />
-              </button>
-            </Tooltip>
-            <Tooltip content="Next recommendation">
-              <button
-                className="icon-button"
-                type="button"
-                aria-label="Next recommendation"
-                aria-disabled={active === count - 1}
-                onClick={() => move(1)}
-              >
-                <ChevronRight size={16} aria-hidden />
-              </button>
-            </Tooltip>
+            {count > 1 && (
+              <>
+                <span aria-hidden="true">
+                  {active + 1} / {count}
+                </span>
+                <span className="sr-only" aria-live="polite" aria-atomic="true">
+                  {item?.title}, {active + 1} of {count}
+                </span>
+                <Tooltip content="Previous recommendation">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Previous recommendation"
+                    aria-disabled={active === 0}
+                    onClick={() => move(-1)}
+                  >
+                    <ChevronLeft size={16} aria-hidden />
+                  </button>
+                </Tooltip>
+                <Tooltip content="Next recommendation">
+                  <button
+                    className="icon-button"
+                    type="button"
+                    aria-label="Next recommendation"
+                    aria-disabled={active === count - 1}
+                    onClick={() => move(1)}
+                  >
+                    <ChevronRight size={16} aria-hidden />
+                  </button>
+                </Tooltip>
+              </>
+            )}
+            {embedded && item && impression && hideRecommendation(impression, item.title)}
           </div>
         )}
       </div>
@@ -160,20 +191,22 @@ export function PracticeRecommendations({
                 >
                   <div className="practice-recommendation-details">
                     <div className="practice-recommendation-title">
-                      <h3>{question.title}</h3>
-                      <span className={`difficulty-${question.difficulty}`}>
-                        {formatLabel(question.difficulty)}
-                      </span>
+                      <QuestionHeading className="practice-recommendation-name">
+                        {question.title}
+                      </QuestionHeading>
+                      <DifficultyLabel difficulty={question.difficulty} />
                       {question.isPrivate && <QuestionIndicators privateQuestion />}
                     </div>
                     <div className="practice-recommendation-meta">
-                      <QuestionTopics tags={question.tags} />
+                      <QuestionTopics tags={question.tags} linkToFilter={embedded} />
                       {reason && <span>{reason}</span>}
                     </div>
                   </div>
                   <div className="practice-recommendation-actions">
                     <Link
-                      className="button button-secondary"
+                      className={
+                        primaryAction ? "button button-primary" : "button button-secondary"
+                      }
                       to="/practice/$slug"
                       params={{ slug: question.slug }}
                       onPointerEnter={warmWorkspacePage}
@@ -181,22 +214,7 @@ export function PracticeRecommendations({
                     >
                       Start practice
                     </Link>
-                    {id && (
-                      <Tooltip content="Hide recommendation for 7 days">
-                        <button
-                          className="icon-button"
-                          type="button"
-                          aria-label={`Hide recommendation for ${question.title}`}
-                          disabled={dismissal.isPending}
-                          onClick={() => {
-                            viewport.current?.focus({ preventScroll: true });
-                            dismissal.mutate(id);
-                          }}
-                        >
-                          <X size={16} aria-hidden />
-                        </button>
-                      </Tooltip>
-                    )}
+                    {!embedded && id && hideRecommendation(id, question.title)}
                   </div>
                 </div>
               );
@@ -211,13 +229,14 @@ export function PracticeRecommendations({
       ) : recommendations.isError ? (
         <div className="practice-recommendations-status" role="alert">
           Recommendations couldn’t load.
-          <button
-            className="practice-retry"
+          <LoadingButton
+            className="button button-secondary practice-retry"
             type="button"
             onClick={() => void recommendations.refetch()}
+            pending={recommendations.isFetching}
           >
             Retry
-          </button>
+          </LoadingButton>
         </div>
       ) : (
         <div className="practice-recommendations-status">

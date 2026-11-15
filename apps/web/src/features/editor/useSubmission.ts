@@ -27,6 +27,7 @@ import {
   pendingExecution,
   type PendingExecution,
 } from "../execution/pendingExecution";
+import { invalidatePracticeCatalog } from "../practice/problemQueries";
 import type { PythonEditorHandle } from "./PythonEditor";
 
 function errorMessage(error: unknown) {
@@ -165,6 +166,16 @@ export function useSubmission({
         : false,
   });
   const submission = submissionQuery.data;
+  const acceptedSubmit =
+    workspace?.kind === "solo" &&
+    submission?.kind === "submit" &&
+    submission.state === "completed" &&
+    submission.verdict === "accepted"
+      ? submission.id
+      : undefined;
+  useEffect(() => {
+    if (acceptedSubmit) void invalidatePracticeCatalog(queryClient, identity);
+  }, [acceptedSubmit, identity, queryClient]);
   const canAbort =
     !admissionPending &&
     (submission?.state === "queued" || submission?.state === "running") &&

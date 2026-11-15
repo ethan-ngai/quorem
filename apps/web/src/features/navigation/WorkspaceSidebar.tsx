@@ -48,7 +48,7 @@ export function WorkspaceSidebar({
       <>
         <span className="sidebar-toggle-slot" aria-hidden="true" />
         <div
-          className="sidebar-desktop-backdrop"
+          className="viewport-backdrop sidebar-desktop-backdrop"
           data-state={open ? "open" : "closed"}
           aria-hidden="true"
           onPointerDown={() => setOpen(false)}
@@ -94,7 +94,7 @@ export function WorkspaceSidebar({
         </Dialog.Trigger>
       </Tooltip>
       <Dialog.Portal>
-        <Dialog.Overlay className="sidebar-backdrop" />
+        <Dialog.Overlay className="viewport-backdrop sidebar-backdrop" />
         <Dialog.Content
           id="workspace-navigation"
           className="workspace-sidebar"

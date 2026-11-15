@@ -1,5 +1,8 @@
 :root {
   color-scheme: light;
+  background-color: var(--color-background);
+  scrollbar-color: var(--color-text-disabled) transparent;
+  scrollbar-gutter: stable;
   font-family: "Geist Variable", "Geist Sans", Arial, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -76,6 +79,10 @@
   --motion-standard: 180ms;
   --motion-easing: cubic-bezier(0.2, 0, 0, 1);
   --focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-primary);
+}
+
+:root > body {
+  scrollbar-color: auto;
 }
 
 :root[data-theme="dark"] {

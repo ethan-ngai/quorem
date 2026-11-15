@@ -56,7 +56,7 @@ export function SettingsDialog({
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="settings-backdrop" />
+        <Dialog.Overlay className="viewport-backdrop settings-backdrop" />
         <Dialog.Content
           className="settings-dialog unified-settings"
           onCloseAutoFocus={(event) => {

@@ -4,7 +4,7 @@ import { motion } from "@quorem/ui/tokens";
 /** Capture the outgoing surface before a synchronous or React-driven update. */
 export function prepareContentChangeMotion(
   surface: HTMLElement,
-  resizeWidth = false,
+  { resizeWidth = false, slideUp = false }: { resizeWidth?: boolean; slideUp?: boolean } = {},
 ): (() => () => void) | undefined {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const { width, height } = surface.getBoundingClientRect();
@@ -39,14 +39,17 @@ export function prepareContentChangeMotion(
       easing: motion.easing,
       fill: "both" as const,
     };
-    const animations = [outgoing.animate([{ opacity: 1 }, { opacity: 0 }], timing)];
+    const exit = slideUp
+      ? [{ translate: "0 0" }, { translate: `0 -${height}px` }]
+      : [{ opacity: 1 }, { opacity: 0 }];
+    const enter = slideUp
+      ? [{ translate: `0 ${nextHeight}px` }, { translate: "0 0" }]
+      : [{ opacity: 0 }, { opacity: 1 }];
+    const animations = [outgoing.animate(exit, timing)];
     if (live)
       animations.push(
         live.animate(
-          [
-            { ...liveSize, opacity: 0 },
-            { ...liveSize, opacity: 1 },
-          ],
+          enter.map((frame) => ({ ...liveSize, ...frame })),
           timing,
         ),
       );

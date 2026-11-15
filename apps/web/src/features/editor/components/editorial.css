@@ -136,11 +136,6 @@
   display: inline-flex;
   vertical-align: middle;
 }
-.editorial-complexity dt > span:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
-}
 .solution-display {
   display: grid;
   gap: var(--space-3);

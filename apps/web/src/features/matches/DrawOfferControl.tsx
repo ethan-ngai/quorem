@@ -1,4 +1,5 @@
 /** @file DrawOfferControl.tsx @description Shared Showdown draw confirmation and offer actions. @module matches */
+import { LoadingButton } from "../../ui/LoadingButton";
 import { useState } from "react";
 import { Check, Undo2, X } from "lucide-react";
 import { Icon } from "../../ui/Icon";
@@ -19,9 +20,20 @@ export function DrawOfferControl({
   offer?: { id: string; name: string; own: boolean };
   accepted: boolean;
   pending: boolean;
-  onOffer: () => void;
-  onRespond: (action: "accept" | "decline" | "revoke", offerId: string) => void;
+  onOffer: () => void | Promise<void>;
+  onRespond: (action: "accept" | "decline" | "revoke", offerId: string) => void | Promise<void>;
 }) {
+  const [operation, setOperation] = useState<"offer" | "accept" | "decline" | "revoke">();
+  const busy = pending || operation !== undefined;
+  async function perform(action: NonNullable<typeof operation>, fn: () => void | Promise<void>) {
+    if (busy) return;
+    setOperation(action);
+    try {
+      await fn();
+    } finally {
+      setOperation(undefined);
+    }
+  }
   const [open, setOpen] = useState(false);
   const [mutedOfferId, setMutedOfferId] = useState<string>();
   const noticeId = accepted ? `${matchId}:accepted` : offer?.id;
@@ -36,41 +48,52 @@ export function DrawOfferControl({
   const actions = !accepted && (
     <>
       {!offer ? (
-        <button
+        <LoadingButton
           type="button"
           className="button button-primary"
-          disabled={pending}
-          onClick={onOffer}
+          disabled={busy}
+          onClick={() => void perform("offer", onOffer)}
+          icon={icon}
+          pending={operation === "offer"}
         >
-          {icon} Offer draw
-        </button>
+          Offer draw
+        </LoadingButton>
       ) : offer.own ? (
-        <button
+        <LoadingButton
           type="button"
           className="button button-secondary"
-          disabled={pending}
-          onClick={() => onRespond("revoke", offer.id)}
+          disabled={busy}
+          onClick={() => void perform("revoke", () => onRespond("revoke", offer.id))}
+          icon={<Undo2 size={14} aria-hidden="true" />}
+          iconSize={14}
+          pending={operation === "revoke"}
         >
-          <Undo2 size={14} aria-hidden="true" /> Revoke offer
-        </button>
+          Revoke offer
+        </LoadingButton>
       ) : (
         <>
-          <button
+          <LoadingButton
             type="button"
             className="button button-primary"
-            disabled={pending}
-            onClick={() => onRespond("accept", offer.id)}
+            disabled={busy}
+            onClick={() => void perform("accept", () => onRespond("accept", offer.id))}
+            icon={<Check size={14} aria-hidden="true" />}
+            iconSize={14}
+            pending={operation === "accept"}
           >
-            <Check size={14} aria-hidden="true" /> Accept draw
-          </button>
-          <button
+            Accept draw
+          </LoadingButton>
+          <LoadingButton
             type="button"
             className="button button-secondary"
-            disabled={pending}
-            onClick={() => onRespond("decline", offer.id)}
+            disabled={busy}
+            onClick={() => void perform("decline", () => onRespond("decline", offer.id))}
+            icon={<X size={14} aria-hidden="true" />}
+            iconSize={14}
+            pending={operation === "decline"}
           >
-            <X size={14} aria-hidden="true" /> Decline
-          </button>
+            Decline
+          </LoadingButton>
         </>
       )}
     </>

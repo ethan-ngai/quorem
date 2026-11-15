@@ -12,7 +12,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-5);
 }
 .practice-heading h1 {
   margin: 0;
@@ -20,7 +19,7 @@
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-.practice-heading p {
+.practice-heading > div:first-child > p {
   margin: var(--space-2) 0 0;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
@@ -35,6 +34,53 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
+.practice-recommendations-row:has(.daily-streak) {
+  display: flex;
+  gap: var(--space-4);
+}
+.practice-recommendations-row:has(.daily-streak) > .practice-recommendations {
+  flex: 1;
+}
+.practice-recommendations-row > .daily-streak {
+  display: grid;
+  grid-template-areas:
+    "label label"
+    "flame count";
+  grid-template-columns: auto auto;
+  align-content: start;
+  gap: var(--space-2);
+}
+.practice-recommendations-row .daily-streak-stat {
+  display: contents;
+}
+.practice-recommendations-row .daily-streak-label {
+  grid-area: label;
+  display: flex;
+  align-items: center;
+  min-block-size: var(--control-height);
+  color: var(--color-text);
+  font-size: var(--text-small);
+  font-weight: 600;
+  line-height: inherit;
+}
+.practice-recommendations-row .daily-streak-art {
+  grid-area: flame;
+}
+/* The flame sits below the center of its SVG to leave room for sparks. */
+.practice-recommendations-row .daily-streak-art .ignite-sequence {
+  translate: 0 -5px;
+}
+.practice-recommendations-row .daily-streak-number {
+  grid-area: count;
+  white-space: nowrap;
+}
+.practice-recommendations-row .daily-streak-number strong {
+  font-size: 36px;
+}
+.practice-recommendations-row > .practice-recommendations + .daily-streak {
+  padding-inline-start: var(--space-4);
+  border-inline-start: 1px solid var(--color-border);
+}
 .practice-toolbar {
   display: flex;
   gap: var(--space-2);
@@ -44,35 +90,18 @@
 .practice-search {
   flex: 1;
 }
-.practice-clear,
-.practice-retry {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  height: var(--control-height);
-  padding: 0 var(--space-3);
-  font-size: var(--text-small);
-  transition: background var(--motion-fast);
-}
-.practice-clear {
+.practice-clear.button {
   padding: 0;
   width: var(--control-height);
   flex-shrink: 0;
 }
-.practice-clear:hover,
-.practice-retry:hover {
-  background: var(--color-overlay);
-}
 .practice-catalog {
   background: transparent;
 }
-.practice-catalog .data-table td:first-child {
+.practice-catalog .data-table thead th:first-child {
   width: 48%;
 }
-.practice-catalog .data-table td:nth-child(2) {
+.practice-catalog .data-table thead th:nth-child(2) {
   width: 17%;
 }
 .practice-difficulty {
@@ -105,12 +134,6 @@
 .practice-difficulty.hard {
   color: var(--color-error);
 }
-.practice-topic-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin-top: var(--space-2);
-}
 .practice-state {
   padding: var(--space-6) var(--space-4);
   text-align: center;
@@ -130,13 +153,27 @@
   .practice-browser {
     padding: var(--space-5) var(--space-4);
   }
+  .practice-recommendations-row:has(.daily-streak) {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .practice-recommendations-row > .daily-streak {
+    grid-template-areas: "label flame count";
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .practice-recommendations-row > .practice-recommendations + .daily-streak {
+    padding-inline-start: 0;
+    padding-block-start: var(--space-3);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--color-border);
+  }
   .practice-heading {
     align-items: flex-start;
   }
   .practice-total {
     margin-top: var(--space-1);
   }
-  .practice-heading p {
+  .practice-heading > div:first-child > p {
     max-width: 25ch;
   }
   .practice-toolbar {
@@ -156,13 +193,6 @@
 
   .data-table td:first-child {
     width: auto;
-  }
-  .practice-topic-list {
-    gap: var(--space-1);
-  }
-  .practice-topic-list button {
-    min-height: 28px;
-    padding: var(--space-1) var(--space-2);
   }
 }
 
@@ -401,6 +431,9 @@
 .practice-indicators > span {
   display: inline-flex;
 }
+.practice-solved {
+  color: var(--color-success);
+}
 .practice-format {
   text-align: right;
   color: var(--color-text-secondary);
@@ -416,4 +449,192 @@
   padding-bottom: var(--space-1);
   margin-bottom: var(--space-1);
   border-bottom: 1px solid var(--color-border);
+}
+
+.practice-catalog .data-table thead th:last-child {
+  text-align: end;
+}
+.data-table.practice-grouped-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.practice-grouped-table thead th {
+  position: sticky;
+  inset-block-start: var(--navigation-height);
+  z-index: 1;
+  box-shadow: inset 0 -1px var(--color-border);
+}
+.practice-grouped-table .practice-topic-heading th {
+  padding: var(--space-2) 0 0;
+  background: var(--color-background);
+  border: 0;
+}
+.practice-grouped-table tbody td {
+  padding: 0;
+}
+.practice-grouped-table .practice-cell-reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.practice-grouped-table .practice-cell-clip {
+  min-block-size: 0;
+  overflow: clip;
+}
+.practice-grouped-table .practice-cell-content {
+  padding: var(--space-4) var(--table-cell-inline-padding);
+}
+.practice-grouped-table .practice-topic-message .practice-cell-content {
+  padding: 0;
+}
+.practice-grouped-table tbody:has(.practice-topic-heading[data-exiting]) .practice-cell-reveal {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+.practice-topic-heading button {
+  --topic-inline-padding: var(--space-5);
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  min-block-size: var(--narrow-touch-target);
+  padding: var(--space-4) var(--topic-inline-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+.practice-topic-heading button:is(:hover, :focus-visible) {
+  background: var(--color-control-hover);
+}
+.practice-topic-heading[data-exiting] button,
+.practice-topic-heading button[aria-expanded="true"] {
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+/* Rejoin the card seams as soon as the rows start collapsing. */
+.practice-grouped-table
+  tbody:has(.practice-topic-heading button[aria-expanded="false"])
+  + tbody:has(.practice-topic-heading button[aria-expanded="false"])
+  .practice-topic-heading
+  th {
+  padding-block-start: 0;
+}
+.practice-grouped-table
+  tbody:has(.practice-topic-heading button[aria-expanded="false"])
+  + tbody
+  .practice-topic-heading
+  button[aria-expanded="false"] {
+  border-block-start-width: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+.practice-grouped-table
+  tbody:has(+ tbody .practice-topic-heading button[aria-expanded="false"])
+  .practice-topic-heading
+  button[aria-expanded="false"] {
+  border-block-end-width: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset-inline: var(--topic-inline-padding);
+    inset-block-end: 0;
+    border-block-end: 1px solid var(--color-border);
+    pointer-events: none;
+  }
+}
+.practice-grouped-table tbody tr > td:first-child {
+  border-inline-start: 1px solid var(--color-border);
+}
+.practice-grouped-table tbody tr > td:last-child {
+  border-inline-end: 1px solid var(--color-border);
+}
+.practice-grouped-table tbody tr:last-child > td {
+  box-shadow: inset 0 -1px var(--color-border);
+}
+.practice-grouped-table tbody tr:last-child > td:first-child {
+  border-end-start-radius: var(--radius-md);
+}
+.practice-grouped-table tbody tr:last-child > td:last-child {
+  border-end-end-radius: var(--radius-md);
+}
+.practice-topic-chevron,
+.practice-topic-progress {
+  color: var(--color-text-secondary);
+}
+.practice-topic-heading button[aria-expanded="true"] .practice-topic-chevron {
+  rotate: 90deg;
+}
+.practice-topic-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-small);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.practice-topic-progress progress {
+  appearance: none;
+  inline-size: clamp(3rem, 17vw, 12rem);
+  block-size: 0.375rem;
+  border: 0;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-border);
+}
+.practice-topic-progress progress::-webkit-progress-bar {
+  background: var(--color-border);
+}
+.practice-topic-progress progress::-webkit-progress-value {
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+}
+.practice-topic-progress progress::-moz-progress-bar {
+  background: var(--color-success);
+  border-radius: var(--radius-full);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .practice-grouped-table .practice-topic-heading th {
+    transition: padding-block-start var(--motion-standard) var(--motion-easing);
+  }
+  .practice-topic-heading button {
+    transition:
+      background-color var(--motion-fast) var(--motion-easing),
+      border-radius var(--motion-standard) var(--motion-easing);
+  }
+  .practice-topic-chevron {
+    transition: rotate var(--motion-standard) var(--motion-easing);
+  }
+  .practice-grouped-table tbody:has(.practice-topic-heading[data-animate]) .practice-cell-reveal {
+    transition:
+      grid-template-rows var(--motion-standard) var(--motion-easing),
+      opacity var(--motion-fast) var(--motion-easing);
+  }
+
+  @starting-style {
+    .practice-grouped-table tbody:has(.practice-topic-heading[data-animate]) .practice-cell-reveal {
+      grid-template-rows: 0fr;
+      opacity: 0;
+    }
+  }
+}
+@media (max-width: 650px) {
+  .practice-grouped-table .practice-cell-content {
+    padding: var(--space-3);
+  }
+  .practice-topic-heading button {
+    --topic-inline-padding: var(--space-4);
+    gap: var(--space-2);
+  }
+  .practice-topic-progress {
+    gap: var(--space-2);
+  }
 }

@@ -159,6 +159,19 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         participant,
         match,
       ]);
+      const solo = versions.map(() => crypto.randomUUID());
+      await pool.query(
+        "INSERT INTO workspaces(id, owner_id, publication_id, language) VALUES($1,$4,$5,'postgresql'),($2,$4,$6,'python'),($3,$4,$7,'python')",
+        [...solo, owner, ...versions],
+      );
+      await pool.query("INSERT INTO practice_solves(workspace_id) VALUES($1)", [solo[0]]);
+      await pool.query("INSERT INTO practice_target_progress(workspace_id,tier) VALUES($1,1)", [
+        solo[1],
+      ]);
+      await pool.query(
+        "INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2)",
+        [solo[2], versions[2]],
+      );
       const role = `catalog_${uid}`;
       const rolePassword = crypto.randomUUID();
       await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${rolePassword}'`);
@@ -181,6 +194,10 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         match_participants: "match_id,owner_id,forfeited,competitor_id",
         match_rule_events: "match_id,competitor_id,kind,resource_key",
         match_reservations: "match_id,owner_id",
+        workspaces: "id,owner_id,publication_id,kind",
+        practice_solves: "workspace_id",
+        practice_target_progress: "workspace_id",
+        odyssey_progress: "scope_id,publication_id,completed",
       }))
         await pool.query(`GRANT SELECT(${columns}) ON ${table} TO ${role}`);
       const readURL = new URL(url!);
@@ -328,6 +345,52 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
               parseCatalogFilter(new URLSearchParams(`q=${uid}&${scope}`)),
             ),
           );
+        const grouped = await catalogIn("groupBy=topic&limit=2");
+        expect(grouped.items.map(({ id }: { id: string }) => id)).toEqual(versions.slice(1));
+        expect(grouped.topicGroups).toEqual({ [versions[1]]: "Heap", [versions[2]]: "Heap" });
+        expect(grouped.solvedIds).toEqual([versions[1]]);
+        const remainder = await catalogIn("groupBy=topic&limit=2&page=2");
+        expect(remainder.topicGroups).toEqual({ [versions[0]]: null });
+        expect(remainder.solvedIds).toEqual([versions[0]]);
+        expect(grouped.topicGroupStats).toEqual([
+          { label: "Heap", total: 2, solved: 1 },
+          { label: null, total: 1, solved: 1 },
+        ]);
+        expect(remainder.topicGroupStats).toEqual(grouped.topicGroupStats);
+        const selectGroup = (label: string | null, suffix = "") =>
+          catalogIn(
+            `groupBy=topic&limit=1&topicGroup=${encodeURIComponent(JSON.stringify(label))}${suffix}`,
+          );
+        const heap = await selectGroup("Heap");
+        expect(heap.total).toBe(2);
+        expect(heap.topicGroups).toEqual({ [versions[1]]: "Heap" });
+        expect(heap).not.toHaveProperty("topicGroupStats");
+        const heapNext = await selectGroup("Heap", "&page=2");
+        expect(heapNext.topicGroups).toEqual({ [versions[2]]: "Heap" });
+        const otherGroup = await selectGroup(null);
+        expect(otherGroup.total).toBe(1);
+        expect(otherGroup.topicGroups).toEqual({ [versions[0]]: null });
+        await pool.query("UPDATE odyssey_progress SET completed=true WHERE scope_id=$1", [solo[2]]);
+        expect((await catalogIn("library=global")).solvedIds).toEqual([versions[0], versions[2]]);
+        const otherAccount = JSON.parse(
+          await queries.catalog(
+            { userId: other },
+            parseCatalogFilter(new URLSearchParams(`q=${uid}&library=global`)),
+          ),
+        );
+        expect(otherAccount.solvedIds).toEqual([]);
+        expect(page).not.toHaveProperty("solvedIds");
+        await pool.query(
+          "UPDATE matches SET rules=jsonb_set(rules,'{assistance,topics,access}','\"blocked\"') WHERE id=$1",
+          [match],
+        );
+        const restricted = await catalogIn("groupBy=topic&library=private");
+        expect(restricted.topicGroups).toEqual({ [versions[1]]: null });
+        expect(restricted.items[0].tags).toEqual([]);
+        await pool.query(
+          "UPDATE matches SET rules=jsonb_set(rules,'{assistance,topics,access}','\"free\"') WHERE id=$1",
+          [match],
+        );
         const sqlPage = await catalogIn("sql=true&type=classic");
         expect(sqlPage.total).toBe(1);
         expect(sqlPage.topics).toEqual(["joins"]);

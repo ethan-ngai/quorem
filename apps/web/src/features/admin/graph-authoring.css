@@ -69,8 +69,12 @@
   flex: 0 1 155px;
 }
 
+.data-table.graph-edge-table {
+  --table-cell-inline-padding: var(--space-1);
+}
+
 .data-table.graph-edge-table td {
-  padding: var(--space-1);
+  padding-block: var(--space-1);
 }
 
 .data-table.graph-edge-table th {
