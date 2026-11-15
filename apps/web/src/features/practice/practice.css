@@ -68,13 +68,7 @@
 }
 .practice-recommendations-row .daily-streak-number {
   grid-area: count;
-  color: var(--color-text);
-  font-size: var(--text-h3);
   white-space: nowrap;
-}
-.practice-recommendations-row .daily-streak-number strong {
-  font-size: inherit;
-  letter-spacing: inherit;
 }
 .practice-recommendations-row > .practice-recommendations + .daily-streak {
   padding-inline-start: var(--space-4);
