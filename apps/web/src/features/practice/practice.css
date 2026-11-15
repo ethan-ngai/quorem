@@ -35,6 +35,17 @@
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
+.practice-recommendations-row:has(.daily-streak) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.practice-recommendations-row:has(.daily-streak) > .practice-recommendations {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
 .practice-toolbar {
   display: flex;
   gap: var(--space-2);
@@ -107,12 +118,22 @@
   .practice-browser {
     padding: var(--space-5) var(--space-4);
   }
+  .practice-recommendations-row:has(.daily-streak) {
+    gap: var(--space-2);
+  }
+  .practice-recommendations-row > .daily-streak {
+    flex-direction: column;
+    text-align: center;
+  }
+  .practice-recommendations-row > .daily-streak .daily-streak-number {
+    justify-content: center;
+  }
+  .practice-recommendations-row:has(.daily-streak)
+    :is(.practice-recommendations-header, .practice-recommendation-actions) {
+    flex-wrap: wrap;
+  }
   .practice-heading {
     align-items: flex-start;
-  }
-  .practice-catalog-heading-actions {
-    flex-direction: column-reverse;
-    align-items: flex-end;
   }
   .practice-total {
     margin-top: var(--space-1);

@@ -114,26 +114,24 @@ export function PracticeBrowser() {
         title="Practice"
         description="Browse questions by topic, company and difficulty."
         actions={
-          (catalog.data || import.meta.env.DEV) && (
-            <div className="practice-heading-actions practice-catalog-heading-actions">
-              {catalog.data && (
-                <span className="practice-total">
-                  {total} {total === 1 ? "question" : "questions"}
-                </span>
-              )}
-              {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} sample />}
-            </div>
+          catalog.data && (
+            <span className="practice-total">
+              {total} {total === 1 ? "question" : "questions"}
+            </span>
           )
         }
       >
         <div className="practice-filters">
           <CatalogKindFilters search={scope} update={update} />
         </div>
-        <PracticeRecommendations
-          key={JSON.stringify([actor, library, sql, type])}
-          actor={actor}
-          scope={{ ...scope, library }}
-        />
+        <div className="practice-recommendations-row">
+          <PracticeRecommendations
+            key={JSON.stringify([actor, library, sql, type])}
+            actor={actor}
+            scope={{ ...scope, library }}
+          />
+          {import.meta.env.DEV && <DailyStreak days={sampleActiveStreakDays} sample />}
+        </div>
         <div className="practice-toolbar">
           <SearchField
             className="practice-search"
