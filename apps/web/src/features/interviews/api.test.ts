@@ -14,6 +14,11 @@ describe("interview errors", () => {
       "A limit has been reached. Please try again later.",
     );
     expect(
+      new InterviewError("rate_limited", 429, "Execution budget refilling", {
+        retryAfterSeconds: 72,
+      }).message,
+    ).toBe("Your execution budget is refilling. Try again in about 2 minutes.");
+    expect(
       new InterviewError("entitlement_required", 403, "Interview access is disabled").message,
     ).toBe("The host's interview access is no longer enabled.");
   });

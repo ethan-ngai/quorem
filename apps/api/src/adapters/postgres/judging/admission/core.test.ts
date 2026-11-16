@@ -8,6 +8,7 @@ it("rejects an unsupported runtime before touching the transaction", async () =>
       ownerId: "fixture",
       jobId: crypto.randomUUID(),
       kind: "run",
+      input: { caseCount: 1, sampleCount: 0, submitCasesAreSamples: false },
       source: "x",
       sourceHash: "fixture",
       customRun: false,

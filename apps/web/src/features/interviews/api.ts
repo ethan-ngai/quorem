@@ -22,14 +22,16 @@ export class InterviewError extends UserFacingError {
     public readonly code: string,
     public readonly status: number,
     detail?: unknown,
+    details?: unknown,
   ) {
+    const message = specificErrorMessage(code, detail, details);
     super(
-      specificErrorMessage(code, detail) ??
+      message ??
         (Object.hasOwn(messages, code)
           ? messages[code]
           : "Interview request failed. Your code is still here."),
     );
-    this.useFallback = !specificErrorMessage(code, detail) && !Object.hasOwn(messages, code);
+    this.useFallback = !message && !Object.hasOwn(messages, code);
   }
 }
 
@@ -53,7 +55,7 @@ export async function interviewRequest<T>(
   });
   if (!response.ok) {
     const error = (await response.json().catch(() => undefined)) as
-      | { error?: { code?: unknown; message?: unknown } }
+      | { error?: { code?: unknown; message?: unknown; details?: unknown } }
       | null
       | undefined;
     const code = error?.error?.code;
@@ -61,6 +63,7 @@ export async function interviewRequest<T>(
       typeof code === "string" ? code : "request_failed",
       response.status,
       error?.error?.message,
+      error?.error?.details,
     );
   }
   return response.json() as Promise<T>;

@@ -25,12 +25,23 @@ function rankedComplexity(publication: SQL, end: "first" | "last"): SQL {
     ORDER BY ordinal ${order} LIMIT 1)`;
 }
 
+/** @returns The authored complexity for the chosen timing policy. */
+export function authoredComplexityProfile(publication: SQL, policy: SQL): SQL {
+  return sql`COALESCE(CASE WHEN ${policy}='small'
+    THEN ${publication}.acceptance->'small'->'complexity' END,
+    ${publication}.acceptance->'efficient'->'complexity')`;
+}
+
 /** Expose bounds without revealing approaches or code. */
-export function complexityProjection(publication: SQL): SQL {
+export function complexityProjection(publication: SQL, policy?: SQL): SQL {
   const id = sql`${publication}.id`;
+  const ranked = rankedComplexity(id, "last");
+  const accepted = policy
+    ? sql`COALESCE(CASE WHEN ${policy} IS NOT NULL THEN ${authoredComplexityProfile(publication, policy)} END,${ranked})`
+    : ranked;
   return sql`(SELECT jsonb_strip_nulls(jsonb_build_object(
     'optimal',optimal,
     'accepted',CASE WHEN regexp_replace(accepted::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(optimal::text, '[[:space:]$]', '', 'g') THEN accepted END
   )) FROM (SELECT ${rankedComplexity(id, "first")} AS optimal,
-                  ${rankedComplexity(id, "last")} AS accepted) bounds)`;
+                  ${accepted} AS accepted) bounds)`;
 }

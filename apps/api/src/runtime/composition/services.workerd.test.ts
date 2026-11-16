@@ -1,4 +1,5 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
+import { CASE_SCOPE_REVISION } from "@quorem/execution";
 import { expect, it } from "vitest";
 import { env as runtimeEnv } from "cloudflare:test";
 import worker from "../../../../../deploy/hono/services/worker.js";
@@ -61,7 +62,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     b.toString(16).padStart(2, "0"),
   ).join("");
   const scoped = new TextEncoder().encode(
-    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint, "attempt-vm-v1"]),
+    JSON.stringify([env.CASE_ORIGIN, secret("1"), fingerprint, CASE_SCOPE_REVISION]),
   );
   const scope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", scoped)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const body = "case bytes",
@@ -80,6 +81,8 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
       "x-quorem-case-binding": secret("1"),
       "x-quorem-body-sha256": digest,
       "x-quorem-case-ordinal": "400",
+      "x-case-cpu-ms": "4000",
+      "x-case-compile-ms": "60000",
     },
     body,
   });
@@ -103,6 +106,8 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
     "",
     "",
     "",
+    "4000",
+    "60000",
   ]);
   expect(
     await crypto.subtle.verify(
@@ -163,7 +168,7 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
   ).TEST_CASES;
   const actualNamespace = actualCases.idFromName("quorem-sandbox-namespace-v1").toString();
   const actualScopeBytes = new TextEncoder().encode(
-    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint, "attempt-vm-v1"]),
+    JSON.stringify([env.CASE_ORIGIN, actualNamespace, fingerprint, CASE_SCOPE_REVISION]),
   );
   const actualScope = `remote:${Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", actualScopeBytes)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
   const actualEnv = { ...env, CASES: actualCases, QUOREM_CASE_NAMESPACE_ID: actualNamespace };
@@ -226,6 +231,8 @@ it("enforces scoped hosts and attests large valid case ordinals in workerd", asy
           "",
           "",
           "",
+          "",
+          "",
         ]),
       ),
     ),
@@ -280,7 +287,7 @@ it("real control objects block paused case posts and unactivated drains", async 
     ).join("");
   const origin = "https://case-stage.example.test";
   const scope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki)])))}`;
-  const executionScope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki), "attempt-vm-v1"])))}`;
+  const executionScope = `remote:${await digestHex(new TextEncoder().encode(JSON.stringify([origin, namespace, await digestHex(spki), CASE_SCOPE_REVISION])))}`;
   const control = bindings.CASE_CONTROL.getByName("case-control"),
     operation = crypto.randomUUID();
   const controlPost = (path: string, body: unknown) =>

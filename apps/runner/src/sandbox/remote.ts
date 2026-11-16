@@ -3,7 +3,7 @@ import { createHash, createPublicKey, randomUUID, verify } from "node:crypto";
 import { Readable } from "node:stream";
 import { checkedInput } from "./input.ts";
 import { CASE_SCOPE_REVISION, decodeCaseFrames, type AttemptFence } from "@quorem/execution";
-import { CaseOutputLimit, readinessBudget } from "./budget.ts";
+import { CaseOutputLimit, readinessBudget, sandboxDeadline } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
 import {
   type CaseOutput,
@@ -32,7 +32,14 @@ export function remoteSandbox(config: {
   ownerPublicKey: string;
   cleanupMs: number;
   fetch?: typeof fetch;
-  recordTiming?: (name: "case.launcherReady" | "case.afterLauncherReady", ms: number) => void;
+  recordTiming?: (
+    name:
+      | "case.launcherReady"
+      | "case.afterLauncherReady"
+      | "case.cpuTimeout"
+      | "case.watchdogTimeout",
+    ms: number,
+  ) => void;
 }): IsolatedSandbox & { readonly scope: string; readonly controlScope: string } {
   let base: URL;
   try {
@@ -133,6 +140,8 @@ export function remoteSandbox(config: {
         "",
         "",
         "",
+        "",
+        "",
       ]);
       const confirmed = response.status === 204 && signatureValid;
       await response.body?.cancel();
@@ -164,9 +173,8 @@ export function remoteSandbox(config: {
         timer = setTimeout(() => controller.abort(), request.timeoutMs);
       const budget = readinessBudget({
         initialMs: 60000,
-        compileMs: request.compileMs ?? 60000,
-        wallMs: request.limits.wallTimeMs,
         markers: ["python", "postgresql"].includes(request.language) ? 1 : 2,
+        compiledCpu: !["python", "postgresql"].includes(request.language),
         signal,
       });
       const combined = AbortSignal.any([controller.signal, budget.signal]);
@@ -178,6 +186,8 @@ export function remoteSandbox(config: {
         request.language,
         String(request.limits.memoryBytes),
         String(request.limits.maxProcesses),
+        String(request.limits.wallTimeMs),
+        String(request.compileMs ?? 60000),
       ];
       let complete = false;
       let failure: unknown;
@@ -208,6 +218,8 @@ export function remoteSandbox(config: {
             "x-case-language": request.language,
             "x-case-memory": String(request.limits.memoryBytes),
             "x-case-processes": String(request.limits.maxProcesses),
+            "x-case-cpu-ms": String(request.limits.wallTimeMs),
+            "x-case-compile-ms": String(request.compileMs ?? 60000),
             "x-quorem-case-binding": request.binding,
             "x-quorem-body-sha256": bodyHash,
             "x-quorem-case-ordinal": String(request.ordinal),
@@ -234,11 +246,11 @@ export function remoteSandbox(config: {
           async (channel, data) => {
             const copy = new Uint8Array(data);
             if (channel === "stdout") {
-              budget.observe(copy);
+              const output = budget.observe(copy);
               if (launcherReady === undefined && copy.length && copy[0] === 0)
                 launcherReady = performance.now();
-              stdout.push(copy);
-              out += copy.length;
+              stdout.push(output);
+              out += output.length;
             } else {
               stderr.push(copy);
               err += copy.length;
@@ -248,6 +260,15 @@ export function remoteSandbox(config: {
           budget.close,
         );
         if (code === 125) throw new Error("Case isolation or cleanup failed");
+        const deadline = sandboxDeadline(code);
+        if (deadline) {
+          complete = true;
+          config.recordTiming?.(
+            deadline.limit === "cpu" ? "case.cpuTimeout" : "case.watchdogTimeout",
+            0,
+          );
+          throw deadline;
+        }
         if (!budget.ready()) throw new Error("Sandbox did not become ready");
         complete = true;
         return confirmCaseOutput(request, {

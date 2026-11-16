@@ -110,7 +110,7 @@ describe.skipIf(!url)("guest execution metering", () => {
       [submission, guest, workspace, match],
     );
     await pool.query(
-      "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
+      "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,budget_reserved_seconds) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2',1.25)",
       [job, submission],
     );
     await sealFixture(run, version, job, [{ args: [], expected: 2 }]);
@@ -146,6 +146,11 @@ describe.skipIf(!url)("guest execution metering", () => {
       attemptId: first!.attemptId,
       engineFailure: "fixture failure",
     });
+    const budgetAfterFailure = await pool.query(
+      "SELECT budget_used_seconds FROM execution_jobs WHERE id=$1",
+      [job],
+    );
+    expect(budgetAfterFailure.rows[0].budget_used_seconds).toBe(0);
     expect(
       (
         await pool.query("SELECT settled_at FROM guest_execution_usage WHERE submission_id=$1", [

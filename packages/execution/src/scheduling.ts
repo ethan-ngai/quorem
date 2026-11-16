@@ -1,7 +1,11 @@
 /** @file scheduling.ts @description Bounded judging concurrency shared by runtime and sandbox owners. @module execution */
 export const CASE_LANES = 20;
 export const CASE_WINDOW_BYTES = 8 * 1024 * 1024;
-export const CASE_SCOPE_REVISION = "attempt-vm-v1";
+export const CASE_SCOPE_REVISION = "attempt-vm-v2";
+export const CASE_COMPILE_TIMEOUT = 123;
+export const CASE_EXECUTION_TIMEOUT = 124;
+export const CASE_COMPILE_WATCHDOG = 121;
+export const CASE_EXECUTION_WATCHDOG = 122;
 /** The shared VM reserves one vCPU per active case. */
 export const SHARED_CASE_CONCURRENCY = 4;
 export const JUDGING_DEFAULTS = Object.freeze({ slots: 8, caseLanes: 10, sliceMs: 2000 });

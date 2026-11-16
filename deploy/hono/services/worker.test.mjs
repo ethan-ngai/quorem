@@ -1,3 +1,4 @@
+import { CASE_SCOPE_REVISION } from "../../../packages/execution/src/scheduling.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateKeyPairSync, randomUUID, createHash } from "node:crypto";
@@ -238,7 +239,7 @@ void test("control authority gates drains and registers authorized case attempts
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "attempt-vm-v1"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, CASE_SCOPE_REVISION]))
     .digest("hex")}`;
   const controlScope = `remote:${createHash("sha256")
     .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint]))
@@ -655,7 +656,7 @@ void test("signed live case observation follows execution and confirmed attempt 
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "attempt-vm-v1"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, CASE_SCOPE_REVISION]))
     .digest("hex")}`;
   const values = new Map();
   const context = {
@@ -740,6 +741,8 @@ void test("signed live case observation follows execution and confirmed attempt 
         "x-case-language": "python",
         "x-case-memory": "1024",
         "x-case-processes": "1",
+        "x-case-cpu-ms": "2000",
+        "x-case-compile-ms": "60000",
       },
       body,
     }),
@@ -894,6 +897,8 @@ void test("signed live case observation follows execution and confirmed attempt 
       "",
       "",
       "",
+      "",
+      "",
     ]),
   );
   assert.equal(await crypto.subtle.verify("Ed25519", publicKey, signature, message), true);
@@ -907,6 +912,8 @@ void test("signed live case observation follows execution and confirmed attempt 
         "x-case-language": "python",
         "x-case-memory": "1024",
         "x-case-processes": "1",
+        "x-case-cpu-ms": "2000",
+        "x-case-compile-ms": "60000",
       },
       body: "late",
     }),
@@ -941,7 +948,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
     .update(keys.publicKey.export({ type: "spki", format: "der" }))
     .digest("hex");
   const scope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, "attempt-vm-v1"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, namespace, fingerprint, CASE_SCOPE_REVISION]))
     .digest("hex")}`;
   let forwarded = 0;
   env.CASES = {
@@ -968,6 +975,8 @@ void test("execution and cleanup require the actual pinned namespace and scope",
           "x-case-language": "python",
           "x-case-memory": "1024",
           "x-case-processes": "1",
+          "x-case-cpu-ms": "2000",
+          "x-case-compile-ms": "60000",
         },
         ...(method === "POST" ? { body: "fixture" } : {}),
       }),
@@ -992,7 +1001,7 @@ void test("execution and cleanup require the actual pinned namespace and scope",
   env.QUOREM_CASE_NAMESPACE_ID = secret("0");
   env.CASES.idFromName = () => secret("0");
   const zeroScope = `remote:${createHash("sha256")
-    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint, "attempt-vm-v1"]))
+    .update(JSON.stringify([env.CASE_ORIGIN, secret("0"), fingerprint, CASE_SCOPE_REVISION]))
     .digest("hex")}`;
   assert.equal((await request("DELETE", zeroScope)).status, 503);
   assert.equal((await request("POST", zeroScope)).status, 503);
