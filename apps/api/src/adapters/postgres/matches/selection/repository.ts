@@ -1,9 +1,15 @@
 /** @file repository.ts @description Authorized match problem selection. @module matches */
-import { matchRecommendationCandidates } from "../../../../modules/problems/recommendations/ranking.ts";
+import {
+  matchTechniquePool,
+  matchRecommendationCandidates,
+  type MatchRecommendation,
+} from "../../../../modules/problems/recommendations/ranking.ts";
 import {
   recommendationContext,
   learningQuestions,
 } from "../../problems/recommendations/repository.ts";
+import { matchTopicExposureWindow } from "../../../../modules/problems/recommendations/match-curriculum.ts";
+import { topicCatalog } from "../../problems/topics.ts";
 import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
 import { sql } from "drizzle-orm";
 import type { Transaction } from "@quorem/database/core";
@@ -65,28 +71,47 @@ export async function selectMatchCandidate(
     !settings.selectedProblemVersionId && settings.questionSelection === "recommended"
       ? await recommendationContext(tx, participants)
       : undefined;
-  const ranked = context
-    ? matchRecommendationCandidates(
-        await learningQuestions(
-          tx,
-          candidates.map((item) => item.id),
-        ),
-        context,
-        participants,
-        Date.now(),
-      )
-    : undefined;
-  const eligibleIds = new Set((ranked ?? candidates).map((item) => item.id));
-  const eligible = candidates.filter((item) => eligibleIds.has(item.id));
-  if (!eligible.length) throw noMatchingQuestions();
-  const chosen = choice(eligible);
+  let metrics: MatchRecommendation | undefined;
+  let chosen;
+  if (context) {
+    const now = Date.now();
+    const ids = new Set(candidates.map((item) => item.id));
+    const curriculumEnabled = criteria.sql !== "true";
+    const recent = curriculumEnabled
+      ? context.exposures.filter((exposure) => now - exposure.lastSeen <= matchTopicExposureWindow)
+      : [];
+    const questions = await learningQuestions(tx, [
+      ...new Set([...ids, ...recent.map((e) => e.id)]),
+    ]);
+    const ranked = matchRecommendationCandidates(
+      questions.filter((question) => ids.has(question.id)),
+      context,
+      participants,
+      now,
+      curriculumEnabled
+        ? {
+            catalog: await topicCatalog(tx),
+            exposedQuestions: new Map(questions.map((question) => [question.id, question])),
+            requestedTopics: criteria.topicMatch === "not" ? [] : criteria.topic.split(","),
+          }
+        : undefined,
+    );
+    if (!ranked.length) throw noMatchingQuestions();
+    const recommended = choice(
+      curriculumEnabled ? matchTechniquePool(ranked, Math.random()) : ranked,
+    );
+    chosen = candidates.find((item) => item.id === recommended.id);
+    metrics = recommended;
+  } else {
+    chosen = choice(candidates);
+  }
+  if (!chosen) throw noMatchingQuestions();
   const pinned = await tx.execute(
     sql`SELECT v.id FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id=${chosen.id}::uuid AND v.sealed AND p.current_publication_id=v.id AND (p.owner_id IS NULL OR p.owner_id=${owner}) FOR SHARE OF p,v`,
   );
   if (!pinned.rows.length) throw noMatchingQuestions();
   const latest = await readCandidates(tx, { userId: owner }, criteria);
   if (!latest.some((item) => item.id === chosen.id)) throw noMatchingQuestions();
-  const metrics = ranked?.find((row) => row.id === chosen.id);
   if (matchId && metrics)
     await tx.execute(sql`
     INSERT INTO recommendation_match_selections(match_id,model_id,mean_success,success_spread,familiarity_gap)

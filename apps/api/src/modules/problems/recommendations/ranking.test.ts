@@ -3,8 +3,10 @@ import { expect, it } from "vitest";
 import {
   rankPractice,
   matchRecommendationCandidates,
+  matchTechniquePool,
   type RecommendationContext,
 } from "./ranking.ts";
+import type { MatchTopicPolicy } from "./match-curriculum.ts";
 import {
   day,
   prior,
@@ -143,4 +145,136 @@ it("fit comes before novelty in matches", () => {
       now,
     ),
   ).toEqual(["seen"]);
+});
+
+const curriculumQuestion = (id: string, tag: string, difficulty = "medium") =>
+  question(id, difficulty, ["Array", tag]);
+const curriculumEvent = (
+  id: string,
+  tag: string,
+  owner: string,
+  accepted = true,
+  assisted = false,
+) => ({
+  ...event(id, accepted, now - day, owner),
+  ...curriculumQuestion(id, tag),
+  assisted,
+});
+const curriculumPolicy = (
+  exposed: LearningQuestion[] = [],
+  requestedTopics: string[] = [],
+): MatchTopicPolicy => ({
+  catalog: [
+    { slug: "arrays", aliases: ["array"] },
+    { slug: "union-find", aliases: ["disjoint-set", "disjoint-set-union"] },
+    { slug: "topological-sort", aliases: ["topological-sorting"] },
+    { slug: "dynamic-programming", aliases: ["dp"] },
+  ],
+  exposedQuestions: new Map(exposed.map((q) => [q.id, q])),
+  requestedTopics,
+});
+const seats = ["alice", "bob"];
+
+it("requires readiness or explicit opt-in for every gated tag", () => {
+  const union = curriculumQuestion("union", "Disjoint Set Union"),
+    topo = question("topo", "medium", ["Union-Find", "Topological Sorting", "BFS"]),
+    core = curriculumQuestion("core", "Sliding Window");
+  const alice = [1, 2].map((i) => curriculumEvent(`alice-${i}`, "Union-Find", "alice"));
+  const bob = curriculumEvent("bob-1", "Disjoint Set", "bob");
+  const mixed = context([
+    ...alice,
+    bob,
+    bob,
+    curriculumEvent("assisted", "Union-Find", "bob", true, true),
+  ]);
+  const candidates = [union, topo, core];
+  expect(matchRecommendationPool(candidates, mixed, seats, now, curriculumPolicy())).toEqual([
+    "core",
+  ]);
+  expect(matchRecommendationPool([union], mixed, seats, now, curriculumPolicy())).toEqual([]);
+  expect(
+    matchRecommendationPool(
+      candidates,
+      mixed,
+      seats,
+      now,
+      curriculumPolicy([], ["foundational:union-find"]),
+    ),
+  ).toEqual(["union", "core"]);
+  const ready = context([...mixed.events, curriculumEvent("bob-2", "Union-Find", "bob")]);
+  expect(matchRecommendationPool(candidates, ready, seats, now, curriculumPolicy())).toEqual([
+    "union",
+    "core",
+  ]);
+});
+
+it("prioritizes core techniques until both seats show independent breadth", () => {
+  const sliding = curriculumQuestion("sliding", "Sliding Window"),
+    dp = curriculumQuestion("dp", "DP");
+  const candidates = [sliding, dp];
+  const scores = (events: LearningEvent[], requested?: string[]) =>
+    matchRecommendationCandidates(
+      candidates,
+      context(events),
+      seats,
+      now,
+      curriculumPolicy([], requested),
+    ).map((row) => [row.technique?.topic, row.technique?.weight]);
+  expect(scores([])).toEqual([
+    ["sliding-window", 4],
+    ["dynamic-programming", 0.25],
+  ]);
+  const breadth = seats.flatMap((owner) => [
+    curriculumEvent(`${owner}-sliding`, "Sliding Window", owner),
+    curriculumEvent(`${owner}-binary`, "Binary Search", owner),
+  ]);
+  expect(scores(breadth.slice(0, 3))).toEqual(scores([]));
+  expect(scores(breadth)).toEqual([
+    ["sliding-window", 2],
+    ["dynamic-programming", 1],
+  ]);
+  expect(scores([], ["DP"])).toEqual([
+    ["sliding-window", 4],
+    ["dynamic-programming", 2],
+  ]);
+});
+
+it("rotates a technique across questions and draws buckets independently of catalog size", () => {
+  const recent = curriculumQuestion("old", "Sliding Window");
+  const questions = [
+    ...Array.from({ length: 20 }, (_, i) => curriculumQuestion(`sliding-${i}`, "Sliding Window")),
+    curriculumQuestion("binary", "Binary Search"),
+  ];
+  const rank = (ctx: RecommendationContext) =>
+    matchRecommendationCandidates(questions, ctx, seats, now, curriculumPolicy([recent]));
+  expect(matchTechniquePool(rank(context()), 0.49).map((row) => row.id)).toEqual(["binary"]);
+  expect(matchTechniquePool(rank(context()), 0.51)).toHaveLength(20);
+  const rotated = rank(context([], [{ id: recent.id, owner: "bob" }]));
+  expect(matchTechniquePool(rotated, 0.8).map((row) => row.id)).toEqual(["binary"]);
+  expect(rotated[0].technique?.weight).toBeCloseTo(0.6);
+});
+
+it("requires repeated unresolved struggles on every seat to boost a refresher", () => {
+  const candidate = curriculumQuestion("binary", "Binary Search");
+  const failures = seats.flatMap((owner) =>
+    [1, 2].map((i) => curriculumEvent(`${owner}-${i}`, "Binary Search", owner, false)),
+  );
+  const brushUp = (events: LearningEvent[]) =>
+    matchRecommendationCandidates([candidate], context(events), seats, now, curriculumPolicy())[0]
+      .technique;
+  expect(brushUp(failures.slice(0, 3))?.brushUp).toBe(false);
+  expect(brushUp(failures)).toMatchObject({ brushUp: true, weight: 5.4 });
+  const solved = { ...failures[0], accepted: true, at: now };
+  expect(brushUp([...failures, solved])?.brushUp).toBe(false);
+  const ctx = context(failures);
+  ctx.model.itemBias.easy = -1;
+  const rows = matchRecommendationCandidates(
+    [candidate, curriculumQuestion("easy", "Binary Search", "easy")],
+    ctx,
+    seats,
+    now,
+    curriculumPolicy(),
+  );
+  expect(rows).toHaveLength(2);
+  expect(matchTechniquePool(rows, 0)).toMatchObject([{ id: "easy" }]);
 });

@@ -10,6 +10,7 @@ import {
   type LearningQuestion,
   type Predictor,
 } from "./model.ts";
+import { matchCurriculum, type MatchTopicPolicy } from "./match-curriculum.ts";
 export const practiceSolveTarget = 0.65;
 export type RecommendationReason = "review" | "weak_topic" | "new_topic" | "challenge" | "practice";
 export type RecommendationContext = {
@@ -105,6 +106,7 @@ export function matchRecommendationCandidates(
   context: RecommendationContext,
   owners: readonly string[],
   now: number,
+  topicPolicy?: MatchTopicPolicy,
 ) {
   if (!questions.length || !owners.length) return [];
   const learned = profiles(context.events, context.model, now);
@@ -114,7 +116,10 @@ export function matchRecommendationCandidates(
       context.exposures.filter((e) => e.owner === owner).map((e) => [e.id, e.lastSeen]),
     ),
   }));
-  const rows = questions.map((question) => {
+  const curriculum = topicPolicy && matchCurriculum(context, owners, now, topicPolicy);
+  const rows = questions.flatMap((question) => {
+    const technique = curriculum ? curriculum(question) : undefined;
+    if (technique === null) return [];
     const familiarity = people.map((person) =>
       person.seen.has(question.id)
         ? person.state.memory.get(question.id)?.successAt != null
@@ -132,15 +137,20 @@ export function matchRecommendationCandidates(
     );
     const average = mean(chances);
     const spread = Math.max(...chances) - Math.min(...chances);
-    return {
-      id: question.id,
-      average,
-      spread,
-      seen: familiarity.reduce<number>((a, b) => a + b, 0),
-      imbalance: Math.max(...familiarity) - Math.min(...familiarity),
-      score: 1 - Math.abs(average - 0.55) - 2 * spread - 0.5 * recent,
-    };
+    return [
+      {
+        id: question.id,
+        difficulty: question.difficulty,
+        technique,
+        average,
+        spread,
+        seen: familiarity.reduce<number>((a, b) => a + b, 0),
+        imbalance: Math.max(...familiarity) - Math.min(...familiarity),
+        score: 1 - Math.abs(average - 0.55) - 2 * spread - 0.5 * recent,
+      },
+    ];
   });
+  if (!rows.length) return rows;
   const suitable = rows.filter(
     (row) => row.average >= 0.35 && row.average <= 0.75 && row.spread <= 0.25,
   );
@@ -153,4 +163,25 @@ export function matchRecommendationCandidates(
   const pool = fresh.length ? fresh : suitable.filter((row) => row.imbalance === imbalance);
   const best = Math.max(...pool.map((row) => row.score));
   return pool.filter((row) => row.score >= best - 0.1);
+}
+
+export type MatchRecommendation = ReturnType<typeof matchRecommendationCandidates>[number];
+
+/** Draw a technique bucket independently of how many questions it contains. */
+export function matchTechniquePool(rows: readonly MatchRecommendation[], random: number) {
+  const buckets = new Map<string, { weight: number; rows: MatchRecommendation[] }>();
+  for (const row of rows) {
+    if (!row.technique) return rows;
+    const { topic, weight } = row.technique;
+    const bucket = buckets.get(topic) ?? { weight, rows: [] };
+    bucket.rows.push(row);
+    buckets.set(topic, bucket);
+  }
+  if (!buckets.size) return rows;
+  const ordered = [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b));
+  let remaining = random * ordered.reduce((total, [, bucket]) => total + bucket.weight, 0);
+  const [, drawn] =
+    ordered.find(([, bucket]) => (remaining -= bucket.weight) < 0) ?? ordered.at(-1)!;
+  const easy = drawn.rows.filter((row) => row.technique?.brushUp && row.difficulty === "easy");
+  return easy.length ? easy : drawn.rows;
 }

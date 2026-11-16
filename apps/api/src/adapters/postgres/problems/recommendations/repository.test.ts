@@ -48,6 +48,9 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
             await tx.execute(
               sql`INSERT INTO problem_tags(publication_id,tag,ordinal) VALUES(${version}::uuid,${prefix},0)`,
             );
+            if (i === 0)
+              await tx.execute(sql`INSERT INTO problem_tags(publication_id,tag,ordinal)
+                VALUES(${version}::uuid,'Disjoint Set Union',1)`);
             await tx.execute(
               sql`UPDATE problems SET current_publication_id=${version}::uuid WHERE id=${problem}::uuid`,
             );
@@ -150,6 +153,13 @@ describe.skipIf(!url)("adaptive PostgreSQL selection", () => {
           });
           expect((await selectMatchCandidate(tx, alice, settings, [alice, bob])).id).toBe(
             versions[1],
+          );
+          const advanced = normalizeSettings({
+            ...settings,
+            questionFilters: { topic: `${prefix},foundational:union-find`, topicMatch: "all" },
+          });
+          expect((await selectMatchCandidate(tx, alice, advanced, [alice, bob])).id).toBe(
+            versions[0],
           );
           expect(
             (
