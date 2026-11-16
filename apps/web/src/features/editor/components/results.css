@@ -219,6 +219,10 @@
   height: 14px;
   flex-shrink: 0;
 }
+.case-revealed-icon {
+  margin-inline-start: auto;
+  color: var(--color-text-secondary);
+}
 .locked-case {
   display: grid;
   justify-items: center;

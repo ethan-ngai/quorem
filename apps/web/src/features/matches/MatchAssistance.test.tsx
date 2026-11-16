@@ -34,15 +34,16 @@ it.each([
     notify.mockClear();
     action.mockImplementation(async (_identity, _match, input) => {
       if (rejected && input.approval) throw new Error(insufficient);
+      const alreadyRevealed = input.submissionId === "next-submission";
       return {
         quote: {
           kind: "hiddenCase",
           caseIndex: input.caseIndex,
           ruleVersion: "v1",
-          seconds,
+          seconds: alreadyRevealed ? 0 : seconds,
           points: 0,
           cooldownSeconds: 0,
-          alreadyRevealed: false,
+          alreadyRevealed,
         },
         ...(input.approval
           ? {
@@ -54,7 +55,7 @@ it.each([
                 result: JSON.stringify({
                   index: input.caseIndex,
                   status: "accepted",
-                  actual: "private-actual",
+                  actual: alreadyRevealed ? "latest-actual" : "private-actual",
                   stdout: "private-console",
                 }),
               },
@@ -83,22 +84,24 @@ it.each([
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
-    await act(async () =>
-      root.render(
-        <QueryClientProvider client={client}>
-          <MatchAssistance match={match} identity="alice" submission={submission}>
-            {({ hiddenCaseDetails }) => (
-              <WorkspaceTests
-                problem={publicQuestionFixture(fixture)}
-                busy={false}
-                submission={submission}
-                hiddenCaseDetails={hiddenCaseDetails}
-              />
-            )}
-          </MatchAssistance>
-        </QueryClientProvider>,
-      ),
-    );
+    const render = (submission: Submission) =>
+      act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <MatchAssistance match={match} identity="alice" submission={submission}>
+              {({ hiddenCaseDetails }) => (
+                <WorkspaceTests
+                  problem={publicQuestionFixture(fixture)}
+                  busy={false}
+                  submission={submission}
+                  hiddenCaseDetails={hiddenCaseDetails}
+                />
+              )}
+            </MatchAssistance>
+          </QueryClientProvider>,
+        ),
+      );
+    await render(submission);
     const caseButton = container.querySelector<HTMLButtonElement>(
       '[aria-label="Hidden case 2: passed"]',
     )!;
@@ -155,6 +158,34 @@ it.each([
       expect(container.querySelector('[aria-label="stdout"]')).toBeNull();
       await act(async () => caseButton.click());
       expect(container.textContent).toContain("private-case-input");
+      expect(caseButton.getAttribute("aria-label")).toBe("Hidden case 2: passed, revealed");
+      expect(caseButton.querySelector(".case-revealed-icon")).not.toBeNull();
+      expect(locked.querySelector(".case-revealed-icon")).toBeNull();
+      await render({ ...submission, id: "next-submission" });
+      await vi.waitFor(() => {
+        expect(caseButton.querySelector(".case-revealed-icon")).not.toBeNull();
+        expect(container.textContent).toContain("latest-actual");
+      });
+      expect(container.textContent).not.toContain("private-actual");
+      expect(action).toHaveBeenCalledTimes(4);
+      expect(action).toHaveBeenLastCalledWith(
+        "alice",
+        "match",
+        expect.objectContaining({
+          submissionId: "next-submission",
+          caseIndex: 1,
+          approval: expect.objectContaining({ seconds: 0, points: 0 }),
+        }),
+      );
+      await render({ ...submission, id: "changed-case" });
+      await vi.waitFor(() => expect(action).toHaveBeenCalledTimes(5));
+      expect(action).toHaveBeenLastCalledWith("alice", "match", {
+        kind: "hiddenCase",
+        submissionId: "changed-case",
+        caseIndex: 1,
+      });
+      expect(caseButton.querySelector(".case-revealed-icon")).toBeNull();
+      expect(container.textContent).not.toContain("private-case-input");
     }
     await act(async () => root.unmount());
     client.clear();

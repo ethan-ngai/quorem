@@ -96,19 +96,6 @@ export function TestCases({
       ? Array.from({ length: hiddenCaseCount }, (_, index) => index)
       : [...hiddenVerdicts.keys()];
   const [selectedHidden, setSelectedHidden] = useState<number>();
-  const previousSubmissionId = useRef(submission?.id);
-  useEffect(() => {
-    if (busy) setSelectedHidden(undefined);
-  }, [busy]);
-  useEffect(() => {
-    if (
-      previousSubmissionId.current &&
-      submission?.id &&
-      previousSubmissionId.current !== submission.id
-    )
-      setSelectedHidden(undefined);
-    previousSubmissionId.current = submission?.id;
-  }, [submission?.id]);
   const activeHidden =
     selectedHidden !== undefined && hiddenIndexes.includes(selectedHidden)
       ? selectedHidden
@@ -120,7 +107,8 @@ export function TestCases({
   const revealed = hidden && !pendingSubmit ? hiddenCaseDetails?.(hidden.index) : undefined;
   const hiddenSelector = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (revealed?.example) hiddenSelector.current?.focus({ preventScroll: true });
+    if (revealed?.example && document.activeElement === document.body)
+      hiddenSelector.current?.focus({ preventScroll: true });
   }, [revealed?.example]);
   const currentGroupStart = Math.max(0, caseGroups?.indexOf(currentCaseGroup) ?? 0);
   const [selectedSample, setSelectedSample] = useState(currentGroupStart);
@@ -402,6 +390,9 @@ export function TestCases({
             >
               {hiddenIndexes.map((index) => {
                 const status = hiddenVerdicts.get(index)?.status;
+                const isRevealed =
+                  !pendingSubmit &&
+                  !!(index === activeHidden ? revealed : hiddenCaseDetails?.(index))?.example;
                 return (
                   <button
                     type="button"
@@ -409,11 +400,12 @@ export function TestCases({
                     ref={activeHidden === index ? hiddenSelector : undefined}
                     className="quiet-button selection-feedback case-selector"
                     aria-pressed={activeHidden === index}
-                    aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : (status?.replaceAll("_", " ") ?? "pending")}`}
+                    aria-label={`Hidden case ${index + 1}: ${status === "accepted" ? "passed" : (status?.replaceAll("_", " ") ?? "pending")}${isRevealed ? ", revealed" : ""}`}
                     onClick={() => setSelectedHidden(index)}
                   >
                     <CaseIndicator pending={!status} status={status} />
                     Case {index + 1}
+                    {isRevealed && <Icon name="eye" className="case-revealed-icon" />}
                   </button>
                 );
               })}

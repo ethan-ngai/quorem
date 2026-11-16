@@ -2,7 +2,7 @@
 import { LoadingButton } from "../../ui/LoadingButton";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { Bell, Clock3, Trophy } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import type { DevelopmentIdentity, MatchSnapshot, Submission } from "@quorem/contracts";
 import type {
   RuleActionRequest,
@@ -21,6 +21,18 @@ export const ruleCostLabel = (cost: { seconds: number; points: number }) =>
   cost.seconds ? `+${cost.seconds}s` : cost.points ? `−${cost.points} points` : "No penalty";
 const revealNotice = "Other players will be notified.";
 type OnReveal = (value: NonNullable<RuleActionResult["revealed"]>) => void;
+
+function readRevealedCase(
+  { input, result }: NonNullable<RuleActionResult["revealed"]>,
+  index: number,
+) {
+  if (!input || !result) throw new Error("Case details unavailable.");
+  const example = JSON.parse(input) as NonNullable<HiddenCaseDetails["example"]>;
+  const feedback = JSON.parse(result) as NonNullable<HiddenCaseDetails["result"]>;
+  if (!Array.isArray(example?.args) || feedback?.index !== index || !feedback.status)
+    throw new Error("Case details unavailable.");
+  return { example, result: feedback };
+}
 
 export type MatchDisclosureControls = {
   disabled: boolean;
@@ -55,10 +67,40 @@ export function MatchAssistance({
   const anchor = useRef<HTMLButtonElement>(null);
   const interactedOutside = useRef(false);
   const confirmationId = useId();
-  const [revealedCases, setRevealedCases] = useState<{
-    submissionId: string;
-    cases: Record<number, HiddenCaseDetails>;
-  }>();
+  const [revealedIndexes, setRevealedIndexes] = useState<ReadonlySet<number>>(new Set());
+  const completed =
+    submission?.kind === "submit" && submission.state === "completed" ? submission : undefined;
+  const caseKey = (submissionId: string, index: number) =>
+    ["revealed-case", identity, match.id, submissionId, index] as const;
+  const caseQueries = useQueries({
+    queries: completed
+      ? (completed.hiddenCases ?? [])
+          .filter(({ index }) => revealedIndexes.has(index))
+          .map(({ index }) => {
+            const submissionId = completed.id;
+            return {
+              queryKey: caseKey(submissionId, index),
+              staleTime: Infinity,
+              retry: false,
+              enabled: match.state === "active" && !own?.forfeited,
+              queryFn: async () => {
+                const input = { kind: "hiddenCase", submissionId, caseIndex: index } as const;
+                const { quote } = await matchRuleAction(identity, match.id, input);
+                // The server matches grants by input hash. An ordinal can refer to a new case.
+                if (!quote.alreadyRevealed) return null;
+                const { revealed } = await matchRuleAction(identity, match.id, {
+                  ...input,
+                  approval: quote,
+                });
+                return readRevealedCase(revealed ?? {}, index);
+              },
+            };
+          })
+      : [],
+  });
+  const revealedCases = new Map(
+    caseQueries.flatMap(({ data }) => (data ? [[data.result.index, data] as const] : [])),
+  );
   const disabled = pending || match.state !== "active" || !!own?.forfeited;
   const confirmationOpen = !!confirmation && match.state === "active" && !own?.forfeited;
   useErrorNotification(error || undefined);
@@ -123,7 +165,7 @@ export function MatchAssistance({
   function hiddenCaseDetails(index: number): HiddenCaseDetails | undefined {
     if (submission?.kind !== "submit" || submission.state !== "completed") return undefined;
     const submissionId = submission.id;
-    const existing = revealedCases?.submissionId === submissionId && revealedCases.cases[index];
+    const existing = revealedCases.get(index);
     if (existing) return existing;
     const access = match.rules.assistance.hiddenCase.access;
     if (access === "blocked" || match.state !== "active" || own?.forfeited) return undefined;
@@ -145,19 +187,12 @@ export function MatchAssistance({
             void perform(
               { kind: "hiddenCase", submissionId, caseIndex: index },
               event.currentTarget,
-              ({ input, result }) => {
-                if (!input || !result) throw new Error("Case details unavailable.");
-                const example = JSON.parse(input) as NonNullable<HiddenCaseDetails["example"]>;
-                const feedback = JSON.parse(result) as NonNullable<HiddenCaseDetails["result"]>;
-                if (!Array.isArray(example?.args) || feedback?.index !== index || !feedback.status)
-                  throw new Error("Case details unavailable.");
-                setRevealedCases((previous) => ({
-                  submissionId,
-                  cases: {
-                    ...(previous?.submissionId === submissionId ? previous.cases : {}),
-                    [index]: { example, result: feedback },
-                  },
-                }));
+              (revealed) => {
+                client.setQueryData(
+                  caseKey(submissionId, index),
+                  readRevealedCase(revealed, index),
+                );
+                setRevealedIndexes((previous) => new Set(previous).add(index));
               },
             )
           }
