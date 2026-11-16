@@ -2,7 +2,8 @@ BEGIN READ ONLY;
 SET LOCAL statement_timeout = '5s';
 
 -- Include Runs and submissions that never reached a runner.
-SELECT s.id AS submission, s.kind, s.state, s.admitted_at, s.updated_at,
+SELECT s.id AS submission, s.kind, s.state, s.result->>'verdict' AS verdict,
+       s.admitted_at, s.updated_at,
        s.cancel_requested, j.finished, j.lease_until,
        (SELECT min(k.expires_at) - interval '24 hours'
         FROM cancellation_idempotency k WHERE k.submission_id = s.id) AS first_cancel_response_at
@@ -46,5 +47,20 @@ JOIN execution_verified_cases v ON v.job_id = j.id
 WHERE s.match_id = :'match_id'::uuid
 GROUP BY s.id, v.status
 ORDER BY s.id, v.status;
+
+-- A nearby result may belong to another workspace. Compare hashes without exposing them.
+WITH match_submits AS (
+  SELECT owner_id, admitted_at, source_hash
+  FROM submissions
+  WHERE match_id = :'match_id'::uuid AND kind = 'submit'
+)
+SELECT DISTINCT s.id AS submission, s.kind, s.state, s.result->>'verdict' AS verdict,
+       s.admitted_at, s.match_id, s.source_hash = m.source_hash AS same_source
+FROM match_submits m
+JOIN submissions s ON s.owner_id = m.owner_id
+  AND s.admitted_at BETWEEN m.admitted_at - interval '10 minutes' AND m.admitted_at + interval '1 minute'
+WHERE s.match_id IS DISTINCT FROM :'match_id'::uuid
+ORDER BY s.admitted_at DESC
+LIMIT 40;
 
 COMMIT;
