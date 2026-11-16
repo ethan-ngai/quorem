@@ -54,14 +54,17 @@ async function storedCase() {
 }
 
 const measure = `
-import json, resource, subprocess, sys, time
+import ctypes, json, resource, subprocess, sys, time
 with subprocess.Popen([sys.executable, '-B', '/opt/quorem/harness.py'],
                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                       stderr=subprocess.DEVNULL) as child:
     payload = sys.stdin.buffer.read()
     if child.stdout.read(1) != b'\\0':
         raise SystemExit(1)
-    ready_cpu = time.clock_gettime_ns(time.clock_getcpuclockid(child.pid)) / 1e9
+    clock = ctypes.c_int()
+    if ctypes.CDLL(None).clock_getcpuclockid(child.pid, ctypes.byref(clock)) != 0:
+        raise SystemExit(1)
+    ready_cpu = time.clock_gettime_ns(clock.value) / 1e9
     start = time.monotonic()
     output, _ = child.communicate(payload, timeout=5)
     wall = time.monotonic() - start
