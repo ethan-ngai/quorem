@@ -982,6 +982,12 @@ void test("focus returns amend the actor's departure without charging again", as
   assert.equal(duplicate.version, returned.version);
   assert.deepEqual(duplicate.ruleEvents, returned.ruleEvents);
   assert.deepEqual(((await repo.read(peer, id)) as typeof left).ruleEvents, returned.ruleEvents);
+
+  const rapidDeparture = (await repo.mutate(actor, id, crypto.randomUUID(), "rule-events", {
+    kind: "focus",
+  })) as typeof left;
+  assert.equal(rapidDeparture.ruleEvents.length, 2);
+  assert.equal(rapidDeparture.ruleEvents.at(-1)?.awaySeconds, undefined);
 });
 
 void test(

@@ -17,7 +17,6 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
   const matchId = match?.id;
   const clipboard = match?.rules.clipboard ?? "off";
   const copy = match?.rules.copy ?? "off";
-  const focusGraceSeconds = match?.rules.focusGraceSeconds ?? 3;
   const focus = match?.rules.focus ?? "off";
   useEffect(() => {
     if (!active || !matchId) return;
@@ -45,7 +44,7 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
     };
 
     const monitor = createRuleMonitor(
-      { clipboard, copy, focus, focusGraceSeconds },
+      { clipboard, copy, focus },
       (kind, action) => {
         if (kind === "focus") {
           const reason = "You left the match window.";
@@ -85,10 +84,9 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
       disposed = true;
       stopEditorInput();
       stopFocus();
-      monitor.dispose();
       toast.dismiss(toastId);
       focusToasts.dismissAll();
     };
-  }, [active, matchId, clipboard, copy, focus, focusGraceSeconds, identity, queryClient]);
+  }, [active, matchId, clipboard, copy, focus, identity, queryClient]);
   return { blocked: !!own?.forfeited };
 }

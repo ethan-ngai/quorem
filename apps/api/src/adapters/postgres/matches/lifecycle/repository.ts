@@ -505,7 +505,10 @@ export function matchLifecycle(
               ).rows;
               if (participant.forfeited) throw transition("Participant forfeited");
               const action = m.settings.rules[kind];
-              if (!["announce", "penalty"].includes(action) || !participant.allowed)
+              if (
+                !["announce", "penalty"].includes(action) ||
+                (kind !== "focus" && !participant.allowed)
+              )
                 suppressEvent = true;
               else {
                 const subject = await competitiveSubject(tx, id, who.userId);
@@ -536,9 +539,10 @@ export function matchLifecycle(
                       )
                     : { seconds: 0, points: 0 },
                 });
-                await tx.execute(
-                  sql`UPDATE match_participants SET last_rule_event_at=clock_timestamp() WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
-                );
+                if (kind !== "focus")
+                  await tx.execute(
+                    sql`UPDATE match_participants SET last_rule_event_at=clock_timestamp() WHERE match_id=${id}::uuid AND owner_id=${who.userId}`,
+                  );
               }
             } else if (action === "leave") {
               if (!closed) {

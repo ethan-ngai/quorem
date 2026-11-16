@@ -22,7 +22,6 @@ export const matchRulesSchema = z.strictObject({
   focus: z.enum(["off", "warning", "announce", "penalty"]),
   behavioralSeconds: amount,
   behavioralPoints: points,
-  focusGraceSeconds: z.number().int().min(0).max(60),
   focusFreeWarnings: z.number().int().min(0).max(10),
   assistance: z.strictObject({
     topics: assistancePolicySchema,
@@ -99,7 +98,6 @@ export function matchPreset(preset: MatchPreset = "balanced"): MatchRuleSettings
     focus: preset === "casual" ? "off" : strict ? "penalty" : "announce",
     behavioralSeconds: 15,
     behavioralPoints: 2,
-    focusGraceSeconds: 3,
     focusFreeWarnings: 1,
     assistance: {
       topics: { access, seconds: 30 * assistanceMultiplier, points: 3 * assistanceMultiplier },

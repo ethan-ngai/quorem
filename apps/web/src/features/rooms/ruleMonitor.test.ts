@@ -104,34 +104,21 @@ it("allows notified/penalized clipboard actions and treats copy separately", () 
     ["copy", "announce"],
   ]);
 });
-it("ignores brief focus loss and cancels pending reports on disposal", () => {
-  vi.useFakeTimers();
-  try {
-    const report = vi.fn();
-    const onReturn = vi.fn();
-    const monitor = createRuleMonitor(
-      { clipboard: "off", focus: "penalty", focusGraceSeconds: 3 },
-      report,
-      Date.now,
-      onReturn,
-    );
-    monitor.focus(false);
-    vi.advanceTimersByTime(2999);
-    monitor.focus(true);
-    vi.advanceTimersByTime(1);
-    expect(report).not.toHaveBeenCalled();
-    expect(onReturn).not.toHaveBeenCalled();
-    monitor.focus(false);
-    vi.advanceTimersByTime(3000);
-    expect(report).toHaveBeenCalledTimes(1);
-    vi.advanceTimersByTime(4000);
-    monitor.focus(true);
-    expect(onReturn).toHaveBeenCalledExactlyOnceWith(7);
-    monitor.focus(false);
-    monitor.dispose();
-    vi.advanceTimersByTime(3000);
-    expect(report).toHaveBeenCalledTimes(1);
-  } finally {
-    vi.useRealTimers();
-  }
+it("reports two quick focus losses even within one second", () => {
+  let now = 0;
+  const report = vi.fn();
+  const onReturn = vi.fn();
+  const monitor = createRuleMonitor(
+    { clipboard: "off", focus: "announce" },
+    report,
+    () => now,
+    onReturn,
+  );
+  monitor.focus(false);
+  expect(report).toHaveBeenCalledTimes(1);
+  now = 150;
+  monitor.focus(true);
+  expect(onReturn).toHaveBeenCalledExactlyOnceWith(0);
+  monitor.focus(false);
+  expect(report).toHaveBeenCalledTimes(2);
 });

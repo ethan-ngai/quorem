@@ -3040,11 +3040,6 @@
           "minimum": 0,
           "maximum": 100
         },
-        "focusGraceSeconds": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 60
-        },
         "focusFreeWarnings": {
           "type": "integer",
           "minimum": 0,
@@ -3199,7 +3194,6 @@
         "focus",
         "behavioralSeconds",
         "behavioralPoints",
-        "focusGraceSeconds",
         "focusFreeWarnings",
         "assistance",
         "submissions"

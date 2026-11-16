@@ -2161,7 +2161,6 @@ export interface components {
             focus: "off" | "warning" | "announce" | "penalty";
             behavioralSeconds: number;
             behavioralPoints: number;
-            focusGraceSeconds: number;
             focusFreeWarnings: number;
             assistance: {
                 topics: {

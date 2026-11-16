@@ -1,4 +1,4 @@
-/** @file ruleMonitor.ts @description Deduplicated browser observations with focus grace. @module rooms */
+/** @file ruleMonitor.ts @description Deduplicated browser observations and time away. @module rooms */
 type RuleAction = "off" | "warning" | "announce" | "penalty";
 export type RuleKind = "clipboard" | "copy" | "focus";
 export function createRuleMonitor(
@@ -6,16 +6,12 @@ export function createRuleMonitor(
     clipboard: RuleAction;
     copy?: RuleAction;
     focus: RuleAction;
-    focusGraceSeconds?: number;
   },
   report: (kind: RuleKind, action: RuleAction) => void,
   now = Date.now,
   onFocusReturn?: (awaySeconds: number) => void,
 ) {
-  const focusDelay = (rules.focusGraceSeconds ?? 0) * 1000;
   let leftAt: number | undefined;
-  let reported = false;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   const last = { clipboard: -Infinity, copy: -Infinity };
   const clipboard = (kind: "clipboard" | "copy" = "clipboard") => {
     const action = rules[kind] ?? "off";
@@ -26,10 +22,6 @@ export function createRuleMonitor(
     }
     return action === "warning";
   };
-  const reportFocus = () => {
-    reported = true;
-    report("focus", rules.focus);
-  };
   return {
     clipboard,
     focus(this: void, present: boolean) {
@@ -37,21 +29,13 @@ export function createRuleMonitor(
       if (present) {
         if (leftAt === undefined) return;
         const elapsed = now() - leftAt;
-        clearTimeout(timer);
-        // Background timer throttling can delay a report until the tab regains focus.
-        if (!reported && elapsed >= focusDelay) reportFocus();
         leftAt = undefined;
-        if (reported) onFocusReturn?.(Math.max(0, Math.floor(elapsed / 1000)));
-        reported = false;
+        onFocusReturn?.(Math.max(0, Math.floor(elapsed / 1000)));
         return;
       }
       if (leftAt !== undefined) return;
       leftAt = now();
-      if (focusDelay) timer = setTimeout(reportFocus, focusDelay);
-      else reportFocus();
-    },
-    dispose() {
-      clearTimeout(timer);
+      report("focus", rules.focus);
     },
   };
 }

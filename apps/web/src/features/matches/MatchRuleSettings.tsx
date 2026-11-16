@@ -259,14 +259,6 @@ export function MatchRuleSettingsControls({
       onChange: (cost: number) => onChange({ ...value, [behaviorKey]: cost }),
     },
     {
-      key: "grace",
-      show: value.focus !== "off",
-      label: "Focus grace (seconds)",
-      value: value.focusGraceSeconds,
-      max: 60,
-      onChange: (focusGraceSeconds: number) => onChange({ ...value, focusGraceSeconds }),
-    },
-    {
       key: "warnings",
       show: value.focus === "penalty",
       label: "Warnings before penalties",
