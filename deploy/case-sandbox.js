@@ -330,6 +330,8 @@ export class CaseSandbox extends DurableObject {
         pump(process.stderr, 2),
         process.exitCode,
       ]);
+      if (!Number.isInteger(exitCode) || exitCode === 125)
+        throw new Error("Case cleanup unconfirmed");
       this.phase = "streams-complete";
       timing.executionMs = Math.round(performance.now() - ready);
       console.log(`case-lifecycle streams-complete ${language}`);

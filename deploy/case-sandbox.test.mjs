@@ -17,7 +17,7 @@ function newSandbox(context, env = {}) {
   });
 }
 
-function fixture({ failure = false, streamFailure = false } = {}) {
+function fixture({ failure = false, streamFailure = false, exitCode = 0 } = {}) {
   const values = new Map();
   const pending = [];
   let sent = new Uint8Array();
@@ -84,7 +84,7 @@ function fixture({ failure = false, streamFailure = false } = {}) {
               controller.close();
             },
           }),
-          exitCode: Promise.resolve(0),
+          exitCode: Promise.resolve(exitCode),
         };
       },
     },
@@ -303,4 +303,13 @@ void test("uncertain attempt destruction retains the durable fence", async () =>
   assert.equal(f.values.get("started"), "python");
   assert.equal(f.values.get("cancelled"), true);
   assert.ok(f.context.alarm);
+});
+
+void test("supervisor cleanup failure keeps the launched case registered", async () => {
+  const f = fixture({ exitCode: 125 });
+  const sandbox = newSandbox(f.context);
+  const response = await sandbox.fetch(request());
+  await assert.rejects(response.arrayBuffer());
+  await Promise.all(f.pending);
+  assert.equal(sandbox.active.size, 1);
 });
