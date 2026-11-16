@@ -22,6 +22,11 @@ const matchModes = [
     hint: "Match every selected option (AND)",
     icon: <span aria-hidden="true">&&</span>,
   },
+  {
+    value: "not",
+    label: "NOT",
+    hint: "Exclude questions matching any selected option",
+  },
 ] as const;
 
 type FilterOption = { value: string; label: string; count?: number };
@@ -50,7 +55,10 @@ export function CatalogFilter({
   const firstLabel = groups
     .flatMap((group) => group.options)
     .find((option) => option.value === selected[0])?.label;
-  const summary = [firstLabel, selected.length > 1 ? `+${selected.length - 1}` : ""]
+  const summary = [
+    firstLabel && match === "not" ? `NOT ${firstLabel}` : firstLabel,
+    selected.length > 1 ? `+${selected.length - 1}` : "",
+  ]
     .filter(Boolean)
     .join(" ");
   const term = query.trim().toLowerCase();
@@ -108,7 +116,11 @@ export function CatalogFilter({
         if (open) setQuery("");
       }}
     >
-      <Popover.Trigger className="select-field practice-filter-trigger" aria-label={label}>
+      <Popover.Trigger
+        className="select-field practice-filter-trigger"
+        aria-label={label}
+        aria-description={match === "not" && summary ? summary : undefined}
+      >
         <span className="practice-filter-label">
           {label}
           <ContentTransition inline contentKey={summary}>

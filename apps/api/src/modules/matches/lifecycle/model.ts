@@ -7,7 +7,7 @@ import {
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
-import type { FilterMatch } from "../../problems/model.ts";
+import { filterMatch, type FilterMatch } from "@quorem/contracts/catalog-filter";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
   questionFilters: {
@@ -106,8 +106,10 @@ export function normalizeSettings(value: unknown): Settings {
   else if (v.questionSelection === "recommended") out.questionSelection = v.questionSelection;
   for (const k of ["topicMatch", "companyMatch"] as const) {
     const input = filters[k];
-    if (input === "all") out.questionFilters[k] = input;
-    else if (input !== undefined && input !== "any") throw invalid();
+    if (input === undefined) continue;
+    const match = filterMatch.safeParse(input);
+    if (!match.success) throw invalid();
+    if (match.data !== "any") out.questionFilters[k] = match.data;
   }
   for (const k of ["type", "sql", "topic", "company"] as const) {
     const input = filters[k];

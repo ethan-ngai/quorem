@@ -403,8 +403,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     const proof = await claims.nextExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
-    const staging = postgresCompletionStaging(run, verifier.verification),
-      promote = postgresCompletionPromotion(run);
+    const staging = postgresCompletionStaging(run, verifier.verification);
     const result = {
       submissionId: submission,
       attemptId: live!.attemptId,
@@ -458,8 +457,26 @@ describe.skipIf(!url)("runner claim fences", () => {
       }),
     ).rejects.toThrow("Invalid completion chunk");
     await staging.seal(live!, "public", 0, "executed");
-    await staging.eof(live!, live!);
-    await promote(live!, live!);
+    const blocker = await pool.connect();
+    let lockTimeouts = 0;
+    const promote = postgresCompletionPromotion(async (operation) => {
+      try {
+        return await run(operation);
+      } catch (error) {
+        lockTimeouts++;
+        await blocker.query("ROLLBACK");
+        throw error;
+      }
+    }, true);
+    try {
+      await blocker.query("BEGIN");
+      await blocker.query("SELECT pg_advisory_xact_lock(740020)");
+      await promote(live!, live!);
+      expect(lockTimeouts).toBe(1);
+    } finally {
+      await blocker.query("ROLLBACK");
+      blocker.release();
+    }
     const row = (
       await pool.query(
         "SELECT s.state,s.result,convert_from(c.result_data,'UTF8') AS payload FROM submissions s JOIN submission_public_result_cases c ON c.submission_id=s.id WHERE s.id=$1",
@@ -486,7 +503,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       [submission],
     );
     expect(diagnostic.rows[0].data).toContain("\\u0000");
-    await promote(live!, live!);
+    await postgresCompletionPromotion(run, true)(live!, live!);
     await expect(
       pool.query(
         "UPDATE submission_public_result_cases SET result_data=$1 WHERE submission_id=$2",
@@ -524,7 +541,7 @@ describe.skipIf(!url)("runner claim fences", () => {
       ),
     ).toBe(0);
   });
-  it("settles actual running cancellation only after the fenced owner completes", async () => {
+  it.each(["owner", "recovery"])("settles running cancellation after %s teardown", async (path) => {
     const s = crypto.randomUUID(),
       j = crypto.randomUUID();
     try {
@@ -551,25 +568,51 @@ describe.skipIf(!url)("runner claim fences", () => {
         };
       const cancelled = JSON.parse(await snapshot.cancel(who, s, "cancel"));
       expect(cancelled.state).toBe("running");
+      await snapshot.cancel(who, s, "cancel-again");
+      expect(
+        (
+          await pool.query(
+            "SELECT id FROM execution_dispatch_intents WHERE job_id=$1 AND delivered_at IS NULL",
+            [j],
+          )
+        ).rowCount,
+      ).toBe(1);
       expect(await claims.lease(live!, true)).toBe(false);
       expect(
         (await pool.query("SELECT finished FROM execution_jobs WHERE id=$1", [j])).rows[0].finished,
       ).toBe(false);
-      const staging = postgresCompletionStaging(run, verifier.verification);
-      await staging.begin(live!, {
-        submissionId: s,
-        attemptId: live!.attemptId,
-        engineFailure: true,
-        diagnosticsPresent: false,
-        publicPresent: false,
-        samplePresent: false,
-        privatePresent: false,
-        publicCount: 0,
-        sampleCount: 0,
-        privateCount: 0,
-      });
-      await staging.eof(live!, live!);
-      await postgresCompletionPromotion(run)(live!, live!);
+      if (path === "recovery") {
+        const fence = { attemptId: live!.attemptId, sandboxScope: "scope-a" };
+        await expect(claims.nextRunnableDeadline("scope-a")).resolves.toBe(0);
+        await expect(claims.nextExpiredAttempt(true, "scope-a")).resolves.toEqual(fence);
+        await expect(claims.nextExpiredAttempt(true, "scope-other")).resolves.toBeNull();
+        await expect(claims.claimAfterTeardown(true, "scope-a", null)).resolves.toBeNull();
+        await expect(
+          claims.claimAfterTeardown(true, "scope-a", { ...fence, attemptId: crypto.randomUUID() }),
+        ).resolves.toBeNull();
+        const beforeTeardown = await pool.query(
+          "SELECT finished,lease_until>clock_timestamp() AS live FROM execution_jobs WHERE id=$1",
+          [j],
+        );
+        expect(beforeTeardown.rows[0]).toEqual({ finished: false, live: true });
+        await claims.claimAfterTeardown(true, "scope-a", fence);
+      } else {
+        const staging = postgresCompletionStaging(run, verifier.verification);
+        await staging.begin(live!, {
+          submissionId: s,
+          attemptId: live!.attemptId,
+          engineFailure: true,
+          diagnosticsPresent: false,
+          publicPresent: false,
+          samplePresent: false,
+          privatePresent: false,
+          publicCount: 0,
+          sampleCount: 0,
+          privateCount: 0,
+        });
+        await staging.eof(live!, live!);
+        await postgresCompletionPromotion(run)(live!, live!);
+      }
       expect(
         (await pool.query("SELECT state FROM submissions WHERE id=$1", [s])).rows[0].state,
       ).toBe("cancelled");

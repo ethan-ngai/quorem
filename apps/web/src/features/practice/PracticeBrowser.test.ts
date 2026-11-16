@@ -58,3 +58,13 @@ it("preserves supported page sizes and discards invalid values", () => {
   for (const limit of [0, -1, Number.MAX_SAFE_INTEGER + 1, 2.5, "all"])
     expect(catalogSearch({ limit })).not.toHaveProperty("limit");
 });
+
+it("preserves topic and company exclusions from a catalog link", () => {
+  const search = {
+    topic: "foundational:heap",
+    topicMatch: "not",
+    company: "Google",
+    companyMatch: "not",
+  };
+  expect(catalogSearch(search)).toEqual(search);
+});

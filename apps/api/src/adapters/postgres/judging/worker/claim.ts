@@ -19,6 +19,8 @@ export interface RunnerCapabilities {
 }
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const eligible = sql`NOT j.finished AND s.state IN ('queued','running') AND EXISTS(SELECT 1 FROM runner_job_inputs i WHERE i.job_id=j.id AND i.sealed)`;
+// Cancellation revokes execution authority immediately. The exact teardown proof still gates cleanup.
+const reclaimable = sql`(s.cancel_requested OR j.lease_until<clock_timestamp())`;
 function scopeValid(scope: string): void {
   if (
     !scope ||
@@ -71,7 +73,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
         scopeDb.transaction({ ...options, readOnly: true }, async (tx) => {
           const row = (
             await tx.execute<{ milliseconds: number | null }>(
-              sql`SELECT GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,COALESCE(j.lease_until,'-infinity'::timestamptz)))-clock_timestamp()))*1000))::double precision AS milliseconds ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND (j.attempt_id IS NULL OR j.sandbox_scope=${scope})`,
+              sql`SELECT GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,CASE WHEN NOT s.cancel_requested THEN j.lease_until END))-clock_timestamp()))*1000))::double precision AS milliseconds ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND (j.attempt_id IS NULL OR j.sandbox_scope=${scope})`,
             )
           ).rows[0];
           return row.milliseconds;
@@ -85,7 +87,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
         scopeDb.transaction({ ...options, readOnly: true }, async (tx) => {
           const row = (
             await tx.execute<{ attempt: string; scope: string }>(
-              sql`SELECT j.attempt_id::text AS attempt,j.sandbox_scope AS scope ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND j.attempt_id IS NOT NULL AND j.lease_until<clock_timestamp() AND j.sandbox_scope=${scope} ORDER BY j.available_at,j.id LIMIT 1`,
+              sql`SELECT j.attempt_id::text AS attempt,j.sandbox_scope AS scope ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND j.attempt_id IS NOT NULL AND ${reclaimable} AND j.sandbox_scope=${scope} ORDER BY j.available_at,j.id LIMIT 1`,
             )
           ).rows[0];
           return row ? { attemptId: row.attempt, sandboxScope: row.scope } : null;
@@ -125,7 +127,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
               previous: string | null;
               automaticImports: boolean | null;
             }>(
-              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
+              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
             )
           ).rows[0];
           if (!row) return null;

@@ -175,7 +175,7 @@ export async function probeMatchSandboxes(database, keys, namespace, matchId) {
     `SELECT a.attempt_id, a.claimed_at FROM execution_attempt_inventory a
      JOIN execution_jobs j ON j.id=a.job_id JOIN submissions s ON s.id=j.submission_id
      WHERE s.match_id=$1::uuid AND a.sandbox_scope=$2
-     ORDER BY a.claimed_at DESC LIMIT 20`,
+     ORDER BY (s.state='cancelled') DESC, a.claimed_at DESC LIMIT 20`,
     [matchId, namespace.scope],
   );
   return probeSandboxes(rows, keys, namespace);
