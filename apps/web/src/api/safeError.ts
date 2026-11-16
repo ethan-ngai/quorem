@@ -115,9 +115,11 @@ const specificMessages: Record<string, Record<string, string>> = {
     "Too many editor windows": "Close another editor window and try again.",
     "Host guest execution capacity reached":
       "The host's guest execution capacity is full. Try again shortly.",
-    "Execution quota reached": "Execution allowance reached. Please try again later.",
+    "Daily execution limit reached":
+      "You've reached the account limit for runs and submissions in the past 24 hours.",
   },
   rate_limited: {
+    "Executions requested too quickly": "Wait a couple of seconds, then try again.",
     "Another guest execution is active; try again shortly":
       "Another guest run is active. Try again shortly.",
   },

@@ -12,6 +12,9 @@ import {
   type bindJobInputs,
 } from "../inputs/bind.ts";
 
+const EXECUTION_REFILL_SECONDS = 2;
+const EXECUTION_DAILY_LIMIT = 1_000;
+
 export interface ExecutionAdmissionSnapshot {
   ownerId: string;
   jobId: string;
@@ -48,13 +51,15 @@ export async function insertAdmittedExecution(
     throw new ApplicationError("temporarily_unavailable", "Execution runtime unavailable", 503);
   const busy = (
     await tx.execute<{ busy: boolean; tokens: string; daily: number }>(
-      sql`SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=${s.ownerId} AND state IN ('queued','running')) AS busy,LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/6.0)::text AS tokens,(SELECT count(*)::int FROM submissions WHERE owner_id=${s.ownerId} AND admitted_at>clock_timestamp()-interval '24 hours') AS daily FROM users WHERE id=${s.ownerId}`,
+      sql`SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=${s.ownerId} AND state IN ('queued','running')) AS busy,LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/${EXECUTION_REFILL_SECONDS}::numeric)::text AS tokens,(SELECT count(*)::int FROM submissions WHERE owner_id=${s.ownerId} AND admitted_at>clock_timestamp()-interval '24 hours') AS daily FROM users WHERE id=${s.ownerId}`,
     )
   ).rows[0];
   if (!busy) throw new Error("Admission owner not locked");
   if (busy.busy) throw new ApplicationError("user_busy", "Another execution is active", 409);
-  if (Number(busy.tokens) < 1 || busy.daily >= 100)
-    throw new ApplicationError("quota_exceeded", "Execution quota reached", 429);
+  if (busy.daily >= EXECUTION_DAILY_LIMIT)
+    throw new ApplicationError("quota_exceeded", "Daily execution limit reached", 429);
+  if (Number(busy.tokens) < 1)
+    throw new ApplicationError("rate_limited", "Executions requested too quickly", 429);
   if (s.sponsorId) {
     await tx.execute(
       sql`INSERT INTO guest_sponsor_locks(user_id) VALUES(${s.sponsorId}) ON CONFLICT DO NOTHING`,

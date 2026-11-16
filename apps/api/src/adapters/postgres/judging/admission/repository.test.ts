@@ -336,15 +336,24 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
       "UPDATE users SET admission_tokens=0,tokens_updated_at=clock_timestamp() WHERE id=$1",
       [user],
     );
-    await expect(start("token-limit", "x")).rejects.toMatchObject({ code: "quota_exceeded" });
+    await expect(start("token-limit", "x")).rejects.toMatchObject({ code: "rate_limited" });
     await pool.query(
-      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      "UPDATE submissions SET admitted_at=clock_timestamp()-interval '25 hours' WHERE owner_id=$1",
       [user],
     );
     await pool.query(
-      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) SELECT gen_random_uuid(),$1,$2,'run','','hash','completed','[]'::jsonb FROM generate_series(1,100)",
+      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) SELECT gen_random_uuid(),$1,$2,'run','','hash','completed','[]'::jsonb FROM generate_series(1,999)",
       [user, workspace],
     );
+    await pool.query(
+      "UPDATE users SET admission_tokens=0,tokens_updated_at=clock_timestamp()-interval '2 seconds' WHERE id=$1",
+      [user],
+    );
+    const { id: lastAllowed } = await start("before-daily-limit", "x");
+    await pool.query("UPDATE execution_jobs SET finished=true WHERE submission_id=$1", [
+      lastAllowed,
+    ]);
+    await pool.query("UPDATE submissions SET state='completed' WHERE id=$1", [lastAllowed]);
     await expect(start("daily-limit", "x")).rejects.toMatchObject({ code: "quota_exceeded" });
   });
   it("serializes and enforces the global queue bound", async () => {
