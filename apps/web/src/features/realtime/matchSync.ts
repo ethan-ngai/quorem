@@ -105,8 +105,8 @@ export function isMatchSnapshot(value: unknown, matchId?: string): value is Matc
         (event.awaySeconds === undefined ||
           (event.kind === "focus" &&
             typeof event.awaySeconds === "number" &&
-            Number.isInteger(event.awaySeconds) &&
-            event.awaySeconds >= 0)),
+            event.awaySeconds >= 0 &&
+            event.awaySeconds <= 2_147_483_647)),
     ) &&
     typeof value.id === "string" &&
     uuidPattern.test(value.id) &&

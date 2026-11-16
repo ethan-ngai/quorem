@@ -945,7 +945,7 @@ void test("focus returns amend the actor's departure without charging again", as
   assert.equal(event.action, "penalty");
   assert.equal(event.awaySeconds, undefined);
 
-  const body = { kind: "focus", departureId, awaySeconds: 65 } as const;
+  const body = { kind: "focus", departureId, awaySeconds: 0.7 } as const;
   const foreign = (await repo.mutate(
     peer,
     id,
@@ -972,7 +972,7 @@ void test("focus returns amend the actor's departure without charging again", as
   assert.equal(response.status, 200);
   const returned = (await response.json()) as typeof left;
   assert.equal(BigInt(returned.version), BigInt(left.version) + 1n);
-  assert.deepEqual(returned.ruleEvents, [{ ...event, awaySeconds: 65 }]);
+  assert.deepEqual(returned.ruleEvents, [{ ...event, awaySeconds: 0.7 }]);
   assert.deepEqual(await (await report(body)).json(), returned);
 
   const duplicate = (await repo.mutate(actor, id, "another-return", "rule-events", {

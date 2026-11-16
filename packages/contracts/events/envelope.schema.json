@@ -3241,7 +3241,7 @@
           "type": "integer"
         },
         "awaySeconds": {
-          "type": "integer",
+          "type": "number",
           "minimum": 0,
           "maximum": 2147483647
         },
@@ -3270,7 +3270,7 @@
           "description": "Idempotency key of the focus departure being completed."
         },
         "awaySeconds": {
-          "type": "integer",
+          "type": "number",
           "minimum": 0,
           "maximum": 2147483647
         }

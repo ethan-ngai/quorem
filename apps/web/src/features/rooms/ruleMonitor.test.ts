@@ -118,7 +118,7 @@ it("reports two quick focus losses even within one second", () => {
   expect(report).toHaveBeenCalledTimes(1);
   now = 150;
   monitor.focus(true);
-  expect(onReturn).toHaveBeenCalledExactlyOnceWith(0);
+  expect(onReturn).toHaveBeenCalledExactlyOnceWith(0.15);
   monitor.focus(false);
   expect(report).toHaveBeenCalledTimes(2);
 });

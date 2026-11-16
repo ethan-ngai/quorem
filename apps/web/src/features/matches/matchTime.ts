@@ -31,5 +31,11 @@ export function formatPenaltyDuration(seconds: number) {
 }
 
 export function focusReturnDescription(awaySeconds: number) {
-  return `returned after ${awaySeconds ? formatPenaltyDuration(awaySeconds) : "less than 1s"} away`;
+  const duration =
+    awaySeconds < 0.1
+      ? "less than 0.1s"
+      : awaySeconds < 1
+        ? `${(Math.floor(awaySeconds * 10) / 10).toFixed(1)}s`
+        : formatPenaltyDuration(Math.floor(awaySeconds));
+  return `returned after ${duration} away`;
 }

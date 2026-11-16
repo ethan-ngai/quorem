@@ -435,7 +435,7 @@ export const match_rule_events = pgTable(
     action: text().default("announce").notNull(),
     seconds: integer().default(0).notNull(),
     points: integer().default(0).notNull(),
-    away_seconds: integer(),
+    away_seconds: doublePrecision(),
     resource_key: text(),
     submission_id: uuid(),
     occurred_at: timestamp({ withTimezone: true, mode: "string" })

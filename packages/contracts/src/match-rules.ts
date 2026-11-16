@@ -46,7 +46,7 @@ export const reportMatchRuleSchema = z.union([
   z.strictObject({
     kind: z.literal("focus"),
     departureId: z.uuid(),
-    awaySeconds: z.number().int().min(0).max(2_147_483_647),
+    awaySeconds: z.number().min(0).max(2_147_483_647),
   }),
 ]);
 export type ReportMatchRuleRequest = z.infer<typeof reportMatchRuleSchema>;

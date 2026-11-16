@@ -47,7 +47,7 @@ function FocusPreview() {
     setAlex(({ events, version }) => {
       const last = events.at(-1);
       if (last && last.awaySeconds === undefined) {
-        const awaySeconds = Math.floor((Date.now() - Date.parse(last.occurredAt)) / 1000);
+        const awaySeconds = (Date.now() - Date.parse(last.occurredAt)) / 1000;
         return {
           events: [
             ...events.slice(0, -1),

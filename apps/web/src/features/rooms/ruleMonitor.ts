@@ -30,7 +30,7 @@ export function createRuleMonitor(
         if (leftAt === undefined) return;
         const elapsed = now() - leftAt;
         leftAt = undefined;
-        onFocusReturn?.(Math.max(0, Math.floor(elapsed / 1000)));
+        onFocusReturn?.(Math.max(0, elapsed / 1000));
         return;
       }
       if (leftAt !== undefined) return;
