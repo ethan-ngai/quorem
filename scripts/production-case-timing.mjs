@@ -3,8 +3,11 @@ import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 import { Readable } from "node:stream";
 import { buffer } from "node:stream/consumers";
+import { setTimeout as delay } from "node:timers/promises";
 import { nativeCaseLimits, readBudgetJson } from "../apps/runner/src/engine/case-budget.ts";
 import { streamedCaseRequest } from "../apps/runner/src/engine/request-stream.ts";
+import { readinessBudget } from "../apps/runner/src/sandbox/budget.ts";
+import { decodeCaseFrames, encodeCaseFrame } from "../packages/execution/src/frames.ts";
 
 const { Client } = createRequire(new URL("../packages/database/package.json", import.meta.url))(
   "pg",
@@ -58,15 +61,45 @@ with subprocess.Popen([sys.executable, '-B', '/opt/quorem/harness.py'],
     payload = sys.stdin.buffer.read()
     if child.stdout.read(1) != b'\\0':
         raise SystemExit(1)
+    ready_cpu = time.clock_gettime_ns(time.clock_getcpuclockid(child.pid)) / 1e9
     start = time.monotonic()
     output, _ = child.communicate(payload, timeout=5)
     wall = time.monotonic() - start
     usage = resource.getrusage(resource.RUSAGE_CHILDREN)
     status = json.loads(output)['status']
-    print(json.dumps({'cpuMs': round(1000 * (usage.ru_utime + usage.ru_stime), 2),
+    print(json.dumps({'cpuMs': round(1000 * (usage.ru_utime + usage.ru_stime - ready_cpu), 2),
                       'wallMs': round(1000 * wall, 2),
                       'executed': child.returncode == 0 and status == 'executed'}))
 `;
+
+/** Reproduce a spurious deadline by withholding the exit frame after output is available. */
+async function exitDelivery(wallMs, delayMs) {
+  const budget = readinessBudget({ initialMs: 1000, compileMs: 1000, wallMs, markers: 1 });
+  async function* frames() {
+    yield encodeCaseFrame(1, Uint8Array.of(0));
+    yield encodeCaseFrame(1, Uint8Array.of(65));
+    await delay(delayMs);
+    yield encodeCaseFrame(3, new Uint8Array(4));
+    yield encodeCaseFrame(4, new Uint8Array());
+  }
+  try {
+    await decodeCaseFrames(
+      frames(),
+      { stdoutBytes: 16, stderrBytes: 16 },
+      async (channel, data) => {
+        if (channel === "stdout") budget.observe(data);
+      },
+      budget.signal,
+      budget.close,
+    );
+    return "completed";
+  } catch (error) {
+    if (budget.deadline()?.phase === "case") return "time_limit";
+    throw error;
+  } finally {
+    budget.close();
+  }
+}
 
 async function main() {
   const row = await storedCase();
@@ -125,12 +158,19 @@ async function main() {
       throw new Error("Isolated case did not execute successfully");
     samples.push({ cpuMs, wallMs });
   }
+  const delayMs = Math.min(limits.wallTimeMs + 50, 2050);
   console.log(
     JSON.stringify({
       ordinal: row.ordinal,
       publishedLimitMs: row.limits.wallTimeMs,
       effectiveLimitMs: limits.wallTimeMs,
       samples,
+      exitDelivery: {
+        immediate: await exitDelivery(limits.wallTimeMs, 0),
+        delayMs,
+        effectiveBudget: await exitDelivery(limits.wallTimeMs, delayMs),
+        publishedBudget: await exitDelivery(row.limits.wallTimeMs, delayMs),
+      },
     }),
   );
 }
