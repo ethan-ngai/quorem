@@ -66,6 +66,9 @@ def main():
             env={**os.environ, 'PGCONNECT_TIMEOUT': '10'}, check=False)
         if result.returncode:
             raise SystemExit(result.returncode)
+        if os.environ.get('QUOREM_TIME_REVIEW_CASE') == 'true':
+            subprocess.run(['node', 'scripts/production-case-timing.mjs'],
+                           env={**os.environ, 'DATABASE_URL': uri}, check=True)
         return
     script = ('scripts/hono-production-benchmark-timing.mjs' if os.environ.get('QUOREM_BENCHMARK_START')
               else 'apps/api/src/cli/profile-reads.ts')

@@ -34,6 +34,10 @@ on:
         description: Read authenticated sandbox timing for benchmark_start
         type: boolean
         default: false
+      time_review_case:
+        description: Measure a timed-out Python review case in an isolated CI container
+        type: boolean
+        default: false
       replay_match:
         description: Replay the published suite in a disposable production match
         type: boolean
@@ -111,6 +115,9 @@ jobs:
           cache: true
           run-install: false
       - run: vp install --frozen-lockfile
+      - name: Build pinned Python judge image
+        if: inputs.time_review_case && inputs.match_id != ''
+        run: docker build -f apps/runner/Dockerfile -t quorem-python:local .
       - name: Measure production SELECT execution and round trips
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
@@ -118,6 +125,7 @@ jobs:
           NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
           QUOREM_BENCHMARK_START: ${{ inputs.benchmark_start }}
           QUOREM_DIAGNOSTIC_MATCH_ID: ${{ inputs.match_id }}
+          QUOREM_TIME_REVIEW_CASE: ${{ inputs.time_review_case }}
         run: python3 scripts/profile-production-sql.py
   benchmark:
     if: github.ref == 'refs/heads/dev' && ((inputs.probe_benchmark_sandboxes && inputs.benchmark_start != '') || inputs.benchmark || inputs.workload || inputs.diagnostics || ((inputs.probe_match_sandboxes || inputs.replay_match) && inputs.match_id != ''))
