@@ -19,7 +19,7 @@ Use topic labels in fixtures. Values such as `foundational:arrays` are catalog f
 
 ## Statement and examples
 
-Define every input, the return value, indexing conventions, tie-breaking, and permitted output order. Check these against the source for adaptations. Explain why each public example produces its expected result. Put example-specific figures in the example explanation and use the shared [grid and SVG formats](problem-metadata.md#problem-and-example-figures).
+Define every input, the return value, indexing conventions, tie-breaking, and permitted output order. Check these against the source for adaptations. Explain why each public example produces its expected result, including examples at every Odyssey level.
 
 Write the statement and example explanations as Markdown. Use LaTeX between `$` delimiters for mathematical variables, numbers, arithmetic, comparisons, powers, and Big O. Keep program identifiers, indexing, properties, strings, and serialized arrays in backticks, including literals repeated in example explanations. Split a mixed expression at each code access. Use a language-tagged fence for multiline code (`pseudocode` if language-neutral). Put `$$` on separate lines around a standalone formula.
 
@@ -31,7 +31,11 @@ Write the statement and example explanations as Markdown. Use LaTeX between `$` 
 | Allowed numeric values       | `` `grid[i][j]` $\in \{0, 1\}$ `` |
 | Complexity in a sentence     | `$O(n \log n)$`                   |
 
-Before importing, preview the statement and each example. Check that code blocks have a distinct surface, serialized values render as code, and equations render as math.
+Use `$9$` and `$100$` for counts and bounds in prose. For a mathematical enumeration, write `$11, 22, 33, 44, 55, 66, 77, 88, 99$`. Write a serialized input as `[11, 22, 33]` in backticks. Use subscripts in coordinates such as `$(x_0, y_0)$`, `\lvert` and `\rvert` for absolute value, `\to` for mathematical arrows, and `\cdot` or `\times` for multiplication. For a trace that mixes code and math, keep each array in backticks (including `[]`) and render the arrows and scoring equation separately as LaTeX. Verify that the arithmetic agrees with the expected output.
+
+Check diagram coverage example by example. When a diagram explains a structure, operation, or result, include a case-specific figure for every example where it applies. A figure should match that example’s actual values and highlight the choices or transitions described in its explanation. Use the shared [grid and SVG formats](problem-metadata.md#problem-and-example-figures). Built-in tree, graph, and grid previews cover structure when they show the relevant values. Add an explanation figure if the preview leaves out the operation or result the example illustrates. Simple scalar examples can use a short calculation instead.
+
+Before importing, preview the statement and each example. Verify math delimiters, tagged fences, code spans, figure labels, and that diagrams render against the correct case. Apply the same formatting checks to prose constraints and approach explanations.
 
 ## Constraints
 

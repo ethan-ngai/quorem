@@ -2,6 +2,8 @@
 
 Issues: #14, #34–#37. Auth/login precedes admin implementation.
 
+Follow the [statement and example standards](question-import.md#statement-and-examples) for LaTeX, code Markdown, and diagram coverage in the editor and JSON imports.
+
 - `/login`: Better Auth sessions. Local preview uses seeded username/password accounts. The API checks live sessions and server-owned roles.
 - `/admin/questions`: create or fork drafts; edit statement/topics/signature/constraints/examples/1–100 hidden cases, named solution approaches with shared explanations/Big-O notes and code-only language variants; one canonical Python approach (PostgreSQL for SQL), whose name is optional. Save explicitly, then publish. The Question, Tests/Steps & tests and Solutions panels reuse interview authoring controls. Typed call sequences replace step JSON; incomplete steps can be saved as drafts. Invalid typed values block save/preview; publication validates supported codecs and bounds. Draft listing defaults to 50 items per page. The editor fetches details on opening.
 - Each question slug has one current publication. Open the publication to edit it in place under the same ID. Active workspace judging and matches must finish before editing or deleting it. Historical publication rows retain their existing references.
