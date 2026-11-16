@@ -30,7 +30,6 @@ export interface ExecutionAdmissionSnapshot {
   customRun: boolean;
   language: string;
   automaticImports?: boolean;
-  caseCpuMs?: number;
   runtimeRevision: string;
   harnessRevision: string;
   sponsorId: string | null;
@@ -117,8 +116,8 @@ export async function insertAdmittedExecution(
         INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases,practice_target) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL,${workspace?.practiceTarget ?? null})
         RETURNING id,admitted_at
       ), enqueued AS (
-        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports,budget_reserved_seconds,case_cpu_ms)
-        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision},${s.automaticImports ?? null},${reserve},${s.caseCpuMs ?? null} FROM admitted
+        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports,budget_reserved_seconds)
+        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision},${s.automaticImports ?? null},${reserve} FROM admitted
         RETURNING id
       ), intent AS (
         INSERT INTO execution_dispatch_intents(id,job_id) SELECT ${crypto.randomUUID()}::uuid,id FROM enqueued
@@ -160,7 +159,6 @@ export async function prepareExecutionInputs(
   custom: readonly string[] | null,
   interview: boolean,
   odyssey: boolean,
-  hiddenLimit?: number,
 ): Promise<Omit<Parameters<typeof bindJobInputs>[1], "jobId" | "owner">> {
   const sealed =
     "publication" in owner
@@ -183,11 +181,7 @@ export async function prepareExecutionInputs(
   const primary = custom ? "custom" : kind === "run" || fallback ? "example" : "hidden";
   const customHashes = custom ? await storeCustomInputs(tx, custom) : [];
   const caseCount =
-    primary === "custom"
-      ? customHashes.length
-      : primary === "example"
-        ? examples
-        : Math.min(hidden, hiddenLimit ?? hidden);
+    primary === "custom" ? customHashes.length : primary === "example" ? examples : hidden;
   if (interview && caseCount === 0)
     throw new ApplicationError("invalid_input", "No tests configured", 400);
   return {
@@ -195,7 +189,6 @@ export async function prepareExecutionInputs(
     primary,
     custom: customHashes,
     caseCount,
-    hiddenLimit,
     sampleCount: kind === "submit" ? examples : 0,
     privateDetails: interview,
     submitCasesAreSamples: fallback,

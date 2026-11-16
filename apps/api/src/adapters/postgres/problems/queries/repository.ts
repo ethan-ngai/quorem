@@ -387,14 +387,10 @@ async function readEditorials(
       staged: boolean | null;
       active: boolean;
       allowComplexity: boolean;
-      matchAcceptance: string | null;
     }>(sql`SELECT
  (SELECT v.odyssey IS NOT NULL FROM question_publications v JOIN problems p ON p.id=v.problem_id WHERE v.id::text=${id} AND ${visible(actor, true)} LIMIT 1) AS staged,
  EXISTS(SELECT 1 FROM match_participants mp JOIN matches m ON m.id=mp.match_id WHERE ${who}<>'' AND mp.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing')) AS active,
- EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity",
- (SELECT COALESCE(m.rules->>'acceptance','efficient') FROM match_reservations r
-   JOIN matches m ON m.id=r.match_id WHERE r.owner_id=${who} AND m.publication_id::text=${id}
-   AND m.state IN ('active','finalizing') LIMIT 1) AS "matchAcceptance"`)
+ EXISTS(SELECT 1 FROM match_reservations r JOIN matches m ON m.id=r.match_id WHERE ${who}<>'' AND r.owner_id=${who} AND m.publication_id::text=${id} AND m.state IN ('active','finalizing') AND (m.rules->'assistance'->'complexity'->>'access'='free' OR EXISTS(SELECT 1 FROM match_participants mp JOIN match_rule_events e ON e.match_id=mp.match_id AND e.competitor_id=COALESCE(mp.competitor_id,mp.owner_id) WHERE mp.match_id=m.id AND mp.owner_id=${who} AND e.kind='complexity' AND e.resource_key='complexity'))) AS "allowComplexity"`)
   ).rows;
   const state = rows[0];
   if (state.active && !(complexityOnly && state.allowComplexity))
@@ -403,7 +399,7 @@ async function readEditorials(
   if (state.staged) return complexityOnly ? "{}" : '{"canonicalApproachId":"","items":[]}';
   if (complexityOnly) {
     const { rows } = await tx.execute<{ value: string }>(
-      sql`SELECT ${complexityProjection(sql`v`, sql`${state.matchAcceptance}::text`)}::text AS value FROM question_publications v WHERE v.id=${id}::uuid`,
+      sql`SELECT ${complexityProjection(sql`v`)}::text AS value FROM question_publications v WHERE v.id=${id}::uuid`,
     );
     return rows[0].value;
   }

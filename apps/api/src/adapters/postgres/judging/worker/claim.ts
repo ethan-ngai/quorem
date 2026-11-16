@@ -1,4 +1,3 @@
-import { workspaceExecutionLimits } from "../inputs/limits.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import {
@@ -128,7 +127,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
               previous: string | null;
               automaticImports: boolean | null;
             }>(
-              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',${workspaceExecutionLimits(sql`p.limits`)}) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
+              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
             )
           ).rows[0];
           if (!row) return null;

@@ -348,19 +348,6 @@ export function MatchRuleSettingsControls({
         )}
       >
         <fieldset className="match-rule-group">
-          <legend>Solution acceptance</legend>
-          <SegmentedControl
-            label="Solution acceptance"
-            value={value.acceptance ?? "efficient"}
-            disabled={disabled}
-            options={[
-              { value: "small", label: "Small inputs" },
-              { value: "efficient", label: "Full constraints" },
-            ]}
-            onChange={(acceptance) => onChange({ ...value, acceptance })}
-          />
-        </fieldset>
-        <fieldset className="match-rule-group">
           <legend>
             Assistance{" "}
             <RuleInfo label="About assistance rules">

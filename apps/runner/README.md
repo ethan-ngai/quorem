@@ -26,15 +26,9 @@ harnesses report a separate compilation measurement. A longer in-sandbox watchdo
 bounds blocked programs. Transport deadlines trigger fenced recovery. Only a trusted
 terminal response can turn a supervisor deadline into a contestant time-limit verdict.
 
-Full-constraint matches use the complete hidden suite and the published per-case CPU
-budget. Small-input matches reuse the published small-profile prefix and admit twice the
-published CPU budget, capped at 10 seconds. Questions without that profile use the full
-suite and published budget. Review submissions reuse the original match setting.
-The database migration adds a nullable override to execution jobs. Existing question
-publications need no rewrite.
+Every submit uses the full hidden suite and the published per-case CPU budget.
+Match presets share the same suite. Existing publications need no rewrite.
 
-When authoring a tier, put correctness and smaller inputs in its prefix and use the
-largest valid adversarial inputs to separate growth rates in the full suite. Verify
-multiple intended implementations, including ones with higher constants, against a
-representative slower implementation. Keep generous headroom and improve inputs
-when those runtimes overlap.
+Include the largest valid adversarial inputs to separate growth rates. Verify multiple
+intended implementations, including ones with higher constants, against representative
+slower implementations. Keep generous headroom and improve inputs when runtimes overlap.

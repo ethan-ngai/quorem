@@ -25,7 +25,6 @@ export function WorkspaceTests({
   hideToolbar = false,
   detailsVisible = false,
   hiddenCaseDetails,
-  matchHiddenCaseCount,
 }: {
   problem: PublishedQuestion;
   submission?: Submission;
@@ -41,7 +40,6 @@ export function WorkspaceTests({
   hideToolbar?: boolean;
   detailsVisible?: boolean;
   hiddenCaseDetails?: (index: number) => HiddenCaseDetails | undefined;
-  matchHiddenCaseCount?: number;
 }) {
   const testProblem = progress
     ? {
@@ -51,15 +49,13 @@ export function WorkspaceTests({
       }
     : problem;
   const odyssey = !!testProblem.odyssey;
-  const hiddenCaseCount =
-    matchHiddenCaseCount ??
-    (problem.hiddenCaseCounts
-      ? Object.entries(problem.hiddenCaseCounts).reduce(
-          (total, [stage, count]) =>
-            total + (Number(stage) <= (progress?.level ?? (odyssey ? 1 : 0)) ? count : 0),
-          0,
-        )
-      : undefined);
+  const hiddenCaseCount = problem.hiddenCaseCounts
+    ? Object.entries(problem.hiddenCaseCounts).reduce(
+        (total, [stage, count]) =>
+          total + (Number(stage) <= (progress?.level ?? (odyssey ? 1 : 0)) ? count : 0),
+        0,
+      )
+    : undefined;
   const tabs: ("samples" | "custom")[] = ["samples"];
   if (onDraftsChange) tabs.push("custom");
   const selected = tabs.includes("custom") && customMode;

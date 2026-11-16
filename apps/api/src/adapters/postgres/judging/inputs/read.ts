@@ -1,5 +1,4 @@
 /** @file read.ts @description Lease-fenced, byte-paged immutable runner input reads. @module judging */
-import { workspaceExecutionLimits } from "./limits.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -13,7 +12,7 @@ type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const base = sql`FROM runner_job_inputs i JOIN execution_jobs j ON j.id=i.job_id JOIN submissions s ON s.id=j.submission_id LEFT JOIN workspaces w ON w.id=s.workspace_id LEFT JOIN interview_execution ie ON ie.submission_id=s.id LEFT JOIN interview_question_snapshots q ON q.session_id=ie.session_id AND q.id=ie.fixture_id`;
 function authorized(job: Job) {
   encodeJob(job);
-  return sql`i.sealed AND j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND NOT j.finished AND s.state='running' AND NOT s.cancel_requested AND s.id::text=${job.sourceRef} AND COALESCE(q.fixture->'problem'->>'id',w.publication_id::text)=${job.problemVersionId} AND COALESCE(q.fixture->'problem'->>'id',w.publication_id::text)=${job.suiteRef} AND COALESCE(q.fixture->'problem'->'limits', ${workspaceExecutionLimits(sql`(SELECT limits FROM question_publications WHERE id=w.publication_id)`)}) @> ${JSON.stringify(job.limits)}::jsonb AND j.language=${job.language} AND j.runtime_revision=${job.runtimeRevision} AND j.harness_revision=${job.harnessRevision} AND i.runtime_revision=${job.runtimeRevision} AND i.harness_revision=${job.harnessRevision}`;
+  return sql`i.sealed AND j.id=${job.jobId}::uuid AND s.id=${job.submissionId}::uuid AND j.attempt_id=${job.attemptId}::uuid AND j.sandbox_scope=${job.sandboxScope} AND j.lease_until>clock_timestamp() AND NOT j.finished AND s.state='running' AND NOT s.cancel_requested AND s.id::text=${job.sourceRef} AND COALESCE(q.fixture->'problem'->>'id',w.publication_id::text)=${job.problemVersionId} AND COALESCE(q.fixture->'problem'->>'id',w.publication_id::text)=${job.suiteRef} AND COALESCE(q.fixture->'problem'->'limits', (SELECT limits FROM question_publications WHERE id=w.publication_id)) @> ${JSON.stringify(job.limits)}::jsonb AND j.language=${job.language} AND j.runtime_revision=${job.runtimeRevision} AND j.harness_revision=${job.harnessRevision} AND i.runtime_revision=${job.runtimeRevision} AND i.harness_revision=${job.harnessRevision}`;
 }
 type ManifestRow = {
   kind: "run" | "submit";
