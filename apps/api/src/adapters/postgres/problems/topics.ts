@@ -1,5 +1,6 @@
 /** @file topics.ts @description Canonical display and filter topics over stored publication tags. @module problems */
 import { sql, type SQL } from "drizzle-orm";
+import type { Transaction } from "@quorem/database/core";
 
 const fold = (tag: SQL) => sql`lower(btrim(regexp_replace(${tag}, '[[:space:]]+', ' ', 'g')))`;
 const key = (tag: SQL) =>
@@ -44,4 +45,15 @@ export function topicMatches(selection: SQL) {
 export function topicSearch(query: string) {
   return sql`(strpos(${normalizedTag},lower(${query}))>0
     OR strpos(lower(ft.label),lower(${query}))>0 OR ${matches(sql`${query}`)})`;
+}
+
+/** Load the catalog aliases used by topic filters. */
+export async function topicCatalog(
+  tx: Transaction,
+): Promise<{ slug: string; aliases: string[] }[]> {
+  return (
+    await tx.execute<{ slug: string; aliases: string[] }>(
+      sql`SELECT slug,aliases FROM foundational_topics`,
+    )
+  ).rows;
 }
