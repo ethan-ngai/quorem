@@ -249,6 +249,7 @@ export async function admitWorkspaceInTransaction(
     ownerId: principal.userId,
     jobId: fence.jobId,
     kind: command.kind,
+    input,
     source: command.source,
     sourceHash: command.sourceHash,
     customRun: command.customCases !== null,

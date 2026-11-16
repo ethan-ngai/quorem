@@ -349,6 +349,27 @@ export function MatchRuleSettingsControls({
       >
         <fieldset className="match-rule-group">
           <legend>
+            Complexity allowance{" "}
+            <RuleInfo label="About complexity allowance">
+              Relaxed uses the question’s alternate complexity when available. Both settings run all
+              test cases.
+            </RuleInfo>
+          </legend>
+          <SegmentedControl
+            label="Complexity allowance"
+            value={value.acceptance ?? "efficient"}
+            disabled={disabled}
+            options={[
+              { value: "efficient", label: "Standard" },
+              { value: "small", label: "Relaxed" },
+            ]}
+            onChange={(acceptance) =>
+              onChange({ ...value, acceptance: acceptance === "small" ? acceptance : undefined })
+            }
+          />
+        </fieldset>
+        <fieldset className="match-rule-group">
+          <legend>
             Assistance{" "}
             <RuleInfo label="About assistance rules">
               {

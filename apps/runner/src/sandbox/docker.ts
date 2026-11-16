@@ -5,7 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { checkedInput, type CaseInput } from "./input.ts";
 import type { AttemptFence } from "@quorem/execution";
-import { CaseOutputLimit, readinessBudget } from "./budget.ts";
+import { CaseOutputLimit, readinessBudget, sandboxDeadline } from "./budget.ts";
 import { confirmCaseFailure, confirmCaseOutput } from "./proof.ts";
 import { localFenceRoot } from "./fence.ts";
 import {
@@ -29,7 +29,7 @@ function invoke(
     signal?: AbortSignal;
     maxOut: number;
     maxErr: number;
-    onStdout?: (data: Uint8Array) => void;
+    onStdout?: (data: Uint8Array) => Uint8Array;
   },
 ): Promise<ProcessResult> {
   return new Promise((resolve, reject) => {
@@ -46,9 +46,10 @@ function invoke(
     const collect = (target: Buffer[], limit: number, isOut: boolean) => (data: Buffer) => {
       if (isOut) out += data.length;
       else err += data.length;
+      let output: Uint8Array = data;
       if (isOut && options.onStdout) {
         try {
-          options.onStdout(data);
+          output = options.onStdout(data);
         } catch (error) {
           outputError = error;
           child.kill("SIGKILL");
@@ -60,7 +61,7 @@ function invoke(
         child.kill("SIGKILL");
         return;
       }
-      target.push(data);
+      target.push(Buffer.from(output.buffer, output.byteOffset, output.byteLength));
     };
     child.stdout.on("data", collect(output, options.maxOut, true));
     child.stderr.on("data", collect(errors, options.maxErr, false));
@@ -121,7 +122,7 @@ export async function dockerSandbox(config: {
     maxOut = 65536,
     maxErr = 65536,
     input?: CaseInput,
-    onStdout?: (data: Uint8Array) => void,
+    onStdout?: (data: Uint8Array) => Uint8Array,
   ) => invoke(binary, [...prefix, ...args], { signal, maxOut, maxErr, input, onStdout });
   const identity = async (signal?: AbortSignal) => {
     const r = await cli(["info", "--format", "{{.ID}}"], signal);
@@ -210,9 +211,8 @@ export async function dockerSandbox(config: {
       const name = `quorem-ts-${scope.slice(0, 16)}-${request.fence.attemptId}-${request.ordinal < 0 ? "compile" : request.ordinal}`;
       const budget = readinessBudget({
         initialMs: 10000,
-        compileMs: request.compileMs ?? 60000,
-        wallMs: request.limits.wallTimeMs,
         markers: ["python", "postgresql"].includes(request.language) ? 1 : 2,
+        compiledCpu: !["python", "postgresql"].includes(request.language),
         signal,
       });
       const timeout = AbortSignal.any([AbortSignal.timeout(request.timeoutMs), budget.signal]);
@@ -230,12 +230,20 @@ export async function dockerSandbox(config: {
             "--name",
             name,
             "--user",
-            "65534:65534",
+            "0:0",
+            "--cgroupns",
+            "private",
             "--network",
             "none",
             "--read-only",
             "--cap-drop",
             "ALL",
+            "--cap-add",
+            "SETUID",
+            "--cap-add",
+            "SETGID",
+            "--cap-add",
+            "KILL",
             "--security-opt",
             "no-new-privileges",
             "--memory",
@@ -243,7 +251,7 @@ export async function dockerSandbox(config: {
             "--memory-swap",
             String(request.limits.memoryBytes),
             "--pids-limit",
-            String(request.limits.maxProcesses),
+            String(request.limits.maxProcesses + 1),
             "--cpus",
             "1",
             "--tmpfs",
@@ -252,7 +260,14 @@ export async function dockerSandbox(config: {
             `quorem.scope=${scope}`,
             "--label",
             `quorem.attempt=${request.fence.attemptId}`,
+            "--entrypoint",
+            "python3",
             runtime,
+            "-B",
+            "/opt/quorem/docker_launcher.py",
+            String(request.limits.wallTimeMs),
+            String(request.compileMs ?? 60000),
+            ["python", "postgresql"].includes(request.language) ? "direct" : "compiled",
           ],
           timeout,
         );
@@ -270,7 +285,9 @@ export async function dockerSandbox(config: {
           request.input,
           budget.observe,
         );
-        if (!budget.ready()) throw new Error("Sandbox did not become ready");
+        const deadline = sandboxDeadline(result.code);
+        if (deadline) throw deadline;
+        if (result.code === 125 || !budget.ready()) throw new Error("Sandbox did not become ready");
         return confirmCaseOutput(request, {
           stdout: result.stdout,
           stderr: result.stderr,

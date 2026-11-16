@@ -53,6 +53,8 @@ export default {
         "",
         "",
         "",
+        "",
+        "",
       ]),
     );
     const valid = await crypto.subtle.verify("Ed25519", keys.publicKey, signature, message);
@@ -76,6 +78,8 @@ export default {
       "x-case-language": language,
       "x-case-memory": memory,
       "x-case-processes": processes,
+      "x-case-cpu-ms": "2000",
+      "x-case-compile-ms": "60000",
     };
     const posted = await worker.fetch(
       new Request("https://fixture.invalid/internal/case/fixture", {
@@ -104,6 +108,8 @@ export default {
         language,
         memory,
         processes,
+        "2000",
+        "60000",
       ]),
     );
     const postValid = await crypto.subtle.verify(

@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
+import { defaultLimits } from "@quorem/execution";
+import { postgresClaims } from "../worker/claim.ts";
 import { migrate } from "@quorem/database/migrations";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
@@ -59,7 +61,7 @@ beforeAll(async () => {
   );
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
   await pool.query(
-    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,acceptance) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'',$4::jsonb)",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,acceptance) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,$5::jsonb,'',$4::jsonb)",
     [
       version,
       problem,
@@ -70,12 +72,13 @@ beforeAll(async () => {
         returnType: "int",
       }),
       JSON.stringify({
-        small: { caseCount: 1, complexity: { timeComplexity: "O(1)", spaceComplexity: "O(1)" } },
+        small: { caseCount: 1, complexity: { timeComplexity: "O(n^2)", spaceComplexity: "O(1)" } },
         efficient: {
           caseCount: 2,
           complexity: { timeComplexity: "O(1)", spaceComplexity: "O(1)" },
         },
       }),
+      JSON.stringify(defaultLimits()),
     ],
   );
   await pool.query(
@@ -230,5 +233,16 @@ it.skipIf(!url)(
       ).rows[0].submission_state,
     ).toBe("queued");
     await expect(start(1)).rejects.toMatchObject({ code: "rate_limited" });
+    await expect(
+      postgresClaims(run, {
+        inputProtocol: "manifest-v1",
+        resumable: true,
+        losslessCases: true,
+        losslessResults: true,
+      }).claimAfterTeardown(true, "fixture", null),
+    ).resolves.toMatchObject({
+      submissionId: result.id,
+      timeComplexity: "O(n^2)",
+    });
   },
 );

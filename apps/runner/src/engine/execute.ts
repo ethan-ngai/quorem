@@ -1,4 +1,4 @@
-import type { CaseBudget } from "@quorem/questions";
+import { inferCaseBudget, type CaseBudget } from "@quorem/questions";
 import { caseMemoryReservation, nativeCaseLimits, readBudgetJson } from "./case-budget.ts";
 import { metadataSpans } from "./metadata-spans.ts";
 /** @file execute.ts @description Manifest-bound, checkpointed case orchestration. @module runner */
@@ -125,14 +125,35 @@ export async function executeAndStage(
       signal,
     });
     try {
-      const budgetSpan =
-        manifest.kind === "submit"
-          ? (await metadataSpans(metadata, manifest.level)).caseBudget
-          : undefined;
+      const spans =
+        manifest.kind === "submit" ? await metadataSpans(metadata, manifest.level) : undefined;
+      const budgetSpan = spans?.caseBudget;
       const budgetRaw = budgetSpan
         ? await readBudgetJson(metadata.stream(budgetSpan.start, budgetSpan.length), 8192)
         : undefined;
       const caseBudget = budgetRaw ? (JSON.parse(budgetRaw) as CaseBudget) : undefined;
+      let time = caseBudget?.time ?? null;
+      if (spans && job.timeComplexity) {
+        time = null;
+        if (spans.signature && spans.constraints) {
+          const signature = await readBudgetJson(
+            metadata.stream(spans.signature.start, spans.signature.length),
+            65536,
+          );
+          const constraints = await readBudgetJson(
+            metadata.stream(spans.constraints.start, spans.constraints.length),
+            65536,
+          );
+          if (signature && constraints) {
+            time =
+              inferCaseBudget(
+                { timeComplexity: job.timeComplexity, spaceComplexity: "O(1)" },
+                JSON.parse(signature),
+                JSON.parse(constraints),
+              )?.time ?? null;
+          }
+        }
+      }
       const reserveMemory = caseBudget ? caseMemoryReservation() : undefined;
       if (
         checkpoint.nextOrdinal < 0 ||
@@ -272,6 +293,7 @@ export async function executeAndStage(
               caseBudget,
               projectedCase.args,
               operation === "compile-execute",
+              time,
             );
             const request = {
               fence: job,
@@ -302,7 +324,7 @@ export async function executeAndStage(
             } catch (error) {
               if (error instanceof CaseDeadline || error instanceof CaseOutputLimit)
                 assertCaseFailure(request, error);
-              if (error instanceof CaseDeadline && error.phase !== "startup") {
+              if (error instanceof CaseDeadline && error.limit !== "transport") {
                 frame = failFrame("time_limit");
                 if (error.phase === "compile") compilation = 60000000000n;
               } else if (error instanceof CaseOutputLimit) frame = failFrame("output_limit");

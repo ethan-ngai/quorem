@@ -19,6 +19,7 @@ import {
   type Job,
 } from "@quorem/execution";
 import { dockerSandbox } from "../sandbox/docker.ts";
+import { nativeCaseLimits } from "./case-budget.ts";
 import { executeAndStage, ExecutionYield } from "./execute.ts";
 type ExecutionSpec = {
   problemJson: string;
@@ -905,6 +906,7 @@ void test("native case budgets preserve the entire submitted suite", async () =>
         parameters: [{ name: "values", type: "list<int>" }],
         returnType: "int",
       },
+      constraints: [],
       caseBudget: { time: [[{ ...factor, growth: "quadratic" }]], space: [[factor]] },
     }),
     cases: [
@@ -913,7 +915,7 @@ void test("native case budgets preserve the entire submitted suite", async () =>
     ],
   });
   const limits: Job["limits"][] = [];
-  await executeAndStage(job, fixture.port, {
+  await executeAndStage({ ...job, timeComplexity: "O(n)" }, fixture.port, {
     teardownAttempt: async () => {},
     async runCase(request) {
       limits[request.ordinal] = request.limits;
@@ -928,13 +930,32 @@ void test("native case budgets preserve the entire submitted suite", async () =>
   assert.equal(fixture.frames.length, 2);
   assert.equal(limits.length, 2);
   assert.deepEqual(fixture.seals, ["private:0:executed", "private:1:time_limit"]);
-  assert.ok(limits[0].wallTimeMs < limits[1].wallTimeMs);
+  assert.equal(limits[0].wallTimeMs, job.limits.wallTimeMs + 1);
   assert.ok(limits[0].memoryBytes <= limits[1].memoryBytes);
-  assert.ok(limits[1].wallTimeMs <= job.limits.wallTimeMs);
+  assert.equal(limits[1].wallTimeMs, job.limits.wallTimeMs + 3);
+});
+
+void test("derived CPU headroom falls back safely and respects the sandbox ceiling", async () => {
+  const { job } = fastFixture({ kind: "submit" });
+  const factor = { argument: 0, measure: "value", growth: "quadratic" } as const;
+  const budget = { time: [[factor]], space: [[]] };
+  const args = (json: string) =>
+    async function* () {
+      yield Buffer.from(json);
+    };
+  assert.equal((await nativeCaseLimits(job, budget, args("[100000]"), false)).wallTimeMs, 10000);
+  assert.equal(
+    (await nativeCaseLimits(job, budget, args("[-1]"), false)).wallTimeMs,
+    job.limits.wallTimeMs,
+  );
+  assert.equal(
+    (await nativeCaseLimits(job, budget, args("[100000]"), false, null)).wallTimeMs,
+    job.limits.wallTimeMs,
+  );
 });
 
 void test(
-  "real native budget lets a quadratic Python solution pass small cases and time out on large ones",
+  "a generous native budget accepts different linear constants and separates quadratic work",
   { skip: !socket, timeout: 15000 },
   async (t) => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "quorem-case-budget-")));
@@ -945,28 +966,38 @@ void test(
       namespace: "fixture-case-budget",
       cleanupMs: 10000,
     });
-    const { fixture, job } = fastFixture({
-      kind: "submit",
-      source:
-        "class Solution:\n def f(self, values):\n  for a in values:\n   for b in values:\n    _ = a + b\n  return 7",
-      problemJson: JSON.stringify({
-        signature: {
-          className: "Solution",
-          methodName: "f",
-          parameters: [{ name: "values", type: "list<int>" }],
-          returnType: "int",
-        },
-        caseBudget: { time: [[{ argument: 0, measure: "length", growth: "linear" }]], space: [[]] },
-      }),
-      cases: [8, 8192, 16].map((size) =>
-        JSON.stringify({ args: [Array(size).fill(1)], expected: 7 }),
-      ),
+    const cases = [8, 60000, 16].map((size) =>
+      JSON.stringify({ args: [Array(size).fill(1)], expected: 7 }),
+    );
+    const problemJson = JSON.stringify({
+      signature: {
+        className: "Solution",
+        methodName: "f",
+        parameters: [{ name: "values", type: "list<int>" }],
+        returnType: "int",
+      },
+      caseBudget: { time: [[{ argument: 0, measure: "length", growth: "linear" }]], space: [[]] },
     });
-    await executeAndStage({ ...job, sandboxScope: sandbox.scope }, fixture.port, sandbox);
-    assert.deepEqual(fixture.seals, [
-      "private:0:executed",
-      "private:1:time_limit",
-      "private:2:executed",
-    ]);
+    for (const [body, large] of [
+      ["  return 7 if sum(values) else 0", "executed"],
+      [
+        "  total = 0\n  for _ in range(8):\n   for value in values: total += value\n  return 7 if total else 0",
+        "executed",
+      ],
+      ["  for a in values:\n   for b in values: _ = a + b\n  return 7", "time_limit"],
+    ]) {
+      const { fixture, job } = fastFixture({
+        kind: "submit",
+        source: `class Solution:\n def f(self, values):\n${body}`,
+        problemJson,
+        cases,
+      });
+      await executeAndStage({ ...job, sandboxScope: sandbox.scope }, fixture.port, sandbox);
+      assert.deepEqual(fixture.seals, [
+        "private:0:executed",
+        `private:1:${large}`,
+        "private:2:executed",
+      ]);
+    }
   },
 );

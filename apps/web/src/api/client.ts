@@ -45,7 +45,9 @@ export function requireData<T>(data: T | undefined, error: unknown, status?: num
   const code = detail && typeof detail === "object" && "code" in detail ? detail.code : undefined;
   const serverMessage =
     detail && typeof detail === "object" && "message" in detail ? detail.message : undefined;
-  const message = safeErrorMessage(code, serverMessage);
+  const details =
+    detail && typeof detail === "object" && "details" in detail ? detail.details : undefined;
+  const message = safeErrorMessage(code, serverMessage, details);
   if (message || status !== undefined)
     throw new ApiError(
       message ?? "API request failed",

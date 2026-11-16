@@ -3,6 +3,7 @@ import { bytesInput } from "./input.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import { CaseDeadline } from "./budget.ts";
 import { defaultLimits } from "@quorem/execution";
 import { remoteSandbox } from "./remote.ts";
 const secret = "fixture-only-case-service-token-123456";
@@ -20,6 +21,9 @@ function setup(
     | "no-attestation"
     | "wrong-owner"
     | "wrong-namespace"
+    | "slow-exit"
+    | "native-timeout"
+    | "compiled"
     | "slow-teardown"
     | "slow-truncated",
 ) {
@@ -56,8 +60,10 @@ function setup(
             "x-case-language",
             "x-case-memory",
             "x-case-processes",
+            "x-case-cpu-ms",
+            "x-case-compile-ms",
           ].map((key) => headers.get(key) ?? "")
-        : ["", "", "", "", "", ""];
+        : ["", "", "", "", "", "", "", ""];
     const signature = sign(
       null,
       Buffer.from(
@@ -72,14 +78,22 @@ function setup(
     );
     if (method === "DELETE") return new Response(null, { status, headers: h });
     const chunks = [
-      frame(1, new Uint8Array([0, 65])),
-      frame(3, new Uint8Array([0, 0, 0, 0])),
+      ...(mode === "compiled"
+        ? [
+            frame(1, Uint8Array.of(0)),
+            frame(1, Uint8Array.of(0, 0, 0)),
+            frame(1, Uint8Array.of(0, 7, 65)),
+          ]
+        : [frame(1, new Uint8Array([0, 65]))]),
+      frame(3, new Uint8Array([0, 0, 0, mode === "native-timeout" ? 124 : 0])),
       ...(mode === "truncated" || mode === "slow-truncated" ? [] : [frame(4, new Uint8Array())]),
     ];
     return new Response(
       new ReadableStream({
         async start(c) {
           for (let i = 0; i < chunks.length; i++) {
+            if (i === 1 && mode === "slow-exit")
+              await new Promise((resolve) => setTimeout(resolve, 201));
             if (i === 2 && mode === "slow-teardown")
               await new Promise((resolve) => setTimeout(resolve, 80));
             c.enqueue(chunks[i]);
@@ -189,4 +203,28 @@ void test("small inputs are verified before dispatch; large inputs retain stream
     /digest mismatch/,
   );
   assert.equal(f.bodies.length, 0);
+});
+
+void test("delay before exit confirmation cannot create a timeout verdict", async () => {
+  const fixture = setup("slow-exit");
+  const request = { ...fixture.request, limits: { ...fixture.request.limits, wallTimeMs: 151 } };
+  assert.equal((await fixture.sandbox.runCase(request)).exitCode, 0);
+  assert.equal(fixture.deletions(), 0);
+});
+
+void test("only trusted terminal completion produces a case deadline", async () => {
+  const fixture = setup("native-timeout");
+  await assert.rejects(
+    fixture.sandbox.runCase(fixture.request),
+    (error: unknown) =>
+      error instanceof CaseDeadline && error.phase === "case" && error.limit === "cpu",
+  );
+  assert.equal(fixture.deletions(), 0);
+});
+
+void test("compiled CPU timing survives split frames and stays out of harness stdout", async () => {
+  const fixture = setup("compiled");
+  const output = await fixture.sandbox.runCase({ ...fixture.request, language: "java" });
+  assert.equal(output.compilationMs, 7);
+  assert.deepEqual([...output.stdout], [0, 0, 65]);
 });

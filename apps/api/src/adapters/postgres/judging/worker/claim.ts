@@ -1,3 +1,4 @@
+import { authoredComplexityProfile } from "../../problems/editorial-storage.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope } from "@quorem/database/core";
 import {
@@ -126,8 +127,19 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
               harness: string;
               previous: string | null;
               automaticImports: boolean | null;
+              timeComplexity: string | null;
             }>(
-              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
+              sql`SELECT j.id::text AS job,j.submission_id::text AS submission,COALESCE(q.fixture->'problem'->>'id',w.publication_id::text) AS problem,COALESCE(q.fixture->'problem'->>'id',p.id::text) AS suite,COALESCE(q.fixture->'problem'->'limits',p.limits) AS limits,s.cancel_requested AS cancelled,j.attempts,j.language,j.runtime_revision AS revision,j.harness_revision AS harness,j.attempt_id::text AS previous,j.automatic_imports AS "automaticImports",
+                CASE WHEN s.kind='submit' AND p.odyssey IS NULL AND j.language<>'postgresql' THEN
+                  COALESCE(
+                    ${authoredComplexityProfile(
+                      sql`p`,
+                      sql`(SELECT rules->>'acceptance' FROM matches
+                      WHERE id=COALESCE(s.match_id,w.review_match_id))`,
+                    )}->>'timeComplexity',
+                    (SELECT time_complexity FROM problem_solution_approaches
+                      WHERE publication_id=p.id AND is_canonical)
+                  ) END AS "timeComplexity" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
             )
           ).rows[0];
           if (!row) return null;
@@ -164,6 +176,9 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
             suiteRef: row.suite,
             language: row.language,
             ...(row.automaticImports == null ? {} : { automaticImports: row.automaticImports }),
+            ...(row.timeComplexity && row.timeComplexity.length <= 256
+              ? { timeComplexity: row.timeComplexity }
+              : {}),
             runtimeRevision: row.revision,
             harnessRevision: row.harness,
             limits: row.limits as Job["limits"],

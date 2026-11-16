@@ -107,6 +107,8 @@ export const execution_jobs = pgTable(
     harness_revision: text().default("quorem-harness-v2").notNull(),
     automatic_imports: boolean(),
     attempt_started_at: timestamp({ withTimezone: true, mode: "string" }),
+    budget_reserved_seconds: doublePrecision(),
+    budget_used_seconds: doublePrecision().default(0).notNull(),
   },
   (table): PgTableExtraConfigValue[] => [
     index("jobs_claim")
@@ -506,6 +508,7 @@ export const users = pgTable(
     id: text().primaryKey().notNull(),
     display_name: text().notNull(),
     admission_tokens: doublePrecision().default(2).notNull(),
+    admission_budget_job_id: uuid(),
     tokens_updated_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),

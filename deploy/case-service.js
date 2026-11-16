@@ -28,7 +28,7 @@ export async function caseRequest(
       typeof env.CASES.idFromName !== "function")
   )
     return new Response(null, { status: 503 });
-  let caseFields = ["", "", "", "", "", ""];
+  let caseFields = ["", "", "", "", "", "", "", ""];
   let attestedBody;
   if (bound && request.method === "POST") {
     try {
@@ -75,6 +75,8 @@ export async function caseRequest(
         request.headers.get("x-case-language") ?? "",
         request.headers.get("x-case-memory") ?? "",
         request.headers.get("x-case-processes") ?? "",
+        request.headers.get("x-case-cpu-ms") ?? "",
+        request.headers.get("x-case-compile-ms") ?? "",
       ];
     } catch {
       return new Response(null, { status: 503 });

@@ -30,7 +30,7 @@ void test(
         signature: { className: "Solution", methodName: "f", parameters: [], returnType: "int" },
         args: [],
         calls: [],
-        methods: [],
+        methods: {},
       }),
     );
     const request = {
@@ -67,7 +67,7 @@ void test(
         },
         args: [],
         calls: [],
-        methods: [],
+        methods: {},
       }),
     );
     process.env.QUOREM_FIXTURE_SENTINEL = "fixture-not-for-sandbox";
@@ -110,7 +110,7 @@ void test(
               },
               args: [],
               calls: [],
-              methods: [],
+              methods: {},
             }),
           ),
         ),
@@ -267,7 +267,7 @@ void test(
     );
     const part = Buffer.alloc(65536, 120),
       count = 32,
-      suffix = Buffer.from('"],"calls":[],"methods":[]}');
+      suffix = Buffer.from('"],"calls":[],"methods":{}}');
     const digest = createHash("sha256").update(prefix);
     for (let i = 0; i < count; i++) digest.update(part);
     const input = {

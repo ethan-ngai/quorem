@@ -12,6 +12,7 @@ import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { admitWithRecovery } from "../../../../modules/judging/admission/admit.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
+import { postgresClaims } from "../worker/claim.ts";
 import { sql } from "drizzle-orm";
 import { checkAdmissionCapacity } from "./core.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
@@ -326,26 +327,57 @@ describe.skipIf(!url)("workspace admission in PostgreSQL", () => {
     ).rows[0];
     expect(saved.raw).toContain("\\u0000");
   }, 30000);
-  it("enforces replenishing and daily execution quotas", async () => {
+  it("reconciles runner time and refills the account budget", async () => {
+    const claims = postgresClaims(run, {
+      inputProtocol: "manifest-v1",
+      resumable: true,
+      losslessCases: true,
+      losslessResults: true,
+    });
     await pool.query(
       "UPDATE execution_jobs SET finished=true WHERE submission_id IN (SELECT id FROM submissions WHERE owner_id=$1)",
       [user],
     );
     await pool.query("UPDATE submissions SET state='completed' WHERE owner_id=$1", [user]);
+
+    const { id } = await start("budget-charge", "x");
+    expect(await claims.claimAfterTeardown(true, "budget-test", null)).toMatchObject({
+      submissionId: id,
+    });
+    await pool.query(
+      "UPDATE execution_jobs SET attempt_started_at=clock_timestamp()-interval '8 seconds' WHERE submission_id=$1",
+      [id],
+    );
+    await pool.query("UPDATE submissions SET state='cancelled' WHERE id=$1", [id]);
+    const { rows } = await pool.query(
+      "UPDATE execution_jobs SET finished=true WHERE submission_id=$1 RETURNING budget_reserved_seconds,budget_used_seconds",
+      [id],
+    );
+    expect(rows[0].budget_reserved_seconds).toBe(1.25);
+    expect(rows[0].budget_used_seconds).toBeGreaterThanOrEqual(8);
     await pool.query(
       "UPDATE users SET admission_tokens=0,tokens_updated_at=clock_timestamp() WHERE id=$1",
       [user],
     );
-    await expect(start("token-limit", "x")).rejects.toMatchObject({ code: "quota_exceeded" });
+    await expect(start("budget-empty", "x")).rejects.toMatchObject({
+      code: "rate_limited",
+      details: { retryAfterSeconds: expect.any(Number) },
+    });
+
     await pool.query(
-      "UPDATE users SET admission_tokens=2,tokens_updated_at=clock_timestamp() WHERE id=$1",
+      "UPDATE users SET tokens_updated_at=clock_timestamp()-interval '60 seconds' WHERE id=$1",
       [user],
     );
-    await pool.query(
-      "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) SELECT gen_random_uuid(),$1,$2,'run','','hash','completed','[]'::jsonb FROM generate_series(1,100)",
-      [user, workspace],
+    const { id: retry } = await start("budget-refilled", "x");
+    expect(await claims.claimAfterTeardown(true, "budget-test", null)).toMatchObject({
+      submissionId: retry,
+    });
+    await pool.query("UPDATE submissions SET state='failed' WHERE id=$1", [retry]);
+    const failed = await pool.query(
+      "UPDATE execution_jobs SET finished=true WHERE submission_id=$1 RETURNING budget_used_seconds",
+      [retry],
     );
-    await expect(start("daily-limit", "x")).rejects.toMatchObject({ code: "quota_exceeded" });
+    expect(failed.rows[0].budget_used_seconds).toBe(0);
   });
   it("serializes and enforces the global queue bound", async () => {
     await pool.query(

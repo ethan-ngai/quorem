@@ -115,17 +115,38 @@ const specificMessages: Record<string, Record<string, string>> = {
     "Too many editor windows": "Close another editor window and try again.",
     "Host guest execution capacity reached":
       "The host's guest execution capacity is full. Try again shortly.",
-    "Execution quota reached": "Execution allowance reached. Please try again later.",
   },
   rate_limited: {
+    "Execution budget refilling": "Your execution budget is refilling. Try again shortly.",
     "Another guest execution is active; try again shortly":
       "Another guest run is active. Try again shortly.",
   },
 };
 
 /** Only display explicitly approved server details. */
-export function specificErrorMessage(code: string, detail: unknown): string | undefined {
+export function specificErrorMessage(
+  code: string,
+  detail: unknown,
+  details?: unknown,
+): string | undefined {
   if (typeof detail !== "string" || !Object.hasOwn(specificMessages, code)) return undefined;
+  if (
+    code === "rate_limited" &&
+    detail === "Execution budget refilling" &&
+    details &&
+    typeof details === "object" &&
+    "retryAfterSeconds" in details &&
+    typeof details.retryAfterSeconds === "number" &&
+    Number.isSafeInteger(details.retryAfterSeconds) &&
+    details.retryAfterSeconds > 0
+  ) {
+    const seconds = details.retryAfterSeconds;
+    const wait =
+      seconds < 60
+        ? seconds + (seconds === 1 ? " second" : " seconds")
+        : Math.ceil(seconds / 60) + (seconds === 60 ? " minute" : " minutes");
+    return `Your execution budget is refilling. Try again in about ${wait}.`;
+  }
   const messages = specificMessages[code];
   return Object.hasOwn(messages, detail) ? messages[detail] : undefined;
 }
@@ -141,10 +162,14 @@ const codeMessages: Record<string, string> = {
   unauthenticated: "Sign in again to continue.",
 };
 
-export function safeErrorMessage(code: unknown, detail: unknown): string | undefined {
+export function safeErrorMessage(
+  code: unknown,
+  detail: unknown,
+  details?: unknown,
+): string | undefined {
   if (typeof code !== "string") return undefined;
   return (
-    specificErrorMessage(code, detail) ??
+    specificErrorMessage(code, detail, details) ??
     (Object.hasOwn(codeMessages, code) ? codeMessages[code] : undefined)
   );
 }

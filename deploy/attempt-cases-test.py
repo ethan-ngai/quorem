@@ -17,7 +17,7 @@ def case(token, body):
         'args': [],
     }).encode()
     process = subprocess.Popen(
-        [*LAUNCHER, 'python', '268435456', '16', token],
+        [*LAUNCHER, 'python', '268435456', '16', '500', '60000', token],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     process.stdin.write(payload)
@@ -47,3 +47,9 @@ try:
 finally:
     if slow.poll() is None:
         subprocess.run([*LAUNCHER, 'cancel', SLOW], timeout=5)
+
+
+for body, limit_status in [('  while True: pass', 124), ('  time.sleep(10)', 122)]:
+    process = case('33333333-3333-4333-8333-333333333333', body)
+    output, diagnostics = process.communicate(timeout=5)
+    assert process.returncode == limit_status and output == b'\0', (output, diagnostics)
