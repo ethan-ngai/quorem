@@ -19,6 +19,7 @@ import {
   type Job,
 } from "@quorem/execution";
 import { dockerSandbox } from "../sandbox/docker.ts";
+import { nativeCaseLimits } from "./case-budget.ts";
 import { executeAndStage, ExecutionYield } from "./execute.ts";
 type ExecutionSpec = {
   problemJson: string;
@@ -905,6 +906,7 @@ void test("native case budgets preserve the entire submitted suite", async () =>
         parameters: [{ name: "values", type: "list<int>" }],
         returnType: "int",
       },
+      constraints: [],
       caseBudget: { time: [[{ ...factor, growth: "quadratic" }]], space: [[factor]] },
     }),
     cases: [
@@ -913,7 +915,7 @@ void test("native case budgets preserve the entire submitted suite", async () =>
     ],
   });
   const limits: Job["limits"][] = [];
-  await executeAndStage(job, fixture.port, {
+  await executeAndStage({ ...job, timeComplexity: "O(n)" }, fixture.port, {
     teardownAttempt: async () => {},
     async runCase(request) {
       limits[request.ordinal] = request.limits;
@@ -928,9 +930,28 @@ void test("native case budgets preserve the entire submitted suite", async () =>
   assert.equal(fixture.frames.length, 2);
   assert.equal(limits.length, 2);
   assert.deepEqual(fixture.seals, ["private:0:executed", "private:1:time_limit"]);
-  assert.equal(limits[0].wallTimeMs, job.limits.wallTimeMs);
+  assert.equal(limits[0].wallTimeMs, job.limits.wallTimeMs + 1);
   assert.ok(limits[0].memoryBytes <= limits[1].memoryBytes);
-  assert.equal(limits[1].wallTimeMs, job.limits.wallTimeMs);
+  assert.equal(limits[1].wallTimeMs, job.limits.wallTimeMs + 3);
+});
+
+void test("derived CPU headroom falls back safely and respects the sandbox ceiling", async () => {
+  const { job } = fastFixture({ kind: "submit" });
+  const factor = { argument: 0, measure: "value", growth: "quadratic" } as const;
+  const budget = { time: [[factor]], space: [[]] };
+  const args = (json: string) =>
+    async function* () {
+      yield Buffer.from(json);
+    };
+  assert.equal((await nativeCaseLimits(job, budget, args("[100000]"), false)).wallTimeMs, 10000);
+  assert.equal(
+    (await nativeCaseLimits(job, budget, args("[-1]"), false)).wallTimeMs,
+    job.limits.wallTimeMs,
+  );
+  assert.equal(
+    (await nativeCaseLimits(job, budget, args("[100000]"), false, null)).wallTimeMs,
+    job.limits.wallTimeMs,
+  );
 });
 
 void test(

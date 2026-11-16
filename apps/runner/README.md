@@ -26,8 +26,11 @@ harnesses report a separate compilation measurement. A longer in-sandbox watchdo
 bounds blocked programs. Transport deadlines trigger fenced recovery. Only a trusted
 terminal response can turn a supervisor deadline into a contestant time-limit verdict.
 
-Every submit uses the full hidden suite and the published per-case CPU budget.
-Match presets share the same suite. Existing publications need no rewrite.
+Every submit uses the full hidden suite. The published CPU budget is the floor.
+For supported native runtimes, a resolvable time complexity adds four times the
+coarse runtime estimate for that case, up to 10 seconds total. Match and review
+submissions can use the selected authored complexity. Missing or unsupported
+bounds use the published budget. Existing publications need no rewrite.
 
 Include the largest valid adversarial inputs to separate growth rates. Verify multiple
 intended implementations, including ones with higher constants, against representative

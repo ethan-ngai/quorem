@@ -112,7 +112,7 @@ export function selectedMatchPreset(rules: MatchRuleSettings): MatchPreset | "cu
         JSON.stringify(
           matchRulesSchema.parse({
             ...rules,
-            acceptance: undefined,
+            acceptance: rules.acceptance === "small" ? "small" : undefined,
             victory: "race",
             settingsEditors: "host",
             automaticImports: false,

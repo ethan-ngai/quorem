@@ -1,4 +1,4 @@
-/** @file case-budget.ts @description Native memory reservations derived from sealed input dimensions. @module runner */
+/** @file case-budget.ts @description Native CPU and memory allowances derived from sealed input dimensions. @module runner */
 import type { Job } from "@quorem/execution";
 import {
   caseGrowth,
@@ -10,13 +10,14 @@ import {
 const MiB = 1024 * 1024;
 // Conservative runtime and allocation allowances. Values are per runtime, not per question.
 const nativeCosts = {
-  "python-3.12-v1": { runtimeMiB: 48, bytesPerUnit: 96 },
-  "java-21.0.9-v1": { runtimeMiB: 160, bytesPerUnit: 64 },
+  "python-3.12-v1": { workPerMs: 2000, runtimeMiB: 48, bytesPerUnit: 96 },
+  "java-21.0.9-v1": { workPerMs: 4000, runtimeMiB: 160, bytesPerUnit: 64 },
   "typescript-5.9.3-node-22.21.1-v1": {
+    workPerMs: 3000,
     runtimeMiB: 128,
     bytesPerUnit: 96,
   },
-  "ocaml-4.13.1-v1": { runtimeMiB: 64, bytesPerUnit: 64 },
+  "ocaml-4.13.1-v1": { workPerMs: 4000, runtimeMiB: 64, bytesPerUnit: 64 },
 } as const;
 
 export async function readBudgetJson(chunks: AsyncIterable<Uint8Array>, maxChars: number) {
@@ -33,30 +34,45 @@ export async function nativeCaseLimits(
   budget: CaseBudget | undefined,
   args: () => AsyncIterable<Uint8Array>,
   compiling: boolean,
+  time: CaseBudget["time"] | null | undefined = budget?.time,
 ): Promise<Job["limits"]> {
   const cost = nativeCosts[job.runtimeRevision as keyof typeof nativeCosts];
-  if (!budget || !cost) return job.limits;
+  if ((!budget && !time) || !cost) return job.limits;
   const raw = await readBudgetJson(args(), 256 * 1024);
   // Oversized cases keep the admitted envelope and remain in the suite.
   if (raw === undefined) return job.limits;
   const values = parseLosslessJson(raw);
   if (!Array.isArray(values)) throw new Error("Invalid budget arguments");
-  let space: number;
-  try {
-    space = Number(caseGrowth(budget.space, values));
-  } catch {
-    // Optional or out-of-domain dimensions cannot justify tightening limits.
-    return job.limits;
-  }
+  // Timing inference can only extend the published budget. Keep fourfold headroom
+  // on the coarse work estimate and cap the extension at the sandbox ceiling.
+  const growth = (expression: CaseBudget["time"] | undefined) => {
+    if (expression === undefined) return undefined;
+    try {
+      return Number(caseGrowth(expression, values));
+    } catch {
+      return undefined;
+    }
+  };
+  const work = growth(time ?? undefined);
+  const space = !compiling ? growth(budget?.space) : undefined;
+  const wallTimeMs =
+    work === undefined
+      ? job.limits.wallTimeMs
+      : Math.max(
+          job.limits.wallTimeMs,
+          Math.min(10000, job.limits.wallTimeMs + Math.ceil((4 * work) / cost.workPerMs)),
+        );
   return {
     ...job.limits,
-    memoryBytes: compiling
-      ? job.limits.memoryBytes
-      : Math.min(
-          job.limits.memoryBytes,
-          Math.ceil((cost.runtimeMiB * MiB + raw.length * 32 + space * cost.bytesPerUnit) / MiB) *
-            MiB,
-        ),
+    wallTimeMs,
+    memoryBytes:
+      space === undefined
+        ? job.limits.memoryBytes
+        : Math.min(
+            job.limits.memoryBytes,
+            Math.ceil((cost.runtimeMiB * MiB + raw.length * 32 + space * cost.bytesPerUnit) / MiB) *
+              MiB,
+          ),
   };
 }
 

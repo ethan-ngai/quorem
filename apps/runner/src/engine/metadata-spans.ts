@@ -142,5 +142,6 @@ export async function metadataSpans(spool: Spool, level: number | null) {
     sql,
     methods,
     caseBudget: fields.get("caseBudget"),
+    constraints: fields.get("constraints"),
   };
 }

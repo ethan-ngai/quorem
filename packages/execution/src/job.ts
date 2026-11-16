@@ -16,6 +16,8 @@ function checked(job: Job): void {
   for (const [key, value] of Object.entries(job))
     if (key !== "limits" && key !== "automaticImports" && (typeof value !== "string" || !value))
       throw new Error(`invalid ${key}`);
+  if (job.timeComplexity !== undefined && job.timeComplexity.length > 256)
+    throw new Error("invalid time complexity");
   if (job.automaticImports !== undefined && typeof job.automaticImports !== "boolean")
     throw new Error("invalid automatic import setting");
   if (!/^[A-Za-z0-9-]{1,128}$/.test(job.attemptId) || !job.sandboxScope)
@@ -36,6 +38,7 @@ export function encodeJob(job: Job): string {
   return stringifyLosslessJson({
     language: job.language,
     ...(job.automaticImports === undefined ? {} : { automaticImports: job.automaticImports }),
+    ...(job.timeComplexity === undefined ? {} : { timeComplexity: job.timeComplexity }),
     jobId: job.jobId,
     submissionId: job.submissionId,
     attemptId: job.attemptId,
@@ -70,6 +73,9 @@ export function decodeJob(json: string, sandboxScope: string): Job {
   const job: Job = {
     language: stringField(obj, "language"),
     ...(automaticImports === undefined ? {} : { automaticImports }),
+    ...(obj.timeComplexity === undefined
+      ? {}
+      : { timeComplexity: stringField(obj, "timeComplexity") }),
     jobId: stringField(obj, "jobId"),
     submissionId: stringField(obj, "submissionId"),
     attemptId: stringField(obj, "attemptId"),
