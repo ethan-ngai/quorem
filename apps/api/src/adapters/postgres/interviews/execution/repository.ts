@@ -141,6 +141,7 @@ export function postgresInterviewAdmission(
           ownerId: actor.userId,
           jobId: fence.jobId,
           kind: command.kind,
+          input,
           source: row.source,
           sourceHash: command.sourceHash,
           customRun: command.customCases !== null,

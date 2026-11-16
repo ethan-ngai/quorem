@@ -79,14 +79,15 @@ export function postgresCompletionPromotion(
           : (JSON.parse(decoder.decode(state.header!)) as CompletionHeader);
         if (initial.match) await reconcileMatch(tx, initial.match);
         if (!state.cancelled && header.engineFailure && state.attempts < 3) {
+          // The metering trigger reads this receipt when releasing the attempt.
+          await tx.execute(
+            sql`INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES(${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},'requeued')`,
+          );
           await tx.execute(
             sql`UPDATE execution_jobs SET attempt_id=NULL,lease_until=NULL,available_at=clock_timestamp()+interval '1 second' WHERE id=${job.jobId}::uuid`,
           );
           await tx.execute(
             sql`UPDATE submissions SET state='queued',updated_at=clock_timestamp() WHERE id=${job.submissionId}::uuid`,
-          );
-          await tx.execute(
-            sql`INSERT INTO execution_completion_receipts(job_id,attempt_id,sandbox_scope,outcome) VALUES(${job.jobId}::uuid,${job.attemptId}::uuid,${job.sandboxScope},'requeued')`,
           );
           await tx.execute(
             sql`DELETE FROM execution_completion_staging WHERE job_id=${job.jobId}::uuid`,

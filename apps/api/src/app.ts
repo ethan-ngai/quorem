@@ -42,7 +42,10 @@ export function createApp(dependencies: Dependencies): Hono<{ Variables: Variabl
       console.error(
         JSON.stringify({ event: "application-request-failed", ...failureSummary(error) }),
       );
-    if (status === 429) c.header("Retry-After", "6");
+    if (expected && status === 429) {
+      const retryAfter = error.details?.retryAfterSeconds;
+      c.header("Retry-After", typeof retryAfter === "number" ? String(retryAfter) : "6");
+    }
     return c.json(
       {
         error: {

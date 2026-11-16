@@ -12,13 +12,19 @@ import {
   type bindJobInputs,
 } from "../inputs/bind.ts";
 
-const EXECUTION_REFILL_SECONDS = 2;
-const EXECUTION_DAILY_LIMIT = 1_000;
+const BUDGET_CAPACITY_SECONDS = 300;
+const BUDGET_REFILL_PER_SECOND = 0.25;
+// Store the balance on the existing 0-to-2 token scale.
+const SECONDS_PER_TOKEN = BUDGET_CAPACITY_SECONDS / 2;
 
 export interface ExecutionAdmissionSnapshot {
   ownerId: string;
   jobId: string;
   kind: "run" | "submit";
+  input: Pick<
+    Parameters<typeof bindJobInputs>[1],
+    "caseCount" | "sampleCount" | "submitCasesAreSamples"
+  >;
   source: string;
   sourceHash: string;
   customRun: boolean;
@@ -49,17 +55,34 @@ export async function insertAdmittedExecution(
     runtime = runtimeForRevision(s.runtimeRevision, s.harnessRevision);
   if (!runtime || runtime.language !== s.language)
     throw new ApplicationError("temporarily_unavailable", "Execution runtime unavailable", 503);
-  const busy = (
-    await tx.execute<{ busy: boolean; tokens: string; daily: number }>(
-      sql`SELECT EXISTS(SELECT 1 FROM submissions WHERE owner_id=${s.ownerId} AND state IN ('queued','running')) AS busy,LEAST(2,admission_tokens+EXTRACT(EPOCH FROM(clock_timestamp()-tokens_updated_at))/${EXECUTION_REFILL_SECONDS}::numeric)::text AS tokens,(SELECT count(*)::int FROM submissions WHERE owner_id=${s.ownerId} AND admitted_at>clock_timestamp()-interval '24 hours') AS daily FROM users WHERE id=${s.ownerId}`,
+  const budget = (
+    await tx.execute<{
+      busy: boolean;
+      accrued: number;
+      adjustment: number;
+    }>(
+      sql`SELECT
+        EXISTS (SELECT 1 FROM submissions WHERE owner_id=u.id AND state IN ('queued','running'))
+          OR COALESCE(NOT j.finished,false) AS busy,
+        CASE WHEN u.admission_budget_job_id IS NULL THEN ${BUDGET_CAPACITY_SECONDS}::float8
+          ELSE u.admission_tokens * ${SECONDS_PER_TOKEN}::float8 +
+            GREATEST(0, EXTRACT(EPOCH FROM statement_timestamp()-u.tokens_updated_at)) * ${BUDGET_REFILL_PER_SECOND}::float8
+        END AS accrued,
+        COALESCE(j.budget_reserved_seconds-j.budget_used_seconds,0) AS adjustment
+      FROM users u LEFT JOIN execution_jobs j ON j.id=u.admission_budget_job_id
+      WHERE u.id=${s.ownerId}`,
     )
   ).rows[0];
-  if (!busy) throw new Error("Admission owner not locked");
-  if (busy.busy) throw new ApplicationError("user_busy", "Another execution is active", 409);
-  if (busy.daily >= EXECUTION_DAILY_LIMIT)
-    throw new ApplicationError("quota_exceeded", "Daily execution limit reached", 429);
-  if (Number(busy.tokens) < 1)
-    throw new ApplicationError("rate_limited", "Executions requested too quickly", 429);
+  if (!budget) throw new Error("Admission owner not locked");
+  if (budget.busy) throw new ApplicationError("user_busy", "Another execution is active", 409);
+  // Reconcile under the owner lock without acquiring it on the runner's job-lock path.
+  const available = Math.min(BUDGET_CAPACITY_SECONDS, budget.accrued + budget.adjustment);
+  const cases = s.input.caseCount + (s.input.submitCasesAreSamples ? 0 : s.input.sampleCount);
+  const reserve = Math.min(60, 1 + cases * 0.25);
+  if (available < reserve)
+    throw new ApplicationError("rate_limited", "Execution budget refilling", 429, {
+      retryAfterSeconds: Math.ceil((reserve - available) / BUDGET_REFILL_PER_SECOND),
+    });
   if (s.sponsorId) {
     await tx.execute(
       sql`INSERT INTO guest_sponsor_locks(user_id) VALUES(${s.sponsorId}) ON CONFLICT DO NOTHING`,
@@ -93,13 +116,14 @@ export async function insertAdmittedExecution(
         INSERT INTO submissions(id,owner_id,workspace_id,interview_id,kind,source,source_hash,state,cases,match_id,match_sequence,admitted_at,odyssey_level,custom_run,lossless_cases,practice_target) VALUES(${id}::uuid,${s.ownerId},${workspace?.workspaceId ?? null}::uuid,${interview?.interviewId ?? null}::uuid,${s.kind},${s.source},${s.sourceHash},'queued','[]'::jsonb,${workspace?.matchId ?? null}::uuid,${workspace?.matchSequence ?? null}::bigint,COALESCE(${workspace?.admittedAt ?? null}::timestamptz,clock_timestamp()),${workspace?.odysseyLevel ?? null},${s.customRun},NULL,${workspace?.practiceTarget ?? null})
         RETURNING id,admitted_at
       ), enqueued AS (
-        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports)
-        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision},${s.automaticImports ?? null} FROM admitted
+        INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision,automatic_imports,budget_reserved_seconds)
+        SELECT ${s.jobId}::uuid,id,${s.language},${s.runtimeRevision},${s.harnessRevision},${s.automaticImports ?? null},${reserve} FROM admitted
         RETURNING id
       ), intent AS (
         INSERT INTO execution_dispatch_intents(id,job_id) SELECT ${crypto.randomUUID()}::uuid,id FROM enqueued
       ), debit AS (
-        UPDATE users SET admission_tokens=${busy.tokens}::numeric-1,tokens_updated_at=clock_timestamp()
+        UPDATE users SET admission_tokens=${(available - reserve) / SECONDS_PER_TOKEN},
+          tokens_updated_at=clock_timestamp(),admission_budget_job_id=${s.jobId}::uuid
         WHERE id=${s.ownerId}
       )
       SELECT to_char(admitted_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "admittedAt"
