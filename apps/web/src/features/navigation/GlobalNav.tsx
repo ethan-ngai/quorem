@@ -78,7 +78,10 @@ export function GlobalNav({
   const pathname = location.pathname.replace(/\/$/, "") || "/";
   const navigate = useNavigate();
   const consumedCreation = useRef(false);
-  const hideCreation = pathname.startsWith("/match/") || pathname.startsWith("/invite/");
+  const hideCreation =
+    pathname === "/party/create" ||
+    pathname.startsWith("/match/") ||
+    pathname.startsWith("/invite/");
   const party = useParty(actor, !!session.data);
   const activeMatch = useActiveMatch(actor, !!session.data, party.data?.party?.currentMatchId);
   const checkingMatch =

@@ -8,6 +8,7 @@ import {
   approachesProjection,
   complexityProjection,
 } from "../editorial-storage.ts";
+import type { FilterMatch } from "@quorem/contracts";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -83,18 +84,18 @@ function catalogKind(f: CatalogFilter): SQL {
 }
 
 /** Test each selected value independently so a topic's aliases count as one choice. */
-function matchValues(values: string, all: boolean, matches: SQL): SQL {
+function matchValues(values: string, mode: FilterMatch | undefined, matches: SQL): SQL {
   const selection = sql`SELECT 1 FROM unnest(string_to_array(${values},',')) AS selected(value)`;
-  return all
-    ? sql`NOT EXISTS (${selection} WHERE NOT ${matches})`
-    : sql`EXISTS (${selection} WHERE ${matches})`;
+  if (mode === "all") return sql`NOT EXISTS (${selection} WHERE NOT ${matches})`;
+  const any = sql`EXISTS (${selection} WHERE ${matches})`;
+  return mode === "not" ? sql`NOT ${any}` : any;
 }
 
 function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   const topics = f.topic
     ? sql`AND ${matchValues(
         f.topic,
-        f.topicMatch === "all",
+        f.topicMatch,
         sql`EXISTS (
           SELECT 1 FROM problem_tags t ${topicJoin}
           WHERE t.publication_id=v.id AND ${isTopic} AND ${topicMatches(sql`selected.value`)}
@@ -104,7 +105,7 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
   const companies = f.company
     ? sql`AND ${matchValues(
         f.company,
-        f.companyMatch === "all",
+        f.companyMatch,
         sql`EXISTS (
           SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id
           WHERE pc.problem_id=p.id AND c.name=selected.value

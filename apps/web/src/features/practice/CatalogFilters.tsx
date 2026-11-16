@@ -86,7 +86,7 @@ export function CompanyFilter({
       selected={selected}
       onChange={(values) => update({ company: values.join(",") || undefined })}
       match={search.companyMatch}
-      onMatchChange={(match) => update({ companyMatch: match === "all" ? match : undefined })}
+      onMatchChange={(match) => update({ companyMatch: match === "any" ? undefined : match })}
       groups={groups}
     />
   );
@@ -170,7 +170,7 @@ export function CatalogFilters({
         selected={selectedTopics}
         onChange={(values) => update({ topic: values.join(",") || undefined })}
         match={search.topicMatch}
-        onMatchChange={(match) => update({ topicMatch: match === "all" ? match : undefined })}
+        onMatchChange={(match) => update({ topicMatch: match === "any" ? undefined : match })}
         groups={
           foundationalTopics
             ? [

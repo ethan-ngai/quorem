@@ -506,6 +506,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         for (const [param, want] of [
           [`topic=${topicPair}&topicMatch=any`, 2],
           [`topic=${topicPair}&topicMatch=all`, 1],
+          [`topic=${topicPair}&topicMatch=not`, 1],
+          [`company=${companyPair}&companyMatch=not`, 1],
+          [`topicMatch=not&companyMatch=not`, 3],
           [`company=${companyPair}&companyMatch=all`, 1],
           [`topic=${topicPair}&topicMatch=all&company=${companyPair}&companyMatch=all`, 0],
         ] as const) {

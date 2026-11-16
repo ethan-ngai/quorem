@@ -1,4 +1,4 @@
-import { topicGroupSelection } from "@quorem/contracts/catalog-filter";
+import { filterMatch, topicGroupSelection } from "@quorem/contracts/catalog-filter";
 import { pageSizeSchema } from "@quorem/contracts/pagination";
 import type { FilterMatch } from "@quorem/contracts";
 
@@ -36,12 +36,14 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
     (value) => Array.from(value).slice(0, 80).join(""),
   );
   if (topics.length) result.topic = [...new Set(topics)].join(",");
-  if (search.topicMatch === "all") result.topicMatch = "all";
+  const topicMatch = filterMatch.safeParse(search.topicMatch);
+  if (topicMatch.success && topicMatch.data !== "any") result.topicMatch = topicMatch.data;
   const companies = filterValues(
     typeof search.company === "string" ? search.company : undefined,
   ).map((value) => Array.from(value).slice(0, 80).join(""));
   if (companies.length) result.company = companies.join(",");
-  if (search.companyMatch === "all") result.companyMatch = "all";
+  const companyMatch = filterMatch.safeParse(search.companyMatch);
+  if (companyMatch.success && companyMatch.data !== "any") result.companyMatch = companyMatch.data;
   if (search.groupBy === "topic") result.groupBy = search.groupBy;
   const topicGroup = topicGroupSelection.safeParse(search.topicGroup);
   if (result.groupBy && topicGroup.success) result.topicGroup = topicGroup.data;

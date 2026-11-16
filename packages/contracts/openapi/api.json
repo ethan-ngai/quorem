@@ -1076,7 +1076,7 @@
               "type": "string",
               "maxLength": 1295
             },
-            "description": "Comma-separated tags or values from foundationalTopics. Use topicMatch to require all selected values. Maximum 16 values, 80 characters each."
+            "description": "Comma-separated tags or values from foundationalTopics. Use topicMatch to require all or exclude any selected value. Maximum 16 values, 80 characters each."
           },
           {
             "name": "companyMatch",
@@ -7389,8 +7389,8 @@
       },
       "FilterMatch": {
         "type": "string",
-        "enum": ["any", "all"],
-        "description": "Match any selected value by default, or require all selected values."
+        "enum": ["any", "all", "not"],
+        "description": "Match any selected value by default, require all, or exclude matches to any selected value."
       },
       "MatchQuestionFilters": {
         "type": "object",

@@ -53,7 +53,9 @@ function matchesValues(
   const requested = selection.split(",");
   const normalized = new Set(values.map(normalize));
   const includes = (value: string) => normalized.has(normalize(value));
-  return match === "all" ? requested.every(includes) : requested.some(includes);
+  if (match === "all") return requested.every(includes);
+  const any = requested.some(includes);
+  return match === "not" ? !any : any;
 }
 
 /** @returns Whether this question belongs to the lobby's adaptive pool. */

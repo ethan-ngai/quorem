@@ -94,7 +94,7 @@ it("waits for authoritative absence before offering creation", () => {
   partyState.data = { party: null };
   partyState.isPending = false;
   const html = render();
-  expect(html).toContain('href="/practice?create=match"');
+  expect(html).toContain('href="/party/create"');
   expect(html).toContain("Review code");
   partyState.isFetching = true;
   expect(render()).not.toContain("Create lobby");

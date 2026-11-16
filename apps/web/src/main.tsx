@@ -195,6 +195,23 @@ const partyRoute = createRoute({
 const PartyPage = lazy(() =>
   import("./features/matches/PartyPage").then((module) => ({ default: module.PartyPage })),
 );
+const CreateLobbyPage = lazy(() =>
+  import("./features/matches/CreateLobbyPage").then((module) => ({
+    default: module.CreateLobbyPage,
+  })),
+);
+const createLobbyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/party/create",
+  beforeLoad: ({ location }) => requireRouteSession(queryClient, location.href),
+  component: () => (
+    <Suspense fallback={<LoadingScreen label="Opening lobby setup…" />}>
+      <RouteAccess>
+        <CreateLobbyPage />
+      </RouteAccess>
+    </Suspense>
+  ),
+});
 const inviteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/invite/$token",
@@ -340,6 +357,7 @@ const routeTree = rootRoute.addChildren([
   matchRoute,
   reviewRoute,
   partyRoute,
+  createLobbyRoute,
   inviteRoute,
 ]);
 const router = createRouter({
