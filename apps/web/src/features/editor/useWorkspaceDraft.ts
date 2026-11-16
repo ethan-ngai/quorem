@@ -91,6 +91,7 @@ export function useWorkspaceDraft({
       storageId: browserDraftScope(loadedWorkspace),
     };
     const previousContext = draftContextRef.current;
+    setProblem(queriedProblem);
     if (previousContext?.key === nextContext.key) return;
     try {
       browserWriterRef.current?.flush();
@@ -101,7 +102,6 @@ export function useWorkspaceDraft({
     saveTimerRef.current = undefined;
     draftContextRef.current = nextContext;
     lastQueuedSourceRef.current = undefined;
-    setProblem(queriedProblem);
     setWorkspace(loadedWorkspace);
     setCustomMode(false);
     setCustomDrafts(readCustomDrafts(nextContext.key, queriedProblem));

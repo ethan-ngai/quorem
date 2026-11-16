@@ -31,11 +31,13 @@ const editor = createRef<PythonEditorHandle>();
 const onError = vi.fn();
 function Subject({
   active = workspace,
+  question = problem,
   editable = true,
   authoritative = false,
   saveMatchSource,
 }: {
   active?: Workspace;
+  question?: PublishedQuestion;
   editable?: boolean;
   authoritative?: boolean;
   saveMatchSource?: (workspaceId: string, source: string) => Promise<void>;
@@ -46,7 +48,7 @@ function Subject({
     canEdit: editable,
     authoritative,
     initialSource: authoritative ? "team authority" : undefined,
-    queriedProblem: problem,
+    queriedProblem: question,
     loadedWorkspace: active,
     editorRef: editor,
     onError,
@@ -79,6 +81,14 @@ it("preserves an edited draft when switching workspaces", async () => {
   expect(recovery.readBrowserDraft("alice", "solo", "v1")).toBe("unsaved source");
   expect(state.workspace?.id).toBe("w2");
   expect(state.sourceRef.current).toBe("starter");
+});
+
+it("updates topics when the workspace question refreshes without resetting the draft", async () => {
+  await act(async () => state.updateSource("finished code"));
+  const question = { ...problem, tags: ["arrays"] };
+  await act(async () => root.render(<Subject question={question} editable={false} />));
+  expect(state.problem?.tags).toEqual(["arrays"]);
+  expect(state.sourceRef.current).toBe("finished code");
 });
 
 it("retains a dirty draft on pagehide", async () => {

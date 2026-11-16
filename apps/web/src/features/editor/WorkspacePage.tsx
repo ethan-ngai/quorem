@@ -159,29 +159,35 @@ export function WorkspacePage({
   } = useLocalEditorPreferences();
   const editorRef = useRef<PythonEditorHandle>(null);
   const queryClient = useQueryClient();
-  const problemOptions = problemQueryOptions(
-    queryClient,
-    account.data === undefined ? undefined : identity,
-    match?.problemVersionId ?? slug,
-    !!match,
+  const practiceProblem = useQuery(
+    problemQueryOptions(
+      queryClient,
+      account.data === undefined ? undefined : identity,
+      match ? "" : slug,
+    ),
   );
-  const problemQuery = useQuery({
-    ...problemOptions,
-    queryFn:
-      match && matchWorkspaceId
-        ? async () => {
-            const response = await authenticatedFetch(
-              new URL(
-                `/v1/workspaces/${encodeURIComponent(matchWorkspaceId)}/problem`,
-                import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
-              ),
-            );
-            if (!response.ok) throw new Error("Could not load the match problem.");
-            return response.json() as Promise<PublishedQuestion>;
-          }
-        : problemOptions.queryFn,
-    enabled: problemOptions.enabled && (!match || !!matchWorkspaceId),
+  const matchProblem = useQuery({
+    // Review needs a fresh projection after live-match topic restrictions end.
+    queryKey: [
+      "match-workspace-problem",
+      identity,
+      matchWorkspaceId,
+      match?.problemVersionId,
+      !!review,
+    ],
+    enabled: !!account.data && !!match?.problemVersionId && !!matchWorkspaceId,
+    queryFn: async () => {
+      const response = await authenticatedFetch(
+        new URL(
+          `/v1/workspaces/${encodeURIComponent(matchWorkspaceId!)}/problem`,
+          import.meta.env.VITE_API_BASE_URL ?? window.location.origin,
+        ),
+      );
+      if (!response.ok) throw new Error("Could not load the match problem.");
+      return response.json() as Promise<PublishedQuestion>;
+    },
   });
+  const problemQuery = match ? matchProblem : practiceProblem;
   const question = problemQuery.data;
   const currentQuestion = match
     ? account.data && match.startedAt && question?.id === match.problemVersionId
@@ -580,7 +586,7 @@ export function WorkspacePage({
       return;
     }
     if (review) void reviewQuery.refetch();
-    if (problemOptions.enabled && (!match || !!matchWorkspaceId)) void problemQuery.refetch();
+    if (problemQuery.isEnabled) void problemQuery.refetch();
     if (serverWorkspace && (match ? !!matchWorkspaceId : !!problemQuery.data))
       void workspaceQuery.refetch();
   };
@@ -631,7 +637,7 @@ export function WorkspacePage({
     });
   if (
     !match &&
-    problemOptions.enabled &&
+    problemQuery.isEnabled &&
     problemQuery.error instanceof ApiError &&
     problemQuery.error.status === 404
   )
