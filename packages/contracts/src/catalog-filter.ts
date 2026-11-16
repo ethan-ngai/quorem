@@ -31,6 +31,7 @@ const topicGroup = z
   .pipe(topicGroupSelection)
   .optional();
 export const filterMatch = z.enum(["any", "all", "not"]);
+export type FilterMatch = z.infer<typeof filterMatch>;
 export const catalogQuery = z.strictObject({
   q: z
     .string()

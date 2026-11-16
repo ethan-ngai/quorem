@@ -7,8 +7,7 @@ import {
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
-import type { FilterMatch } from "@quorem/contracts";
-import { filterMatch } from "@quorem/contracts/catalog-filter";
+import { filterMatch, type FilterMatch } from "@quorem/contracts/catalog-filter";
 import type { Principal } from "../../identity/model.ts";
 export interface Settings {
   questionFilters: {

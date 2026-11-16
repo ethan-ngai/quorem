@@ -1,5 +1,5 @@
 /** @file model.ts @description Catalog query values. @module problems */
-import type { FilterMatch } from "@quorem/contracts";
+import type { FilterMatch } from "@quorem/contracts/catalog-filter";
 
 export interface CatalogFilter {
   query: string;
