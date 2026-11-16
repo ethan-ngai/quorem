@@ -435,6 +435,7 @@ export const match_rule_events = pgTable(
     action: text().default("announce").notNull(),
     seconds: integer().default(0).notNull(),
     points: integer().default(0).notNull(),
+    away_seconds: integer(),
     resource_key: text(),
     submission_id: uuid(),
     occurred_at: timestamp({ withTimezone: true, mode: "string" })
@@ -448,6 +449,10 @@ export const match_rule_events = pgTable(
     index("match_rule_competitor").on(table.match_id, table.competitor_id, table.occurred_at),
     check("match_rule_events_seconds_check", sql`seconds>=0`),
     check("match_rule_events_points_check", sql`points>=0`),
+    check(
+      "match_rule_events_away_seconds_check",
+      sql`away_seconds IS NULL OR (away_seconds>=0 AND kind='focus')`,
+    ),
     index("match_rule_events_match").using(
       "btree",
       table.match_id.asc().nullsLast().op("timestamptz_ops"),

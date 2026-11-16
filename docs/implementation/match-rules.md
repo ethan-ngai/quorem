@@ -11,7 +11,7 @@ Issue: [#623](https://github.com/ethan-ngai/quorem/issues/623).
 | Strict     | Paid       | Penalty | Penalty | Cooldown; extra attempts cost after three free submissions |
 | Tournament | Disabled   | Blocked | Penalty | Strict submission policy                                   |
 
-Topics, complexity, and any hidden case have separate free/paid/disabled policies. Hosts can customize copy, paste, focus, cooldown, free submission allowance, and costs. Focus defaults to a three-second grace and one free warning. Browser observations are best-effort client signals; they cannot prove external assistance or prevent switching applications.
+Topics, complexity, and any hidden case have separate free/paid/disabled policies. Hosts can customize copy, paste, focus, cooldown, free submission allowance, and costs. Focus defaults to a three-second grace and one free warning. Tab changes and window focus loss start the same timer. The departure alert appears after grace, then updates on return with the full time away. A closed alert reappears on return. Browser observations are best-effort client signals; they cannot prove external assistance or prevent switching applications.
 
 ## Victory
 

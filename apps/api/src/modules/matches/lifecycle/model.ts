@@ -3,6 +3,7 @@ import {
   matchPreset,
   matchRulesSchema,
   type MatchRuleSettings,
+  type ReportMatchRuleRequest,
   type RuleActionRequest,
   type RuleActionResult,
 } from "@quorem/contracts/match-rules";
@@ -154,6 +155,6 @@ export interface Lifecycle {
       | "decline-draw"
       | "revoke-draw"
       | "rule-events",
-    body: Settings | boolean | string | null,
+    body: Settings | ReportMatchRuleRequest | boolean | string | null,
   ): Promise<unknown>;
 }

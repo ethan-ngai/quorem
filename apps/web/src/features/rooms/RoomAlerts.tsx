@@ -1,12 +1,12 @@
 /** @file RoomAlerts.tsx @description Shared monitoring toast and persistent alert history. @module rooms */
 import { useEffect, useMemo, useState } from "react";
 import { Bell, ClipboardPaste, Copy, EyeOff, Focus, Send, Tags, Timer } from "lucide-react";
-import { toast } from "sonner";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { useChangeMotion } from "../../ui/useChangeMotion";
 import * as Popover from "../../ui/Popover";
 import { Tooltip } from "../../ui/Tooltip";
 import { createAlertTracker } from "./alertTracker";
+import { createRoomAlertToasts } from "./roomAlertToasts";
 import "./room-alerts.css";
 
 const alertIcons = {
@@ -43,6 +43,8 @@ export type RoomAlert = {
   kind: keyof typeof alertIcons;
   description: string;
   occurredAt: string;
+  awaySeconds?: number;
+  silent?: boolean;
   seconds?: number;
   points?: number;
 };
@@ -113,6 +115,8 @@ function groupAlerts(events: readonly RoomAlert[]) {
       previous &&
       previous.userId === event.userId &&
       previous.kind === event.kind &&
+      previous.awaySeconds === undefined &&
+      event.awaySeconds === undefined &&
       Boolean(previous.seconds || previous.points) === Boolean(event.seconds || event.points)
     ) {
       previous.count++;
@@ -167,28 +171,24 @@ export function RoomAlerts({
 }) {
   const count = useChangeMotion<HTMLSpanElement>(events.length);
   const tracking = useMemo(
-    () => ({ track: createAlertTracker<RoomAlert>(), notified: new Set<string>() }),
+    () => ({
+      track: createAlertTracker<RoomAlert>(),
+      toasts: createRoomAlertToasts(),
+    }),
     [scope],
   );
   useEffect(() => {
     for (const event of tracking.track(version, events)) {
-      const id = `room-alert:${scope}:${event.id}`;
-      tracking.notified.add(id);
-      toast.warning(<AlertMessage event={event} />, {
-        id,
-        icon: <EventIcon event={event} />,
-        onDismiss: () => tracking.notified.delete(id),
-        onAutoClose: () => tracking.notified.delete(id),
-      });
+      if (event.silent) continue;
+      tracking.toasts.show(
+        event.id,
+        <AlertMessage event={event} />,
+        event.awaySeconds !== undefined,
+        <EventIcon event={event} />,
+      );
     }
   }, [events, version, scope, tracking]);
-  useEffect(
-    () => () => {
-      for (const id of tracking.notified) toast.dismiss(id);
-      tracking.notified.clear();
-    },
-    [tracking],
-  );
+  useEffect(() => () => tracking.toasts.dismissAll(), [tracking]);
   return (
     <Popover.Root>
       <Tooltip content={label}>

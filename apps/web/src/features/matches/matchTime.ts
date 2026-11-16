@@ -29,3 +29,7 @@ export function formatPenaltyDuration(seconds: number) {
   const remainder = seconds % 60;
   return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
+
+export function focusReturnDescription(awaySeconds: number) {
+  return `returned after ${awaySeconds ? formatPenaltyDuration(awaySeconds) : "less than 1s"} away`;
+}

@@ -1,4 +1,4 @@
-import { ruleApproval } from "@quorem/contracts/match-rules";
+import { ruleApproval, type ReportMatchRuleRequest } from "@quorem/contracts/match-rules";
 import { authenticatedFetch } from "../auth/session";
 import { RejectedMatchCommand } from "./errors";
 import { randomUUID } from "../../randomUUID";
@@ -38,15 +38,16 @@ export function matchDraw(
   });
 }
 
-/** Reports the event kind only; clipboard data and navigation targets remain private. */
+/** Reports rule activity and matches focus returns to their departure command. */
 export async function reportRuleEvent(
   identity: DevelopmentIdentity,
   id: string,
-  kind: "clipboard" | "copy" | "focus",
+  body: ReportMatchRuleRequest,
+  key = randomUUID(),
 ) {
   const { data, error } = await api(identity).POST("/v1/matches/{id}/rule-events", {
-    body: { kind },
-    params: { path: { id }, header: { "Idempotency-Key": randomUUID() } },
+    body,
+    params: { path: { id }, header: { "Idempotency-Key": key } },
   });
   return requireData(data as MatchSnapshot | undefined, error);
 }

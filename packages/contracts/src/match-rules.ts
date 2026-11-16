@@ -38,6 +38,20 @@ export const matchRulesSchema = z.strictObject({
 });
 export type MatchRuleSettings = z.infer<typeof matchRulesSchema>;
 
+export const reportMatchRuleSchema = z.union([
+  z.strictObject({
+    kind: z.enum(["clipboard", "copy", "focus"]),
+    departureId: z.never().optional(),
+    awaySeconds: z.never().optional(),
+  }),
+  z.strictObject({
+    kind: z.literal("focus"),
+    departureId: z.uuid(),
+    awaySeconds: z.number().int().min(0).max(2_147_483_647),
+  }),
+]);
+export type ReportMatchRuleRequest = z.infer<typeof reportMatchRuleSchema>;
+
 /** Compare round settings without lobby permissions or reduced code visibility. */
 export function readinessSettings<
   Settings extends {

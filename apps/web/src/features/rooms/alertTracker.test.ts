@@ -12,3 +12,14 @@ it("silences history and repeated or stale snapshots, including large match vers
   expect(track(version + 1n, [old, fresh])).toEqual([]);
   expect(track(version + 2n, [fresh])).toEqual([]);
 });
+
+it("emits a focus return once under the departure's event ID", () => {
+  const track = createAlertTracker<{ id: string; awaySeconds?: number }>();
+  const departure = { id: "focus" };
+  const returned = { ...departure, awaySeconds: 0 };
+  expect(track(1n, [])).toEqual([]);
+  expect(track(2n, [departure])).toEqual([departure]);
+  expect(track(3n, [returned])).toEqual([returned]);
+  expect(track(4n, [returned])).toEqual([]);
+  expect(track(2n, [departure])).toEqual([]);
+});

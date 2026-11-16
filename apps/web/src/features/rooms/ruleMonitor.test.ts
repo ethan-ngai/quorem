@@ -41,26 +41,51 @@ it("shares focus listeners, deduplicates real browser signal types, and removes 
     hasFocus: () => present,
   });
   let present = true;
+  let now = 0;
   const report = vi.fn();
-  const monitor = createRuleMonitor({ clipboard: "off", focus: "announce" }, report);
+  const onReturn = vi.fn();
+  const monitor = createRuleMonitor(
+    { clipboard: "off", focus: "announce" },
+    report,
+    () => now,
+    onReturn,
+  );
   vi.stubGlobal("window", browserWindow);
   vi.stubGlobal("document", browserDocument);
   try {
     const stop = observeWindowFocus(monitor.focus);
     present = false;
     browserWindow.dispatchEvent(new Event("blur"));
+    now = 2000;
     browserDocument.visibilityState = "hidden";
     browserDocument.dispatchEvent(new Event("visibilitychange"));
     expect(report).toHaveBeenCalledTimes(1);
-    present = true;
+    now = 5000;
     browserDocument.visibilityState = "visible";
+    browserDocument.dispatchEvent(new Event("visibilitychange"));
+    expect(onReturn).not.toHaveBeenCalled();
+    present = true;
     browserWindow.dispatchEvent(new Event("focus"));
+    expect(onReturn).toHaveBeenCalledExactlyOnceWith(5);
     present = false;
     browserWindow.dispatchEvent(new Event("blur"));
     expect(report).toHaveBeenCalledTimes(2);
+    now = 8000;
+    present = true;
+    browserWindow.dispatchEvent(new Event("focus"));
+    expect(onReturn).toHaveBeenLastCalledWith(3);
+
+    browserDocument.visibilityState = "hidden";
+    browserDocument.dispatchEvent(new Event("visibilitychange"));
+    expect(report).toHaveBeenCalledTimes(3);
+    now = 12_000;
+    browserDocument.visibilityState = "visible";
+    browserDocument.dispatchEvent(new Event("visibilitychange"));
+    expect(onReturn).toHaveBeenLastCalledWith(4);
+
     stop();
     browserWindow.dispatchEvent(new Event("blur"));
-    expect(report).toHaveBeenCalledTimes(2);
+    expect(report).toHaveBeenCalledTimes(3);
   } finally {
     vi.unstubAllGlobals();
   }
@@ -83,19 +108,25 @@ it("ignores brief focus loss and cancels pending reports on disposal", () => {
   vi.useFakeTimers();
   try {
     const report = vi.fn();
+    const onReturn = vi.fn();
     const monitor = createRuleMonitor(
       { clipboard: "off", focus: "penalty", focusGraceSeconds: 3 },
       report,
+      Date.now,
+      onReturn,
     );
     monitor.focus(false);
     vi.advanceTimersByTime(2999);
     monitor.focus(true);
     vi.advanceTimersByTime(1);
     expect(report).not.toHaveBeenCalled();
+    expect(onReturn).not.toHaveBeenCalled();
     monitor.focus(false);
     vi.advanceTimersByTime(3000);
     expect(report).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(4000);
     monitor.focus(true);
+    expect(onReturn).toHaveBeenCalledExactlyOnceWith(7);
     monitor.focus(false);
     monitor.dispose();
     vi.advanceTimersByTime(3000);

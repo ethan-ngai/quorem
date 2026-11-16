@@ -3246,6 +3246,11 @@
         "seconds": {
           "type": "integer"
         },
+        "awaySeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
         "points": {
           "type": "integer"
         }
@@ -3264,11 +3269,38 @@
       "properties": {
         "kind": {
           "$ref": "#/$defs/MatchRuleKind"
+        },
+        "departureId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Idempotency key of the focus departure being completed."
+        },
+        "awaySeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
         }
       },
       "required": [
         "kind"
       ],
+      "dependentRequired": {
+        "departureId": [
+          "awaySeconds"
+        ],
+        "awaySeconds": [
+          "departureId"
+        ]
+      },
+      "dependentSchemas": {
+        "departureId": {
+          "properties": {
+            "kind": {
+              "const": "focus"
+            }
+          }
+        }
+      },
       "additionalProperties": false
     },
     "LanguageImplementation": {

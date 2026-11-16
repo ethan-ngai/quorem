@@ -863,7 +863,7 @@ void test("rule announcements use canonical membership, replay, suppression and 
     await pool.query("UPDATE match_participants SET last_rule_event_at=NULL WHERE match_id=$1", [
       room.id,
     ]);
-    await repo.mutate(actor, room.id, `report-${i}`, "rule-events", "clipboard");
+    await repo.mutate(actor, room.id, `report-${i}`, "rule-events", { kind: "clipboard" });
   }
   const retained = (await repo.read(peer, room.id)) as {
     ruleEvents: { kind: string; action: string }[];
@@ -872,7 +872,9 @@ void test("rule announcements use canonical membership, replay, suppression and 
   assert.ok(
     retained.ruleEvents.every((event) => event.kind === "clipboard" && event.action === "announce"),
   );
-  await assert.rejects(repo.mutate(outsider, room.id, "outsider-rule", "rule-events", "focus"));
+  await assert.rejects(
+    repo.mutate(outsider, room.id, "outsider-rule", "rule-events", { kind: "focus" }),
+  );
   const other = (await repo.create(outsider, "rule-guest-room", settings)) as { id: string };
   const guestId = `rule-guest-${crypto.randomUUID()}`,
     guestToken = `rule-token-${crypto.randomUUID()}`;
@@ -897,14 +899,89 @@ void test("rule announcements use canonical membership, replay, suppression and 
     scope: { kind: "match" as const, matchId: other.id },
   };
   await assert.rejects(
-    repo.mutate(guest, room.id, "foreign-guest-rule", "rule-events", "clipboard"),
+    repo.mutate(guest, room.id, "foreign-guest-rule", "rule-events", { kind: "clipboard" }),
   );
   await repo.mutate(outsider, other.id, "rule-guest-close", "leave", null);
   await pool.query(
     "UPDATE match_participants SET forfeited=true WHERE match_id=$1 AND owner_id=$2",
     [room.id, actor.userId],
   );
-  await assert.rejects(repo.mutate(actor, room.id, "forfeited-rule", "rule-events", "clipboard"));
+  await assert.rejects(
+    repo.mutate(actor, room.id, "forfeited-rule", "rule-events", { kind: "clipboard" }),
+  );
+});
+
+void test("focus returns amend the actor's departure without charging again", async () => {
+  const actor = principal(`focus-${crypto.randomUUID()}`);
+  const peer = principal(`focus-${crypto.randomUUID()}`);
+  await pool.query(
+    "INSERT INTO users(id,display_name,kind) VALUES($1,'Host','account'),($2,'Peer','account')",
+    [actor.userId, peer.userId],
+  );
+  const { id } = (await repo.create(
+    actor,
+    "focus-create",
+    normalizeSettings({
+      ...settings,
+      rules: { ...matchPreset("strict"), focusFreeWarnings: 0 },
+    }),
+  )) as { id: string };
+  await pool.query("INSERT INTO match_participants(match_id,owner_id,seat) VALUES($1,$2,2)", [
+    id,
+    peer.userId,
+  ]);
+  await pool.query("INSERT INTO match_reservations(owner_id,match_id) VALUES($1,$2)", [
+    peer.userId,
+    id,
+  ]);
+  await repo.mutate(actor, id, "focus-ready-host", "ready", true);
+  await repo.mutate(peer, id, "focus-ready-peer", "ready", true);
+  const departureId = crypto.randomUUID();
+  const left = (await repo.mutate(actor, id, departureId, "rule-events", {
+    kind: "focus",
+  })) as import("@quorem/contracts").MatchSnapshot;
+  assert.equal(left.ruleEvents.length, 1);
+  const [event] = left.ruleEvents;
+  assert.equal(event.action, "penalty");
+  assert.equal(event.awaySeconds, undefined);
+
+  const body = { kind: "focus", departureId, awaySeconds: 65 } as const;
+  const foreign = (await repo.mutate(
+    peer,
+    id,
+    "foreign-return",
+    "rule-events",
+    body,
+  )) as typeof left;
+  assert.equal(foreign.version, left.version);
+
+  const { createApp } = await import("../../../../app.ts");
+  const { matchLifecycleRoutes } = await import("../../../../modules/matches/lifecycle/routes.ts");
+  const app = createApp({ allowedOrigins: [], requestId: () => "focus-return" }).route(
+    "/",
+    matchLifecycleRoutes({ lifecycle: repo, identify: async () => actor }),
+  );
+  const report = (input: object) =>
+    app.request(`/v1/matches/${id}/rule-events`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "focus-return" },
+      body: JSON.stringify(input),
+    });
+  assert.equal((await report({ kind: "focus", departureId })).status, 400);
+  const response = await report(body);
+  assert.equal(response.status, 200);
+  const returned = (await response.json()) as typeof left;
+  assert.equal(BigInt(returned.version), BigInt(left.version) + 1n);
+  assert.deepEqual(returned.ruleEvents, [{ ...event, awaySeconds: 65 }]);
+  assert.deepEqual(await (await report(body)).json(), returned);
+
+  const duplicate = (await repo.mutate(actor, id, "another-return", "rule-events", {
+    ...body,
+    awaySeconds: 90,
+  })) as typeof left;
+  assert.equal(duplicate.version, returned.version);
+  assert.deepEqual(duplicate.ruleEvents, returned.ruleEvents);
+  assert.deepEqual(((await repo.read(peer, id)) as typeof left).ruleEvents, returned.ruleEvents);
 });
 
 void test(

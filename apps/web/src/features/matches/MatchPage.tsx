@@ -31,7 +31,11 @@ import { useMatchSync, type MatchSyncStatus } from "../realtime/useMatchSync";
 import { forfeitMatch, matchDraw } from "./api";
 import { useAccountIdentity } from "./MatchControls";
 import { ConcessionDialog } from "./ConcessionDialog";
-import { formatPenaltyDuration, personalSubmissionDeadline } from "./matchTime";
+import {
+  focusReturnDescription,
+  formatPenaltyDuration,
+  personalSubmissionDeadline,
+} from "./matchTime";
 import {
   isMatchTerminal,
   outcomeLabel,
@@ -200,10 +204,14 @@ function MatchLedger({
                 snapshot.participants.find((player) => player.userId === event.userId)
                   ?.displayName ?? "Player",
               kind: event.kind === "clipboard" ? "paste" : event.kind,
+              silent: event.kind === "focus" && event.userId === own?.userId,
               description: {
                 clipboard: "pasted",
                 copy: "copied",
-                focus: "left the match window",
+                focus:
+                  event.awaySeconds === undefined
+                    ? "left the match window"
+                    : focusReturnDescription(event.awaySeconds),
                 topics: "revealed topics",
                 complexity: "revealed complexity",
                 hiddenCase: "revealed a hidden case",

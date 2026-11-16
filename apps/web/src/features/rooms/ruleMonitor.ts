@@ -10,8 +10,11 @@ export function createRuleMonitor(
   },
   report: (kind: RuleKind, action: RuleAction) => void,
   now = Date.now,
+  onFocusReturn?: (awaySeconds: number) => void,
 ) {
-  let absent = false;
+  const focusDelay = (rules.focusGraceSeconds ?? 0) * 1000;
+  let leftAt: number | undefined;
+  let reported = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const last = { clipboard: -Infinity, copy: -Infinity };
   const clipboard = (kind: "clipboard" | "copy" = "clipboard") => {
@@ -23,24 +26,29 @@ export function createRuleMonitor(
     }
     return action === "warning";
   };
+  const reportFocus = () => {
+    reported = true;
+    report("focus", rules.focus);
+  };
   return {
     clipboard,
     focus(this: void, present: boolean) {
+      if (rules.focus === "off") return;
       if (present) {
-        absent = false;
+        if (leftAt === undefined) return;
+        const elapsed = now() - leftAt;
         clearTimeout(timer);
-        timer = undefined;
+        // Background timer throttling can delay a report until the tab regains focus.
+        if (!reported && elapsed >= focusDelay) reportFocus();
+        leftAt = undefined;
+        if (reported) onFocusReturn?.(Math.max(0, Math.floor(elapsed / 1000)));
+        reported = false;
         return;
       }
-      if (absent) return;
-      absent = true;
-      if (rules.focus === "off") return;
-      const delay = (rules.focusGraceSeconds ?? 0) * 1000;
-      if (!delay) report("focus", rules.focus);
-      else
-        timer = setTimeout(() => {
-          if (absent) report("focus", rules.focus);
-        }, delay);
+      if (leftAt !== undefined) return;
+      leftAt = now();
+      if (focusDelay) timer = setTimeout(reportFocus, focusDelay);
+      else reportFocus();
     },
     dispose() {
       clearTimeout(timer);

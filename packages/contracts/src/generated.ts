@@ -2203,10 +2203,17 @@ export interface components {
             occurredAt: string;
             competitorId?: string;
             seconds?: number;
+            awaySeconds?: number;
             points?: number;
         };
         ReportMatchRuleRequest: {
             kind: components["schemas"]["MatchRuleKind"];
+            /**
+             * Format: uuid
+             * @description Idempotency key of the focus departure being completed.
+             */
+            departureId?: string;
+            awaySeconds?: number;
         };
         LanguageImplementation: {
             /** @enum {string} */

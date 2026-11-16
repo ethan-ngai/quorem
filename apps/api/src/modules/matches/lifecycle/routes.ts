@@ -1,6 +1,7 @@
 /** @file routes.ts @description Unmounted match lifecycle transport. @module matches */
 import { jsonObjectBody } from "../../../application/json-body.ts";
 import { Hono } from "hono";
+import { reportMatchRuleSchema } from "@quorem/contracts/match-rules";
 import { ApplicationError } from "../../../application/error.ts";
 import { identifyRequest } from "../../identity/routes.ts";
 import { guestSetCookie } from "../../identity/guest/cookie.ts";
@@ -79,13 +80,10 @@ export function matchLifecycleRoutes(deps: {
     const who = await actor(c.req.raw),
       operation = key(c.req.raw),
       input = await jsonObjectBody(c.req.raw, 1024, { emptyObject: true });
-    if (
-      Object.keys(input).some((k) => k !== "kind") ||
-      (input.kind !== "clipboard" && input.kind !== "copy" && input.kind !== "focus")
-    )
-      throw new ApplicationError("invalid_input", "Invalid rule event", 400);
+    const report = reportMatchRuleSchema.safeParse(input);
+    if (!report.success) throw new ApplicationError("invalid_input", "Invalid rule event", 400);
     return c.json(
-      await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", input.kind),
+      await deps.lifecycle.mutate(who, c.req.param("id"), operation, "rule-events", report.data),
     );
   });
   for (const action of [
