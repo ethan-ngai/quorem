@@ -25,12 +25,25 @@ function rankedComplexity(publication: SQL, end: "first" | "last"): SQL {
     ORDER BY ordinal ${order} LIMIT 1)`;
 }
 
+/** @returns The optional small-suite prefix for a standard published question. */
+export function smallAcceptanceCases(publication: SQL): SQL {
+  return sql`CASE WHEN ${publication}.odyssey IS NULL
+    AND COALESCE(${publication}.sql_config, 'null'::jsonb) = 'null'::jsonb
+    THEN (${publication}.acceptance->'small'->>'caseCount')::int END`;
+}
+
 /** Expose bounds without revealing approaches or code. */
-export function complexityProjection(publication: SQL): SQL {
+export function complexityProjection(publication: SQL, policy?: SQL): SQL {
   const id = sql`${publication}.id`;
+  const ranked = rankedComplexity(id, "last");
+  const accepted = policy
+    ? sql`COALESCE(CASE WHEN ${policy} IS NOT NULL THEN
+        ${publication}.acceptance->(CASE WHEN ${policy}='small' AND ${smallAcceptanceCases(publication)} IS NOT NULL
+          THEN 'small' ELSE 'efficient' END)->'complexity' END,${ranked})`
+    : ranked;
   return sql`(SELECT jsonb_strip_nulls(jsonb_build_object(
     'optimal',optimal,
     'accepted',CASE WHEN regexp_replace(accepted::text, '[[:space:]$]', '', 'g') IS DISTINCT FROM regexp_replace(optimal::text, '[[:space:]$]', '', 'g') THEN accepted END
   )) FROM (SELECT ${rankedComplexity(id, "first")} AS optimal,
-                  ${rankedComplexity(id, "last")} AS accepted) bounds)`;
+                  ${accepted} AS accepted) bounds)`;
 }

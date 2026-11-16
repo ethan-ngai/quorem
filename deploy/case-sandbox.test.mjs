@@ -100,6 +100,8 @@ function request(method = "POST", headers = {}) {
       "x-case-token": "11111111-1111-4111-8111-111111111111",
       "x-case-memory": "268435456",
       "x-case-processes": "16",
+      "x-case-cpu-ms": "2000",
+      "x-case-compile-ms": "60000",
       ...headers,
     },
     ...(method === "POST" ? { body: "case-input" } : {}),

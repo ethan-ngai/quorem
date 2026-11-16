@@ -6,6 +6,7 @@ import {
   requireSubmissionTime,
 } from "../../matches/rules/ledger.ts";
 import type { MatchRuleSettings } from "@quorem/contracts/match-rules";
+import { smallAcceptanceCases } from "../../problems/editorial-storage.ts";
 import { questionRuntime } from "../../problems/runtime.ts";
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
@@ -101,8 +102,10 @@ export async function admitWorkspaceInTransaction(
       language: string;
       isSql: boolean;
       stages: number;
+      smallCases: number | null;
+      publishedMs: number;
     }>(
-      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
+      sql`SELECT v.id::text AS version,w.match_id::text AS "matchId",w.review_match_id::text AS "reviewMatchId",w.review_source_owner_id AS "reviewSourceOwnerId",w.language,v.sql_config IS NOT NULL AND v.sql_config <> 'null'::jsonb AS "isSql",CASE WHEN v.odyssey IS NULL THEN 0 WHEN jsonb_typeof(v.odyssey->'levels')='array' THEN CASE WHEN jsonb_array_length(v.odyssey->'levels')>0 THEN jsonb_array_length(v.odyssey->'levels') ELSE -1 END ELSE -1 END AS stages,${smallAcceptanceCases(sql`v`)} AS "smallCases",(v.limits->>'wallTimeMs')::int AS "publishedMs" FROM workspaces w JOIN question_publications v ON v.id=w.publication_id JOIN problems p ON p.id=v.problem_id WHERE w.id=${command.workspaceId}::uuid AND (w.owner_id=${principal.userId} OR (w.kind='match' AND EXISTS(SELECT 1 FROM match_participants member WHERE member.match_id=w.match_id AND member.owner_id=${principal.userId} AND member.workspace_id=w.id AND NOT member.forfeited))) AND ((w.kind='solo' AND ${visibleProblem({ userId: principal.userId }, false)}) OR w.kind IN ('match','review')) FOR SHARE OF w,p,v`,
     )
   ).rows[0];
   if (!row) throw failure("not_found", "Workspace not found", 404);
@@ -112,10 +115,12 @@ export async function admitWorkspaceInTransaction(
     admissionTime: string | null = null,
     sponsor: string | null = null;
   let automaticImports: boolean | undefined;
+  let acceptance: MatchRuleSettings["acceptance"];
   let retainPrivateDetails = false;
   if (row.reviewMatchId && row.reviewSourceOwnerId) {
     const review = await authorizeReview(tx, principal, row.reviewMatchId, row.reviewSourceOwnerId);
     automaticImports = review.automaticImports ?? undefined;
+    acceptance = review.acceptance ?? undefined;
     if (review.problemId !== row.version) throw failure("not_found", "Workspace not found", 404);
     if (principal.kind === "guest") {
       if (!review.hostEnabled) throw failure("not_found", "Workspace not found", 404);
@@ -160,6 +165,7 @@ export async function admitWorkspaceInTransaction(
     if (!match.active) throw failure("invalid_transition", "Match admission is closed", 409);
     admissionTime = match.admittedAt;
     automaticImports = match.rules.automaticImports === true;
+    acceptance = match.rules.acceptance;
     if (command.kind === "submit") {
       retainPrivateDetails = match.rules.assistance.hiddenCase.access !== "blocked";
       rulePlan = await prepareRuleAction(tx, row.matchId, principal.userId, match.rules, {
@@ -236,6 +242,15 @@ export async function admitWorkspaceInTransaction(
       level ?? 0,
       command.customCases,
     );
+  let small = command.kind === "submit" && acceptance === "small" && row.smallCases !== null;
+  if (small) {
+    // Keep rounds that already admitted a full suite on that suite during rollout.
+    const priorFullSuite = await tx.execute(sql`SELECT 1 FROM submissions s
+      JOIN execution_jobs j ON j.submission_id=s.id
+      WHERE s.match_id=${row.matchId ?? row.reviewMatchId}::uuid AND s.kind='submit'
+      AND j.case_cpu_ms IS NULL LIMIT 1`);
+    small = priorFullSuite.rows.length === 0;
+  }
   const input = await prepareExecutionInputs(
     tx,
     owner,
@@ -244,6 +259,7 @@ export async function admitWorkspaceInTransaction(
     command.customCases,
     false,
     odyssey,
+    small ? row.smallCases! : undefined,
   );
   const inserted = await insertAdmittedExecution(tx, {
     ownerId: principal.userId,
@@ -255,6 +271,7 @@ export async function admitWorkspaceInTransaction(
     customRun: command.customCases !== null,
     language: row.language,
     automaticImports,
+    caseCpuMs: small ? Math.min(10000, 2 * row.publishedMs) : undefined,
     runtimeRevision: runtime.revision,
     harnessRevision: runtime.harness,
     sponsorId: sponsor,

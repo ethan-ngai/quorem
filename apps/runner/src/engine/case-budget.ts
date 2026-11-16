@@ -1,4 +1,4 @@
-/** @file case-budget.ts @description Native limits derived from sealed input dimensions. @module runner */
+/** @file case-budget.ts @description Native memory reservations derived from sealed input dimensions. @module runner */
 import type { Job } from "@quorem/execution";
 import {
   caseGrowth,
@@ -8,17 +8,15 @@ import {
 } from "@quorem/questions";
 
 const MiB = 1024 * 1024;
-// Shared conservative startup and allocation allowances. Values are per runtime, not per question.
+// Conservative runtime and allocation allowances. Values are per runtime, not per question.
 const nativeCosts = {
-  "python-3.12-v1": { startupMs: 150, unitsPerMs: 2000, runtimeMiB: 48, bytesPerUnit: 96 },
-  "java-21.0.9-v1": { startupMs: 250, unitsPerMs: 4000, runtimeMiB: 160, bytesPerUnit: 64 },
+  "python-3.12-v1": { runtimeMiB: 48, bytesPerUnit: 96 },
+  "java-21.0.9-v1": { runtimeMiB: 160, bytesPerUnit: 64 },
   "typescript-5.9.3-node-22.21.1-v1": {
-    startupMs: 250,
-    unitsPerMs: 3000,
     runtimeMiB: 128,
     bytesPerUnit: 96,
   },
-  "ocaml-4.13.1-v1": { startupMs: 150, unitsPerMs: 4000, runtimeMiB: 64, bytesPerUnit: 64 },
+  "ocaml-4.13.1-v1": { runtimeMiB: 64, bytesPerUnit: 64 },
 } as const;
 
 export async function readBudgetJson(chunks: AsyncIterable<Uint8Array>, maxChars: number) {
@@ -43,9 +41,8 @@ export async function nativeCaseLimits(
   if (raw === undefined) return job.limits;
   const values = parseLosslessJson(raw);
   if (!Array.isArray(values)) throw new Error("Invalid budget arguments");
-  let time: number, space: number;
+  let space: number;
   try {
-    time = Number(caseGrowth(budget.time, values));
     space = Number(caseGrowth(budget.space, values));
   } catch {
     // Optional or out-of-domain dimensions cannot justify tightening limits.
@@ -53,7 +50,6 @@ export async function nativeCaseLimits(
   }
   return {
     ...job.limits,
-    wallTimeMs: Math.min(job.limits.wallTimeMs, cost.startupMs + Math.ceil(time / cost.unitsPerMs)),
     memoryBytes: compiling
       ? job.limits.memoryBytes
       : Math.min(

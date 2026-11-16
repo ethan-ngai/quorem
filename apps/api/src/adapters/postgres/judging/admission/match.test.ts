@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { fileURLToPath } from "node:url";
 import { createNodePool, withNodeConnection } from "@quorem/database/core";
+import { defaultLimits } from "@quorem/execution";
 import { migrate } from "@quorem/database/migrations";
 import { prearmReceipts } from "../../events/scheduling/prearm.ts";
 import { parseWorkspaceCommand } from "../../../../modules/judging/admission/command.ts";
 import { admitWithRecovery } from "../../../../modules/judging/admission/admit.ts";
+import { postgresClaims } from "../worker/claim.ts";
+import { postgresInputReader } from "../inputs/read.ts";
 import { indexRunnerFixture } from "../inputs/fixture.ts";
 import { postgresWorkspaceAdmission } from "./repository.ts";
 import type { GuestPrincipal } from "../../../../modules/identity/model.ts";
@@ -59,7 +62,7 @@ beforeAll(async () => {
   );
   await pool.query("INSERT INTO problems(id,slug) VALUES($1,$2)", [problem, problem]);
   await pool.query(
-    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,acceptance) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,'{}'::jsonb,'',$4::jsonb)",
+    "INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,signature,constraints,limits,attribution,acceptance) VALUES($1,$2,'Fixture','easy','',$3::jsonb,'[]'::jsonb,$5::jsonb,'',$4::jsonb)",
     [
       version,
       problem,
@@ -76,6 +79,7 @@ beforeAll(async () => {
           complexity: { timeComplexity: "O(1)", spaceComplexity: "O(1)" },
         },
       }),
+      JSON.stringify(defaultLimits()),
     ],
   );
   await pool.query(
@@ -202,10 +206,10 @@ it.skipIf(!url)(
     const result = await start(0);
     expect(result.state).toBe("queued");
     const manifest = await pool.query(
-      "SELECT i.case_count,i.sample_count FROM runner_job_inputs i JOIN execution_jobs j ON j.id=i.job_id WHERE j.submission_id=$1",
+      "SELECT i.case_count,i.sample_count,j.case_cpu_ms FROM runner_job_inputs i JOIN execution_jobs j ON j.id=i.job_id WHERE j.submission_id=$1",
       [result.id],
     );
-    expect(manifest.rows).toEqual([{ case_count: 2, sample_count: 1 }]);
+    expect(manifest.rows).toEqual([{ case_count: 1, sample_count: 1, case_cpu_ms: 4000 }]);
     expect(
       (
         await pool.query("SELECT automatic_imports FROM execution_jobs WHERE submission_id=$1", [
@@ -230,5 +234,17 @@ it.skipIf(!url)(
       ).rows[0].submission_state,
     ).toBe("queued");
     await expect(start(1)).rejects.toMatchObject({ code: "rate_limited" });
+    const job = await postgresClaims(run, {
+      inputProtocol: "manifest-v1",
+      resumable: true,
+      losslessCases: true,
+      losslessResults: true,
+    }).claimAfterTeardown(true, "fixture", null);
+    expect(job?.submissionId).toBe(result.id);
+    expect(job?.limits.wallTimeMs).toBe(4000);
+    await expect(postgresInputReader(run).inputManifest(job!)).resolves.toMatchObject({
+      caseCount: 1,
+      sampleCount: 1,
+    });
   },
 );

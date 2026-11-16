@@ -46,6 +46,7 @@ export async function bindJobInputs(
     primary: "example" | "hidden" | "custom";
     custom: readonly Uint8Array[];
     caseCount: number;
+    hiddenLimit?: number;
     sampleCount: number;
     privateDetails: boolean;
     submitCasesAreSamples: boolean;
@@ -90,7 +91,7 @@ export async function bindJobInputs(
             sql`,`,
           )}) AS v(ordinal,hash)`
         : sql`SELECT 0 AS stage,0 AS ordinal,'public'::text AS channel,NULL::bytea AS blob_hash WHERE false`
-      : sql`SELECT stage,ordinal,${input.primary === "hidden" ? "private" : "public"}::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level)}) f WHERE channel=${input.primary}`;
+      : sql`SELECT stage,ordinal,${input.primary === "hidden" ? "private" : "public"}::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level)}) f WHERE channel=${input.primary} ${input.primary === "hidden" && input.hiddenLimit !== undefined ? sql`ORDER BY stage,ordinal LIMIT ${input.hiddenLimit}` : sql``}`;
   const samples =
     input.sampleCount && !input.submitCasesAreSamples
       ? sql`SELECT stage,ordinal,'sample'::text AS channel,blob_hash FROM (${fixtureRows(input.owner, input.level)}) f WHERE channel='example'`

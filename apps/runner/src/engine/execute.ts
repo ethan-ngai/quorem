@@ -302,7 +302,7 @@ export async function executeAndStage(
             } catch (error) {
               if (error instanceof CaseDeadline || error instanceof CaseOutputLimit)
                 assertCaseFailure(request, error);
-              if (error instanceof CaseDeadline && error.phase !== "startup") {
+              if (error instanceof CaseDeadline && error.limit !== "transport") {
                 frame = failFrame("time_limit");
                 if (error.phase === "compile") compilation = 60000000000n;
               } else if (error instanceof CaseOutputLimit) frame = failFrame("output_limit");

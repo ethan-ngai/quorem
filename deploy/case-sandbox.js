@@ -147,6 +147,8 @@ export class CaseSandbox extends DurableObject {
     const token = request.headers.get("x-case-token");
     const memory = Number(request.headers.get("x-case-memory"));
     const processes = Number(request.headers.get("x-case-processes"));
+    const cpuMs = Number(request.headers.get("x-case-cpu-ms"));
+    const compileMs = Number(request.headers.get("x-case-compile-ms"));
     if (
       !languages.has(language) ||
       !/^[a-f0-9-]{36}$/.test(token ?? "") ||
@@ -155,7 +157,13 @@ export class CaseSandbox extends DurableObject {
       memory > 268435456 ||
       !Number.isInteger(processes) ||
       processes < 1 ||
-      processes > 64
+      processes > 64 ||
+      !Number.isSafeInteger(cpuMs) ||
+      cpuMs < 1 ||
+      cpuMs > 10000 ||
+      !Number.isSafeInteger(compileMs) ||
+      compileMs < 1 ||
+      compileMs > 120000
     )
       return new Response(null, { status: 400 });
     const rawOrdinal = request.headers.get("x-quorem-case-ordinal");
@@ -168,7 +176,9 @@ export class CaseSandbox extends DurableObject {
     const writer = stream.writable.getWriter();
     const active = { token, ordinal, writer, cancelled: false, launched: false, ready: false };
     this.active.set(token, active);
-    this.ctx.waitUntil(this.executeCase(request, active, language, memory, processes));
+    this.ctx.waitUntil(
+      this.executeCase(request, active, language, memory, processes, cpuMs, compileMs),
+    );
     return new Response(stream.readable, {
       headers: {
         "Content-Type": "application/octet-stream",
@@ -235,7 +245,7 @@ export class CaseSandbox extends DurableObject {
     start();
   }
 
-  async executeCase(request, active, language, memory, processes) {
+  async executeCase(request, active, language, memory, processes, cpuMs, compileMs) {
     const { token, writer } = active;
     const admitted = performance.now();
     const timing = (this.timing = {});
@@ -286,6 +296,8 @@ export class CaseSandbox extends DurableObject {
           language,
           String(memory),
           String(processes),
+          String(cpuMs),
+          String(compileMs),
           token,
         ],
         { user: "0:0", stdin, stdout: "pipe", stderr: "pipe" },

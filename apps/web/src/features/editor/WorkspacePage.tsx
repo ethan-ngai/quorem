@@ -987,6 +987,11 @@ export function WorkspacePage({
             onDraftsChange={frozenMatch ? undefined : changeCustomDrafts}
             snapshot={execution.runSnapshot}
             hiddenCaseDetails={controls?.hiddenCaseDetails}
+            matchHiddenCaseCount={
+              match?.rules?.acceptance === "small" && !problem.odyssey
+                ? match.participants.find((participant) => participant.bestScore)?.bestScore?.total
+                : undefined
+            }
           />
         }
         actions={

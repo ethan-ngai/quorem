@@ -106,6 +106,7 @@ export const execution_jobs = pgTable(
     runtime_revision: text().default("python-3.12-v1").notNull(),
     harness_revision: text().default("quorem-harness-v2").notNull(),
     automatic_imports: boolean(),
+    case_cpu_ms: integer(),
     attempt_started_at: timestamp({ withTimezone: true, mode: "string" }),
     budget_reserved_seconds: doublePrecision(),
     budget_used_seconds: doublePrecision().default(0).notNull(),
@@ -120,6 +121,7 @@ export const execution_jobs = pgTable(
       name: "execution_jobs_submission_id_fkey",
     }),
     unique("execution_jobs_submission_id_key").on(table.submission_id),
+    check("execution_jobs_case_cpu_ms_check", sql`${table.case_cpu_ms} BETWEEN 1 AND 10000`),
   ],
 );
 

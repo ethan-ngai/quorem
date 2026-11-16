@@ -10,6 +10,7 @@ import resource
 import stat
 import sys
 
+from case_supervisor import stage_input, supervise
 from cgroup import enable
 from seccomp import install
 
@@ -90,22 +91,27 @@ def prepare_cgroup(group, memory, processes):
     return group
 
 
-def run(language, memory, processes, token):
+def run(language, memory, processes, cpu_ms, compile_ms, token):
     if language not in ('python', 'java', 'typescript', 'ocaml', 'postgresql'):
         raise ValueError('unsupported language')
     if not 1 <= memory <= 12 * 1024**3 or not 1 <= processes <= 1024:
         raise ValueError('invalid resource limits')
+    if not 1 <= cpu_ms <= 10000 or not 1 <= compile_ms <= 120000:
+        raise ValueError('invalid time limits')
     group = case_group(token)
+    stage_input()
     with control():
         if (CONTROL / token).exists():
             return 125
         prepare_cgroup(group, memory, processes)
         # Gate the child until the parent has placed it in the cgroup.
         reader, writer = os.pipe()
+        output, sink = os.pipe()
         call(libc.unshare, CLONE_NEWPID)
         child = os.fork()
         if child:
             os.close(reader)
+            os.close(sink)
             try:
                 (group / 'cgroup.procs').write_text(str(child))
                 os.write(writer, b'1')
@@ -113,15 +119,20 @@ def run(language, memory, processes, token):
                 os.close(writer)
         else:
             os.close(writer)
+            os.close(output)
+            os.dup2(sink, 1)
+            os.close(sink)
             if os.read(reader, 1) != b'1':
                 os._exit(125)
             os.close(reader)
     if child:
-        _, status = os.waitpid(child, 0)
-        with control():
-            kill_group(group)
-            group.rmdir()
-        return os.waitstatus_to_exitcode(status)
+        try:
+            return supervise(child, group, output, language not in ('python', 'postgresql'),
+                             cpu_ms, compile_ms, lambda: kill_group(group))
+        finally:
+            with control():
+                kill_group(group)
+                group.rmdir()
     try:
         call(libc.unshare, CLONE_NEWNS | CLONE_NEWNET | CLONE_NEWCGROUP | CLONE_NEWIPC)
         mount(None, '/', None, MS_REC | MS_PRIVATE)
@@ -174,7 +185,8 @@ def run(language, memory, processes, token):
 if __name__ == '__main__':
     try:
         result = cancel(sys.argv[2]) if sys.argv[1] == "cancel" else run(
-            sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+            sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5]),
+            sys.argv[6]
         )
         sys.exit(result if result >= 0 else 128 - result)
     except Exception as error:
