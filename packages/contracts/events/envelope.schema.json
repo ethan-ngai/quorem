@@ -157,6 +157,12 @@
                       "matchPlayed"
                     ]
                   },
+                  "opponents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "outcome": {
                     "type": "string",
                     "enum": [

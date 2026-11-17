@@ -1,6 +1,6 @@
 /** @file useMatchSync.ts @description Owner-scoped browser synchronization for one match. @module realtime */
 import { api, ApiError, requireData } from "../../api/client";
-import { playerDashboardKey } from "../activity/playerDashboardQuery";
+import { invalidatePracticeCatalog } from "../practice/problemQueries";
 import { isRouteDenied } from "../auth/protectedRoute";
 import { isMatchTerminal } from "../matches/matchState";
 import type { DevelopmentIdentity, MatchSnapshot } from "@quorem/contracts";
@@ -84,7 +84,7 @@ export function useMatchSync(
   const completedMatch = query.data?.state === "completed" ? query.data.id : undefined;
   useEffect(() => {
     if (enabled && completedMatch && !accessFailed)
-      void queryClient.invalidateQueries({ queryKey: playerDashboardKey(identity) });
+      void invalidatePracticeCatalog(queryClient, identity);
   }, [accessFailed, completedMatch, enabled, identity, queryClient]);
   // The authorized HTTP snapshot decides whether this visit needs a live socket.
   const connect = enabled && !!matchId && !!query.data && !terminal && !accessFailed;

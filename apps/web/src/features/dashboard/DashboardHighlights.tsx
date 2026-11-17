@@ -39,6 +39,9 @@ export function DashboardTimeline({ items }: { items: PlayerDashboard["recent"] 
               </span>
               <div className="dashboard-timeline-event">
                 <strong>{title}</strong>
+                {item.kind === "matchPlayed" && !!item.opponents?.length && (
+                  <p>vs. {item.opponents.join(", ")}</p>
+                )}
                 <p>
                   {item.kind !== "matchPlayed" ? (
                     <DifficultyLabel difficulty={item.difficulty} />

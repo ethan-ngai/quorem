@@ -5399,6 +5399,10 @@
                       "type": "string",
                       "enum": ["matchPlayed"]
                     },
+                    "opponents": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
                     "outcome": {
                       "type": "string",
                       "enum": ["victory", "draw", "loss"]

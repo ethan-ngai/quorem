@@ -177,7 +177,9 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       : sql``;
   const viewer = f.sort !== "recommended" && actor && !actor.guestScope ? actor.userId : undefined;
   const progress = viewer
-    ? sql`EXISTS (
+    ? sql`(EXISTS (
+    SELECT 1 FROM match_question_solves ms WHERE ms.owner_id=${viewer} AND ms.publication_id=v.id
+  ) OR EXISTS (
     SELECT 1 FROM workspaces w
     WHERE w.owner_id=${viewer} AND w.publication_id=v.id AND w.kind='solo'
       AND CASE WHEN v.odyssey IS NULL THEN
@@ -186,7 +188,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       ELSE EXISTS (
         SELECT 1 FROM odyssey_progress o WHERE o.scope_id=w.id AND o.publication_id=v.id AND o.completed
       ) END
-  )`
+  ))`
     : sql``;
   const groupProgress = viewer ? sql`, count(*) FILTER (WHERE ${progress})::text AS solved` : sql``;
   const groups =

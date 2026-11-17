@@ -1,6 +1,6 @@
 /** @file PracticeRecommendations.tsx @description One visible recommendation above the practice catalog. @module practice */
 import { LoadingButton } from "../../ui/LoadingButton";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, EyeOff, Lightbulb } from "lucide-react";
@@ -49,6 +49,23 @@ export function PracticeRecommendations({
   const active = Math.max(0, Math.min(index, count - 1));
   const item = items?.[active];
   const impression = item && recommendations.data?.recommendationImpressions?.[item.id];
+
+  useLayoutEffect(() => {
+    const track = viewport.current;
+    const slide = track?.children[active];
+    if (!embedded || !track || !slide) return;
+    // Offscreen slides still participate in the horizontal snap track.
+    const fitSlide = () => {
+      track.style.height = `${slide.getBoundingClientRect().height}px`;
+    };
+    fitSlide();
+    const observer = new ResizeObserver(fitSlide);
+    observer.observe(slide);
+    return () => {
+      observer.disconnect();
+      track.style.height = "";
+    };
+  }, [active, embedded, item?.id]);
 
   useEffect(() => {
     if (!actor || actor === "anonymous" || !impression) return;

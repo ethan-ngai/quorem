@@ -83,6 +83,7 @@
 
 .practice-recommendations[data-embedded] .practice-recommendations-track {
   align-items: flex-start;
+  overflow-y: hidden;
 }
 
 .practice-recommendation-slide {

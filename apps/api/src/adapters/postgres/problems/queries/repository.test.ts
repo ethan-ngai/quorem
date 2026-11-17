@@ -167,8 +167,18 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         [...solo, owner, ...versions],
       );
       await pool.query("INSERT INTO practice_solves(workspace_id) VALUES($1)", [solo[0]]);
-      await pool.query("INSERT INTO practice_target_progress(workspace_id,tier) VALUES($1,1)", [
-        solo[1],
+      // A match-only solve stays visible after its learning event expires.
+      const matchEvidence = await pool.query(
+        `INSERT INTO question_learning_events
+          (submission_id,owner_id,publication_id,difficulty,tags,accepted,context,attempted_at)
+          VALUES(gen_random_uuid(),$1,$2,'easy','{}',true,'match',now()),
+            (gen_random_uuid(),$1,$2,'easy','{}',true,'match',now()),
+            (gen_random_uuid(),$1,$3,'hard','{}',false,'match',now())
+          RETURNING submission_id`,
+        [owner, versions[1], versions[2]],
+      );
+      await pool.query("DELETE FROM question_learning_events WHERE submission_id=ANY($1::uuid[])", [
+        matchEvidence.rows.map(({ submission_id }) => submission_id),
       ]);
       await pool.query(
         "INSERT INTO odyssey_progress(scope_id,publication_id,level) VALUES($1,$2,2)",
@@ -233,6 +243,21 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         headers: { Authorization: "test" },
       });
       expect(invalidZone.status).toBe(400);
+      await pool.query(
+        "UPDATE matches SET state='completed',completed_at=now(),outcome='{\"kind\":\"draw\"}' WHERE id=$1",
+        [match],
+      );
+      expect((await dashboard(owner, "UTC")).recent[0]).toMatchObject({
+        id: match,
+        title: "Alpha",
+        kind: "matchPlayed",
+        opponents: ["Member"],
+        outcome: "draw",
+      });
+      await pool.query(
+        "UPDATE matches SET state='active',completed_at=NULL,outcome=NULL WHERE id=$1",
+        [match],
+      );
       const role = `catalog_${uid}`;
       const rolePassword = crypto.randomUUID();
       await pool.query(`CREATE ROLE ${role} LOGIN PASSWORD '${rolePassword}'`);
@@ -257,6 +282,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         match_reservations: "match_id,owner_id",
         workspaces: "id,owner_id,publication_id,kind",
         practice_solves: "workspace_id",
+        match_question_solves: "owner_id,publication_id",
         practice_target_progress: "workspace_id",
         odyssey_progress: "scope_id,publication_id,completed",
       }))

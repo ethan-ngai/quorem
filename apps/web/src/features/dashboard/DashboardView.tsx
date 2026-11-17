@@ -6,7 +6,7 @@ import { ArrowRight, BookOpen, Check, PencilLine, Swords } from "lucide-react";
 import type { ReactNode } from "react";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
-import { QuestionTopics } from "../practice/QuestionRowMetadata";
+import { QuestionTopicLink, QuestionTopics } from "../practice/QuestionRowMetadata";
 import { PracticeRecommendations } from "../practice/PracticeRecommendations";
 import { DashboardTimeline, DashboardDistribution } from "./DashboardHighlights";
 import { ActivityCalendar } from "./ActivityCalendar";
@@ -177,9 +177,9 @@ export function DashboardView({
                 <ol>
                   {data.topics.map(({ topic, count }) => (
                     <li key={topic}>
-                      <Link className="topic-chip" to="/practice" search={{ topic }}>
-                        {topic} <strong>{count}</strong>
-                      </Link>
+                      <QuestionTopicLink topic={topic}>
+                        <strong>{count}</strong>
+                      </QuestionTopicLink>
                     </li>
                   ))}
                 </ol>

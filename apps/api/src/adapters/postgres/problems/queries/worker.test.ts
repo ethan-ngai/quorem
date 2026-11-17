@@ -44,6 +44,7 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           foundational_topics: "slug,label,aliases,is_foundational",
           workspaces: "id,owner_id,publication_id,kind",
           practice_solves: "workspace_id",
+          match_question_solves: "owner_id,publication_id",
           practice_target_progress: "workspace_id",
           odyssey_progress: "scope_id,publication_id,completed",
           question_exposure: "owner_id,publication_id,last_seen_at",

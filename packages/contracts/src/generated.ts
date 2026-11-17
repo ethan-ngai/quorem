@@ -1427,6 +1427,7 @@ export interface components {
                 title: string;
                 /** @enum {string} */
                 kind: "matchPlayed";
+                opponents?: string[];
                 /** @enum {string} */
                 outcome: "victory" | "draw" | "loss";
             } | {

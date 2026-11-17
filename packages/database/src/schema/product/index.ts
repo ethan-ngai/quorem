@@ -2540,6 +2540,28 @@ export const question_learning_events = pgTable(
     check("question_learning_events_context_check", sql`${t.context} IN ('practice','match')`),
   ],
 );
+export const match_question_solves = pgTable(
+  "match_question_solves",
+  {
+    owner_id: text().notNull(),
+    publication_id: uuid().notNull(),
+    solved_at: timestamp({ withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [
+    foreignKey({
+      name: "match_question_solves_owner_id_fkey",
+      columns: [t.owner_id],
+      foreignColumns: [users.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "match_question_solves_publication_id_fkey",
+      columns: [t.publication_id],
+      foreignColumns: [question_publications.id],
+    }).onDelete("cascade"),
+    primaryKey({ columns: [t.owner_id, t.publication_id] }),
+    index("match_question_solves_publication").on(t.publication_id),
+  ],
+);
 export const question_learning_observations = pgView("question_learning_observations", {
   submission_id: uuid(),
   owner_id: text(),

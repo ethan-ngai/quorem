@@ -1,7 +1,17 @@
 /** @file QuestionRowMetadata.tsx @description Shared filters within question catalog rows. @module practice */
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import "../../ui/topic-chip.css";
 import { formatLabel } from "../../ui/formatLabel";
+
+export function QuestionTopicLink({ topic, children }: { topic: string; children?: ReactNode }) {
+  return (
+    <Link className="topic-chip" to="/practice" search={{ topic }}>
+      {formatLabel(topic)}
+      {children}
+    </Link>
+  );
+}
 
 export function QuestionTopics({
   tags,
@@ -32,9 +42,7 @@ export function QuestionTopics({
             {formatLabel(topic)}
           </button>
         ) : linkToFilter ? (
-          <Link key={topic} className="topic-chip" to="/practice" search={{ topic }}>
-            {formatLabel(topic)}
-          </Link>
+          <QuestionTopicLink key={topic} topic={topic} />
         ) : (
           <span key={topic} className="topic-chip">
             {formatLabel(topic)}

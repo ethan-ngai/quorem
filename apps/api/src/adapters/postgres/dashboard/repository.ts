@@ -33,6 +33,12 @@ export function playerDashboard(run: Run) {
             LEFT JOIN practice_solves s ON s.workspace_id=w.id
             LEFT JOIN practice_target_progress t ON t.workspace_id=w.id
             LEFT JOIN odyssey_progress o ON o.scope_id=w.id AND o.publication_id=v.id
+            UNION ALL
+            SELECT p.id, p.slug, v.title, v.difficulty, v.id,
+              p.current_publication_id=v.id, false, ms.solved_at, true, NULL, NULL
+            FROM account a JOIN match_question_solves ms ON ms.owner_id=a.id
+            JOIN question_publications v ON v.id=ms.publication_id
+            JOIN problems p ON p.id=v.problem_id AND (p.owner_id IS NULL OR p.owner_id=a.id)
           ), solved AS (
             SELECT DISTINCT ON (problem_id) * FROM progress WHERE solved
             ORDER BY problem_id, updated_at DESC, publication_id
@@ -62,7 +68,7 @@ export function playerDashboard(run: Run) {
               AND s.odyssey_level < jsonb_array_length(v.odyssey->'levels')
               AND s.updated_at<=transaction_timestamp()
           ), matches_played AS (
-            SELECT m.id::text, m.completed_at AS at,
+            SELECT m.id::text, m.completed_at AS at, m.mode, m.publication_id, mp.team, mp.owner_id,
               (m.completed_at AT TIME ZONE ${timeZone})::date AS day,
               CASE m.mode WHEN 'factions' THEN 'Factions' WHEN 'free-for-all' THEN 'Free-for-all'
                 ELSE 'Showdown' END AS title,
@@ -84,9 +90,15 @@ export function playerDashboard(run: Run) {
             SELECT day, day + (row_number() OVER (ORDER BY day DESC))::int AS anchor FROM daily
           ), recent AS (
             SELECT id, at, day, title, CASE WHEN odyssey THEN 'odyssey' ELSE 'practiceAccepted' END AS kind,
-              difficulty, NULL::text AS outcome FROM practice
+              difficulty, NULL::text AS outcome, NULL::jsonb AS opponents FROM practice
             UNION ALL
-            SELECT id, at, day, title, 'matchPlayed', NULL::text, outcome FROM matches_played
+            SELECT m.id, m.at, m.day, COALESCE(v.title, m.title), 'matchPlayed', NULL::text, m.outcome,
+              COALESCE((SELECT jsonb_agg(u.display_name ORDER BY opponent.seat)
+                FROM match_participants opponent JOIN users u ON u.id=opponent.owner_id
+                WHERE opponent.match_id=m.id::uuid AND opponent.owner_id<>m.owner_id
+                  AND (m.mode<>'factions' OR opponent.team IS DISTINCT FROM m.team)), '[]'::jsonb)
+            FROM (SELECT * FROM matches_played ORDER BY at DESC,id LIMIT 5) m
+            LEFT JOIN question_publications v ON v.id=m.publication_id
           )
           SELECT jsonb_build_object(
             'streakDays', (SELECT count(*)::int FROM streak WHERE anchor=
@@ -106,7 +118,7 @@ export function playerDashboard(run: Run) {
               'draw',count(*) FILTER (WHERE outcome='draw'),'loss',count(*) FILTER (WHERE outcome='loss'))
               FROM matches_played WHERE day>=c.today-29),
             'recent', COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-              'id',id,'day',day-c.today,'title',title,'kind',kind,'difficulty',difficulty,'outcome',outcome
+              'id',id,'day',day-c.today,'title',title,'kind',kind,'difficulty',difficulty,'outcome',outcome,'opponents',opponents
             )) ORDER BY at DESC,id) FROM (SELECT * FROM recent ORDER BY at DESC,id LIMIT 5) r),'[]'),
             'practice', (SELECT jsonb_build_object('slug',slug,'title',title,'difficulty',difficulty,
               'tags',CASE WHEN EXISTS (SELECT 1 FROM restricted WHERE id=r.publication_id::text) THEN '[]'::jsonb ELSE ${topicProjection(sql`r.publication_id`)} END) FROM resume r WHERE NOT odyssey),
