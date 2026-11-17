@@ -15,12 +15,12 @@ it.each(["onAutoClose", "onDismiss"] as const)(
     const toasts = createRoomAlertToasts();
 
     toasts.show("first", "Alice left");
-    toasts.show("first", "Alice returned after 5s away", true);
+    toasts.show("first", "Alice returned after 5s away", { returned: true });
     expect(warning.mock.lastCall?.[1]?.id).toBe(1);
 
     toasts.show("second", "Bob left");
     warning.mock.lastCall?.[1]?.[close]?.({ id: 2 });
-    toasts.show("second", "Bob returned after 30s away", true);
+    toasts.show("second", "Bob returned after 30s away", { returned: true });
     expect(warning.mock.lastCall?.[1]?.id).toBeUndefined();
 
     toasts.dismissAll();

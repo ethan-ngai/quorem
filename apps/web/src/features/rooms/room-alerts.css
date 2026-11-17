@@ -106,3 +106,9 @@
 .room-alerts-history:empty {
   display: none;
 }
+
+.room-toast-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3em;
+}

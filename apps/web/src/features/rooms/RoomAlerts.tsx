@@ -71,6 +71,14 @@ function AlertMessage({ event, count = 1 }: { event: RoomAlert; count?: number }
           ×{count}
         </span>
       )}
+      <AlertPenalty event={event} />
+    </>
+  );
+}
+
+function AlertPenalty({ event }: { event: RoomAlert }) {
+  return (
+    <>
       {!!event.seconds && <span className="room-alert-penalty">+{event.seconds}s</span>}
       {!!event.points && (
         <span className="room-alert-penalty">
@@ -180,12 +188,18 @@ export function RoomAlerts({
   useEffect(() => {
     for (const event of tracking.track(version, events)) {
       if (event.silent) continue;
-      tracking.toasts.show(
-        event.id,
-        <AlertMessage event={event} />,
-        event.awaySeconds !== undefined,
-        <EventIcon event={event} />,
-      );
+      if (event.kind === "focus") {
+        tracking.toasts.show(event.id, event.description, {
+          returned: event.awaySeconds !== undefined,
+          icon: <EventIcon event={event} />,
+          prefix: <strong>{event.name}</strong>,
+          details: <AlertPenalty event={event} />,
+        });
+      } else {
+        tracking.toasts.show(event.id, <AlertMessage event={event} />, {
+          icon: <EventIcon event={event} />,
+        });
+      }
     }
   }, [events, version, scope, tracking]);
   useEffect(() => () => tracking.toasts.dismissAll(), [tracking]);

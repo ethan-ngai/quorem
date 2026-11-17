@@ -47,10 +47,13 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
       { clipboard, copy, focus },
       (kind, action) => {
         if (kind === "focus") {
-          const reason = "You left the match window.";
+          const reason = "left the match window.";
           const key = randomUUID();
-          focusToasts.show(key, reason);
-          departure = { key, sent: action === "warning" ? undefined : send({ kind }, reason, key) };
+          focusToasts.show(key, reason, { prefix: "You" });
+          departure = {
+            key,
+            sent: action === "warning" ? undefined : send({ kind }, `You ${reason}`, key),
+          };
           return;
         }
         const reason =
@@ -69,10 +72,11 @@ export function useMatchRules(identity: DevelopmentIdentity, match?: MatchSnapsh
         if (!departure) return;
         const { key, sent } = departure;
         departure = undefined;
-        const reason = `You ${focusReturnDescription(awaySeconds)}.`;
-        focusToasts.show(key, reason, true);
+        const reason = `${focusReturnDescription(awaySeconds)}.`;
+        focusToasts.show(key, reason, { returned: true, prefix: "You" });
         void sent?.then((accepted) => {
-          if (accepted) void send({ kind: "focus", departureId: key, awaySeconds }, reason);
+          if (accepted)
+            void send({ kind: "focus", departureId: key, awaySeconds }, `You ${reason}`);
         });
       },
     );
