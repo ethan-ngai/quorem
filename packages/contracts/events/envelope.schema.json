@@ -157,6 +157,9 @@
                       "matchPlayed"
                     ]
                   },
+                  "mode": {
+                    "$ref": "#/$defs/MatchMode"
+                  },
                   "opponents": {
                     "type": "array",
                     "items": {

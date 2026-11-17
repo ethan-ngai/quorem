@@ -45,6 +45,7 @@ const sampleProblems = [
   { title: "Segment Sums", difficulty: "medium" },
   { title: "Quota Window", difficulty: "hard" },
 ] as const;
+const sampleMatchModes = ["showdown", "factions", "free-for-all"] as const;
 const sampleOpponents = ["Mira Chen", "Leo Park", "Nora Shah"];
 
 /** Keep sample highlight titles attached to the events that qualify for streaks. */
@@ -52,6 +53,7 @@ function sampleActivity(index: number, match: boolean) {
   return match
     ? {
         kind: "matchPlayed" as const,
+        mode: sampleMatchModes[Math.floor(index / 2) % sampleMatchModes.length],
         title: sampleProblems[index % sampleProblems.length].title,
         opponents:
           index % 6 === 4 ? sampleOpponents : [sampleOpponents[index % sampleOpponents.length]],
@@ -89,7 +91,7 @@ export function DashboardDemo() {
   const { through, days: count } = scenarios[scenario];
   const events = Array.from({ length: count }, (_, index) => ({
     day: through - index,
-    ...sampleActivity(index, index % 3 === 1),
+    ...sampleActivity(index, index % 3 === 1 || index === 3),
   }));
   const qualifyingDays = summarizeActivity(scenario === "new" ? [] : [...sampleHistory, ...events]);
   const isNew = scenario === "new";
@@ -99,10 +101,10 @@ export function DashboardDemo() {
   const timeline = isNew
     ? []
     : [
-        ...events,
+        ...events.filter(({ day }) => day !== through - 2),
         {
           kind: "odyssey" as const,
-          day: -9,
+          day: through - 2,
           title: "Transit Operations",
           difficulty: "medium" as const,
         },

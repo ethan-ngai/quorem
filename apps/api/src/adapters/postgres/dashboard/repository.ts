@@ -90,13 +90,13 @@ export function playerDashboard(run: Run) {
             SELECT day, day + (row_number() OVER (ORDER BY day DESC))::int AS anchor FROM daily
           ), recent AS (
             SELECT id, at, day, title, CASE WHEN odyssey THEN 'odyssey' ELSE 'practiceAccepted' END AS kind,
-              difficulty, NULL::text AS outcome, NULL::jsonb AS opponents FROM practice
+              difficulty, NULL::text AS outcome, NULL::jsonb AS opponents, NULL::text AS mode FROM practice
             UNION ALL
             SELECT m.id, m.at, m.day, COALESCE(v.title, m.title), 'matchPlayed', NULL::text, m.outcome,
               COALESCE((SELECT jsonb_agg(u.display_name ORDER BY opponent.seat)
                 FROM match_participants opponent JOIN users u ON u.id=opponent.owner_id
                 WHERE opponent.match_id=m.id::uuid AND opponent.owner_id<>m.owner_id
-                  AND (m.mode<>'factions' OR opponent.team IS DISTINCT FROM m.team)), '[]'::jsonb)
+                  AND (m.mode<>'factions' OR opponent.team IS DISTINCT FROM m.team)), '[]'::jsonb), m.mode
             FROM (SELECT * FROM matches_played ORDER BY at DESC,id LIMIT 5) m
             LEFT JOIN question_publications v ON v.id=m.publication_id
           )
@@ -118,7 +118,7 @@ export function playerDashboard(run: Run) {
               'draw',count(*) FILTER (WHERE outcome='draw'),'loss',count(*) FILTER (WHERE outcome='loss'))
               FROM matches_played WHERE day>=c.today-29),
             'recent', COALESCE((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-              'id',id,'day',day-c.today,'title',title,'kind',kind,'difficulty',difficulty,'outcome',outcome,'opponents',opponents
+              'id',id,'day',day-c.today,'title',title,'kind',kind,'difficulty',difficulty,'outcome',outcome,'opponents',opponents,'mode',mode
             )) ORDER BY at DESC,id) FROM (SELECT * FROM recent ORDER BY at DESC,id LIMIT 5) r),'[]'),
             'practice', (SELECT jsonb_build_object('slug',slug,'title',title,'difficulty',difficulty,
               'tags',CASE WHEN EXISTS (SELECT 1 FROM restricted WHERE id=r.publication_id::text) THEN '[]'::jsonb ELSE ${topicProjection(sql`r.publication_id`)} END) FROM resume r WHERE NOT odyssey),

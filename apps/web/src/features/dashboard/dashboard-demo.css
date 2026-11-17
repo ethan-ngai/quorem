@@ -299,6 +299,10 @@
   background: var(--color-surface);
   color: var(--color-text-secondary);
 }
+.dashboard-timeline-marker svg {
+  width: 16px;
+  height: 16px;
+}
 .dashboard-timeline-event p,
 .dashboard-timeline time {
   color: var(--color-text-secondary);

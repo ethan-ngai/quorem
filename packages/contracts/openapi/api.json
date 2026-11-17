@@ -5399,6 +5399,9 @@
                       "type": "string",
                       "enum": ["matchPlayed"]
                     },
+                    "mode": {
+                      "$ref": "#/components/schemas/MatchMode"
+                    },
                     "opponents": {
                       "type": "array",
                       "items": { "type": "string" }

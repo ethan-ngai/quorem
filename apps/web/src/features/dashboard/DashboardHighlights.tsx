@@ -1,16 +1,11 @@
 /** @file DashboardHighlights.tsx @description Activity timeline and stat charts. @module dashboard */
-import { BookOpen, Swords } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { OdysseyIcon } from "../../ui/OdysseyIcon";
 import type { PlayerDashboard } from "@quorem/contracts";
 import { DifficultyLabel } from "../../ui/DifficultyLabel";
+import { matchModeLabels, ModeIcon } from "../matches/ModeIcon";
 
 const activityDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-
-const timelineKinds = {
-  practiceAccepted: { label: "Practice", Icon: BookOpen },
-  matchPlayed: { label: "Match", Icon: Swords },
-  odyssey: { label: "Odyssey", Icon: OdysseyIcon },
-} as const;
 
 const outcomeLabels = { victory: "Victory", loss: "Loss", draw: "Draw" };
 
@@ -27,14 +22,27 @@ export function DashboardTimeline({ items }: { items: PlayerDashboard["recent"] 
         {items.map((item) => {
           const { day, kind, title } = item;
           const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + day);
-          const { label, Icon } = timelineKinds[kind];
+          const label =
+            item.kind === "matchPlayed"
+              ? item.mode
+                ? matchModeLabels[item.mode]
+                : "Match"
+              : kind === "odyssey"
+                ? "Odyssey"
+                : "Practice";
           const dateTime = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
             .map((part) => String(part).padStart(2, "0"))
             .join("-");
           return (
             <li key={`${kind}:${item.id}`}>
               <span className="dashboard-timeline-marker" title={label}>
-                <Icon size={14} aria-hidden="true" />
+                {item.kind === "matchPlayed" ? (
+                  <ModeIcon mode={item.mode} />
+                ) : kind === "odyssey" ? (
+                  <OdysseyIcon />
+                ) : (
+                  <BookOpen aria-hidden="true" />
+                )}
                 <span className="sr-only">{label}</span>
               </span>
               <div className="dashboard-timeline-event">

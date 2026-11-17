@@ -251,6 +251,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         id: match,
         title: "Alpha",
         kind: "matchPlayed",
+        mode: "showdown",
         opponents: ["Member"],
         outcome: "draw",
       });
