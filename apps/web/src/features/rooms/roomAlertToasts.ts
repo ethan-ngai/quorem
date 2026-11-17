@@ -10,8 +10,9 @@ export function createRoomAlertToasts() {
       const clear = () => active.delete(key);
       const title = createElement(ContentTransition, {
         contentKey: returned ? "returned" : "initial",
+        slideUp: true,
         durationMs: 280,
-        children: createElement("span", null, message),
+        children: createElement("div", null, message),
       });
       const id = toast.warning(title, {
         id: active.get(key),
