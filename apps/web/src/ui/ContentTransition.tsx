@@ -8,6 +8,7 @@ type Props = {
   className?: string;
   inline?: boolean;
   slideUp?: boolean;
+  durationMs?: number;
   children: ReactNode;
 };
 type StartMotion = NonNullable<ReturnType<typeof prepareContentChangeMotion>> | null;
@@ -27,6 +28,7 @@ export class ContentTransition extends Component<Props, object, StartMotion> {
       prepareContentChangeMotion(this.surface, {
         resizeWidth: this.props.inline,
         slideUp: this.props.slideUp,
+        durationMs: this.props.durationMs,
       }) ?? null
     );
   }

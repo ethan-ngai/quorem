@@ -4,7 +4,11 @@ import { motion } from "@quorem/ui/tokens";
 /** Capture the outgoing surface before a synchronous or React-driven update. */
 export function prepareContentChangeMotion(
   surface: HTMLElement,
-  { resizeWidth = false, slideUp = false }: { resizeWidth?: boolean; slideUp?: boolean } = {},
+  {
+    resizeWidth = false,
+    slideUp = false,
+    durationMs = Number.parseFloat(motion.standard),
+  }: { resizeWidth?: boolean; slideUp?: boolean; durationMs?: number } = {},
 ): (() => () => void) | undefined {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const { width, height } = surface.getBoundingClientRect();
@@ -35,7 +39,7 @@ export function prepareContentChangeMotion(
     surface.append(outgoing);
 
     const timing = {
-      duration: Number.parseFloat(motion.standard),
+      duration: durationMs,
       easing: motion.easing,
       fill: "both" as const,
     };
