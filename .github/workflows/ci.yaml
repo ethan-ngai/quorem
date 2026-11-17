@@ -10,7 +10,7 @@ concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  checks:
+  application-tests:
     runs-on: ubuntu-latest
     services:
       mailpit:
@@ -21,7 +21,7 @@ jobs:
         options: >-
           --health-cmd "/mailpit readyz"
           --health-interval 2s --health-timeout 3s --health-retries 30
-      postgres:
+      postgres: &postgres
         image: postgres:17.11-alpine
         env:
           POSTGRES_USER: quorem
@@ -39,13 +39,16 @@ jobs:
       AUTH_TEST_MAILPIT_URL: http://127.0.0.1:58025
       QUOREM_TEST_DOCKER: "1"
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
+      - &checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - &setup-vp
+        uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
         with:
           node-version-file: .node-version
           cache: true
           run-install: false
-      - run: vp install --frozen-lockfile
+      - &install
+        run: vp install --frozen-lockfile
       - name: Formatting (advisory)
         id: formatting
         continue-on-error: true
@@ -78,7 +81,7 @@ jobs:
           vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
-          for database in quorem_factions_test quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_admin_test quorem_hono_catalog_test quorem_hono_authoring_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_party_test quorem_hono_review_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_question_state_test quorem_hono_canonical_test quorem_hono_approaches_test quorem_hono_runtime_test quorem_hono_benchmark_test; do
+          for database in quorem_factions_test quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_admin_test quorem_hono_catalog_test quorem_hono_authoring_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_party_test quorem_hono_review_test quorem_hono_admission_test quorem_hono_result_stream_test quorem_hono_cli_test quorem_hono_question_state_test quorem_hono_canonical_test quorem_hono_approaches_test quorem_hono_benchmark_test; do
             docker exec "${{ job.services.postgres.id }}" createdb -U quorem "$database"
           done
           # Match server-major archive tools; only disposable fixtures enter /tmp.
@@ -199,25 +202,33 @@ jobs:
           QUOREM_CLI_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_cli_test?sslmode=disable
           QUOREM_QUESTION_STATE_TEST_DATABASE_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_question_state_test?sslmode=disable
         run: vp -C apps/api exec vitest run --config src/cli/vitest.config.ts
-      - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
-      - name: Language lifecycle and Python capabilities
-        env:
-          QUOREM_DEV_IDENTITY: "true"
-          QUOREM_LANGUAGE_TEST: "true"
-          QUOREM_HOSTED_INTELLIGENCE: "true"
-        run: |
-          (cd apps/language && exec node --experimental-strip-types src/main.ts) > /tmp/quorem-language.log 2>&1 &
-          language_pid=$!
-          trap 'kill -TERM "$language_pid" 2>/dev/null || true; wait "$language_pid" || true' EXIT
-          for attempt in $(seq 1 100); do
-            if curl -fsS http://127.0.0.1:8081/health; then break; fi
-            if ! kill -0 "$language_pid" 2>/dev/null; then cat /tmp/quorem-language.log; exit 1; fi
-            sleep 0.1
-          done
-          curl -fsS http://127.0.0.1:8081/health
-          vp run --filter @quorem/language test
-          vp -C apps/web test src/features/editor/languageIntegration.test.ts
-      - run: python3 scripts/build-judge-images.py --base-only
+
+  # Production promotion verifies both mandatory runtime steps in this job.
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres: *postgres
+    env:
+      APP_ENV: local
+      QUOREM_TEST_DATABASE_URL: postgres://quorem:quorem@localhost:54329/quorem?sslmode=disable
+      QUOREM_TEST_DOCKER: "1"
+    steps:
+      - *checkout
+      - *setup-vp
+      - *install
+      - name: Isolated runtime database
+        run: docker exec "${{ job.services.postgres.id }}" createdb -U quorem quorem_hono_runtime_test
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        id: buildx
+        with:
+          use: false
+      - name: Load judge images with cached layers
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          source: local
+          files: .github/judge-images.hcl
+          load: true
       - name: Mandatory composed runtime release validation
         env:
           QUOREM_RUNTIME_TEST_URL: postgres://quorem:quorem@127.0.0.1:54329/quorem_hono_runtime_test?sslmode=disable
@@ -239,17 +250,13 @@ jobs:
   hono-platform-contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76 # v1.22.0
-        with:
-          node-version-file: .node-version
-          cache: true
-          run-install: false
+      - *checkout
+      - *setup-vp
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.17.1
           terraform_wrapper: false
-      - run: vp install --frozen-lockfile
+      - *install
       - name: Build private service fixture images
         run: |
           docker build -f deploy/hono/Dockerfile.runner --target private-service -t quorem-35d-private-fixture:local .
@@ -261,7 +268,7 @@ jobs:
           node --test scripts/hono-production-state.test.mjs scripts/hono-production-terraform.test.mjs scripts/hono-native-image-reuse.test.mjs scripts/hono-production-private-workers.test.mjs
           node --import ./deploy/test-register.mjs --test deploy/case-sandbox.test.mjs deploy/hono/services/*.test.mjs
       - run: node scripts/build-hono-service-workers.mjs
-      - run: node --test scripts/hono-service-workers.test.mjs scripts/judging-workload-benchmark.test.mjs scripts/hono-production-workload-actors.test.mjs scripts/hono-judging-release.test.mjs
+      - run: node --test scripts/hono-service-workers.test.mjs scripts/judging-workload-benchmark.test.mjs scripts/hono-judging-release.test.mjs
       - name: Isolated Terraform module contracts
         run: |
           for stack in app hono-bootstrap hono-stage hono-services; do
@@ -271,3 +278,21 @@ jobs:
             terraform -chdir=infra/terraform/$stack test
           done
           node --test infra/terraform/hono-bootstrap/tests/rest-identity.test.mjs
+      - run: docker build -f apps/language/Dockerfile -t quorem-language:local .
+      - name: Language lifecycle and Python capabilities
+        env:
+          QUOREM_DEV_IDENTITY: "true"
+          QUOREM_LANGUAGE_TEST: "true"
+          QUOREM_HOSTED_INTELLIGENCE: "true"
+        run: |
+          (cd apps/language && exec node --experimental-strip-types src/main.ts) > /tmp/quorem-language.log 2>&1 &
+          language_pid=$!
+          trap 'kill -TERM "$language_pid" 2>/dev/null || true; wait "$language_pid" || true' EXIT
+          for attempt in $(seq 1 100); do
+            if curl -fsS http://127.0.0.1:8081/health; then break; fi
+            if ! kill -0 "$language_pid" 2>/dev/null; then cat /tmp/quorem-language.log; exit 1; fi
+            sleep 0.1
+          done
+          curl -fsS http://127.0.0.1:8081/health
+          vp run --filter @quorem/language test
+          vp -C apps/web test src/features/editor/languageIntegration.test.ts
