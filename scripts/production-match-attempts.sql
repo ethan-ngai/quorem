@@ -27,9 +27,11 @@ FROM submissions s
 JOIN execution_jobs j ON j.submission_id = s.id
 JOIN runner_job_inputs i ON i.job_id = j.id
 JOIN execution_attempt_inventory a ON a.job_id = j.id
+LEFT JOIN workspaces w ON w.id = s.workspace_id
 LEFT JOIN execution_completion_receipts r ON r.job_id = j.id AND r.attempt_id = a.attempt_id
 LEFT JOIN execution_checkpoints c ON c.job_id = j.id
-WHERE s.match_id = :'match_id'::uuid
+-- Post-match executions inherit the match through their review workspace.
+WHERE s.match_id = :'match_id'::uuid OR w.review_match_id = :'match_id'::uuid
 ORDER BY s.admitted_at, a.claimed_at;
 
 -- Result notifications provide persisted timing boundaries without exposing case content.
