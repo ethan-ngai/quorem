@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ExecutionRepository, Job, SandboxControl } from "@quorem/execution";
+import { UnconfirmedTeardown } from "../sandbox/types.ts";
 import { LostLease, runAttempt, type CancellationSource } from "./attempt.ts";
 const job = { jobId: "j", submissionId: "s", attemptId: "a", sandboxScope: "scope" } as Job;
 function fixture() {
@@ -137,6 +138,42 @@ void test("revoked lease acknowledges cancellation only after teardown", async (
   f.revoke();
   await assert.rejects(running, LostLease);
   assert.deepEqual(f.events, ["lease", "lease", "teardown", "acknowledge"]);
+});
+void test("case cleanup failure halts the runner only if attempt teardown also fails", async () => {
+  for (const confirmsAttempt of [true, false]) {
+    const f = fixture();
+    const caseFailure = new UnconfirmedTeardown({ httpStatus: 503 });
+    const attemptFailure = new UnconfirmedTeardown({ transport: "timeout" });
+    f.sandbox.teardownAttempt = async (fence) => {
+      assert.deepEqual(fence, { attemptId: job.attemptId, sandboxScope: job.sandboxScope });
+      f.events.push("teardown");
+      if (!confirmsAttempt) throw attemptFailure;
+    };
+    f.repository.acknowledgeCancellation = async () => {
+      f.events.push("acknowledge");
+    };
+    await assert.rejects(
+      runAttempt({
+        ...f,
+        job,
+        engine: {
+          execute: async () => {
+            throw caseFailure;
+          },
+        },
+      }),
+      (error) =>
+        confirmsAttempt
+          ? error instanceof Error &&
+            !(error instanceof UnconfirmedTeardown) &&
+            error.cause === caseFailure
+          : error === attemptFailure,
+    );
+    assert.deepEqual(
+      f.events,
+      confirmsAttempt ? ["lease", "teardown", "acknowledge"] : ["lease", "teardown"],
+    );
+  }
 });
 void test("a write failure before the lease check still acknowledges cancellation", async () => {
   for (const phase of ["execution", "finalization"]) {
