@@ -151,6 +151,18 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
   } catch {
     drain = { transport: "unavailable" };
   }
+  // The queue-facing coordinator can reject wakes even when the fenced API drain succeeds.
+  const coordinator = await fetch("https://runner-hono.quorem.app/internal/drain", {
+    method: "POST",
+    headers: { authorization: `Bearer ${keys.QUOREM_RUNNER_DRAIN_SECRET}` },
+    redirect: "error",
+    signal: AbortSignal.timeout(10000),
+  })
+    .then(async (response) => {
+      await response.body?.cancel();
+      return { status: response.status };
+    })
+    .catch(() => ({ transport: "unavailable" }));
   return {
     profile,
     nativeTimings,
@@ -161,6 +173,7 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
     authKeyRate: authKeyRate[0] ?? null,
     sandbox,
     drain,
+    coordinator,
     jobs,
     benchmarkJobs,
     command: { status: response.status, queued: body?.queued, running: body?.running },
