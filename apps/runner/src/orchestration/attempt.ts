@@ -2,6 +2,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ExecutionRepository, Job, SandboxControl } from "@quorem/execution";
 import { finishAfterTeardown, yieldAfterTeardown } from "../queue/finish.ts";
+import { UnconfirmedTeardown } from "../sandbox/types.ts";
 
 export interface CancellationSubscription {
   /** An event is a hint; a closed or failed stream revokes the execution. */
@@ -121,6 +122,9 @@ export async function runAttempt(options: {
       { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
       AbortSignal.timeout(options.teardownMs ?? 30000),
     );
+    // Only unconfirmed attempt teardown should halt the runner after case cleanup fails.
+    if (error instanceof UnconfirmedTeardown)
+      throw new Error("Case cleanup failed before confirmed attempt teardown", { cause: error });
     throw error;
   }
 }
