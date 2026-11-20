@@ -205,7 +205,7 @@ jobs:
   idle-smoke:
     if: inputs.idle_smoke && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 22
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}

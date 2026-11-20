@@ -8,11 +8,24 @@ import worker, { type Env } from "../worker.ts";
 import { assertRuntimeTestDatabase } from "./test-database.ts";
 
 it("rejects obsolete production presence pings without a database binding", async () => {
+  const production = { APP_ENV: "production", AUTH_ORIGIN: "https://quorem.app" } as unknown as Env;
   const response = await worker.fetch(
-    new Request("https://quorem.app/v1/presence/heartbeat", { method: "POST" }),
-    { APP_ENV: "production" } as unknown as Env,
+    new Request("https://quorem.app/v1/presence/heartbeat", {
+      method: "POST",
+      headers: { origin: "https://quorem.app" },
+    }),
+    production,
   );
   expect(response.status).toBe(410);
+  const marker = response.headers.get("set-cookie")?.split(";")[0];
+  expect(marker).toBe("__Secure-quorem-retired-presence=1");
+  for (const headers of [undefined, { cookie: marker! }]) {
+    const token = await worker.fetch(
+      new Request("https://quorem.app/api/auth/token", { headers }),
+      production,
+    );
+    expect(token.status).toBe(401);
+  }
 });
 
 it("runs native auth, catalog, workspace and durable socket through composition", async () => {

@@ -10,6 +10,7 @@ export async function createProductionBenchmarkActors({
   authSecret,
   mode = "production",
   count = 8,
+  sessionMinutes = 15,
 }) {
   const url = new URL(databaseURL);
   const production = mode === "production";
@@ -19,6 +20,9 @@ export async function createProductionBenchmarkActors({
     !Number.isInteger(count) ||
     count < 1 ||
     count > 8 ||
+    !Number.isInteger(sessionMinutes) ||
+    sessionMinutes < 1 ||
+    sessionMinutes > 30 ||
     !!url.hash ||
     [...url.searchParams.keys()].some((key) => key.toLowerCase() !== "sslmode") ||
     !["postgres:", "postgresql:"].includes(url.protocol) ||
@@ -79,8 +83,8 @@ export async function createProductionBenchmarkActors({
       });
       productIds.push(userId);
       await pool.query(
-        'INSERT INTO quorem_auth.session(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,clock_timestamp()+interval \'15 minutes\',clock_timestamp(),clock_timestamp())',
-        [randomUUID(), token, subject],
+        'INSERT INTO quorem_auth.session(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,clock_timestamp()+make_interval(mins=>$4::int),clock_timestamp(),clock_timestamp())',
+        [randomUUID(), token, subject, sessionMinutes],
       );
       actors.push({
         id: userId,

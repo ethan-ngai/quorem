@@ -44,6 +44,8 @@ export function databaseRoute(path: string): string {
   if (/^\/v1\/parties(?:\/|$)/.test(path)) return "party";
   if (path === "/v1/problems") return "catalog";
   if (/^\/v1\/(?:problems|question-publications)\//.test(path)) return "question";
+  if (path === "/api/auth/token") return "auth.token";
+  if (path === "/api/auth/get-session") return "auth.session";
   if (path.startsWith("/api/auth/")) return "auth";
   if (/^\/v1\/submissions(?:\/|$)/.test(path)) return "submission";
   if (path.startsWith("/internal/runner/")) return "runner";
