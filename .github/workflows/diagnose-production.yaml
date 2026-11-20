@@ -2,6 +2,14 @@ name: Diagnose production
 on:
   workflow_dispatch:
     inputs:
+      neon_idle_history:
+        description: Read Neon control-plane suspend history
+        type: boolean
+        default: false
+      neon_sample_connections:
+        description: Sample sessions only when the production endpoint is already active
+        type: boolean
+        default: false
       database_analytics_start:
         description: UTC start for a 15-minute Cloudflare database-traffic analysis
         type: string
@@ -70,7 +78,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ inputs.database_analytics_start == '' && !inputs.idle_smoke && !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
+    if: ${{ inputs.database_analytics_start == '' && !inputs.neon_idle_history && !inputs.idle_smoke && !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -168,6 +176,19 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-private-workers.mjs --benchmark-only
 
+  neon-idle-history:
+    if: inputs.neon_idle_history
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Read Neon compute history and optional connection snapshot
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
+          NEON_SAMPLE_CONNECTIONS: ${{ inputs.neon_sample_connections }}
+        run: python3 scripts/neon-idle-history.py
   database-analytics:
     if: inputs.database_analytics_start != ''
     runs-on: ubuntu-latest
@@ -184,7 +205,7 @@ jobs:
   idle-smoke:
     if: inputs.idle_smoke && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 22
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}

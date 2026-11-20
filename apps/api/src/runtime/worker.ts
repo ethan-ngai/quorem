@@ -525,6 +525,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 let budget: ReturnType<typeof requestBudget> | undefined;
 let streamBudget: ReturnType<typeof requestBudget> | undefined;
 let privateBudget: ReturnType<typeof requestBudget> | undefined;
+const retiredPresence = "__Secure-quorem-retired-presence=1";
 const runtime = {
   async fetch(
     request: Request,
@@ -545,8 +546,24 @@ const runtime = {
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
-      if (env.APP_ENV === "production" && path === "/v1/presence/heartbeat")
-        return new Response(null, { status: 410, headers: { "cache-control": "no-store" } });
+      if (env.APP_ENV === "production" && path === "/v1/presence/heartbeat") {
+        const headers = new Headers({ "cache-control": "no-store" });
+        if (request.method === "POST" && request.headers.get("origin") === env.AUTH_ORIGIN)
+          headers.set(
+            "set-cookie",
+            `${retiredPresence}; Max-Age=90; Path=/api/auth/token; Secure; HttpOnly; SameSite=Strict`,
+          );
+        return new Response(null, { status: 410, headers });
+      }
+      if (env.APP_ENV === "production" && request.method === "GET" && path === "/api/auth/token") {
+        const cookies = request.headers.get("cookie");
+        // An obsolete tab can keep minting tokens even when its presence request is rejected.
+        const obsolete =
+          request.headers.get("x-quorem-auth-client") !== "room-sockets" &&
+          cookies?.split(";").some((cookie) => cookie.trim() === retiredPresence);
+        if (!cookies || obsolete)
+          return new Response(null, { status: 401, headers: { "cache-control": "no-store" } });
+      }
       if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
         const response = await routeSocket(env, request, target);
         if (target.stream === "party" && response.status === 101) await publish(["party"]);

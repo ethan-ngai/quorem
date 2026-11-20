@@ -57,8 +57,10 @@ async function verify(env) {
     databaseURL: database.href,
     authSecret: env.BETTER_AUTH_SECRET,
     count: 1,
+    sessionMinutes: 25,
   });
   let socket, party, bearer, keepalive;
+  let failed = false;
   try {
     const cookie = fixture.actors[0].cookie;
     const request = async (path, options = {}) => {
@@ -76,7 +78,26 @@ async function verify(env) {
       if (!response.ok) throw new Error(`Smoke HTTP request failed: ${response.status}`);
       return response.json();
     };
-    bearer = (await request("/api/auth/token")).token;
+    const legacy = await fetch(`${origin}/v1/presence/heartbeat`, {
+      method: "POST",
+      headers: { cookie, origin },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const marker = legacy.headers.get("set-cookie")?.split(";")[0];
+    if (legacy.status !== 410 || marker !== "__Secure-quorem-retired-presence=1")
+      throw new Error("Retired heartbeat marker unavailable");
+    const flaggedCookie = `${cookie}; ${marker}`;
+    const obsoleteToken = await fetch(`${origin}/api/auth/token`, {
+      headers: { cookie: flaggedCookie, origin },
+      signal: AbortSignal.timeout(10_000),
+    });
+    await obsoleteToken.body?.cancel();
+    if (obsoleteToken.status !== 401) throw new Error("Retired tab still mints tokens");
+    bearer = (
+      await request("/api/auth/token", {
+        headers: { cookie: flaggedCookie, "x-quorem-auth-client": "room-sockets" },
+      })
+    ).token;
     await request("/v1/parties/current");
     party = (
       await request("/v1/parties", {
@@ -137,7 +158,7 @@ async function verify(env) {
     keepalive = setInterval(ping, 10_000);
     const started = Date.now();
     let previous;
-    while (Date.now() - started <= 11 * 60_000) {
+    while (Date.now() - started <= 18 * 60_000) {
       const state = await getState();
       if (state !== previous) {
         console.log(
@@ -154,14 +175,22 @@ async function verify(env) {
       await delay(20_000);
     }
     throw new Error("Neon did not suspend during the observation window");
+  } catch (error) {
+    failed = true;
+    throw error;
   } finally {
     clearInterval(keepalive);
     socket?.terminate();
-    try {
-      if (party) await disbandParty(party, fixture.actors[0].cookie);
-    } finally {
-      await fixture.dispose();
-    }
+    await (async () => {
+      try {
+        if (party) await disbandParty(party, fixture.actors[0].cookie);
+      } finally {
+        await fixture.dispose();
+      }
+    })().catch((error) => {
+      if (!failed) throw error;
+      console.error("Idle smoke cleanup failed after the observation error");
+    });
   }
 }
 
