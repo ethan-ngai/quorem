@@ -357,6 +357,7 @@ if (import.meta.main) {
           ? {
               category: error.category,
               uploadPhase: error.uploadPhase,
+              uploadFailure: error.uploadFailure,
               diagnostics: error.diagnostics.map(
                 ({ resources, statuses, codes, types, flags }) => ({
                   resources,

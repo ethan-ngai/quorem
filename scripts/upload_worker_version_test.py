@@ -75,7 +75,19 @@ class UploadTest(unittest.TestCase):
             return Response(json.dumps({"success": True, "result": {"deployments": [{"versions": [{"version_id": version, "percentage": 100}]}]}}).encode())
         module.deploy('a' * 32, 'quorem', 'secret', version, open_request)
         with self.assertRaises(RuntimeError):
-            module.deploy('a' * 32, 'quorem', 'secret', version, lambda *a, **k: Response(b'{"success":true,"result":{"deployments":[]}}'))
+            module.deploy('a' * 32, 'quorem', 'secret', version, lambda *a, **k: Response(b'{"success":true,"result":{"deployments":[]}}'), sleep=lambda _: None)
+
+    def test_deploy_retries_stale_reads_without_replaying_mutation(self):
+        version = '12345678-1234-1234-1234-123456789012'
+        methods = []
+        def open_request(request, timeout):
+            methods.append(request.get_method())
+            if len(methods) == 1:
+                return Response(b'{"success":true}')
+            active = '00000000-0000-0000-0000-000000000000' if len(methods) == 2 else version
+            return Response(json.dumps({"success": True, "result": {"deployments": [{"versions": [{"version_id": active, "percentage": 100}]}]}}).encode())
+        module.deploy('a' * 32, 'quorem', 'secret', version, open_request, sleep=lambda _: None)
+        self.assertEqual(methods, ['POST', 'GET', 'GET'])
 
     def test_image_preparation_times_out_after_fifteen_minutes(self):
         image = f"registry.cloudflare.com/{'a' * 32}/judge@sha256:{'b' * 64}"
