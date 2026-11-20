@@ -152,6 +152,26 @@ export class StageCommandFailure extends Error {
       "Worker version upload",
       "Worker deployment",
     ].find((phase) => text.includes(`${phase} failed`));
+    if (this.uploadPhase) {
+      const phase = this.uploadPhase;
+      const details = text.match(
+        new RegExp(
+          `${phase} failed \\(HTTP ([1-5][0-9]{2})(?:; Cloudflare codes ([0-9, ]{1,100}))?\\)`,
+        ),
+      );
+      this.uploadFailure = details
+        ? {
+            status: Number(details[1]),
+            codes: details[2]?.split(", ").map(Number),
+          }
+        : undefined;
+      const fixedReason = [
+        "Worker deployment response exceeded its bound",
+        "Worker deployment response was invalid",
+        "Worker deployment was not confirmed",
+      ].find((reason) => text.includes(`${phase} failed: ${reason}`));
+      if (fixedReason) this.uploadFailure = { reason: fixedReason };
+    }
     for (const line of text.split("\n")) {
       try {
         const record = JSON.parse(line);

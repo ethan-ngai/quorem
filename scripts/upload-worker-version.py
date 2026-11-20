@@ -147,7 +147,7 @@ def upload(account, worker, token, metadata, modules, opener=None):
     return version
 
 
-def deploy(account, worker, token, version, opener=None):
+def deploy(account, worker, token, version, opener=None, sleep=time.sleep):
     if not re.fullmatch(r"[a-fA-F0-9]{32}", account) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,63}", worker) or not re.fullmatch(r"[0-9a-fA-F-]{36}", version) or not token:
         raise ValueError("Invalid Worker deployment configuration")
     if opener is None:
@@ -167,20 +167,28 @@ def deploy(account, worker, token, version, opener=None):
         payload = None
     if isinstance(payload, dict) and payload.get("success") is False:
         raise RuntimeError("Worker deployment was not confirmed")
-    # Confirm the active deployment through the read API, including when the
-    # mutation response does not include the documented deployment object.
+    # The deployment listing can lag the accepted mutation. Retry only the read.
     request = Request(request.full_url, headers={"Authorization": "Bearer " + token})
-    with opener(request, timeout=60) as response:
-        raw = response.read(1048577)
-    if len(raw) > 1048576:
-        raise RuntimeError("Worker deployment response exceeded its bound")
-    try:
-        payload = json.loads(raw)
-        versions = payload["result"]["deployments"][0]["versions"]
-    except (ValueError, KeyError, TypeError, IndexError):
-        raise RuntimeError("Worker deployment response was invalid") from None
-    if payload.get("success") is not True or not isinstance(versions, list) or len(versions) != 1 or versions[0].get("version_id") != version or versions[0].get("percentage") != 100:
-        raise RuntimeError("Worker deployment was not confirmed")
+    for attempt in range(10):
+        with opener(request, timeout=10) as response:
+            raw = response.read(1048577)
+        if len(raw) > 1048576:
+            raise RuntimeError("Worker deployment response exceeded its bound")
+        try:
+            payload = json.loads(raw)
+            deployments = payload["result"]["deployments"]
+            if payload["success"] is not True or not isinstance(deployments, list):
+                raise ValueError()
+            versions = deployments[0]["versions"] if deployments else []
+            if not isinstance(versions, list) or any(not isinstance(item, dict) for item in versions):
+                raise ValueError()
+        except (ValueError, KeyError, TypeError):
+            raise RuntimeError("Worker deployment response was invalid") from None
+        if len(versions) == 1 and versions[0].get("version_id") == version and versions[0].get("percentage") == 100:
+            return
+        if attempt < 9:
+            sleep(2)
+    raise RuntimeError("Worker deployment was not confirmed")
 
 
 def main():
