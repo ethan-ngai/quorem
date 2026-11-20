@@ -21,5 +21,6 @@ export function presenceExtension(transport: InterviewSocket, epoch: string, cli
       }
     },
     () => participants.reset(),
+    false,
   );
 }
