@@ -2,7 +2,7 @@
 // @ts-expect-error Provided by the Worker runtime, not Node's TypeScript libraries.
 import { DurableObject } from "cloudflare:workers";
 import { armSocketAlarm } from "./schedule.ts";
-import { socketHandshake } from "./handshake.ts";
+import { hibernatingProtocol, socketHandshake } from "./handshake.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import { mapIdentityError } from "../../../modules/identity/routes.ts";
 import { IdentityError } from "../../../modules/identity/model.ts";
@@ -16,7 +16,7 @@ import type { Notice } from "../../../modules/events/dispatch/ports.ts";
 import type { Principal } from "../../../modules/identity/model.ts";
 import type { VerifiedGrant } from "../../../modules/identity/grant.ts";
 
-type Mode = "interview" | "match";
+type Mode = "interview" | "match" | "party";
 /** Private server storage; attachment contains only its opaque key. */
 export interface StoredSocket {
   grant: VerifiedGrant;
@@ -24,6 +24,7 @@ export interface StoredSocket {
   resourceId: string;
   lease?: string;
   leaseOwner?: string;
+  hibernating?: boolean;
 }
 export interface SocketAuthority {
   /** Verify the request, authorize the resource and acquire the canonical window lease. */
@@ -57,9 +58,11 @@ interface SocketState {
   storage: SocketStorage;
   acceptWebSocket(socket: DurableSocket): void;
   getWebSockets(): DurableSocket[];
+  setWebSocketAutoResponse?(pair: unknown): void;
   waitUntil(promise: Promise<unknown>): void;
 }
 declare const WebSocketPair: new () => { 0: DurableSocket; 1: DurableSocket };
+declare const WebSocketRequestResponsePair: new (request: string, response: string) => unknown;
 const key = (id: string) => `socket:${id}`;
 const attachment = (socket: DurableSocket): string | undefined => {
   const value: unknown = socket.deserializeAttachment();
@@ -86,6 +89,9 @@ export function browserSocketObject<Env>(
       const config = build(env);
       this.authority = config.authority;
       this.origins = config.origins;
+      this.state.setWebSocketAutoResponse?.(
+        new WebSocketRequestResponsePair("quorem:ping", "quorem:pong"),
+      );
     }
     private async ensure(socket: DurableSocket) {
       const existing = this.sessions.get(socket);
@@ -203,7 +209,11 @@ export function browserSocketObject<Env>(
           if ((await tx.list({ prefix: "socket:", limit: 1024 })).size >= 1024)
             throw new Error("Socket capacity");
           await tx.put(key(id), record);
-          await armSocketAlarm(tx, Date.now());
+          await armSocketAlarm(
+            tx,
+            Date.now(),
+            record!.hibernating ? record!.grant.expiresAt * 1000 : undefined,
+          );
         });
         storedId = id;
         const pair = new WebSocketPair();
@@ -218,7 +228,9 @@ export function browserSocketObject<Env>(
         );
         return new Response(null, {
           status: 101,
-          headers: { "sec-websocket-protocol": "quorem" },
+          headers: {
+            "sec-websocket-protocol": record.hibernating ? hibernatingProtocol : "quorem",
+          },
           webSocket: pair[0],
         } as ResponseInit);
       } catch (error) {
@@ -278,10 +290,28 @@ export function browserSocketObject<Env>(
     }
     async alarm(): Promise<void> {
       const sockets = this.state.getWebSockets();
+      const records = await this.state.storage.list<StoredSocket>({
+        prefix: "socket:",
+        limit: 1024,
+      });
+      let next = Infinity;
       await Promise.all(
         sockets.map(async (socket) => {
           try {
+            const id = attachment(socket);
+            const record = id && records.get(key(id));
+            if (record && record.hibernating) {
+              const expiry = record.grant.expiresAt * 1000;
+              if (expiry <= Date.now()) {
+                socket.close(1008, "Access expired");
+                await this.cleanup(socket);
+              } else {
+                next = Math.min(next, expiry);
+              }
+              return;
+            }
             await (await this.ensure(socket)).session.heartbeat();
+            next = Math.min(next, Date.now() + 10_000);
           } catch {
             socket.close(1008, "Access changed");
             await this.cleanup(socket);
@@ -294,16 +324,13 @@ export function browserSocketObject<Env>(
           .filter((id): id is string => !!id)
           .map(key),
       );
-      for (const [storedKey, record] of await this.state.storage.list<StoredSocket>({
-        prefix: "socket:",
-        limit: 1024,
-      })) {
+      for (const [storedKey, record] of records) {
         if (!active.has(storedKey) && (await this.state.storage.delete(storedKey)))
           await this.authority.release(record);
       }
-      if (sockets.length)
+      if (Number.isFinite(next))
         await this.state.storage.transaction(async (tx) => {
-          await armSocketAlarm(tx, Date.now());
+          await armSocketAlarm(tx, Date.now(), next);
         });
     }
   };

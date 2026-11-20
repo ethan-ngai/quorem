@@ -11,6 +11,7 @@ export function noticePublisher(bus: FanoutPublisher): NoticePublisher {
   const prefix: Record<NoticeStream, string> = {
     interview: "interviews",
     match: "matches",
+    party: "parties",
     submission: "submissions",
   };
   return {

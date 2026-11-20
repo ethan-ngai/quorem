@@ -9,11 +9,11 @@ type Activity = { generation: number; at: number };
 /** Run once after activity, then only while the database reports unfinished work. */
 export class ActivityMaintenance {
   private readonly storage: AdmissionAlarmStorage;
-  private readonly repair: (activity: boolean, retain: boolean) => Promise<boolean>;
+  private readonly repair: (activity: boolean, retain: boolean) => Promise<number | null>;
 
   constructor(
     storage: AdmissionAlarmStorage,
-    repair: (activity: boolean, retain: boolean) => Promise<boolean>,
+    repair: (activity: boolean, retain: boolean) => Promise<number | null>,
   ) {
     this.storage = storage;
     this.repair = repair;
@@ -24,7 +24,8 @@ export class ActivityMaintenance {
       const prior = await tx.get<Activity>("maintenanceActivity");
       const at = Date.now();
       await tx.put("maintenanceActivity", { generation: (prior?.generation ?? 0) + 1, at });
-      if ((await tx.getAlarm()) === null) await tx.setAlarm(at + repairDelay);
+      const next = await tx.getAlarm();
+      if (next === null || next > at + repairDelay) await tx.setAlarm(at + repairDelay);
     });
   }
 
@@ -45,7 +46,7 @@ export class ActivityMaintenance {
         retain: activity && started - (lastRetention ?? -Infinity) >= retentionInterval,
       };
     });
-    const pending = await this.repair(activity, retain);
+    const due = await this.repair(activity, retain);
     await this.storage.transaction(async (tx) => {
       // A recent prearm may still be writing. Leave a trailing pass after its commit window.
       const recent = activity && started - request.at < repairDelay;
@@ -53,12 +54,18 @@ export class ActivityMaintenance {
       if (retain) await tx.put("lastRetention", Date.now());
       const newer =
         (await tx.get<Activity>("maintenanceActivity"))?.generation !== request.generation;
-      if ((pending || recent || newer) && (await tx.getAlarm()) === null) {
-        await tx.setAlarm(Date.now() + repairDelay);
+      const now = Date.now();
+      const continuation = Math.min(
+        recent || newer ? now + repairDelay : Infinity,
+        due === null ? Infinity : Math.max(now + repairDelay, due),
+      );
+      const next = await tx.getAlarm();
+      if (Number.isFinite(continuation) && (next === null || continuation < next)) {
+        await tx.setAlarm(continuation);
         const usage = currentDatabaseUsage();
         if (usage) {
           usage.rearm = [];
-          if (pending) usage.rearm.push("pending-work");
+          if (due !== null) usage.rearm.push("pending-work");
           if (recent) usage.rearm.push("recent-activity");
           if (newer) usage.rearm.push("new-activity");
         }

@@ -25,7 +25,7 @@ export default defineConfig({
           AUTH_ORIGIN: "http://127.0.0.1:8765",
           BETTER_AUTH_SECRET: "local-runtime-fixture-secret-32-characters",
           AUTH_INTERNAL_SECRET: "local-test-internal",
-          ALLOWED_ORIGINS: "http://127.0.0.1:5173",
+          ALLOWED_ORIGINS: "http://127.0.0.1:5173,http://127.0.0.1:8765",
           MATCH_INVITE_KEY: "ab".repeat(32),
           EXECUTION_WAKE_PROVIDER: "cloudflare-binding",
         },

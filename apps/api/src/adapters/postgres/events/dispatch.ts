@@ -1,18 +1,25 @@
 /** @file dispatch.ts @description PostgreSQL dispatch claims and atomic intents. @module events */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
-import type { Claim, DispatchStore, Stream } from "../../../modules/events/dispatch/ports.ts";
+import type {
+  Claim,
+  DispatchStore,
+  NoticeStream,
+  Stream,
+} from "../../../modules/events/dispatch/ports.ts";
 
 type Scope = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const tables = {
   interview: "interview_outbox",
   match: "match_outbox",
+  party: "party_outbox",
   submission: "submission_outbox",
   execution: "execution_dispatch_intents",
 } as const;
 const aggregate = {
   interview: "session_id",
   match: "match_id",
+  party: "party_id",
   submission: "submission_id",
 } as const;
 const txn = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -105,16 +112,28 @@ export function postgresDispatch(run: Scope): DispatchStore {
   };
 }
 
-/** Take one post-drain snapshot of the durable work that can rearm recovery. */
-export function recoveryWorkPending(run: Scope, streams: readonly Stream[]): Promise<boolean> {
+/** Earliest time another drain can make progress, including abandoned claims. */
+export function recoveryWorkDue(
+  run: Scope,
+  streams: readonly NoticeStream[],
+): Promise<number | null> {
   return run((scope) =>
     scope.transaction({ ...txn, readOnly: true }, async (tx) => {
-      const anyPending = sql.join(
-        [...streams.map(hasPending), sql`EXISTS(SELECT 1 FROM execution_jobs WHERE NOT finished)`],
-        sql` OR `,
+      const notices = streams.map(
+        (stream) =>
+          sql`(SELECT min(COALESCE(dispatch_until, statement_timestamp())) FROM ${sql.raw(tables[stream])} WHERE published_at IS NULL)`,
       );
-      const result = await tx.execute<{ pending: boolean }>(sql`SELECT ${anyPending} AS pending`);
-      return result.rows[0]?.pending === true;
+      const execution = sql`(SELECT min(
+        CASE WHEN i.delivered_at IS NULL THEN GREATEST(i.available_at, i.dispatch_until)
+        ELSE GREATEST(i.delivered_at + interval '1 minute', j.lease_until) END
+      ) FROM execution_dispatch_intents i JOIN execution_jobs j ON j.id=i.job_id
+        WHERE i.delivered_at IS NULL OR NOT j.finished)`;
+      const due = sql.join([...notices, execution], sql`, `);
+      const result = await tx.execute<{ at: string | null }>(
+        sql`SELECT CEIL(EXTRACT(EPOCH FROM LEAST(${due})) * 1000)::bigint AS at`,
+      );
+      const at = result.rows[0]?.at;
+      return at == null ? null : Number(at);
     }),
   );
 }

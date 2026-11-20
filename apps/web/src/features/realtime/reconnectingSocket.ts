@@ -23,10 +23,12 @@ export function createReconnectingSocket(options: SocketOptions) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let pingTimer: ReturnType<typeof setInterval> | undefined;
   function clearTimers() {
     clearTimeout(timer);
     clearTimeout(idleTimer);
     clearTimeout(refreshTimer);
+    clearInterval(pingTimer);
   }
   const reconnect = createReconnectScheduler(
     () => void connect(),
@@ -42,10 +44,9 @@ export function createReconnectingSocket(options: SocketOptions) {
       const bearer = options.authenticate === false ? undefined : await token();
       const expires = bearer ? tokenExpiresAt() : undefined;
       if (!valid()) return;
-      const current = new WebSocket(
-        options.url(),
-        bearer ? ["quorem", `bearer.${bearer}`] : ["quorem"],
-      );
+      const protocols = ["quorem", "quorem-hibernate"];
+      if (bearer) protocols.push(`bearer.${bearer}`);
+      const current = new WebSocket(options.url(), protocols);
       socket = current;
       const owns = () => valid() && socket === current;
       // Browser close handshakes can stall on broken networks; detach before reconnecting.
@@ -63,7 +64,11 @@ export function createReconnectingSocket(options: SocketOptions) {
       };
       const renewIdle = () => {
         clearTimeout(idleTimer);
-        if (options.idleTimeout) idleTimer = setTimeout(() => disconnect(), options.idleTimeout);
+        if (options.idleTimeout)
+          idleTimer = setTimeout(() => {
+            if (current.protocol === "quorem-hibernate" && globalThis.document?.hidden) renewIdle();
+            else disconnect();
+          }, options.idleTimeout);
       };
       timer = setTimeout(() => {
         disconnect();
@@ -73,7 +78,14 @@ export function createReconnectingSocket(options: SocketOptions) {
         clearTimeout(timer);
         reconnect.reset();
         renewIdle();
-        if (expires)
+        if (current.protocol === "quorem-hibernate") {
+          const ping = () => {
+            if (owns() && current.readyState === WebSocket.OPEN) current.send("quorem:ping");
+          };
+          ping();
+          pingTimer = setInterval(ping, 10_000);
+        }
+        if (expires && current.protocol !== "quorem-hibernate")
           refreshTimer = setTimeout(
             () => {
               // Renewal stays quiet until a connection attempt fails.
@@ -86,6 +98,7 @@ export function createReconnectingSocket(options: SocketOptions) {
       current.onmessage = (event) => {
         if (owns()) {
           renewIdle();
+          if (current.protocol === "quorem-hibernate" && event.data === "quorem:pong") return;
           try {
             if (typeof event.data !== "string") throw new Error("Invalid socket frame");
             const frame: unknown = JSON.parse(event.data);

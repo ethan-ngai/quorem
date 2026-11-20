@@ -50,7 +50,7 @@ export class SocketSession {
     subscription: SocketSubscription;
     commands?: CommandHandler;
     snapshot?: SocketSnapshotSource;
-    mode: "interview" | "match";
+    mode: "interview" | "match" | "party";
     now?: () => number;
     renew?: (p: Principal) => Promise<boolean>;
   };

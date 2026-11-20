@@ -38,7 +38,7 @@ import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
 import {
   postgresDispatch,
   recoverExecutionIntents,
-  recoveryWorkPending,
+  recoveryWorkDue,
 } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream, Stream } from "../modules/events/dispatch/ports.ts";
@@ -140,7 +140,16 @@ function notices(env: Env) {
       socketStub(env, stream, notice.aggregateId).publish(notice),
   };
 }
-const realtimeStreams = ["submission", "interview", "match"] as const;
+const realtimeStreams = ["submission", "interview", "match", "party"] as const;
+function affectedStreams(path: string): readonly Stream[] {
+  if (path.startsWith("/api/auth/") || path === "/v1/recommendation-feedback") return [];
+  if (path === "/v1/presence/heartbeat") return ["match", "party"];
+  if (/^\/v1\/(?:parties|matches)(?:\/|$)/.test(path)) return ["match", "party", "submission"];
+  if (/^\/v1\/(?:interviews|interview-invites)(?:\/|$)/.test(path))
+    return ["interview", "submission"];
+  if (/^\/v1\/submissions\/[^/]+\/cancel$/.test(path)) return [...realtimeStreams, "execution"];
+  return realtimeStreams;
+}
 async function publishStreams(
   env: Env,
   run: ReturnType<typeof runFor>,
@@ -302,6 +311,27 @@ function socketAuthority(env: Env) {
     verifier: security.verifier,
     sessions: security.sessions,
     matches: composed.matches,
+    parties: composed.parties,
+    async afterPartyPresence(id) {
+      const shard = matchDeadlineShard(id, boundedInt(env.DEADLINE_SHARDS, 1, 256));
+      await cloudflareCoordinator(env.DEADLINES).wake(shard);
+      if (env.APP_ENV === "production") await scheduleMaintenance(env);
+    },
+    async socketSession(request) {
+      const issuer = required(env.AUTH_ORIGIN);
+      if (request.headers.get("origin") !== issuer || !request.headers.has("cookie")) return;
+      const current = await security.auth.auth.api.getSession({ headers: request.headers });
+      if (!current || !current.user.emailVerified || current.session.userId !== current.user.id)
+        return;
+      return {
+        kind: "managed",
+        issuer,
+        subject: current.user.id,
+        sessionId: current.session.id,
+        expiresAt: Math.floor(new Date(current.session.expiresAt).getTime() / 1000),
+        strongUntil: 0,
+      };
+    },
     beforeInterviewCommand:
       env.APP_ENV === "production" ? () => scheduleMaintenance(env) : undefined,
     afterInterviewCommand: async () => {
@@ -394,6 +424,7 @@ export class DeadlineCoordinator extends DurableObject {
             ).rows.length;
           }),
         );
+        if (candidate.id.startsWith("party:")) await publishStreams(env, run, ["party", "match"]);
         if (closed && env.APP_ENV === "production") await scheduleMaintenance(env);
       },
     });
@@ -412,7 +443,7 @@ async function repairWorker(
   activity: boolean,
   retain: boolean,
   trackPending: boolean,
-): Promise<boolean> {
+): Promise<number | null> {
   const run = runFor(env);
   const store = postgresDispatch(run);
   const publisher = notices(env);
@@ -444,7 +475,9 @@ async function repairWorker(
         ]
       : []),
   ]);
-  return pending || (trackPending && (await recoveryWorkPending(run, streams)));
+  if (!trackPending) return null;
+  const due = await recoveryWorkDue(run, realtimeStreams);
+  return pending ? Math.min(Date.now() + 60_000, due ?? Infinity) : due;
 }
 
 export class ExecutionRecovery extends DurableObject {
@@ -512,8 +545,11 @@ const runtime = {
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
-      if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket")
-        return await routeSocket(env, request, target);
+      if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
+        const response = await routeSocket(env, request, target);
+        if (target.stream === "party" && response.status === 101) await publish(["party"]);
+        return response;
+      }
       const submissionId = request.method === "GET" && submissionEventId(path);
       if (submissionId) {
         streamBudget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
@@ -586,8 +622,9 @@ const runtime = {
           return execute(run);
         }
         const handle = async (publicRun?: ReturnType<typeof runFor>) => {
+          const streams = mutation ? affectedStreams(path) : [];
           const shouldTrack =
-            path.startsWith("/v1/") && (mutation || path.startsWith("/v1/parties"));
+            path.startsWith("/v1/") && (streams.length > 0 || path.startsWith("/v1/parties"));
           const composed = makeHttp(
             env,
             request,
@@ -599,18 +636,7 @@ const runtime = {
             ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
             : request;
           const response = await composed.app.fetch(incoming);
-          if (response.status < 400 && mutation) {
-            const cancellation =
-              request.method === "POST" && /^\/v1\/submissions\/[^/]+\/cancel$/.test(path);
-            // Presence can start a round during reconciliation, which only writes match notices.
-            await publish(
-              path === "/v1/presence/heartbeat"
-                ? ["match"]
-                : cancellation
-                  ? [...realtimeStreams, "execution"]
-                  : realtimeStreams,
-            );
-          }
+          if (response.status < 400 && streams.length) await publish(streams);
           return response;
         };
         if (

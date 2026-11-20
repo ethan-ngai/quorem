@@ -16,12 +16,13 @@ export async function acquireSocketLease(
   subject: string,
   authorize: () => Promise<unknown>,
   guard: SQL = sql`true`,
+  expiresAt?: number,
 ): Promise<string> {
   if (!valid(topic, subject))
     throw new ApplicationError("invalid_input", "Invalid socket lease", 400);
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${topic}:${subject}`},0))`);
   await tx.execute(
-    sql`DELETE FROM realtime_presence_leases WHERE id IN(SELECT id FROM realtime_presence_leases WHERE expires_at<=clock_timestamp() ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 256)`,
+    sql`DELETE FROM realtime_presence_leases WHERE id IN(SELECT id FROM realtime_presence_leases WHERE expires_at<=clock_timestamp() AND topic NOT LIKE '/parties/%' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT 256)`,
   );
   const row = (
     await tx.execute<{ count: string }>(
@@ -32,13 +33,18 @@ export async function acquireSocketLease(
     throw new ApplicationError("quota_exceeded", "Too many editor windows", 429);
   await authorize();
   const id = crypto.randomUUID();
+  const expires =
+    expiresAt === undefined
+      ? sql`clock_timestamp()+interval '30 seconds'`
+      : sql`to_timestamp(${expiresAt})`;
   const inserted = await tx.execute(
-    sql`INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) SELECT ${id}::uuid,${topic},${subject},clock_timestamp()+interval '30 seconds' WHERE ${guard} RETURNING id`,
+    sql`INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) SELECT ${id}::uuid,${topic},${subject},${expires} WHERE ${guard} AND ${expires}>clock_timestamp() RETURNING id`,
   );
   if (!inserted.rows.length) throw new ApplicationError("not_found", "Socket unavailable", 404);
-  await tx.execute(
-    sql`INSERT INTO platform_presence_leases(owner_id,window_id,expires_at) VALUES(${subject},${id}::uuid,clock_timestamp()+interval '90 seconds') ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`,
-  );
+  if (!topic.startsWith("/parties/"))
+    await tx.execute(
+      sql`INSERT INTO platform_presence_leases(owner_id,window_id,expires_at) VALUES(${subject},${id}::uuid,clock_timestamp()+interval '90 seconds') ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`,
+    );
   return id;
 }
 export async function renewSocketLease(
@@ -57,7 +63,7 @@ export async function renewSocketLease(
         sql`UPDATE realtime_presence_leases SET expires_at=clock_timestamp()+interval '30 seconds' WHERE id=${id}::uuid AND topic=${topic} AND subject=${subject} AND expires_at>clock_timestamp() AND ${guard} RETURNING id`,
       )
     ).rows.length === 1;
-  if (renewed)
+  if (renewed && !topic.startsWith("/parties/"))
     await tx.execute(
       sql`INSERT INTO platform_presence_leases(owner_id,window_id,expires_at) VALUES(${subject},${id}::uuid,clock_timestamp()+interval '90 seconds') ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`,
     );

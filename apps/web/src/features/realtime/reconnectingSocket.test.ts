@@ -74,7 +74,7 @@ it("connects public streams without requesting account credentials", async () =>
   });
   connection.start();
   expect(token).not.toHaveBeenCalled();
-  expect(Socket.instances[0]?.protocols).toEqual(["quorem"]);
+  expect(Socket.instances[0]?.protocols).toEqual(["quorem", "quorem-hibernate"]);
   connection.stop();
 });
 
@@ -83,7 +83,7 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   connection.start();
   await Promise.resolve();
   const old = Socket.instances[0]!;
-  expect(old.protocols).toEqual(["quorem", "bearer.token"]);
+  expect(old.protocols).toEqual(["quorem", "quorem-hibernate", "bearer.token"]);
   await vi.advanceTimersByTimeAsync(2000);
   expect(onDisconnect).toHaveBeenCalledOnce();
   old.onopen?.();

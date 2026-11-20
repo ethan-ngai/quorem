@@ -11,7 +11,7 @@ export type Presence = PresenceInput & { userId: string; name: string; color?: n
 export interface InterviewPresence {
   peers(actor: Principal, id: string): Promise<Presence[]>;
   update(actor: Principal, id: string, input: PresenceInput): Promise<Presence[]>;
-  acquire(actor: Principal, id: string): Promise<string>;
+  acquire(actor: Principal, id: string, expiresAt?: number): Promise<string>;
   renew(actor: Principal, id: string, lease: string): Promise<boolean>;
   release(actor: Principal, id: string, lease: string): Promise<void>;
 }

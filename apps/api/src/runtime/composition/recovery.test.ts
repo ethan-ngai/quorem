@@ -41,8 +41,8 @@ it("coalesces activity, retries failed repair and stops after the trailing pass"
       return fn(storage);
     },
   };
-  const repair = vi.fn<(activity: boolean, retain: boolean) => Promise<boolean>>();
-  repair.mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(false);
+  const repair = vi.fn<(activity: boolean, retain: boolean) => Promise<number | null>>();
+  repair.mockRejectedValueOnce(new Error("unavailable")).mockResolvedValue(null);
   const actor = new ActivityMaintenance(storage, repair);
   const fire = (time: number) => {
     vi.setSystemTime(time);
@@ -65,11 +65,11 @@ it("coalesces activity, retries failed repair and stops after the trailing pass"
       [true, true],
     ]);
     expect(due).toBe(122_000);
-    repair.mockResolvedValueOnce(true);
+    repair.mockResolvedValueOnce(602_000);
     await fire(122_000);
     expect(repair).toHaveBeenLastCalledWith(true, false);
-    expect(due).toBe(182_000);
-    await fire(182_000);
+    expect(due).toBe(602_000);
+    await fire(602_000);
     expect(repair).toHaveBeenLastCalledWith(false, false);
     expect(due).toBeNull();
   } finally {

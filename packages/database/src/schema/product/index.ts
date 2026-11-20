@@ -2409,6 +2409,27 @@ export const parties = pgTable(
       .where(sql`countdown_ends_at IS NOT NULL`),
   ],
 );
+export const party_outbox = pgTable(
+  "party_outbox",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    sequence: bigint({ mode: "bigint" }).generatedAlwaysAsIdentity().unique(),
+    party_id: uuid()
+      .notNull()
+      .references(() => parties.id, { onDelete: "cascade" }),
+    occurred_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (t) => [
+    index("party_outbox_pending")
+      .on(t.sequence)
+      .where(sql`published_at IS NULL`),
+  ],
+);
 export const party_members = pgTable(
   "party_members",
   {
