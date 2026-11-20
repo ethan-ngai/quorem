@@ -8,6 +8,7 @@ import { recoverableCommand } from "./commandRecovery";
 import { RejectedMatchCommand } from "./errors";
 import { safeErrorMessage } from "../../api/safeError";
 import { createReconnectingSocket } from "../realtime/reconnectingSocket";
+import { factionLobbyKey } from "../factions/useFactionLobby";
 
 export type Party = PartySnapshot;
 export type { PartySettings };
@@ -99,6 +100,12 @@ export function useLiveParty(identity: DevelopmentIdentity, enabled: boolean) {
   const [live, setLive] = useState<{ identity: DevelopmentIdentity; id: string }>();
   const query = useParty(identity, enabled, live?.identity !== identity);
   const id = enabled ? query.data?.party?.id : undefined;
+  const factionVersion =
+    query.data?.party?.settings?.mode === "factions" ? query.data.party.version : undefined;
+  useEffect(() => {
+    if (id && factionVersion !== undefined)
+      void client.invalidateQueries({ queryKey: factionLobbyKey(id), exact: true });
+  }, [client, id, factionVersion]);
   useEffect(() => {
     if (!id) return;
     const key = ["current-party", identity] as const;
