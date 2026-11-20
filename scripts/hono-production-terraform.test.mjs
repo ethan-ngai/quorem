@@ -154,6 +154,18 @@ void test("private rollout permits retiring only runner and verifier container r
       assert.throws(() => inspectProductionPlan(plan(address, [action]), "private-workers"));
 });
 
+void test("private rollout retries cleanup of only deposed version resources", () => {
+  for (const address of ["cloudflare_worker_version.services", "terraform_data.case_images"]) {
+    const deletion = plan(address, ["delete"]);
+    assert.throws(() => inspectProductionPlan(deletion, "private-workers"));
+    deletion.resource_changes[0].deposed = "deadbeef";
+    assert.doesNotThrow(() => inspectProductionPlan(deletion, "private-workers"));
+  }
+  const retained = plan("restapi_object.case", ["delete"]);
+  retained.resource_changes[0].deposed = "deadbeef";
+  assert.throws(() => inspectProductionPlan(retained, "private-workers"));
+});
+
 void test("private mail rollout changes only the image digest", () => {
   const image = `registry.cloudflare.com/${"a".repeat(32)}/quorem-hono-production-mail@sha256:${"b".repeat(64)}`;
   for (const rollout of [false, true]) {

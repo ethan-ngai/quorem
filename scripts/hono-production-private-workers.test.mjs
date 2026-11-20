@@ -21,3 +21,16 @@ void test("explicit repair adopts only the deployed release's existing pause fen
   );
   assert.equal(rolloutPauseOperation(next, "c".repeat(40), paused, true), newOperation);
 });
+
+void test("a scope-preserving repair can resume a pinned interrupted release", () => {
+  const prior = "a".repeat(40);
+  const interrupted = "b".repeat(40);
+  const next = "c".repeat(40);
+  const state = { paused: false };
+  const pauseOperation = rolloutPauseOperation(interrupted, prior, state, false);
+  const paused = { paused: true, pauseOperation };
+  assert.equal(rolloutPauseOperation(next, prior, paused, true, interrupted), pauseOperation);
+  assert.notEqual(rolloutPauseOperation(next, prior, paused, true, "d".repeat(40)), pauseOperation);
+  assert.throws(() => rolloutPauseOperation(next, prior, paused, false, interrupted));
+  assert.throws(() => rolloutPauseOperation(next, prior, paused, true, "unqualified"));
+});

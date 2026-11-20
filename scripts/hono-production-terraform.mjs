@@ -74,6 +74,8 @@ export function inspectProductionPlan(plan, mode) {
         /^(cloudflare_worker_version\.(?:services|verifier)|terraform_data\.case_images)$/.test(
           item.address,
         );
+      // A retry can include cleanup of Terraform's superseded instance after a partial apply.
+      const deposed = versioned && action === "delete" && /^[a-f0-9]{8}$/.test(item.deposed ?? "");
       const { before, after } = item.change;
       const verifierWorker =
         item.address === "cloudflare_worker.verifier" && ["create", "update"].includes(action);
@@ -90,6 +92,7 @@ export function inspectProductionPlan(plan, mode) {
       if (
         !(retired && action === "delete") &&
         !(versioned && ["create", "update", "delete,create", "create,delete"].includes(action)) &&
+        !deposed &&
         !verifierWorker &&
         !verifierDomain &&
         !mailImageChange(item)
