@@ -545,6 +545,8 @@ const runtime = {
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
+      if (env.APP_ENV === "production" && path === "/v1/presence/heartbeat")
+        return new Response(null, { status: 410, headers: { "cache-control": "no-store" } });
       if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
         const response = await routeSocket(env, request, target);
         if (target.stream === "party" && response.status === 101) await publish(["party"]);
