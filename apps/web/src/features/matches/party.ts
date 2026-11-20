@@ -13,6 +13,8 @@ import { factionLobbyKey } from "../factions/useFactionLobby";
 export type Party = PartySnapshot;
 export type { PartySettings };
 const invitationKey = (partyId: string) => `quorem.party-invite.v1:${partyId}`;
+const membershipDenied = (error: unknown) =>
+  error instanceof RejectedMatchCommand && [401, 403, 404, 410].includes(error.status ?? 0);
 
 export function savePartyInvitation(partyId: string, path: string) {
   try {
@@ -85,7 +87,7 @@ export function useParty(
     refetchOnMount,
     refetchInterval: (query) => {
       const party = query.state.data?.party;
-      if (!poll || !party) return false;
+      if (!poll || !party || membershipDenied(query.state.error)) return false;
       if (!party.countdownEndsAt) return 3000;
       // Reading the party at the deadline lets the server reconcile the round immediately.
       const remaining = Date.parse(party.countdownEndsAt) - Date.now();
@@ -99,7 +101,7 @@ export function useLiveParty(identity: DevelopmentIdentity, enabled: boolean) {
   const client = useQueryClient();
   const [live, setLive] = useState<{ identity: DevelopmentIdentity; id: string }>();
   const query = useParty(identity, enabled, live?.identity !== identity);
-  const id = enabled ? query.data?.party?.id : undefined;
+  const id = enabled && !membershipDenied(query.error) ? query.data?.party?.id : undefined;
   const factionVersion =
     query.data?.party?.settings?.mode === "factions" ? query.data.party.version : undefined;
   useEffect(() => {
