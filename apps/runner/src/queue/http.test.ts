@@ -50,7 +50,7 @@ void test("redirects fail closed, release bodies and never replay", async () => 
     timeoutMs: 500,
     fetch: fetcher,
   });
-  await assert.rejects(client.nextExpiredAttempt(true, "s"), /unavailable/);
+  await assert.rejects(client.reserveExpiredAttempt(true, "s"), { outcome: "unknown" });
   assert.equal(count, 1);
   assert.equal(cancelled, true);
   await assert.rejects(client.claimAfterTeardown(true, "s", null), { outcome: "unknown" });

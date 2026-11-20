@@ -6,6 +6,7 @@ import type { ExecutionRepository, Job, SandboxControl } from "@quorem/execution
 import { drainer, type QueueSignals } from "./drain.ts";
 import type { CancellationSource } from "../orchestration/attempt.ts";
 import { drainHandler } from "./http.ts";
+import { UnconfirmedTeardown } from "../sandbox/types.ts";
 
 function fixture() {
   let queued = 0,
@@ -13,7 +14,7 @@ function fixture() {
     notified: (() => void) | undefined;
   const job = { jobId: "j", submissionId: "s", attemptId: "a", sandboxScope: "fixture" } as Job;
   const repository = {
-    nextExpiredAttempt: async () => null,
+    reserveExpiredAttempt: async () => null,
     claimAfterTeardown: async () => {
       if (!queued) return null;
       queued--;
@@ -234,7 +235,6 @@ void test("HTTP authenticates and overlaps require continuation", async () => {
   assert.equal(refreshed, 2);
 });
 void test("shutdown reports unconfirmed teardown while leaving the attempt fenced", async () => {
-  const { UnconfirmedTeardown } = await import("../sandbox/types.ts");
   const f = fixture();
   f.add();
   let started!: () => void;
@@ -265,6 +265,38 @@ void test("shutdown reports unconfirmed teardown while leaving the attempt fence
   await executing;
   stop.abort();
   await assert.rejects(pending, UnconfirmedTeardown);
+});
+
+void test("a live teardown failure retains its fence and the drain processes another job", async () => {
+  const f = fixture();
+  f.add();
+  f.add();
+  const claim = f.repository.claimAfterTeardown.bind(f.repository);
+  f.repository.claimAfterTeardown = async (...args) => {
+    const job = await claim(...args);
+    return job && { ...job, attemptId: String(f.count()) };
+  };
+  const quarantined: string[] = [];
+  f.repository.quarantineAttempt = async ({ attemptId }) => {
+    quarantined.push(attemptId);
+  };
+  f.sandbox.teardownAttempt = async ({ attemptId }) => {
+    if (attemptId === "1") throw new UnconfirmedTeardown();
+  };
+  const published: string[] = [];
+  f.repository.promoteCompletion = async ({ attemptId }) => {
+    published.push(attemptId);
+  };
+  const d = drainer({
+    ...f,
+    slots: 1,
+    resumable: true,
+    graceMs: 1,
+    engine: { execute: async () => "complete" },
+  });
+  assert.equal((await d.drain(AbortSignal.timeout(1000))).complete, true);
+  assert.deepEqual(quarantined, ["1"]);
+  assert.deepEqual(published, ["2"]);
 });
 
 void test("cancelled attempt tears down before draining the next job", async () => {

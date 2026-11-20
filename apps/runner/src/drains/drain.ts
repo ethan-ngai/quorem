@@ -2,7 +2,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import type { ExecutionRepository, SandboxControl } from "@quorem/execution";
 import { UnconfirmedTeardown } from "../sandbox/types.ts";
-import { claimNext } from "../queue/claim.ts";
+import { claimNext, deferUnconfirmedTeardown } from "../queue/claim.ts";
 import {
   runAttempt,
   LostLease,
@@ -25,6 +25,7 @@ export interface DrainState {
   queued: number;
   running: number;
   complete: boolean;
+  progressed?: boolean;
 }
 export interface Drainer {
   drain(signal: AbortSignal): Promise<DrainState>;
@@ -110,7 +111,8 @@ export function drainer(options: {
                     attemptMs: options.attemptMs,
                   });
                 } catch (error) {
-                  if (!(error instanceof LostLease)) throw error;
+                  if (!(error instanceof LostLease))
+                    await deferUnconfirmedTeardown(repository, job, error, live);
                 }
                 if (options.singleAttempt) break;
               }
@@ -138,6 +140,7 @@ export function drainer(options: {
               const state = await queue.state(live);
               return {
                 ...state,
+                progressed: wake > 0,
                 complete:
                   state.queued === 0 && state.running === 0 && (await queue.confirmEmpty(live)),
               };

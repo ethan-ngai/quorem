@@ -189,7 +189,13 @@ export async function createRunnerCommandHandler(peers: readonly RunnerPeer[]) {
         case "deadline":
           return Response.json(await repository.nextRunnableDeadline(peer.scope));
         case "expired":
-          return Response.json(await repository.nextExpiredAttempt(peer.resumable, peer.scope));
+          return Response.json(await repository.reserveExpiredAttempt(peer.resumable, peer.scope));
+        case "quarantine":
+          await repository.quarantineAttempt({
+            attemptId: str(body.attemptId),
+            sandboxScope: peer.scope,
+          });
+          break;
         case "claim": {
           const value = await repository.claimAfterTeardown(peer.resumable, peer.scope, fence());
           return Response.json(value ? encodeJob(value) : null);

@@ -20,12 +20,14 @@ export async function diagnoseProductionJudge(database, keys, namespace, control
   const profile = await productionRunnerProfile(keys);
   const { rows: jobs } = await database.query(`SELECT s.state,j.finished,j.attempts,
     j.attempt_id IS NOT NULL AS claimed,j.lease_until>clock_timestamp() AS live,
+    (NOT j.finished AND j.attempt_id IS NOT NULL AND j.available_at>clock_timestamp()
+      AND (s.cancel_requested OR j.lease_until IS NULL OR j.lease_until<clock_timestamp())) AS cleanup_deferred,
     i.case_count AS cases,count(*)::int AS count,
     round(max(extract(epoch FROM clock_timestamp()-s.admitted_at)))::int AS age_seconds
     FROM execution_jobs j JOIN submissions s ON s.id=j.submission_id
     JOIN runner_job_inputs i ON i.job_id=j.id
     WHERE s.admitted_at>clock_timestamp()-interval '30 minutes'
-    GROUP BY s.state,j.finished,j.attempts,claimed,live,i.case_count ORDER BY age_seconds DESC LIMIT 20`);
+    GROUP BY s.state,j.finished,j.attempts,claimed,live,cleanup_deferred,i.case_count ORDER BY age_seconds DESC LIMIT 20`);
   const { rows: benchmarkJobs } = await database.query(
     `SELECT s.state,j.finished,j.attempts,i.case_count,
       round(1000*extract(epoch FROM a.claimed_at-s.admitted_at))::int AS claim_ms,

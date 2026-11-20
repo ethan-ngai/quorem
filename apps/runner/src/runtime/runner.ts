@@ -54,10 +54,6 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
       : {}),
   });
   const server = await listenPrivate(config.listen, async (incoming, outgoing) => {
-    if (runner.teardownFailure()) {
-      outgoing.writeHead(503).end();
-      return;
-    }
     if (
       incoming.method === "POST" &&
       (incoming.headers["transfer-encoding"] ||
@@ -98,7 +94,7 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
               runner.drain.refresh();
               await runner.drain.drain(shutdown.signal);
             } catch {
-              if (shutdown.signal.aborted || runner.teardownFailure()) break;
+              if (shutdown.signal.aborted) break;
             }
             try {
               await sleep(config.pollMs, undefined, { signal: shutdown.signal });
@@ -113,8 +109,6 @@ export async function startRunner(env: NodeJS.ProcessEnv) {
     async close() {
       shutdown.abort();
       await Promise.all([server.close(), continuous, handleDrain.settled()]);
-      const failure = runner.teardownFailure();
-      if (failure) throw failure;
     },
   };
 }

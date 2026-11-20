@@ -81,10 +81,17 @@ export function drainHandler(options: {
       const timeout = options.timeoutMs ?? 210000;
       const signal = AbortSignal.any([request.signal, AbortSignal.timeout(timeout)]);
       const state = await options.drainer.drain(signal);
-      return new Response(JSON.stringify({ queued: state.queued, running: state.running }), {
-        status: state.complete ? 200 : 202,
-        headers,
-      });
+      return new Response(
+        JSON.stringify({
+          queued: state.queued,
+          running: state.running,
+          progressed: state.progressed,
+        }),
+        {
+          status: state.complete ? 200 : 202,
+          headers,
+        },
+      );
     } catch (error) {
       return new Response(
         JSON.stringify({

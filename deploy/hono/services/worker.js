@@ -156,11 +156,6 @@ export class RunnerService extends DurableObject {
         }),
       );
   }
-  async haltParent(parent) {
-    const response = await parent.fetch(this.command("slot-failed"));
-    await response.body?.cancel();
-    if (response.status !== 204) throw new Error("Runner failure propagation unavailable");
-  }
   async queueState(signal) {
     const command = async (operation) => {
       const response = await fetch(
@@ -203,13 +198,9 @@ export class RunnerService extends DurableObject {
       return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
     }
     if (
-      ![
-        "/internal/drain",
-        "/internal/wake",
-        "/internal/profile",
-        "/internal/slot-gate",
-        "/internal/slot-failed",
-      ].includes(path)
+      !["/internal/drain", "/internal/wake", "/internal/profile", "/internal/slot-gate"].includes(
+        path,
+      )
     )
       return new Response(null, { status: 404 });
     if (request.headers.get("authorization") !== `Bearer ${this.env.QUOREM_RUNNER_DRAIN_SECRET}`)
@@ -230,16 +221,8 @@ export class RunnerService extends DurableObject {
       }
       return Response.json({ shards: profiles });
     }
-    if (path === "/internal/slot-failed") {
-      await this.ctx.storage.put("teardown-failed", true);
-      return new Response(null, { status: 204 });
-    }
-    if (
-      (await this.ctx.storage.get("recovery-paused")) ||
-      (await this.ctx.storage.get("teardown-failed"))
-    )
+    if (await this.ctx.storage.get("recovery-paused"))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-    if (this.teardownFailure) return new Response(null, { status: 503 });
     if (path === "/internal/slot-gate") return new Response(null, { status: 204 });
     try {
       const response = path === "/internal/wake" ? null : await this.queueState(request.signal);
@@ -272,13 +255,11 @@ export class RunnerService extends DurableObject {
       runner &&
       this.children(runner).some((name) => this.env.RUNNERS.idFromName(name).toString() === own);
     if (!runner || (!root && !slot) || (await this.ctx.storage.get("recovery-paused"))) return;
-    const failed = this.teardownFailure || (await this.ctx.storage.get("teardown-failed"));
     if (root) {
-      if (!failed) await this.wakeChildren(runner);
+      await this.wakeChildren(runner);
       return;
     }
     const parent = this.env.RUNNERS.getByName(runner);
-    if (failed) return this.haltParent(parent);
     const gate = await parent.fetch(this.command("slot-gate"));
     await gate.body?.cancel();
     if (gate.status !== 204) return;
@@ -286,12 +267,10 @@ export class RunnerService extends DurableObject {
     const response = await this.drain(AbortSignal.timeout(210000), true);
     const pending = response.status === 202 ? await response.json() : null;
     if (!pending) await response.body?.cancel();
-    if (this.teardownFailure) {
-      await this.haltParent(parent);
-    }
     if (!response.ok) throw new Error("Runner wake drain failed");
-    // The durable queue retains global running-work recovery; an idle slot need not poll its peers.
-    if (pending?.queued > 0) await this.ctx.storage.setAlarm(Date.now() + 1);
+    // Durable queue continuations retry a blocked slot without an immediate alarm loop.
+    if (pending?.progressed === true && pending.queued > 0)
+      await this.ctx.storage.setAlarm(Date.now() + 1);
   }
 
   async drain(signal, singleAttempt = false) {
@@ -317,16 +296,6 @@ export class RunnerService extends DurableObject {
           signal,
         },
       );
-      if (
-        response.status === 503 &&
-        response.headers.get("content-type")?.includes("application/json")
-      ) {
-        const value = await readControlJson(response.clone(), 2048).catch(() => null);
-        if (value?.failure?.kind === "teardown") {
-          this.teardownFailure = true;
-          await this.ctx.storage.put("teardown-failed", true);
-        }
-      }
       const profile = response.headers.get("x-quorem-judging-profile");
       if (profile && profile.length <= 16384) {
         const value = JSON.parse(profile);

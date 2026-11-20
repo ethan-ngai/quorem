@@ -114,8 +114,8 @@ describe.skipIf(!url)("runner claim fences", () => {
       [job],
     );
     expect(await claims.lease(first, true)).toBe(false);
-    expect(await claims.nextExpiredAttempt(true, "scope-b")).toBeNull();
-    const proof = await claims.nextExpiredAttempt(true, "scope-a");
+    expect(await claims.reserveExpiredAttempt(true, "scope-b")).toBeNull();
+    const proof = await claims.reserveExpiredAttempt(true, "scope-a");
     expect(proof).toEqual({ attemptId: first.attemptId, sandboxScope: "scope-a" });
     await expect(claims.claimAfterTeardown(true, "scope-b", proof)).rejects.toThrow();
     expect(
@@ -171,7 +171,7 @@ describe.skipIf(!url)("runner claim fences", () => {
   });
   it("saves, replays, fences and yields checkpoint progress", async () => {
     const checkpoints = postgresCheckpoints(run),
-      proof = await claims.nextExpiredAttempt(true, "scope-a");
+      proof = await claims.reserveExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
     const rawFrame = '{"status":"executed","actual":123,"stdout":"","stderr":"","line":0}';
@@ -400,7 +400,7 @@ describe.skipIf(!url)("runner claim fences", () => {
     );
   });
   it("fences completion and retains lossless results", async () => {
-    const proof = await claims.nextExpiredAttempt(true, "scope-a");
+    const proof = await claims.reserveExpiredAttempt(true, "scope-a");
     const live = await claims.claimAfterTeardown(true, "scope-a", proof);
     expect(live).not.toBeNull();
     const staging = postgresCompletionStaging(run, verifier.verification);
@@ -584,8 +584,8 @@ describe.skipIf(!url)("runner claim fences", () => {
       if (path === "recovery") {
         const fence = { attemptId: live!.attemptId, sandboxScope: "scope-a" };
         await expect(claims.nextRunnableDeadline("scope-a")).resolves.toBe(0);
-        await expect(claims.nextExpiredAttempt(true, "scope-a")).resolves.toEqual(fence);
-        await expect(claims.nextExpiredAttempt(true, "scope-other")).resolves.toBeNull();
+        await expect(claims.reserveExpiredAttempt(true, "scope-a")).resolves.toEqual(fence);
+        await expect(claims.reserveExpiredAttempt(true, "scope-other")).resolves.toBeNull();
         await expect(claims.claimAfterTeardown(true, "scope-a", null)).resolves.toBeNull();
         await expect(
           claims.claimAfterTeardown(true, "scope-a", { ...fence, attemptId: crypto.randomUUID() }),
@@ -837,4 +837,82 @@ describe.skipIf(!url)("runner claim fences", () => {
       await pool.query("DELETE FROM submissions WHERE id=$1", [s]);
     }
   }, 30000);
+  it("reserves cleanup once and counts an unresolved sandbox against concurrent claims", async () => {
+    const scope = "scope-quarantine";
+    const jobs = Array.from({ length: 9 }, () => ({
+      submission: crypto.randomUUID(),
+      id: crypto.randomUUID(),
+      owner: `quarantine-${crypto.randomUUID()}`,
+      workspace: crypto.randomUUID(),
+    }));
+    const add = async ({ id, submission, owner, workspace }: (typeof jobs)[number]) => {
+      await pool.query("INSERT INTO users(id,display_name) VALUES($1,'Fixture')", [owner]);
+      await pool.query(
+        "INSERT INTO workspaces(id,owner_id,publication_id,language) VALUES($1,$2,$3,'python')",
+        [workspace, owner, version],
+      );
+      await pool.query(
+        "INSERT INTO submissions(id,owner_id,workspace_id,kind,source,source_hash,state,cases) VALUES($1,$2,$3,'run','','hash','queued','[]'::jsonb)",
+        [submission, owner, workspace],
+      );
+      await pool.query(
+        "INSERT INTO execution_jobs(id,submission_id,language,runtime_revision,harness_revision) VALUES($1,$2,'python','python-3.12-v1','quorem-harness-v2')",
+        [id, submission],
+      );
+      await sealFixture(run, version, id, [{ args: [], expected: 2 }]);
+    };
+    try {
+      await add(jobs[0]);
+      const first = (await claims.claimAfterTeardown(true, scope, null))!;
+      expect(first.jobId).toBe(jobs[0].id);
+      await claims.quarantineAttempt({ ...first, sandboxScope: "wrong-scope" });
+      await expect(claims.lease(first, false)).resolves.toBe(true);
+      await claims.quarantineAttempt(first);
+      await expect(claims.lease(first, false)).resolves.toBe(false);
+      await expect(claims.reserveExpiredAttempt(true, scope)).resolves.toBeNull();
+      for (const job of jobs.slice(1)) await add(job);
+      const fresh = await Promise.all(
+        jobs.slice(1).map(() => claims.claimAfterTeardown(true, scope, null)),
+      );
+      expect(fresh.filter(Boolean)).toHaveLength(7);
+      await expect(claims.nextRunnableDeadline(scope)).resolves.toBeGreaterThan(0);
+      await pool.query(
+        "UPDATE execution_jobs SET available_at=clock_timestamp()-interval '1 second' WHERE id=$1",
+        [first.jobId],
+      );
+      const reservations = await Promise.all(
+        jobs.slice(1).map(() => claims.reserveExpiredAttempt(true, scope)),
+      );
+      expect(reservations.filter(Boolean)).toEqual([
+        { attemptId: first.attemptId, sandboxScope: scope },
+      ]);
+      await expect(claims.claimAfterTeardown(true, scope, null)).resolves.toBeNull();
+      const recovered = (await claims.claimAfterTeardown(true, scope, first))!;
+      expect(recovered.jobId).toBe(first.jobId);
+      expect(recovered.attemptId).not.toBe(first.attemptId);
+      await claims.quarantineAttempt(first);
+      await expect(claims.lease(recovered, false)).resolves.toBe(true);
+      await expect(claims.claimAfterTeardown(true, scope, first)).resolves.toBeNull();
+      await pool.query("UPDATE submissions SET cancel_requested=true WHERE id=$1", [
+        recovered.submissionId,
+      ]);
+      const cancelled = await claims.reserveExpiredAttempt(true, scope);
+      expect(cancelled?.attemptId).toBe(recovered.attemptId);
+      await expect(claims.claimAfterTeardown(true, scope, cancelled)).resolves.toBeNull();
+      expect(await claims.claimAfterTeardown(true, scope, null)).not.toBeNull();
+    } finally {
+      await pool.query("DELETE FROM execution_jobs WHERE id=ANY($1::uuid[])", [
+        jobs.map(({ id }) => id),
+      ]);
+      await pool.query("DELETE FROM submissions WHERE id=ANY($1::uuid[])", [
+        jobs.map(({ submission }) => submission),
+      ]);
+      await pool.query("DELETE FROM workspaces WHERE id=ANY($1::uuid[])", [
+        jobs.map((job) => job.workspace),
+      ]);
+      await pool.query("DELETE FROM users WHERE id=ANY($1::text[])", [
+        jobs.map((job) => job.owner),
+      ]);
+    }
+  });
 });

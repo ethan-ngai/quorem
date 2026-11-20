@@ -158,20 +158,24 @@ void test("an interrupted direct fanout leaves the parent alarm for recovery", a
   assert.equal(f.contexts.size, 9);
 });
 
-void test("a failed slot durably halts future namespace work after eviction", async (t) => {
+void test("a failed slot leaves siblings and future wakes available", async (t) => {
   const f = runnerNamespace();
   await f.alarm(f.name);
   const slot = [...f.contexts.keys()].find((name) => name !== f.name);
+  const sibling = [...f.contexts.keys()].find((name) => name !== f.name && name !== slot);
+  let drains = 0;
   const dispatch = t.mock.method(globalThis, "fetch", async () =>
-    Response.json({ failure: { kind: "teardown" } }, { status: 503 }),
+    ++drains === 1
+      ? Response.json({ failure: { kind: "teardown" } }, { status: 503 })
+      : Response.json({ queued: 0, running: 0 }),
   );
   await assert.rejects(f.alarm(slot), /Runner wake drain failed/);
-  assert.equal(f.contexts.get(f.name).values.get("teardown-failed"), true);
+  await f.alarm(sibling);
   f.evict(f.name);
   f.evict(slot);
   await f.alarm(f.name);
   await f.alarm(slot);
-  assert.equal(dispatch.mock.callCount(), 1);
+  assert.equal(dispatch.mock.callCount(), 3);
 });
 
 void test("an incomplete slot persists its next alarm before returning", async (t) => {
@@ -179,10 +183,21 @@ void test("an incomplete slot persists its next alarm before returning", async (
   await f.alarm(f.name);
   const slot = [...f.contexts.keys()].find((name) => name !== f.name);
   t.mock.method(globalThis, "fetch", async () =>
-    Response.json({ queued: 1, running: 0 }, { status: 202 }),
+    Response.json({ queued: 1, running: 0, progressed: true }, { status: 202 }),
   );
   await f.alarm(slot);
   assert.ok(f.contexts.get(slot).alarm !== null);
+});
+
+void test("a blocked slot leaves queued work to the durable continuation", async (t) => {
+  const f = runnerNamespace();
+  await f.alarm(f.name);
+  const slot = [...f.contexts.keys()].find((name) => name !== f.name);
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({ queued: 1, running: 8, progressed: false }, { status: 202 }),
+  );
+  await f.alarm(slot);
+  assert.equal(f.contexts.get(slot).alarm, null);
 });
 
 void test("queue fallback schedules slots without an aggregate drain and confirms authoritative emptiness", async (t) => {

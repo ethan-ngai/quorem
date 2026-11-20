@@ -70,15 +70,12 @@ export function createRepositoryRunner(
     graceMs: options.graceMs,
     singleAttempt: options.singleAttempt,
   });
-  let teardownFailure: UnconfirmedTeardown | undefined;
   const drain = {
     refresh: () => inner.refresh(),
     async drain(signal: AbortSignal) {
-      if (teardownFailure) throw teardownFailure;
       try {
         return await inner.drain(signal);
       } catch (error) {
-        if (error instanceof UnconfirmedTeardown) teardownFailure = error;
         console.error(
           JSON.stringify({
             event: "runner-drain-failed",
@@ -92,7 +89,6 @@ export function createRepositoryRunner(
   };
   return {
     drain,
-    teardownFailure: () => teardownFailure,
     queueState: (signal: AbortSignal) => repository.queueState(signal),
     handler: drainHandler({ drainer: drain, secret: options.drainSecret }),
   };

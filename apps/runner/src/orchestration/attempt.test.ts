@@ -139,7 +139,7 @@ void test("revoked lease acknowledges cancellation only after teardown", async (
   await assert.rejects(running, LostLease);
   assert.deepEqual(f.events, ["lease", "lease", "teardown", "acknowledge"]);
 });
-void test("case cleanup failure halts the runner only if attempt teardown also fails", async () => {
+void test("case cleanup failure requires quarantine only if attempt teardown also fails", async () => {
   for (const confirmsAttempt of [true, false]) {
     const f = fixture();
     const caseFailure = new UnconfirmedTeardown({ httpStatus: 503 });

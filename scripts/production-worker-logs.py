@@ -148,7 +148,7 @@ for worker in workers:
         if not isinstance(message, str):
             continue
         category = re.search(
-            r"runner-drain-failed|judging-drain-completed|case-lifecycle (?:stream-failed|child-(?:status-[0-9]{3}|failure-(?:limit|timeout|other)))",
+            r"runner-drain-failed|attempt-teardown-deferred|judging-drain-completed|case-lifecycle (?:stream-failed|child-(?:status-[0-9]{3}|failure-(?:limit|timeout|other)))",
             message,
         )
         if category:

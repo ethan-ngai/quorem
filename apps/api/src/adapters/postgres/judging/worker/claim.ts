@@ -4,6 +4,7 @@ import type { ConnectionScope } from "@quorem/database/core";
 import {
   assertClaimFence,
   encodeJob,
+  JUDGING_DEFAULTS,
   runtimeForRevision,
   type AttemptFence,
   type Job,
@@ -21,7 +22,11 @@ export interface RunnerCapabilities {
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
 const eligible = sql`NOT j.finished AND s.state IN ('queued','running') AND EXISTS(SELECT 1 FROM runner_job_inputs i WHERE i.job_id=j.id AND i.sealed)`;
 // Cancellation revokes execution authority immediately. The exact teardown proof still gates cleanup.
-const reclaimable = sql`(s.cancel_requested OR j.lease_until<clock_timestamp())`;
+const reclaimable = sql`(s.cancel_requested OR j.lease_until IS NULL OR j.lease_until<clock_timestamp())`;
+const teardownBackoff = sql`interval '15 seconds'`;
+const teardownReservation = sql`interval '125 seconds'`;
+const hasCapacity = (scope: string) => sql`(SELECT count(*) FROM execution_jobs active
+  WHERE NOT active.finished AND active.attempt_id IS NOT NULL AND active.sandbox_scope=${scope}) < ${JUDGING_DEFAULTS.slots}`;
 function scopeValid(scope: string): void {
   if (
     !scope ||
@@ -74,24 +79,44 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
         scopeDb.transaction({ ...options, readOnly: true }, async (tx) => {
           const row = (
             await tx.execute<{ milliseconds: number | null }>(
-              sql`SELECT GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,CASE WHEN NOT s.cancel_requested THEN j.lease_until END))-clock_timestamp()))*1000))::double precision AS milliseconds ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND (j.attempt_id IS NULL OR j.sandbox_scope=${scope})`,
+              sql`SELECT GREATEST(0,CEIL(EXTRACT(EPOCH FROM (MIN(GREATEST(j.available_at,CASE WHEN NOT s.cancel_requested THEN j.lease_until END))-clock_timestamp()))*1000))::double precision AS milliseconds ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND ((j.attempt_id IS NULL AND ${hasCapacity(scope)}) OR (j.attempt_id IS NOT NULL AND j.sandbox_scope=${scope}))`,
             )
           ).rows[0];
           return row.milliseconds;
         }),
       );
     },
-    async nextExpiredAttempt(resumable: boolean, scope: string): Promise<AttemptFence | null> {
+    async reserveExpiredAttempt(resumable: boolean, scope: string): Promise<AttemptFence | null> {
       scopeValid(scope);
       if (resumable !== cap.resumable) throw new Error("Capability mismatch");
       return run((scopeDb) =>
-        scopeDb.transaction({ ...options, readOnly: true }, async (tx) => {
+        scopeDb.transaction(options, async (tx) => {
           const row = (
             await tx.execute<{ attempt: string; scope: string }>(
-              sql`SELECT j.attempt_id::text AS attempt,j.sandbox_scope AS scope ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND j.attempt_id IS NOT NULL AND ${reclaimable} AND j.sandbox_scope=${scope} ORDER BY j.available_at,j.id LIMIT 1`,
+              sql`WITH candidate AS (
+                SELECT j.id ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)})
+                AND j.available_at<=clock_timestamp() AND j.attempt_id IS NOT NULL
+                AND ${reclaimable} AND j.sandbox_scope=${scope}
+                ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1
+              ) UPDATE execution_jobs j SET available_at=clock_timestamp()+${teardownReservation}
+              FROM candidate WHERE j.id=candidate.id
+              RETURNING j.attempt_id::text AS attempt,j.sandbox_scope AS scope`,
             )
           ).rows[0];
           return row ? { attemptId: row.attempt, sandboxScope: row.scope } : null;
+        }),
+      );
+    },
+    async quarantineAttempt(fence: AttemptFence): Promise<void> {
+      scopeValid(fence.sandboxScope);
+      assertClaimFence(fence.sandboxScope, fence);
+      await retryLocked((scopeDb) =>
+        scopeDb.transaction(options, async (tx) => {
+          // Revoke the current lease and retain the sandbox's capacity until teardown is confirmed.
+          await tx.execute(sql`UPDATE execution_jobs SET
+          available_at=clock_timestamp()+${teardownBackoff},
+          lease_until=LEAST(lease_until,clock_timestamp()-interval '1 millisecond')
+          WHERE NOT finished AND attempt_id=${fence.attemptId}::uuid AND sandbox_scope=${fence.sandboxScope}`);
         }),
       );
     },
@@ -113,6 +138,9 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
               THEN set_config('quorem.lossless_case_claim','v1',true) END,
             set_config('quorem.sandbox_scope',${scope},true),
             pg_advisory_xact_lock_shared(740020)`);
+          // Serialize fresh capacity allocation within the sandbox scope. Reclaims already hold capacity.
+          if (!proof)
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(740021,hashtext(${scope}))`);
           const row = (
             await tx.execute<{
               job: string;
@@ -139,7 +167,12 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
                     )}->>'timeComplexity',
                     (SELECT time_complexity FROM problem_solution_approaches
                       WHERE publication_id=p.id AND is_canonical)
-                  ) END AS "timeComplexity" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)}) AND j.available_at<=clock_timestamp() AND (j.lease_until IS NULL OR ${reclaimable}) AND (j.attempt_id IS NULL OR (j.attempt_id=${proof?.attemptId ?? null}::uuid AND j.sandbox_scope=${scope})) ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
+                  ) END AS "timeComplexity" ${joins} WHERE ${eligible} AND (${gates(cap)}) AND (${lossless(cap)})
+                  AND ${
+                    proof
+                      ? sql`j.attempt_id=${proof.attemptId}::uuid AND j.sandbox_scope=${scope} AND ${reclaimable}`
+                      : sql`j.attempt_id IS NULL AND j.available_at<=clock_timestamp() AND ${hasCapacity(scope)}`
+                  } ORDER BY j.available_at,j.id FOR UPDATE OF j,s SKIP LOCKED LIMIT 1`,
             )
           ).rows[0];
           if (!row) return null;
@@ -185,7 +218,7 @@ export function postgresClaims(run: Run, cap: RunnerCapabilities) {
           };
           encodeJob(result);
           await tx.execute(
-            sql`UPDATE execution_jobs SET attempt_id=${result.attemptId}::uuid,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds' WHERE id=${row.job}::uuid`,
+            sql`UPDATE execution_jobs SET attempt_id=${result.attemptId}::uuid,attempts=attempts+1,available_at=clock_timestamp(),lease_until=clock_timestamp()+interval '90 seconds' WHERE id=${row.job}::uuid`,
           );
           await tx.execute(
             sql`UPDATE submissions SET state='running',updated_at=clock_timestamp() WHERE id=${row.submission}::uuid`,

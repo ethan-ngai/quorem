@@ -71,7 +71,6 @@ export function privateRunnerCommands(options: {
     extra?: Record<string, string>,
   ): Promise<Response> {
     const outcome = [
-      "expired",
       "load",
       "checkpoint",
       "replay",
@@ -278,7 +277,7 @@ export function privateRunnerCommands(options: {
         throw malformedResponse("deadline");
       return value;
     },
-    async nextExpiredAttempt(resumable, scope, signal) {
+    async reserveExpiredAttempt(resumable, scope, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");
       proof(scope, null);
       const value = await json("expired", {}, signal);
@@ -290,8 +289,11 @@ export function privateRunnerCommands(options: {
         !(value as AttemptFence).attemptId ||
         (value as AttemptFence).sandboxScope !== scope
       )
-        throw new Error("Invalid attempt response");
+        throw malformedResponse("expired", "unknown");
       return value as AttemptFence;
+    },
+    async quarantineAttempt(fence, signal) {
+      await ack("quarantine", { attemptId: proof(options.scope, fence) }, signal);
     },
     async claimAfterTeardown(resumable, scope, confirmed, signal) {
       if (resumable !== options.resumable) throw new Error("Capability mismatch");

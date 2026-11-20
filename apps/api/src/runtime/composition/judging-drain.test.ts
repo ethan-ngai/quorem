@@ -24,7 +24,7 @@ it("authenticates a native drain and rejects a sandbox outside the peer scope", 
   const claimAfterTeardown = vi.fn(async () => null);
   const repository = {
     claimAfterTeardown,
-    nextExpiredAttempt: async () => null,
+    reserveExpiredAttempt: async () => null,
     queueState: async () => ({ queued: 0, running: 0 }),
     confirmQueueEmpty: async () => true,
     nextRunnableDeadline: async () => null,

@@ -117,11 +117,12 @@ export interface ExecutionQueueControl {
   nextRunnableDeadline(scope: string, signal?: AbortSignal): Promise<number | null>;
 }
 export interface ExecutionRepository {
-  nextExpiredAttempt(
+  reserveExpiredAttempt(
     resumable: boolean,
     scope: string,
     signal?: AbortSignal,
   ): Promise<AttemptFence | null>;
+  quarantineAttempt(fence: AttemptFence, signal?: AbortSignal): Promise<void>;
   claimAfterTeardown(
     resumable: boolean,
     scope: string,

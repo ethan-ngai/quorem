@@ -122,7 +122,7 @@ export async function runAttempt(options: {
       { attemptId: job.attemptId, sandboxScope: job.sandboxScope },
       AbortSignal.timeout(options.teardownMs ?? 30000),
     );
-    // Only unconfirmed attempt teardown should halt the runner after case cleanup fails.
+    // Confirmed attempt teardown supersedes a failed individual case cleanup.
     if (error instanceof UnconfirmedTeardown)
       throw new Error("Case cleanup failed before confirmed attempt teardown", { cause: error });
     throw error;
