@@ -60,8 +60,8 @@ if os.environ.get("NEON_SAMPLE_CONNECTIONS") == "true" and endpoint.get("current
     })
     uri = get("/connection_uri?" + query)["uri"]
     print("::add-mask::" + uri, flush=True)
-    subprocess.run(
-        ["psql", "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", """
+    sample = subprocess.run(
+        ["psql", "-X", "-d", uri, "-A", "-t", "-v", "ON_ERROR_STOP=1", "-c", """
           SELECT coalesce(json_agg(summary), '[]'::json)
           FROM (
             SELECT CASE
@@ -77,6 +77,7 @@ if os.environ.get("NEON_SAMPLE_CONNECTIONS") == "true" and endpoint.get("current
             GROUP BY 1,2,3
           ) summary;
         """],
-        env={**os.environ, "PGDATABASE": uri, "PGCONNECT_TIMEOUT": "5", "PGOPTIONS": "-c statement_timeout=5000"},
-        check=True,
+        env={**os.environ, "PGCONNECT_TIMEOUT": "5", "PGOPTIONS": "-c statement_timeout=5000"},
     )
+    if sample.returncode:
+        raise SystemExit("Production connection snapshot failed")
