@@ -6,6 +6,15 @@ import { withWorkerConnection } from "@quorem/database/core";
 import { newGuestToken, guestTokenHash } from "../../modules/identity/guest/credentials.ts";
 import worker, { type Env } from "../worker.ts";
 import { assertRuntimeTestDatabase } from "./test-database.ts";
+
+it("rejects obsolete production presence pings without a database binding", async () => {
+  const response = await worker.fetch(
+    new Request("https://quorem.app/v1/presence/heartbeat", { method: "POST" }),
+    { APP_ENV: "production" } as unknown as Env,
+  );
+  expect(response.status).toBe(410);
+});
+
 it("runs native auth, catalog, workspace and durable socket through composition", async () => {
   const db = (env as unknown as { DB: { connectionString: string } }).DB.connectionString;
   assertRuntimeTestDatabase((env as unknown as { DATABASE_CHECK: string }).DATABASE_CHECK);
