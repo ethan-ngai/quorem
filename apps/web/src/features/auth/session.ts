@@ -84,6 +84,7 @@ export async function token(): Promise<string | undefined> {
   const requestedGeneration = generation;
   const request = fetch("/api/auth/token", {
     credentials: "same-origin",
+    headers: { "X-Quorem-Auth-Client": "room-sockets" },
     signal: AbortSignal.timeout(10_000),
   })
     .then(async (response) => {
