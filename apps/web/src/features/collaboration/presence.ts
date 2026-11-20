@@ -37,13 +37,14 @@ export function presenceExtension(
   clientID: string,
   onPeers?: (peers: CollaborationPresence[]) => void,
   onDisconnect?: () => void,
+  renewIdle = true,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
       labels = new Map<string, CursorLabel>();
       timer: ReturnType<typeof setTimeout> | undefined;
-      heartbeat: ReturnType<typeof setInterval>;
+      heartbeat?: ReturnType<typeof setInterval>;
       disposed = false;
       reading = false;
       readAgain = false;
@@ -53,9 +54,10 @@ export function presenceExtension(
         this.stop = transport.onChange(() => {
           void this.read();
         });
-        this.heartbeat = setInterval(() => {
-          void this.publish();
-        }, 10_000);
+        if (renewIdle)
+          this.heartbeat = setInterval(() => {
+            void this.publish();
+          }, 10_000);
         this.stopStatus = transport.onStatus((connected) => {
           if (!connected) onDisconnect?.();
           if (connected && !this.disposed) this.schedule();

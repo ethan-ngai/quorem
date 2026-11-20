@@ -61,7 +61,7 @@ describe("interview socket", () => {
     const socket = Socket.instances[0]!;
     socket.open();
     expect(String(socket.url)).toBe("ws://localhost:5180/v1/interviews/room/events");
-    expect(socket.protocols).toEqual(["quorem", "bearer.signed-token"]);
+    expect(socket.protocols).toEqual(["quorem", "quorem-hibernate", "bearer.signed-token"]);
     const response = transport.request("pull", { version: 0 });
     const request = JSON.parse(socket.sent[0]!);
     socket.frame({ type: "response", id: request.id, value: { version: 1 } });

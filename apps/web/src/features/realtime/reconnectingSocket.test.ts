@@ -5,6 +5,9 @@ vi.mock("../auth/session", () => ({ token: vi.fn(async () => "token"), tokenExpi
 
 class Socket {
   static instances: Socket[] = [];
+  static OPEN = 1;
+  readyState = Socket.OPEN;
+  protocol = "";
   onopen?: () => void;
   onclose?: (event: CloseEvent) => void;
   onmessage?: (event: MessageEvent) => void;
@@ -49,6 +52,24 @@ function setup() {
   return { connection, ...callbacks };
 }
 
+it("keeps a hibernating socket alive without refreshing its API bearer", async () => {
+  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 300_000);
+  const { connection, onMessage } = setup();
+  connection.start();
+  await Promise.resolve();
+  const socket = Socket.instances[0]!;
+  socket.protocol = "quorem-hibernate";
+  socket.onopen?.();
+  socket.onmessage?.({ data: "quorem:pong" } as MessageEvent);
+  await vi.advanceTimersByTimeAsync(360_000);
+  expect(Socket.instances).toHaveLength(1);
+  expect(token).toHaveBeenCalledOnce();
+  expect(socket.send).toHaveBeenCalledWith("quorem:ping");
+  expect(onMessage).not.toHaveBeenCalled();
+  connection.stop();
+  vi.mocked(tokenExpiresAt).mockReturnValue(undefined);
+});
+
 it("recovers token failures and cancels all retries on stop", async () => {
   vi.mocked(token).mockRejectedValueOnce(new Error("offline"));
   const { connection, onError, onDisconnect } = setup();
@@ -74,7 +95,7 @@ it("connects public streams without requesting account credentials", async () =>
   });
   connection.start();
   expect(token).not.toHaveBeenCalled();
-  expect(Socket.instances[0]?.protocols).toEqual(["quorem"]);
+  expect(Socket.instances[0]?.protocols).toEqual(["quorem", "quorem-hibernate"]);
   connection.stop();
 });
 
@@ -83,7 +104,7 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   connection.start();
   await Promise.resolve();
   const old = Socket.instances[0]!;
-  expect(old.protocols).toEqual(["quorem", "bearer.token"]);
+  expect(old.protocols).toEqual(["quorem", "quorem-hibernate", "bearer.token"]);
   await vi.advanceTimersByTimeAsync(2000);
   expect(onDisconnect).toHaveBeenCalledOnce();
   old.onopen?.();

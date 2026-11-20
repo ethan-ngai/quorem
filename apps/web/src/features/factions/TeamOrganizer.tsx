@@ -2,7 +2,7 @@ import { LoadingButton } from "../../ui/LoadingButton";
 import { InlineNameEditor } from "../../ui/InlineNameEditor";
 import { factionName, factionNameInputSchema, factionNameSchema } from "@quorem/contracts/factions";
 import type { InputConstraint } from "../../ui/input-constraints";
-import { useFactionLobby } from "./useFactionLobby";
+import { factionLobbyKey, useFactionLobby } from "./useFactionLobby";
 import { AnimatedRows } from "../../ui/AnimatedRows";
 import { StateIcon } from "../../ui/StateIcon";
 import { DragDropProvider, useDraggable, useDroppable } from "@dnd-kit/react";
@@ -59,7 +59,7 @@ export function TeamOrganizer({
     setError(undefined);
     try {
       const next = await organizeFactions(party.id, body);
-      client.setQueryData(["party-teams", party.id], next);
+      client.setQueryData(factionLobbyKey(party.id), next);
       await client.invalidateQueries({ queryKey: ["current-party"] });
       return true;
     } catch {
