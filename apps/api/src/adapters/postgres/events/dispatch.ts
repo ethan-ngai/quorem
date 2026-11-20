@@ -1,7 +1,7 @@
 /** @file dispatch.ts @description PostgreSQL dispatch claims and atomic intents. @module events */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
-import type { Claim, DispatchStore } from "../../../modules/events/dispatch/ports.ts";
+import type { Claim, DispatchStore, Stream } from "../../../modules/events/dispatch/ports.ts";
 
 type Scope = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const tables = {
@@ -16,6 +16,10 @@ const aggregate = {
   submission: "submission_id",
 } as const;
 const txn = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
+const hasPending = (stream: Stream) => {
+  const done = sql.raw(stream === "execution" ? "delivered_at" : "published_at");
+  return sql`EXISTS(SELECT 1 FROM ${sql.raw(tables[stream])} WHERE ${done} IS NULL)`;
+};
 
 /** Called inside the admission transaction after the job insert. */
 export async function insertExecutionIntent(
@@ -89,21 +93,30 @@ export function postgresDispatch(run: Scope): DispatchStore {
     },
     async pending(stream) {
       if (!Object.hasOwn(tables, stream)) throw new RangeError("Invalid stream");
-      const table = sql.raw(tables[stream]),
-        done = sql.raw(stream === "execution" ? "delivered_at" : "published_at");
       return run((scope) =>
         scope.transaction(
           { ...txn, readOnly: true },
           async (tx) =>
-            (
-              await tx.execute(
-                sql`SELECT EXISTS(SELECT 1 FROM ${table} WHERE ${done} IS NULL) AS pending`,
-              )
-            ).rows[0]?.pending === true,
+            (await tx.execute(sql`SELECT ${hasPending(stream)} AS pending`)).rows[0]?.pending ===
+            true,
         ),
       );
     },
   };
+}
+
+/** Take one post-drain snapshot of the durable work that can rearm recovery. */
+export function recoveryWorkPending(run: Scope, streams: readonly Stream[]): Promise<boolean> {
+  return run((scope) =>
+    scope.transaction({ ...txn, readOnly: true }, async (tx) => {
+      const anyPending = sql.join(
+        [...streams.map(hasPending), sql`EXISTS(SELECT 1 FROM execution_jobs WHERE NOT finished)`],
+        sql` OR `,
+      );
+      const result = await tx.execute<{ pending: boolean }>(sql`SELECT ${anyPending} AS pending`);
+      return result.rows[0]?.pending === true;
+    }),
+  );
 }
 
 /** Sweeper repair for an accepted wake whose downstream retries were exhausted. */

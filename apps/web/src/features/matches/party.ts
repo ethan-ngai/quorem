@@ -92,11 +92,11 @@ export function useParty(
     queryFn: () => request<{ party: Party | null }>("/v1/parties/current"),
   });
 }
-/** Each tab renews its own lease; closing one window never revokes another. */
-export function usePlatformPresence(identity: DevelopmentIdentity, enabled: boolean) {
+/** Keep one lease per window while the account belongs to a lobby. */
+export function usePlatformPresence(identity: DevelopmentIdentity, partyId: string | undefined) {
   const client = useQueryClient();
   useEffect(() => {
-    if (!enabled) return;
+    if (!partyId) return;
     const windowId = randomUUID();
     let active = true;
     const heartbeat = () => {
@@ -133,5 +133,5 @@ export function usePlatformPresence(identity: DevelopmentIdentity, enabled: bool
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [client, identity, enabled]);
+  }, [client, identity, partyId]);
 }

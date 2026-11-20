@@ -28,8 +28,8 @@ export function PageLayout() {
   }, []);
   const session = useSession();
   const identity = (session.data?.user.id ?? "anonymous") as DevelopmentIdentity;
-  usePlatformPresence(identity, !!session.data);
   const { data: membership } = useParty(identity, !!session.data, true);
+  usePlatformPresence(identity, session.data ? membership?.party?.id : undefined);
   const currentMatchId = membership?.party?.currentMatchId;
   const queryClient = useQueryClient();
   useEffect(() => {

@@ -183,6 +183,7 @@ export function workerConfig(input, outputs, output, scope) {
     main: relative(dirname(resolve(output)), resolve(root, "apps/api/src/runtime/worker.ts")),
     compatibility_date: "2026-10-23",
     compatibility_flags: ["nodejs_compat"],
+    observability: { enabled: true, logs: { invocation_logs: false } },
     workers_dev: false,
     preview_urls: false,
     routes: [{ pattern: stageHostname, zone_name: stageZone, custom_domain: true }],

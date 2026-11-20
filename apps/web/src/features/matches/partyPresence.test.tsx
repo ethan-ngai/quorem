@@ -8,8 +8,8 @@ const fetchMock = vi.hoisted(() => vi.fn());
 vi.mock("../auth/session", () => ({ authenticatedFetch: fetchMock }));
 import { usePlatformPresence } from "./party";
 
-function Subject() {
-  usePlatformPresence("alice", true);
+function Subject({ partyId }: { partyId?: string }) {
+  usePlatformPresence("alice", partyId);
   return null;
 }
 
@@ -28,7 +28,7 @@ it("does not replace newer party state with a delayed heartbeat", async () => {
   await act(async () =>
     root.render(
       <QueryClientProvider client={client}>
-        <Subject />
+        <Subject partyId="p" />
       </QueryClientProvider>,
     ),
   );
@@ -41,4 +41,41 @@ it("does not replace newer party state with a delayed heartbeat", async () => {
   expect(client.getQueryData(key)).toEqual(newer);
   await act(async () => root.unmount());
   vi.unstubAllGlobals();
+});
+
+it("renews presence only between joining and leaving a lobby", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.useFakeTimers();
+  fetchMock.mockClear();
+  fetchMock.mockImplementation(() =>
+    Promise.resolve(
+      new Response(JSON.stringify({ party: { id: "p", version: "1" } }), { status: 200 }),
+    ),
+  );
+  const client = new QueryClient();
+  const root = createRoot(document.createElement("div"));
+  const render = (partyId?: string) =>
+    act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <Subject partyId={partyId} />
+        </QueryClientProvider>,
+      ),
+    );
+  try {
+    await render();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(fetchMock).not.toHaveBeenCalled();
+    await render("p");
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await render();
+    await act(async () => vi.advanceTimersByTimeAsync(300_000));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  } finally {
+    await act(async () => root.unmount());
+    fetchMock.mockReset();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

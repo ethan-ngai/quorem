@@ -1,5 +1,6 @@
 /** Request-confined judging connections, including streamed public result reads. */
 import { createNodePool, withNodeConnection, type ConnectionScope } from "@quorem/database/core";
+import { currentDatabaseUsage, flushDatabaseUsage } from "./database-usage.ts";
 type Run = <T>(operation: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 
 /** Reserve headroom for private HTTP calls; never share sockets across invocations. */
@@ -12,8 +13,10 @@ function connections(connectionString: string, signal: AbortSignal) {
     onIdleError: () => {},
   });
   let closing: Promise<void> | undefined;
+  const usage = currentDatabaseUsage();
   return {
-    run: ((callback) => withNodeConnection(pool, { lifetimeMs: 30000, signal }, callback)) as Run,
+    run: ((callback) =>
+      withNodeConnection(pool, { lifetimeMs: 30000, signal, usage }, callback)) as Run,
     close: () => (closing ??= pool.end()),
   };
 }
@@ -37,8 +40,13 @@ export async function withJudgingResponse(
   onClose?: () => void,
 ): Promise<Response> {
   const owned = connections(connectionString, signal);
+  const usage = currentDatabaseUsage();
   let finalized: Promise<void> | undefined;
-  const finish = () => (finalized ??= owned.close().finally(onClose));
+  const finish = () =>
+    (finalized ??= owned.close().finally(() => {
+      flushDatabaseUsage(usage);
+      onClose?.();
+    }));
   try {
     signal.throwIfAborted();
     const response = await operation(owned.run);

@@ -1,5 +1,6 @@
 /** @file activity-maintenance.ts @description Coalesce recovery after real Worker traffic. @module runtime */
 import type { AdmissionAlarmStorage } from "../../modules/judging/admission/recovery.ts";
+import { currentDatabaseUsage } from "./database-usage.ts";
 
 const repairDelay = 60_000;
 const retentionInterval = 10 * repairDelay;
@@ -52,8 +53,16 @@ export class ActivityMaintenance {
       if (retain) await tx.put("lastRetention", Date.now());
       const newer =
         (await tx.get<Activity>("maintenanceActivity"))?.generation !== request.generation;
-      if ((pending || recent || newer) && (await tx.getAlarm()) === null)
+      if ((pending || recent || newer) && (await tx.getAlarm()) === null) {
         await tx.setAlarm(Date.now() + repairDelay);
+        const usage = currentDatabaseUsage();
+        if (usage) {
+          usage.rearm = [];
+          if (pending) usage.rearm.push("pending-work");
+          if (recent) usage.rearm.push("recent-activity");
+          if (newer) usage.rearm.push("new-activity");
+        }
+      }
     });
   }
 }
