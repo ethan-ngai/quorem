@@ -11,6 +11,10 @@ on:
         description: Repair the current protocol without discarding stranded attempt fences
         type: boolean
         default: false
+      resume_from_release:
+        description: Interrupted release that owns the current case pause
+        type: string
+        required: false
       judge_validation_run:
         description: Successful CI run for changed judge image sources
         type: string
@@ -58,6 +62,7 @@ jobs:
       HONO_RELEASE_SHA: ${{ inputs.release_sha }}
       HONO_JUDGE_VALIDATION_RUN: ${{ inputs.judge_validation_run }}
       HONO_PRESERVE_JUDGING_SCOPE: ${{ inputs.preserve_execution_scope }}
+      HONO_RESUME_FROM_RELEASE: ${{ inputs.resume_from_release }}
       CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
       AUTH_BOOTSTRAP_USERNAME: ${{ vars.AUTH_BOOTSTRAP_USERNAME }}
       AUTH_BOOTSTRAP_PASSWORD: ${{ secrets.AUTH_BOOTSTRAP_PASSWORD }}

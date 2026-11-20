@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { activeProduction, productionOutputs } from "./hono-production-state.mjs";
-import { runStageCommand } from "./hono-stage-command.mjs";
+import { runStageCommand, StageCommandFailure } from "./hono-stage-command.mjs";
 import { productionTerraform } from "./hono-production-terraform.mjs";
 import { productionImages, validatedJudgeImages } from "./hono-production-images.mjs";
 import { stageNamespace } from "./hono-stage-deploy-proof.mjs";
@@ -30,9 +30,16 @@ const op = (release, label) => {
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 };
 
-/** An explicit repair may reuse only the paused operation owned by the deployed release. */
-export function rolloutPauseOperation(release, previousRelease, cases, preserveScope) {
-  if (preserveScope && cases.paused && cases.pauseOperation === op(previousRelease, "pause-case"))
+/** A scope-preserving repair may reuse the deployed or explicitly identified pause fence. */
+export function rolloutPauseOperation(release, previousRelease, cases, preserveScope, interrupted) {
+  if (interrupted && (!preserveScope || !/^[a-f0-9]{40}$/.test(interrupted)))
+    throw new Error("Invalid interrupted release");
+  if (
+    preserveScope &&
+    cases.paused &&
+    (cases.pauseOperation === op(previousRelease, "pause-case") ||
+      (interrupted && cases.pauseOperation === op(interrupted, "pause-case")))
+  )
     return cases.pauseOperation;
   return op(release, "pause-case");
 }
@@ -157,6 +164,7 @@ async function rollout(env, benchmarkOnly) {
         priorOutput.SERVICES_RELEASE,
         cases,
         env.HONO_PRESERVE_JUDGING_SCOPE === "true",
+        env.HONO_RESUME_FROM_RELEASE,
       );
     if (
       caseAdvanced &&
@@ -345,6 +353,21 @@ if (import.meta.main) {
     console.error(
       JSON.stringify({
         error: "private-worker-release-failed",
+        ...(error instanceof StageCommandFailure
+          ? {
+              category: error.category,
+              uploadPhase: error.uploadPhase,
+              diagnostics: error.diagnostics.map(
+                ({ resources, statuses, codes, types, flags }) => ({
+                  resources,
+                  statuses,
+                  codes,
+                  types,
+                  flags,
+                }),
+              ),
+            }
+          : {}),
         reason: /^[A-Za-z -]{1,90}$/.test(error?.message ?? "") ? error.message : undefined,
         planChange: error?.planChange,
         status: Number.isInteger(error?.status) ? error.status : undefined,
