@@ -93,6 +93,7 @@ response = query("graphql", {
     },
 })
 if response.get("errors"):
-    print(json.dumps({"catalogAnalyticsErrors": [error.get("message") for error in response["errors"]]}))
+    denied = any("analytics.read" in error.get("message", "") for error in response["errors"])
+    print(json.dumps({"catalogAnalytics": "permission-denied" if denied else "unavailable"}))
 else:
     print(json.dumps({"publicCatalogPath": response["data"]["viewer"]["zones"]}))
