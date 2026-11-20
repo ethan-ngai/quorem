@@ -192,7 +192,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     disposers.push(() => recovery.close());
     const dispatch = async () => {
       await recoverAll([
-        ...(["interview", "match", "submission"] as const).map(
+        ...(["interview", "match", "party", "submission"] as const).map(
           (name) => () => publishBatch(store, notices, wake, name),
         ),
         async () => {
@@ -316,6 +316,8 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       verifier,
       sessions,
       matches: setup.matches,
+      parties: setup.parties,
+      afterPartyPresence: (id) => deadlines.wake(matchDeadlineShard(id, shards)),
       afterInterviewCommand: dispatch,
     });
     const heartbeatMs = boundedInt(env.SOCKET_HEARTBEAT_MS, 15000, 120000);
@@ -337,6 +339,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         const prefix = {
           interview: "interviews",
           match: "matches",
+          party: "parties",
         }[record.mode];
         return {
           ...opened,

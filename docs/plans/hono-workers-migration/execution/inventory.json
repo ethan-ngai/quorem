@@ -321,6 +321,12 @@
       "registration": "apps/api/internal/httpapi/realtime.go"
     },
     {
+      "method": "GET",
+      "path": "/v1/parties/{id}/events",
+      "packet": "30",
+      "registration": "apps/api/src/runtime/worker/socket/target.ts"
+    },
+    {
       "method": "POST",
       "path": "/v1/matches/{id}/forfeit",
       "packet": "20",

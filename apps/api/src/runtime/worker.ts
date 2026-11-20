@@ -35,7 +35,11 @@ import {
 import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts";
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
 import { matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
-import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
+import {
+  postgresDispatch,
+  recoverExecutionIntents,
+  recoveryWorkDue,
+} from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
 import type { Notice, NoticeStream, Stream } from "../modules/events/dispatch/ports.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
@@ -61,6 +65,12 @@ import { privateResponse } from "./composition/private-response.ts";
 import { ActivityMaintenance } from "./composition/activity-maintenance.ts";
 import { recoverAll } from "./composition/recovery.ts";
 import { health } from "./composition/health.ts";
+import {
+  currentDatabaseUsage,
+  databaseRoute,
+  measureDatabase,
+  requestCredential,
+} from "./composition/database-usage.ts";
 import { consumeWakeBatch, type WakeMessage } from "./composition/wake-consumer.ts";
 import { MemoryFanout } from "../adapters/events/fanout/memory.ts";
 import { submissionEventId } from "../adapters/events/submission-events.ts";
@@ -99,11 +109,11 @@ const origins = (env: Env) =>
     .map((s) => s.trim())
     .filter(Boolean);
 const runFor =
-  (env: Env, signal?: AbortSignal) =>
+  (env: Env, signal?: AbortSignal, lifetimeMs = 30000) =>
   <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
     withWorkerConnection(
       env.DB.connectionString,
-      { connectionTimeoutMs: 5000, lifetimeMs: 30000, signal },
+      { connectionTimeoutMs: 5000, lifetimeMs, signal, usage: currentDatabaseUsage() },
       fn,
     );
 /** A separate instance reuses the execution binding without sharing admission alarm state. */
@@ -130,7 +140,16 @@ function notices(env: Env) {
       socketStub(env, stream, notice.aggregateId).publish(notice),
   };
 }
-const realtimeStreams = ["submission", "interview", "match"] as const;
+const realtimeStreams = ["submission", "interview", "match", "party"] as const;
+function affectedStreams(path: string): readonly Stream[] {
+  if (path.startsWith("/api/auth/") || path === "/v1/recommendation-feedback") return [];
+  if (path === "/v1/presence/heartbeat") return ["match", "party"];
+  if (/^\/v1\/(?:parties|matches)(?:\/|$)/.test(path)) return ["match", "party", "submission"];
+  if (/^\/v1\/(?:interviews|interview-invites)(?:\/|$)/.test(path))
+    return ["interview", "submission"];
+  if (/^\/v1\/submissions\/[^/]+\/cancel$/.test(path)) return [...realtimeStreams, "execution"];
+  return realtimeStreams;
+}
 async function publishStreams(
   env: Env,
   run: ReturnType<typeof runFor>,
@@ -190,7 +209,7 @@ function admissionWake(env: Env, deferred: boolean): ReturnType<typeof wake> {
 
 let verifierCache: { origin: string; database: string; verifier: TokenVerifier } | undefined;
 function makeSecurity(env: Env, signal?: AbortSignal, run?: ReturnType<typeof runFor>) {
-  const auth = workerRuntime(env, signal, undefined, run),
+  const auth = workerRuntime(env, signal, undefined, run ?? runFor(env, signal, 15000)),
     origin = required(env.AUTH_ORIGIN);
   if (
     !verifierCache ||
@@ -206,7 +225,12 @@ function makeSecurity(env: Env, signal?: AbortSignal, run?: ReturnType<typeof ru
         jwksURL: new URL("/api/auth/jwks", origin).href,
         // Internal key discovery must not consume the public endpoint's shared IP budget.
         fetch: async (_input, init) =>
-          workerRuntime(env, init?.signal ?? undefined).auth.api.getJwks({ asResponse: true }),
+          workerRuntime(
+            env,
+            init?.signal ?? undefined,
+            undefined,
+            runFor(env, init?.signal ?? undefined, 15000),
+          ).auth.api.getJwks({ asResponse: true }),
       }),
     };
   }
@@ -239,6 +263,12 @@ function makeHttp(
   const result = composeHttp({
     run,
     ...identity,
+    async identify(incoming) {
+      const principal = await identity.identify(incoming);
+      const usage = currentDatabaseUsage();
+      if (usage) usage.principal = principal?.kind ?? "anonymous";
+      return principal;
+    },
     origins: allowed,
     submissionNotices,
     deferExecution,
@@ -281,6 +311,27 @@ function socketAuthority(env: Env) {
     verifier: security.verifier,
     sessions: security.sessions,
     matches: composed.matches,
+    parties: composed.parties,
+    async afterPartyPresence(id) {
+      const shard = matchDeadlineShard(id, boundedInt(env.DEADLINE_SHARDS, 1, 256));
+      await cloudflareCoordinator(env.DEADLINES).wake(shard);
+      if (env.APP_ENV === "production") await scheduleMaintenance(env);
+    },
+    async socketSession(request) {
+      const issuer = required(env.AUTH_ORIGIN);
+      if (request.headers.get("origin") !== issuer || !request.headers.has("cookie")) return;
+      const current = await security.auth.auth.api.getSession({ headers: request.headers });
+      if (!current || !current.user.emailVerified || current.session.userId !== current.user.id)
+        return;
+      return {
+        kind: "managed",
+        issuer,
+        subject: current.user.id,
+        sessionId: current.session.id,
+        expiresAt: Math.floor(new Date(current.session.expiresAt).getTime() / 1000),
+        strongUntil: 0,
+      };
+    },
     beforeInterviewCommand:
       env.APP_ENV === "production" ? () => scheduleMaintenance(env) : undefined,
     afterInterviewCommand: async () => {
@@ -318,10 +369,23 @@ export class BrowserSockets extends SocketObject {
 
   override async fetch(request: Request): Promise<Response> {
     const id = submissionEventId(new URL(request.url).pathname);
-    if (!id) return super.fetch(request);
-    if (request.headers.get("x-quorem-submission-scope") !== id)
-      return new Response(null, { status: 403 });
-    return makeHttp(this.bindings, request, this.submissionNotices).app.fetch(request);
+    return measureDatabase(
+      this.bindings.APP_ENV === "production",
+      "socket",
+      id ? "submission.open" : "room.open",
+      async () => {
+        if (!id) return super.fetch(request);
+        if (request.headers.get("x-quorem-submission-scope") !== id)
+          return new Response(null, { status: 403 });
+        return makeHttp(this.bindings, request, this.submissionNotices).app.fetch(request);
+      },
+    );
+  }
+
+  override alarm(): Promise<void> {
+    return measureDatabase(this.bindings.APP_ENV === "production", "alarm", "socket", () =>
+      super.alarm(),
+    );
   }
 
   override publish(notice: Notice): Promise<void> {
@@ -332,8 +396,10 @@ export class BrowserSockets extends SocketObject {
 }
 export class DeadlineCoordinator extends DurableObject {
   private actor: ShardAlarm;
+  private readonly env: Env;
   constructor(state: { storage: AlarmStorage }, env: Env) {
     super(state, env);
+    this.env = env;
     const run = runFor(env);
     this.actor = new ShardAlarm(state.storage, {
       store: postgresDeadlines(run),
@@ -358,6 +424,7 @@ export class DeadlineCoordinator extends DurableObject {
             ).rows.length;
           }),
         );
+        if (candidate.id.startsWith("party:")) await publishStreams(env, run, ["party", "match"]);
         if (closed && env.APP_ENV === "production") await scheduleMaintenance(env);
       },
     });
@@ -366,7 +433,9 @@ export class DeadlineCoordinator extends DurableObject {
     return this.actor.wake(shard);
   }
   alarm() {
-    return this.actor.alarm();
+    return measureDatabase(this.env.APP_ENV === "production", "alarm", "deadline", () =>
+      this.actor.alarm(),
+    );
   }
 }
 async function repairWorker(
@@ -374,7 +443,7 @@ async function repairWorker(
   activity: boolean,
   retain: boolean,
   trackPending: boolean,
-): Promise<boolean> {
+): Promise<number | null> {
   const run = runFor(env);
   const store = postgresDispatch(run);
   const publisher = notices(env);
@@ -385,25 +454,7 @@ async function repairWorker(
   await recoverAll([
     ...streams.map((stream) => async () => {
       if (stream === "execution") await recoverExecutionIntents(run);
-      if (trackPending) {
-        if ((await dispatchBatch(store, publisher, queue, stream)).pending) pending = true;
-        if (stream === "execution") {
-          const unfinished = await run((scope) =>
-            scope.transaction(
-              { statementTimeoutMs: 5000, lockTimeoutMs: 1000, readOnly: true },
-              async (tx) =>
-                (
-                  await tx.execute(
-                    sql`SELECT EXISTS(SELECT FROM execution_jobs WHERE NOT finished) AS pending`,
-                  )
-                ).rows[0]?.pending === true,
-            ),
-          );
-          if (unfinished) pending = true;
-        }
-      } else {
-        await publishBatch(store, publisher, queue, stream);
-      }
+      await publishBatch(store, publisher, queue, stream);
     }),
     ...(activity
       ? [
@@ -424,14 +475,18 @@ async function repairWorker(
         ]
       : []),
   ]);
-  return pending;
+  if (!trackPending) return null;
+  const due = await recoveryWorkDue(run, realtimeStreams);
+  return pending ? Math.min(Date.now() + 60_000, due ?? Infinity) : due;
 }
 
 export class ExecutionRecovery extends DurableObject {
   private actor: AdmissionRecovery;
   private maintenance: ActivityMaintenance;
+  private readonly env: Env;
   constructor(state: { storage: AdmissionAlarmStorage }, env: Env) {
     super(state, env);
+    this.env = env;
     this.maintenance = new ActivityMaintenance(state.storage, (activity, retain) =>
       repairWorker(env, activity, retain, true),
     );
@@ -447,8 +502,13 @@ export class ExecutionRecovery extends DurableObject {
     await this.maintenance.request();
   }
   async alarm() {
-    if (await this.maintenance.initialized()) return this.maintenance.alarm();
-    return this.actor.alarm();
+    const maintenance = await this.maintenance.initialized();
+    return measureDatabase(
+      this.env.APP_ENV === "production",
+      "alarm",
+      maintenance ? "maintenance" : "execution",
+      () => (maintenance ? this.maintenance.alarm() : this.actor.alarm()),
+    );
   }
 }
 async function routeSocket(env: Env, request: Request, target: SocketTarget): Promise<Response> {
@@ -465,7 +525,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 let budget: ReturnType<typeof requestBudget> | undefined;
 let streamBudget: ReturnType<typeof requestBudget> | undefined;
 let privateBudget: ReturnType<typeof requestBudget> | undefined;
-export default {
+const runtime = {
   async fetch(
     request: Request,
     env: Env,
@@ -473,15 +533,23 @@ export default {
   ): Promise<Response> {
     const defer = ctx ? (work: Promise<unknown>) => ctx.waitUntil(work) : undefined;
     const publish = async (streams: readonly Stream[]) => {
-      const work = publishStreams(env, runFor(env), streams);
+      const work = measureDatabase(
+        env.APP_ENV === "production",
+        "outbox",
+        databaseRoute(new URL(request.url).pathname),
+        () => publishStreams(env, runFor(env), streams),
+      );
       if (defer) defer(work);
       else await work;
     };
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
-      if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket")
-        return await routeSocket(env, request, target);
+      if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
+        const response = await routeSocket(env, request, target);
+        if (target.stream === "party" && response.status === 101) await publish(["party"]);
+        return response;
+      }
       const submissionId = request.method === "GET" && submissionEventId(path);
       if (submissionId) {
         streamBudget ??= requestBudget(boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024));
@@ -554,8 +622,9 @@ export default {
           return execute(run);
         }
         const handle = async (publicRun?: ReturnType<typeof runFor>) => {
+          const streams = mutation ? affectedStreams(path) : [];
           const shouldTrack =
-            path.startsWith("/v1/") && (mutation || path.startsWith("/v1/parties"));
+            path.startsWith("/v1/") && (streams.length > 0 || path.startsWith("/v1/parties"));
           const composed = makeHttp(
             env,
             request,
@@ -567,11 +636,7 @@ export default {
             ? authPeerRequest(request, cloudflarePeer(request.headers, env.TRUST_CLOUDFLARE_PEER))
             : request;
           const response = await composed.app.fetch(incoming);
-          if (response.status < 400 && mutation) {
-            const cancellation =
-              request.method === "POST" && /^\/v1\/submissions\/[^/]+\/cancel$/.test(path);
-            await publish(cancellation ? [...realtimeStreams, "execution"] : realtimeStreams);
-          }
+          if (response.status < 400 && streams.length) await publish(streams);
           return response;
         };
         if (
@@ -618,5 +683,18 @@ export default {
   async scheduled(_event: unknown, env: Env): Promise<void> {
     if (env.APP_ENV === "production") return;
     await repairWorker(env, true, true, false);
+  },
+};
+
+export default {
+  ...runtime,
+  fetch(request: Request, env: Env, ctx?: { waitUntil(work: Promise<unknown>): void }) {
+    return measureDatabase(
+      env.APP_ENV === "production",
+      "http",
+      databaseRoute(new URL(request.url).pathname),
+      () => runtime.fetch(request, env, ctx),
+      requestCredential(request),
+    );
   },
 };

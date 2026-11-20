@@ -116,7 +116,7 @@ export function interviewPresence(run: Run): InterviewPresence {
           throw new ApplicationError("stale_version", "Synchronize before sending presence", 409);
         return peers(tx, id);
       }),
-    acquire: (actor, id) =>
+    acquire: (actor, id, expiresAt) =>
       transaction(async (tx) => {
         await leaseAccess(tx, actor, id);
         return acquireSocketLease(
@@ -125,6 +125,7 @@ export function interviewPresence(run: Run): InterviewPresence {
           actor.userId,
           () => leaseAccess(tx, actor, id),
           activeInterview(id, actor.userId),
+          expiresAt,
         );
       }),
     renew: (actor, id, lease) =>

@@ -129,6 +129,20 @@ export async function reconcileParty(tx: Transaction, id: string): Promise<void>
     )
   ).rows[0];
   if (!p) return;
+  const expired = await tx.execute(sql`
+    WITH expired AS (
+      DELETE FROM realtime_presence_leases
+      WHERE topic=${`/parties/${id}`} AND expires_at<=clock_timestamp()
+      RETURNING subject,expires_at
+    ), seen AS (
+      SELECT subject,max(expires_at) AS at FROM expired GROUP BY subject
+    )
+    UPDATE party_members pm SET last_seen_at=GREATEST(pm.last_seen_at,seen.at)
+    FROM seen WHERE pm.party_id=${id}::uuid AND pm.owner_id=seen.subject
+    RETURNING pm.owner_id
+  `);
+  if (expired.rows.length)
+    await tx.execute(sql`UPDATE parties SET version=version+1 WHERE id=${id}::uuid`);
   await tx.execute(
     sql`UPDATE party_members pm SET last_seen_at=GREATEST(pm.last_seen_at,COALESCE((SELECT max(l.expires_at-interval '90 seconds') FROM platform_presence_leases l WHERE l.owner_id=pm.owner_id),pm.last_seen_at)) WHERE pm.party_id=${id}::uuid`,
   );
