@@ -2408,10 +2408,10 @@ export const party_outbox = pgTable(
   "party_outbox",
   {
     id: uuid().defaultRandom().primaryKey(),
-    sequence: bigint({ mode: "bigint" }).generatedAlwaysAsIdentity().unique(),
-    party_id: uuid()
-      .notNull()
-      .references(() => parties.id, { onDelete: "cascade" }),
+    sequence: bigint({ mode: "bigint" }).generatedAlwaysAsIdentity({
+      name: "party_outbox_sequence_seq",
+    }),
+    party_id: uuid().notNull(),
     occurred_at: timestamp({ withTimezone: true, mode: "string" })
       .default(sql`clock_timestamp()`)
       .notNull(),
@@ -2423,6 +2423,12 @@ export const party_outbox = pgTable(
     index("party_outbox_pending")
       .on(t.sequence)
       .where(sql`published_at IS NULL`),
+    unique("party_outbox_sequence_key").on(t.sequence),
+    foreignKey({
+      columns: [t.party_id],
+      foreignColumns: [parties.id],
+      name: "party_outbox_party_id_fkey",
+    }).onDelete("cascade"),
   ],
 );
 export const party_members = pgTable(
