@@ -2,6 +2,10 @@ name: Diagnose production
 on:
   workflow_dispatch:
     inputs:
+      database_analytics_start:
+        description: UTC start for a 15-minute Cloudflare database-traffic analysis
+        type: string
+        default: ""
       idle_smoke:
         description: Verify Neon suspension with a quiet authenticated lobby socket
         type: boolean
@@ -66,7 +70,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.idle_smoke && !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
+    if: ${{ inputs.database_analytics_start == '' && !inputs.idle_smoke && !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -164,6 +168,19 @@ jobs:
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-private-workers.mjs --benchmark-only
 
+  database-analytics:
+    if: inputs.database_analytics_start != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Read Worker database and public catalog aggregates
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          QUOREM_DATABASE_ANALYTICS_START: ${{ inputs.database_analytics_start }}
+        run: python3 scripts/production-database-analytics.py
   idle-smoke:
     if: inputs.idle_smoke && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
