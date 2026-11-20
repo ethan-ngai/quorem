@@ -9,7 +9,8 @@ export interface ConnectionScope {
   transaction<T>(options: TransactionOptions, callback: (tx: Transaction) => Promise<T>): Promise<T>;
   withDatabase<T>(callback: (db: NodePgDatabase) => Promise<T>): Promise<T>;
 }
-export interface ScopeOptions { signal?: AbortSignal; lifetimeMs: number }
+export interface DatabaseUsage { scopes: number; transactions: number; queryCalls: number }
+export interface ScopeOptions { signal?: AbortSignal; lifetimeMs: number; usage?: DatabaseUsage }
 export interface ConnectionOptions extends ScopeOptions { connectionTimeoutMs: number }
 export interface NodePoolOptions { connectionString: string; max: number; connectionTimeoutMs: number; idleTimeoutMs: number; onIdleError: (error: Error) => void }
 
@@ -30,7 +31,7 @@ export function createNodePool(options: NodePoolOptions): Pool {
 type OwnedClient = Client | PoolClient;
 type Release = (destroy: boolean) => void | Promise<void>;
 
-async function runScope<T>(client: OwnedClient, release: Release, signal: AbortSignal | undefined, callback: (scope: ConnectionScope) => Promise<T>): Promise<T> {
+async function runScope<T>(client: OwnedClient, release: Release, signal: AbortSignal | undefined, callback: (scope: ConnectionScope) => Promise<T>, usage?: DatabaseUsage): Promise<T> {
   let released = false;
   let closing: Promise<void> | undefined;
   let active = true;
@@ -42,7 +43,10 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
     if (!released) { released = true; closing = Promise.resolve(release(destroy)); }
     return closing ?? Promise.resolve();
   };
-  const db = drizzle(client);
+  const countQuery = () => { if (usage) usage.queryCalls++; };
+  const countTransaction = () => { if (usage) usage.transactions++; };
+  if (usage) usage.scopes++;
+  const db = usage ? drizzle(client, { logger: { logQuery: countQuery } }) : drizzle(client);
   const tx: Transaction = {
     select: db.select.bind(db), selectDistinct: db.selectDistinct.bind(db),
     insert: db.insert.bind(db), update: db.update.bind(db), delete: db.delete.bind(db),
@@ -83,6 +87,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
             }
             let completedTransaction = false;
             if (key === 'transaction' && typeof args[0] === 'function') {
+              countTransaction();
               const callback = args[0] as (tx: object) => unknown;
               args[0] = async (tx: object) => {
                 let txOpen = true;
@@ -133,9 +138,11 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
       const begin = { 'read committed': 'BEGIN ISOLATION LEVEL READ COMMITTED', 'repeatable read': 'BEGIN ISOLATION LEVEL REPEATABLE READ', serializable: 'BEGIN ISOLATION LEVEL SERIALIZABLE' }[options.isolation ?? 'read committed'];
       if (typeof begin !== 'string') throw new RangeError('Invalid transaction isolation');
       inTransaction = true;
+      countTransaction();
       let began = false;
       try {
         // One setup round trip; SELECT also establishes the repeatable-read snapshot.
+        countQuery();
         await client.query(`${begin}${options.readOnly ? ' READ ONLY' : ''}; SELECT set_config('statement_timeout', '${statementTimeoutMs}', true), set_config('lock_timeout', '${lockTimeoutMs}', true)`);
         began = true;
         let txOpen = true;
@@ -152,7 +159,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
         const value = await Promise.resolve().then(() => action(guarded)).finally(() => { txOpen = false; });
         if (!active) throw new DatabaseFailure('aborted');
         committing = true;
-        try { await client.query('COMMIT'); }
+        try { countQuery(); await client.query('COMMIT'); }
         catch (error) {
           broken = true;
           const kind = classifyDatabaseError(error);
@@ -163,7 +170,7 @@ async function runScope<T>(client: OwnedClient, release: Release, signal: AbortS
       } catch (error) {
         if (!began) broken = true;
         if (began && active && !broken) {
-          try { await client.query('ROLLBACK'); } catch { broken = true; }
+          try { countQuery(); await client.query('ROLLBACK'); } catch { broken = true; }
         }
         throw error;
       } finally { inTransaction = false; }
@@ -232,7 +239,7 @@ export async function withNodeConnection<T>(pool: Pool, options: ScopeOptions, c
       const client = await Promise.race([pending, stopped]);
       if (signal.aborted) { client.release(true); throw new DatabaseFailure('aborted'); }
       if (abort) signal.removeEventListener('abort', abort);
-      return await runScope(client, (destroy) => client.release(destroy), signal, callback);
+      return await runScope(client, (destroy) => client.release(destroy), signal, callback, options.usage);
     } finally { if (abort) signal.removeEventListener('abort', abort); }
   } finally { clearTimeout(timer); }
 }
@@ -259,7 +266,7 @@ export async function withWorkerConnection<T>(connectionString: string, options:
       connected = true;
       if (signal.aborted) { await client.end(); throw new DatabaseFailure('aborted'); }
       if (abort) signal.removeEventListener('abort', abort);
-      return await runScope(client, () => client.end(), signal, callback);
+      return await runScope(client, () => client.end(), signal, callback, options.usage);
     } catch (error) {
       if (!connected && !cancelled) await client.end().catch(() => {});
       throw error;

@@ -151,6 +151,110 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       }),
     );
   expect(forgedScope.status).toBe(401);
+  const hibernating = await SELF.fetch(`http://127.0.0.1:8765/v1/interviews/${room}/events`, {
+    headers: {
+      upgrade: "websocket",
+      origin: "http://127.0.0.1:8765",
+      cookie,
+      "sec-websocket-protocol": "quorem,quorem-hibernate",
+    },
+  });
+  expect(hibernating.status).toBe(101);
+  expect(hibernating.headers.get("sec-websocket-protocol")).toBe("quorem-hibernate");
+  const quiet = hibernating.webSocket!;
+  const pong = new Promise<string>((resolve) => {
+    quiet.addEventListener("message", (event: MessageEvent) => {
+      if (event.data === "quorem:pong") resolve(event.data);
+      else {
+        const frame = JSON.parse(String(event.data)) as { receipt?: string };
+        if (frame.receipt) quiet.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+      }
+    });
+  });
+  quiet.accept();
+  quiet.send("quorem:ping");
+  await expect(pong).resolves.toBe("quorem:pong");
+  const getLongLease = () =>
+    run((scope) =>
+      scope.transaction(
+        { statementTimeoutMs: 3000, lockTimeoutMs: 1000 },
+        async (tx) =>
+          (
+            await tx.execute<{ expires: string }>(sql`
+        SELECT max(expires_at)::text AS expires FROM realtime_presence_leases
+        WHERE topic=${`/interviews/${room}`} AND expires_at>clock_timestamp()+interval '5 minutes'
+      `)
+          ).rows[0]?.expires,
+      ),
+    );
+  const longLease = await getLongLease();
+  expect(longLease).toBeTruthy();
+  const roomObject = directNamespace.get(directNamespace.idFromName(`socket:interview:${room}`));
+  await runDurableObjectAlarm(roomObject as unknown as Parameters<typeof runDurableObjectAlarm>[0]);
+  expect(await getLongLease()).toBe(longLease);
+  quiet.close();
+  const partyCreate = await SELF.fetch("http://127.0.0.1:8765/v1/parties", {
+    method: "POST",
+    headers: { ...headers, "idempotency-key": "worker-runtime-party" },
+    body: JSON.stringify({ difficulties: ["easy"], accessMode: "accounts_only" }),
+  });
+  expect(partyCreate.status, await partyCreate.clone().text()).toBe(201);
+  const { party } = (await partyCreate.json()) as { party: { id: string; version: string } };
+  const partyUrl = `http://127.0.0.1:8765/v1/parties/${party.id}`;
+  const partyUpgrade = await SELF.fetch(`${partyUrl}/events`, {
+    headers: {
+      upgrade: "websocket",
+      origin: "http://127.0.0.1:8765",
+      cookie,
+      "sec-websocket-protocol": "quorem,quorem-hibernate",
+    },
+  });
+  expect(partyUpgrade.status).toBe(101);
+  const partySocket = partyUpgrade.webSocket!;
+  let initialParty!: () => void, lockedParty!: () => void;
+  const receivedParty = new Promise<void>((resolve) => {
+    initialParty = resolve;
+  });
+  const receivedLock = new Promise<void>((resolve) => {
+    lockedParty = resolve;
+  });
+  partySocket.addEventListener("message", (event: MessageEvent) => {
+    const frame = JSON.parse(String(event.data)) as {
+      receipt: string;
+      payload: {
+        type: string;
+        party: {
+          id: string;
+          settings: { admissionLocked: boolean };
+          members: { online: boolean }[];
+        };
+      };
+    };
+    partySocket.send(JSON.stringify({ type: "receipt", id: frame.receipt }));
+    if (frame.payload.type === "party.snapshot" && frame.payload.party.id === party.id) {
+      if (frame.payload.party.members[0]?.online) initialParty();
+      if (frame.payload.party.settings.admissionLocked) lockedParty();
+    }
+  });
+  partySocket.accept();
+  await receivedParty;
+  const settings = await SELF.fetch(`${partyUrl}/settings`, {
+    method: "PUT",
+    headers: { ...headers, "idempotency-key": "worker-runtime-party-lock" },
+    body: JSON.stringify({
+      difficulties: ["easy"],
+      accessMode: "accounts_only",
+      admissionLocked: true,
+    }),
+  });
+  expect(settings.status, await settings.text()).toBe(200);
+  await receivedLock;
+  partySocket.close();
+  const disband = await SELF.fetch(`${partyUrl}/disband`, {
+    method: "POST",
+    headers: { ...headers, "idempotency-key": "worker-runtime-party-disband" },
+  });
+  expect(disband.status, await disband.text()).toBe(200);
   const peerUpgrade = await SELF.fetch(
     `http://127.0.0.1:8765/v1/interviews/${room.toUpperCase()}/events`,
     {

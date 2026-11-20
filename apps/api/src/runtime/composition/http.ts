@@ -159,18 +159,19 @@ export function composeHttp(ports: HttpPorts) {
       notices: ports.submissionNotices,
     }),
   );
+  const parties = partyRepository(
+    run,
+    ports.inviteKey,
+    ports.deadline,
+    ports.shards,
+    prearmReceipts(run),
+    ports.guestCreation,
+  );
   app.route(
     "/",
     partyRoutes({
       identify,
-      parties: partyRepository(
-        run,
-        ports.inviteKey,
-        ports.deadline,
-        ports.shards,
-        prearmReceipts(run),
-        ports.guestCreation,
-      ),
+      parties,
       allowedOrigins: ports.origins,
       admissionEnabled: ports.guestAdmission,
       trustedPeer: ports.trustedPeer,
@@ -204,5 +205,5 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     interviewExecutionRoutes({ ...execution, commit: postgresInterviewAdmission(run, options) }),
   );
-  return { app, matches };
+  return { app, matches, parties };
 }

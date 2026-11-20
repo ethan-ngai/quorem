@@ -1,21 +1,32 @@
 /** @file dispatch.ts @description PostgreSQL dispatch claims and atomic intents. @module events */
 import { sql } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
-import type { Claim, DispatchStore } from "../../../modules/events/dispatch/ports.ts";
+import type {
+  Claim,
+  DispatchStore,
+  NoticeStream,
+  Stream,
+} from "../../../modules/events/dispatch/ports.ts";
 
 type Scope = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const tables = {
   interview: "interview_outbox",
   match: "match_outbox",
+  party: "party_outbox",
   submission: "submission_outbox",
   execution: "execution_dispatch_intents",
 } as const;
 const aggregate = {
   interview: "session_id",
   match: "match_id",
+  party: "party_id",
   submission: "submission_id",
 } as const;
 const txn = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
+const hasPending = (stream: Stream) => {
+  const done = sql.raw(stream === "execution" ? "delivered_at" : "published_at");
+  return sql`EXISTS(SELECT 1 FROM ${sql.raw(tables[stream])} WHERE ${done} IS NULL)`;
+};
 
 /** Called inside the admission transaction after the job insert. */
 export async function insertExecutionIntent(
@@ -89,21 +100,42 @@ export function postgresDispatch(run: Scope): DispatchStore {
     },
     async pending(stream) {
       if (!Object.hasOwn(tables, stream)) throw new RangeError("Invalid stream");
-      const table = sql.raw(tables[stream]),
-        done = sql.raw(stream === "execution" ? "delivered_at" : "published_at");
       return run((scope) =>
         scope.transaction(
           { ...txn, readOnly: true },
           async (tx) =>
-            (
-              await tx.execute(
-                sql`SELECT EXISTS(SELECT 1 FROM ${table} WHERE ${done} IS NULL) AS pending`,
-              )
-            ).rows[0]?.pending === true,
+            (await tx.execute(sql`SELECT ${hasPending(stream)} AS pending`)).rows[0]?.pending ===
+            true,
         ),
       );
     },
   };
+}
+
+/** Earliest time another drain can make progress, including abandoned claims. */
+export function recoveryWorkDue(
+  run: Scope,
+  streams: readonly NoticeStream[],
+): Promise<number | null> {
+  return run((scope) =>
+    scope.transaction({ ...txn, readOnly: true }, async (tx) => {
+      const notices = streams.map(
+        (stream) =>
+          sql`(SELECT min(COALESCE(dispatch_until, statement_timestamp())) FROM ${sql.raw(tables[stream])} WHERE published_at IS NULL)`,
+      );
+      const execution = sql`(SELECT min(
+        CASE WHEN i.delivered_at IS NULL THEN GREATEST(i.available_at, i.dispatch_until)
+        ELSE GREATEST(i.delivered_at + interval '1 minute', j.lease_until) END
+      ) FROM execution_dispatch_intents i JOIN execution_jobs j ON j.id=i.job_id
+        WHERE i.delivered_at IS NULL OR NOT j.finished)`;
+      const due = sql.join([...notices, execution], sql`, `);
+      const result = await tx.execute<{ at: string | null }>(
+        sql`SELECT CEIL(EXTRACT(EPOCH FROM LEAST(${due})) * 1000)::bigint AS at`,
+      );
+      const at = result.rows[0]?.at;
+      return at == null ? null : Number(at);
+    }),
+  );
 }
 
 /** Sweeper repair for an accepted wake whose downstream retries were exhausted. */

@@ -2,6 +2,14 @@ name: Diagnose production
 on:
   workflow_dispatch:
     inputs:
+      database_analytics_start:
+        description: UTC start for a 15-minute Cloudflare database-traffic analysis
+        type: string
+        default: ""
+      idle_smoke:
+        description: Verify Neon suspension with a quiet authenticated lobby socket
+        type: boolean
+        default: false
       mail:
         description: Read-only authenticated SMTP relay health probe
         type: boolean
@@ -62,7 +70,7 @@ permissions:
   contents: read
 jobs:
   logs:
-    if: ${{ !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
+    if: ${{ inputs.database_analytics_start == '' && !inputs.idle_smoke && !inputs.mail && !inputs.sql && !inputs.database_load && !inputs.benchmark && !inputs.workload && !inputs.diagnostics && !inputs.hyperdrive && inputs.benchmark_start == '' && (inputs.match_id == '' || inputs.worker_log_start != '') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -159,6 +167,44 @@ jobs:
           terraform_wrapper: false
       - run: vp install --frozen-lockfile
       - run: vp exec node scripts/hono-production-private-workers.mjs --benchmark-only
+
+  database-analytics:
+    if: inputs.database_analytics_start != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Read Worker database and public catalog aggregates
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          QUOREM_DATABASE_ANALYTICS_START: ${{ inputs.database_analytics_start }}
+        run: python3 scripts/production-database-analytics.py
+  idle-smoke:
+    if: inputs.idle_smoke && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76
+        with:
+          node-version-file: .node-version
+          cache: true
+          run-install: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - run: vp install --frozen-lockfile
+      - run: vp exec node scripts/hono-production-idle-smoke.mjs
 
   mail:
     if: inputs.mail

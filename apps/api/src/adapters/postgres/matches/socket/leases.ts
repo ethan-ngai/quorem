@@ -1,5 +1,6 @@
 /** @file leases.ts @description Match-authorized realtime window leases. @module matches */
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
+import { sql } from "drizzle-orm";
 import type { Principal } from "../../../../modules/identity/model.ts";
 import { ApplicationError } from "../../../../application/error.ts";
 import {
@@ -26,10 +27,17 @@ export function matchSocketLeases(run: Run) {
   const tx = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
   return {
-    acquire: (actor: Principal, id: string) =>
+    acquire: (actor: Principal, id: string, expiresAt?: number) =>
       tx(async (t) => {
         await authorize(t, actor, id);
-        return acquireSocketLease(t, `/matches/${id}`, actor.userId, () => authorize(t, actor, id));
+        return acquireSocketLease(
+          t,
+          `/matches/${id}`,
+          actor.userId,
+          () => authorize(t, actor, id),
+          sql`true`,
+          expiresAt,
+        );
       }),
     renew: (actor: Principal, id: string, lease: string) =>
       tx((t) =>

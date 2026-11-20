@@ -20,6 +20,14 @@ const run = <T>(callback: Parameters<typeof withNodeConnection<T>>[2]) => withNo
 before(async () => { await pool.query('CREATE TABLE IF NOT EXISTS primitives_probe (id int primary key, value text)'); await pool.query('DELETE FROM primitives_probe'); await pool.query('CREATE TABLE IF NOT EXISTS primitives_deferred (value int, UNIQUE(value) DEFERRABLE INITIALLY DEFERRED)'); await pool.query('DELETE FROM primitives_deferred'); });
 after(async () => { await pool.query('DROP TABLE IF EXISTS primitives_deferred'); await pool.query('DROP TABLE IF EXISTS primitives_probe'); await pool.end(); });
 
+void test('database usage counts scope, queries and commit without collecting SQL', async () => {
+  const usage = { scopes: 0, transactions: 0, queryCalls: 0 };
+  await withWorkerConnection(url, { connectionTimeoutMs: 1000, lifetimeMs: 3000, usage }, (scope) =>
+    scope.transaction(options, async (tx) => { await tx.execute(sql`select 1`); }),
+  );
+  assert.deepEqual(usage, { scopes: 1, transactions: 1, queryCalls: 3 });
+});
+
 void test('commit, rollback, pinned client and classified wrapped constraints', async () => {
   let retained: Transaction | undefined;
   const pids = await run((scope) => scope.transaction(options, async (tx) => {

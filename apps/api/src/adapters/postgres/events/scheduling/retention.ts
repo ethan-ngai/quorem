@@ -4,7 +4,7 @@ import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { purgeGuestMatchData } from "./guest-retention.ts";
 import { guestLobbyClosed } from "../../matches/review/lifetime.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-const outboxes = ["interview_outbox", "match_outbox", "submission_outbox"] as const;
+const outboxes = ["interview_outbox", "match_outbox", "party_outbox", "submission_outbox"] as const;
 // A late settlement can outlive ordinary admission-based retention.
 const reviewHold = sql`EXISTS (
   SELECT 1 FROM matches m WHERE m.id=s.match_id AND s.kind='submit' AND s.match_sequence IS NOT NULL
@@ -31,6 +31,7 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
   );
   statements.push(
     sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
+    sql`DELETE FROM realtime_presence_leases WHERE id IN (SELECT id FROM realtime_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );
   statements.push(
     // Preserve compact practice feedback before clearing large result payloads.
