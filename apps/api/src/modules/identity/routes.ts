@@ -76,6 +76,7 @@ export function identityRoutes(deps: {
       };
     } else capabilities = await deps.capabilities.capabilities(value.userId);
     return c.json({
+      ...(value.kind === "managed" ? { authSubject: value.authSubject, avatar: value.avatar } : {}),
       capabilities,
       strongUntil: value.strongUntil,
       kind: value.kind === "guest" ? "guest" : "account",

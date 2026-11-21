@@ -59,6 +59,17 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(token)),
   );
   const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${btoa(String.fromCharCode(...signed))}`)}`;
+  const cookieSession = await SELF.fetch("http://127.0.0.1:8765/v1/session", {
+    headers: { cookie },
+  });
+  expect(cookieSession.status).toBe(200);
+  expect(await cookieSession.json()).toMatchObject({ authSubject: user, kind: "account" });
+  const crossSite = await SELF.fetch("http://127.0.0.1:8765/v1/parties", {
+    method: "POST",
+    headers: { cookie, origin: "https://untrusted.example", "content-type": "application/json" },
+    body: "{}",
+  });
+  expect(crossSite.status).toBe(403);
   const health = await SELF.fetch("http://127.0.0.1:8765/health", {
     headers: { origin: "http://127.0.0.1:5173" },
   });

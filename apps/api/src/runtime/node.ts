@@ -245,7 +245,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const streamBudget = requestBudget(limit);
     const build = (signal?: AbortSignal, peer?: string) => {
       const db = runWith(signal),
-        identity = composeIdentity(db, verifier, sessions, allowed);
+        identity = composeIdentity(db, verifier, sessions, allowed, auth.cookieSession);
       const identify =
         identityMode === "local"
           ? async (request: Request) =>

@@ -2,7 +2,9 @@
 import type { ConnectionScope } from "@quorem/database/core";
 import {
   authenticate,
+  authenticateAccount,
   IdentityError,
+  type AccountIdentity,
   type IdentityBindings,
   type Principal,
   type SessionAuthority,
@@ -10,18 +12,26 @@ import {
 } from "../../modules/identity/model.ts";
 import {
   authenticateGuestRequest,
+  guestOriginAllowed,
+  GuestOriginDenied,
   type GuestKind,
 } from "../../modules/identity/guest/credentials.ts";
+import { bearer } from "../../modules/identity/credentials.ts";
 import { identityRepository } from "../../adapters/postgres/identity/repository.ts";
 import { guestRepository } from "../../adapters/postgres/identity/guest.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
+type CookieSession = {
+  present(request: Request): boolean;
+  read(headers: Headers): Promise<AccountIdentity | undefined>;
+};
 /** Remote session verification completes before acquiring an identity database scope. */
 export function composeIdentity(
   run: Run,
   verifier: TokenVerifier,
   sessions: SessionAuthority,
   origins: readonly string[],
+  cookieSession: CookieSession,
 ) {
   const bindings: IdentityBindings = {
     lookup: (claims) => run((scope) => identityRepository(scope).lookup(claims)),
@@ -35,7 +45,26 @@ export function composeIdentity(
   };
   const managed = (token: string, signal?: AbortSignal) =>
     authenticate(token, verifier, sessions, bindings, signal);
+  const accountCookie = async (request: Request) => {
+    if (!cookieSession.present(request)) return;
+    if (
+      request.headers.get("sec-fetch-site") === "cross-site" ||
+      !guestOriginAllowed(request.method, request.headers.get("origin"), origins)
+    )
+      throw new GuestOriginDenied();
+    try {
+      const claims = await cookieSession.read(request.headers);
+      if (claims) return await authenticateAccount(claims, sessions, bindings, request.signal);
+    } catch (error) {
+      if (error instanceof IdentityError) throw error;
+      throw new IdentityError("unavailable", error);
+    }
+  };
   const identify = async (request: Request): Promise<Principal | undefined> => {
+    const token = bearer(request.headers);
+    if (token !== undefined) return managed(token, request.signal);
+    const account = await accountCookie(request);
+    if (account) return account;
     const path = new URL(request.url).pathname;
     const first: GuestKind = path.startsWith("/v1/interview") ? "interview" : "match";
     const policy = { method: request.method, allowedOrigins: origins };
@@ -54,5 +83,5 @@ export function composeIdentity(
     if (principal && other) throw new IdentityError("unauthorized");
     return principal ?? other ?? undefined;
   };
-  return { identify, managed, guests };
+  return { identify, managed, guests, accountCookie };
 }
