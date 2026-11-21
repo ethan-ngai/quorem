@@ -1,7 +1,7 @@
 /** @file profile.ts @description Cookie-authenticated account profile and photo transport. @module auth */
 import { AuthError } from "./errors";
 import { useQuery } from "@tanstack/react-query";
-import { tokenDisplay, useSession } from "./session";
+import { useSession } from "./session";
 export type AccountProfile = {
   id?: string;
   name: string;
@@ -37,7 +37,7 @@ export async function fetchProfile(): Promise<AccountProfile> {
   return readProfile(await fetch("/api/auth/profile", { credentials: "same-origin" }));
 }
 let primed: Promise<AccountProfile> | undefined;
-/** Start the cookie-authenticated profile read alongside token/session loading. */
+/** Start the cookie-authenticated profile read alongside session loading. */
 export function primeProfile() {
   if (!primed) {
     primed = fetchProfile();
@@ -49,7 +49,7 @@ export async function profileForCurrentAccount(subject?: string) {
   primed = undefined;
   let profile = initial ? await initial : await fetchProfile();
   if (subject && profile.id !== subject) profile = await fetchProfile();
-  if (subject && (profile.id !== subject || tokenDisplay()?.subject !== subject))
+  if (subject && profile.id !== subject)
     throw new AuthError("Account changed. Reload to retry.");
   return profile;
 }

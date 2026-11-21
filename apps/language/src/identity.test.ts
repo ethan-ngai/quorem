@@ -11,9 +11,9 @@ void test("managed session uses API authority and distinguishes denial from outa
       user: { id: "owner", emailVerified: true },
       capabilities: { hostedIntelligence: true },
     };
-  let authorization = "";
+  let cookie = "";
   const server = createServer((request, response) => {
-    authorization = request.headers.authorization ?? "";
+    cookie = request.headers.cookie ?? "";
     response.writeHead(status, { "content-type": "application/json" });
     response.end(JSON.stringify(body));
   });
@@ -22,28 +22,28 @@ void test("managed session uses API authority and distinguishes denial from outa
   process.env.AUTH_ORIGIN = "https://web.test";
   process.env.API_IDENTITY_URL = `http://127.0.0.1:${port}`;
   try {
-    assert.equal(await managedOwner("quorem, bearer.token", "https://web.test", "/lsp"), "owner");
-    assert.equal(authorization, "Bearer token");
-    assert.equal(await managedOwner("bearer.one,bearer.two", "https://web.test", "/lsp"), null);
-    assert.equal(await managedOwner("bearer.token", "https://bad.test", "/lsp"), null);
+    assert.equal(await managedOwner("other=ignored; better-auth.session_token=token", "https://web.test", "/lsp"), "owner");
+    assert.equal(cookie, "better-auth.session_token=token");
+    assert.equal(await managedOwner("better-auth.session_token=one; __Secure-better-auth.session_token=two", "https://web.test", "/lsp"), null);
+    assert.equal(await managedOwner("better-auth.session_token=token", "https://bad.test", "/lsp"), null);
     body = {
       mode: "managed",
       kind: "guest",
       user: { id: "owner", emailVerified: true },
       capabilities: { hostedIntelligence: true },
     };
-    assert.equal(await managedOwner("bearer.token", "https://web.test", "/lsp"), null);
+    assert.equal(await managedOwner("better-auth.session_token=token", "https://web.test", "/lsp"), null);
     status = 401;
-    assert.equal(await managedOwner("bearer.token", "https://web.test", "/lsp"), null);
+    assert.equal(await managedOwner("better-auth.session_token=token", "https://web.test", "/lsp"), null);
     status = 503;
     await assert.rejects(
-      managedOwner("bearer.token", "https://web.test", "/lsp"),
+      managedOwner("better-auth.session_token=token", "https://web.test", "/lsp"),
       IdentityUnavailable,
     );
     status = 200;
     body = { data: "x".repeat(65537) };
     await assert.rejects(
-      managedOwner("bearer.token", "https://web.test", "/lsp"),
+      managedOwner("better-auth.session_token=token", "https://web.test", "/lsp"),
       IdentityUnavailable,
     );
   } finally {
@@ -61,7 +61,7 @@ void test("managed authority timeout is unavailable", async () => {
   process.env.API_IDENTITY_URL = `http://127.0.0.1:${port}`;
   try {
     await assert.rejects(
-      managedOwner("bearer.token", "https://web.test", "/lsp"),
+      managedOwner("better-auth.session_token=token", "https://web.test", "/lsp"),
       IdentityUnavailable,
     );
   } finally {

@@ -1,6 +1,6 @@
 import { requireSudo } from "./sudo";
 import { AuthError, passkeyError, registrationError } from "./errors";
-import { fetchSession, resetToken, signInDestination } from "./session";
+import { fetchSession, signInDestination } from "./session";
 import { signInReferral } from "./signInReferral";
 import { invalidateAvatarHints } from "./avatarCache";
 export const socialProviderLabels = { google: "Google", github: "GitHub" } as const;
@@ -83,7 +83,6 @@ async function authenticateWithPasskey() {
   if (!supportsPasskeys()) throw new AuthError("Passkeys are unavailable in this browser.");
   const result = await passkeyRequest(async () => (await authClient()).signIn.passkey());
   if (result.error) throw passkeyError(result.error);
-  resetToken();
   invalidateAvatarHints();
 }
 export async function signInWithPasskey(search?: string) {

@@ -1,8 +1,6 @@
 /** @file sudo.test.ts @description Deduplicated prompts, trusted expiry and cancellation. @module auth */
 import { afterEach, expect, it, vi } from "vitest";
 import { cancelSudo, completeSudo, requireSudo, sudoRequest, sudoSnapshot } from "./sudo";
-const reset = vi.hoisted(() => vi.fn());
-vi.mock("./session", () => ({ resetToken: reset }));
 const status = {
   userId: "account",
   until: 0,
@@ -34,7 +32,6 @@ it("deduplicates concurrent protected operations and resumes after server confir
   await vi.waitFor(() => expect(sudoSnapshot()).toBeDefined());
   await completeSudo();
   await first;
-  expect(reset).toHaveBeenCalledOnce();
   expect(sudoSnapshot()).toBeUndefined();
 });
 it("cancels without authorizing queued work", async () => {

@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInterviewSocket } from "./socket";
-import { token } from "../auth/session";
-vi.mock("../auth/session", () => ({
-  token: vi.fn(async () => "signed-token"),
-  tokenExpiresAt: vi.fn(),
-}));
 class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
@@ -44,7 +39,6 @@ beforeEach(() => {
   Socket.instances = [];
   vi.stubGlobal("WebSocket", Socket);
   vi.stubGlobal("window", { location: { origin: "http://localhost:5180" } });
-  vi.mocked(token).mockResolvedValue("signed-token");
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -61,7 +55,7 @@ describe("interview socket", () => {
     const socket = Socket.instances[0]!;
     socket.open();
     expect(String(socket.url)).toBe("ws://localhost:5180/v1/interviews/room/events");
-    expect(socket.protocols).toEqual(["quorem", "quorem-hibernate", "bearer.signed-token"]);
+    expect(socket.protocols).toEqual(["quorem", "quorem-hibernate"]);
     const response = transport.request("pull", { version: 0 });
     const request = JSON.parse(socket.sent[0]!);
     socket.frame({ type: "response", id: request.id, value: { version: 1 } });
@@ -131,25 +125,6 @@ describe("interview socket", () => {
     const frame = JSON.parse(socket.sent.at(-1)!);
     socket.frame({ type: "response", id: frame.id, value: { version: 1 } });
     await expect(push).resolves.toEqual({ version: 1 });
-    transport.stop();
-  });
-  it("fences an old token lookup across stop/start", async () => {
-    let finish!: (value: string) => void;
-    vi.mocked(token).mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = resolve;
-        }),
-    );
-    const transport = createInterviewSocket("room");
-    transport.start();
-    transport.stop();
-    transport.start();
-    await Promise.resolve();
-    finish("old-token");
-    await Promise.resolve();
-    expect(Socket.instances).toHaveLength(1);
-    expect(Socket.instances[0]!.protocols).toContain("bearer.signed-token");
     transport.stop();
   });
 });

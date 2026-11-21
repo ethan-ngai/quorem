@@ -2,14 +2,13 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { verifyWithPasskey } from "./capabilities";
 
-const mocks = vi.hoisted(() => ({ signIn: vi.fn(), session: vi.fn(), reset: vi.fn() }));
+const mocks = vi.hoisted(() => ({ signIn: vi.fn(), session: vi.fn() }));
 vi.mock("better-auth/client", () => ({
   createAuthClient: () => ({ signIn: { passkey: mocks.signIn } }),
 }));
 vi.mock("@better-auth/passkey/client", () => ({ passkeyClient: () => ({}) }));
 vi.mock("./session", () => ({
   fetchSession: mocks.session,
-  resetToken: mocks.reset,
   signInDestination: () => "/practice",
 }));
 vi.mock("./avatarCache", () => ({ invalidateAvatarHints: vi.fn() }));
@@ -25,11 +24,10 @@ function setup() {
   mocks.signIn.mockResolvedValue({ data: {} });
   return assign;
 }
-it("refreshes the token without navigating away from the protected action", async () => {
+it("confirms the same account without navigating away from the protected action", async () => {
   const assign = setup();
   mocks.session.mockResolvedValue({ user: { id: "same" } });
   await verifyWithPasskey();
-  expect(mocks.reset).toHaveBeenCalledTimes(1);
   expect(assign).not.toHaveBeenCalled();
 });
 it("blocks resuming an operation under a different account", async () => {

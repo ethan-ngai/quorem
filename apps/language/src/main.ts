@@ -1,5 +1,5 @@
 /** @file main.ts @description Local WebSocket-to-isolated-Python-LSP adapter. @module language */
-import { IdentityUnavailable, managedOwner } from "./identity.ts";
+import { accountCookie, IdentityUnavailable, managedOwner } from "./identity.ts";
 import { spawn, execFile } from "node:child_process";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
@@ -127,7 +127,8 @@ server.on("upgrade", async (request, socket, head) => {
   }
   if (
     localIdentity &&
-    hasManagedCredentials(request.headers.authorization, request.headers["sec-websocket-protocol"])
+    (accountCookie(request.headers.cookie) ||
+      hasManagedCredentials(request.headers.authorization, request.headers["sec-websocket-protocol"]))
   ) {
     socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     return;
@@ -150,7 +151,7 @@ server.on("upgrade", async (request, socket, head) => {
     const owner = localIdentity
       ? authorizeUpgrade(request.socket.remoteAddress, request.headers.origin, url, webOrigin)
       : await managedOwner(
-          request.headers["sec-websocket-protocol"],
+          request.headers.cookie,
           request.headers.origin,
           url.pathname,
         );
@@ -171,7 +172,7 @@ server.on("upgrade", async (request, socket, head) => {
           if (checking) return;
           checking = true;
           void managedOwner(
-            request.headers["sec-websocket-protocol"],
+            request.headers.cookie,
             request.headers.origin,
             url.pathname,
           )

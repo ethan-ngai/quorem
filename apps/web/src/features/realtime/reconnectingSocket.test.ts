@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createReconnectingSocket } from "./reconnectingSocket";
-import { token, tokenExpiresAt } from "../auth/session";
-vi.mock("../auth/session", () => ({ token: vi.fn(async () => "token"), tokenExpiresAt: vi.fn() }));
 
 class Socket {
   static instances: Socket[] = [];
@@ -27,7 +25,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal("WebSocket", Socket);
   Socket.instances = [];
-  vi.mocked(token).mockResolvedValue("token");
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -52,8 +49,7 @@ function setup() {
   return { connection, ...callbacks };
 }
 
-it("keeps a hibernating socket alive without refreshing its API bearer", async () => {
-  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 300_000);
+it("keeps a hibernating socket alive without extra HTTP requests", async () => {
   const { connection, onMessage } = setup();
   connection.start();
   await Promise.resolve();
@@ -63,39 +59,8 @@ it("keeps a hibernating socket alive without refreshing its API bearer", async (
   socket.onmessage?.({ data: "quorem:pong" } as MessageEvent);
   await vi.advanceTimersByTimeAsync(360_000);
   expect(Socket.instances).toHaveLength(1);
-  expect(token).toHaveBeenCalledOnce();
   expect(socket.send).toHaveBeenCalledWith("quorem:ping");
   expect(onMessage).not.toHaveBeenCalled();
-  connection.stop();
-  vi.mocked(tokenExpiresAt).mockReturnValue(undefined);
-});
-
-it("recovers token failures and cancels all retries on stop", async () => {
-  vi.mocked(token).mockRejectedValueOnce(new Error("offline"));
-  const { connection, onError, onDisconnect } = setup();
-  connection.start();
-  await Promise.resolve();
-  expect(onError).toHaveBeenCalledOnce();
-  expect(onDisconnect).toHaveBeenCalledOnce();
-  await vi.advanceTimersByTimeAsync(600);
-  expect(Socket.instances).toHaveLength(1);
-  connection.stop();
-  await vi.advanceTimersByTimeAsync(60_000);
-  expect(Socket.instances).toHaveLength(1);
-});
-
-it("connects public streams without requesting account credentials", async () => {
-  const connection = createReconnectingSocket({
-    url: () => "ws://localhost/public-events",
-    timeout: 2000,
-    authenticate: false,
-    onOpen: vi.fn(),
-    onMessage: vi.fn(),
-    onDisconnect: vi.fn(),
-  });
-  connection.start();
-  expect(token).not.toHaveBeenCalled();
-  expect(Socket.instances[0]?.protocols).toEqual(["quorem", "quorem-hibernate"]);
   connection.stop();
 });
 
@@ -104,7 +69,7 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   connection.start();
   await Promise.resolve();
   const old = Socket.instances[0]!;
-  expect(old.protocols).toEqual(["quorem", "quorem-hibernate", "bearer.token"]);
+  expect(old.protocols).toEqual(["quorem", "quorem-hibernate"]);
   await vi.advanceTimersByTimeAsync(2000);
   expect(onDisconnect).toHaveBeenCalledOnce();
   old.onopen?.();
@@ -192,52 +157,6 @@ it("rejects heartbeats without a valid receipt", async () => {
   expect(socket.send).not.toHaveBeenCalled();
   expect(onMessage).not.toHaveBeenCalled();
   expect(onDisconnect).toHaveBeenCalledOnce();
-  connection.stop();
-});
-
-it("rotates before the authenticated bearer expires and reacquires a fresh token", async () => {
-  vi.mocked(tokenExpiresAt).mockReturnValueOnce(Date.now() + 60_000);
-  const { connection, onConnecting, onDisconnect } = setup();
-  connection.start();
-  await Promise.resolve();
-  Socket.instances[0]!.onopen?.();
-  vi.mocked(token).mockResolvedValue("refreshed");
-  await vi.advanceTimersByTimeAsync(30_600);
-  expect(Socket.instances).toHaveLength(2);
-  expect(Socket.instances[1]!.protocols).toContain("bearer.refreshed");
-  Socket.instances[1]!.onopen?.();
-  expect(onConnecting).toHaveBeenCalledOnce();
-  expect(onDisconnect).not.toHaveBeenCalled();
-  connection.stop();
-});
-
-it("rotates using its own bearer expiry when another request refreshes during handshake", async () => {
-  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 60_000);
-  const { connection } = setup();
-  connection.start();
-  await Promise.resolve();
-  vi.mocked(tokenExpiresAt).mockReturnValue(Date.now() + 300_000);
-  Socket.instances[0]!.onopen?.();
-  vi.mocked(token).mockResolvedValue("refreshed");
-  await vi.advanceTimersByTimeAsync(30_001);
-  expect(Socket.instances).toHaveLength(2);
-  expect(Socket.instances[1]!.protocols).toContain("bearer.refreshed");
-  connection.stop();
-});
-
-it("reports a failed renewal and retries", async () => {
-  vi.mocked(tokenExpiresAt).mockReturnValueOnce(Date.now() + 60_000);
-  const { connection, onError, onDisconnect } = setup();
-  connection.start();
-  await Promise.resolve();
-  Socket.instances[0]!.onopen?.();
-  const failure = new Error("Token refresh failed");
-  vi.mocked(token).mockRejectedValueOnce(failure);
-  await vi.advanceTimersByTimeAsync(30_000);
-  expect(onError).toHaveBeenCalledWith(failure);
-  expect(onDisconnect).toHaveBeenCalledOnce();
-  await vi.advanceTimersByTimeAsync(600);
-  expect(Socket.instances).toHaveLength(2);
   connection.stop();
 });
 
