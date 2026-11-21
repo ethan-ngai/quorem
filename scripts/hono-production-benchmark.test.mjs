@@ -12,7 +12,7 @@ void test("benchmarks exactly one public case per queue-backed run", async () =>
     },
     async (url, init) => {
       const path = new URL(url).pathname;
-      if (path === "/api/auth/token") return Response.json({ token: "fixture" });
+      assert.equal(init.headers.cookie, "fixture-cookie");
       if (path === "/v1/workspaces") return Response.json({ id: "fixture" }, { status: 201 });
       if (path === "/v1/submissions") {
         const command = JSON.parse(init.body);

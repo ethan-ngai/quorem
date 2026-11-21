@@ -17,15 +17,15 @@ def verify(origin, username, password):
     url = urllib.parse.urlsplit(origin)
     if url.scheme != "https" or url.netloc == "" or url.path or url.query or url.fragment:
         raise RuntimeError("An exact HTTPS production origin is required")
-    opener = urllib.request.build_opener(
-        NoRedirect(), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(NoRedirect(), urllib.request.HTTPCookieProcessor(jar))
 
-    def call(path, body=None, bearer=None, expected=200):
+    def call(path, body=None, cookie=None, expected=200):
         headers = {"Origin": origin, "User-Agent": "Quorem-Deployment-Probe/1.0"}
         if body is not None:
             headers["Content-Type"] = "application/json"
-        if bearer:
-            headers["Authorization"] = "Bearer " + bearer
+        if cookie:
+            headers["Cookie"] = cookie
         request = urllib.request.Request(origin + path, headers=headers,
                                          data=json.dumps(body).encode() if body is not None else None)
         started = time.monotonic()
@@ -49,17 +49,17 @@ def verify(origin, username, password):
     try:
         call("/api/auth/sign-in/username", {"username": username, "password": password})
         signed_in = True
-        result = call("/api/auth/token")
-        bearer = result.get("token") if isinstance(result, dict) else None
-        if not isinstance(bearer, str) or not bearer:
-            raise RuntimeError("Authentication token missing")
+        session_cookie = next((f"{cookie.name}={cookie.value}" for cookie in jar
+                               if cookie.name == "__Secure-better-auth.session_token"), None)
+        if not session_cookie:
+            raise RuntimeError("Authentication cookie missing")
         for _ in range(3):
-            session = call("/v1/session", bearer=bearer)
+            session = call("/v1/session", cookie=session_cookie)
             if not isinstance(session, dict) or not session.get("user", {}).get("id"):
                 raise RuntimeError("Authenticated API session missing")
         call("/api/auth/sign-out", {})
         signed_in = False
-        call("/v1/session", bearer=bearer, expected=401)
+        call("/v1/session", cookie=session_cookie, expected=401)
     finally:
         if signed_in:
             call("/api/auth/sign-out", {})

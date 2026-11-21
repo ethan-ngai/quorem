@@ -6,11 +6,11 @@ import { createProductionBenchmarkActors } from "./hono-production-workload-acto
 
 const { WebSocket } = createRequire(new URL("../apps/api/package.json", import.meta.url))("ws");
 
-function openMatchSocket(matchId, token, sockets) {
+function openMatchSocket(matchId, cookie, sockets) {
   const socket = new WebSocket(
     `wss://quorem.app/v1/matches/${matchId}/events`,
-    ["quorem", `bearer.${token}`],
-    { origin: "https://quorem.app", handshakeTimeout: 10000 },
+    ["quorem-hibernate"],
+    { headers: { cookie }, origin: "https://quorem.app", handshakeTimeout: 10000 },
   );
   sockets.push(socket);
   return new Promise((resolve, reject) => {
@@ -121,12 +121,9 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
   const sockets = [];
   try {
     for (const { cookie } of fixture.actors) {
-      const { token } = await call("/api/auth/token", { cookie });
-      if (typeof token !== "string" || !token || token.length > 16384 || /\s/.test(token))
-        throw new Error("Invalid replay credential");
-      const headers = { authorization: `Bearer ${token}` };
+      const headers = { cookie };
       const { user } = await call("/v1/session", headers);
-      actors.push({ headers, userId: user.id, token });
+      actors.push({ headers, userId: user.id, cookie });
     }
     const [host, peer] = actors;
     const problem = await call(`/v1/question-publications/${reference.id}`, host.headers);
@@ -166,7 +163,7 @@ export async function replayProductionMatch(database, env, referenceMatchId, rea
         return snapshot.participants.find((person) => person.userId === userId).workspaceId;
       }),
     );
-    await Promise.all(actors.map(({ token }) => openMatchSocket(matchId, token, sockets)));
+    await Promise.all(actors.map(({ cookie }) => openMatchSocket(matchId, cookie, sockets)));
     console.log(JSON.stringify({ replayMatchId: matchId, caseCount: 20, sampleCount: 3 }));
     for (let round = 0; round < 3; round++) {
       const submissions = await Promise.all(

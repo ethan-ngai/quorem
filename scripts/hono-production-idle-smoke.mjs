@@ -34,15 +34,9 @@ async function endpoint(env) {
 }
 
 async function disbandParty(party, cookie) {
-  const auth = await fetch(`${origin}/api/auth/token`, {
-    headers: { cookie: cookie, origin },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!auth.ok) throw new Error("Smoke cleanup authentication failed");
-  const token = (await auth.json()).token;
   const response = await fetch(`${origin}/v1/parties/${party}/disband`, {
     method: "POST",
-    headers: { authorization: `Bearer ${token}`, origin, "idempotency-key": randomUUID() },
+    headers: { cookie, origin, "idempotency-key": randomUUID() },
     signal: AbortSignal.timeout(10_000),
   });
   await response.body?.cancel();
@@ -59,7 +53,7 @@ async function verify(env) {
     count: 1,
     sessionMinutes: 25,
   });
-  let socket, party, bearer, keepalive;
+  let socket, party, keepalive;
   let failed = false;
   try {
     const cookie = fixture.actors[0].cookie;
@@ -69,7 +63,6 @@ async function verify(env) {
         headers: {
           cookie,
           origin,
-          ...(bearer && { authorization: `Bearer ${bearer}` }),
           ...options.headers,
         },
         signal: AbortSignal.timeout(15_000),
@@ -83,21 +76,17 @@ async function verify(env) {
       headers: { cookie, origin },
       signal: AbortSignal.timeout(10_000),
     });
-    const marker = legacy.headers.get("set-cookie")?.split(";")[0];
-    if (legacy.status !== 410 || marker !== "__Secure-quorem-retired-presence=1")
-      throw new Error("Retired heartbeat marker unavailable");
-    const flaggedCookie = `${cookie}; ${marker}`;
-    const obsoleteToken = await fetch(`${origin}/api/auth/token`, {
-      headers: { cookie: flaggedCookie, origin },
-      signal: AbortSignal.timeout(10_000),
-    });
-    await obsoleteToken.body?.cancel();
-    if (obsoleteToken.status !== 401) throw new Error("Retired tab still mints tokens");
-    bearer = (
-      await request("/api/auth/token", {
-        headers: { cookie: flaggedCookie, "x-quorem-auth-client": "room-sockets" },
-      })
-    ).token;
+    if (legacy.status !== 410) throw new Error("Legacy heartbeat is still enabled");
+    const rejectToken = async () => {
+      const response = await fetch(`${origin}/api/auth/token`, {
+        headers: { cookie, origin, "x-quorem-auth-client": "room-sockets" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      await response.body?.cancel();
+      if (response.status !== 410) throw new Error("Account tokens are still enabled");
+    };
+    await rejectToken();
+    if (!(await request("/v1/session")).user?.id) throw new Error("Cookie session unavailable");
     await request("/v1/parties/current");
     party = (
       await request("/v1/parties", {
@@ -106,14 +95,10 @@ async function verify(env) {
         body: JSON.stringify({ difficulties: ["easy"], accessMode: "accounts_only" }),
       })
     ).party.id;
-    socket = new WebSocket(
-      `wss://quorem.app/v1/parties/${party}/events`,
-      ["quorem", "quorem-hibernate"],
-      {
-        headers: { cookie, origin },
-        handshakeTimeout: 10_000,
-      },
-    );
+    socket = new WebSocket(`wss://quorem.app/v1/parties/${party}/events`, ["quorem-hibernate"], {
+      headers: { cookie, origin },
+      handshakeTimeout: 10_000,
+    });
     let pongs = 0;
     let lastPong = 0;
     const ready = new Promise((resolve, reject) => {
@@ -159,6 +144,7 @@ async function verify(env) {
     const started = Date.now();
     let previous;
     while (Date.now() - started <= 18 * 60_000) {
+      await rejectToken();
       const state = await getState();
       if (state !== previous) {
         console.log(
@@ -168,7 +154,11 @@ async function verify(env) {
       }
       if (socket.readyState !== WebSocket.OPEN || Date.now() - Math.max(started, lastPong) > 35_000)
         throw new Error("Lobby socket stopped answering without a reconnect");
-      if ((state === "idle" || state === "suspended") && pongs > 0) {
+      if (
+        (state === "idle" || state === "suspended") &&
+        pongs > 0 &&
+        Date.now() - started >= 12 * 60_000
+      ) {
         console.log(JSON.stringify({ suspendedWithLiveLobbySocket: true, pongs }));
         return;
       }

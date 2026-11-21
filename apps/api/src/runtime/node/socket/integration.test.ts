@@ -120,8 +120,8 @@ async function connect(
   autoAck = true,
   cookie?: string,
 ): Promise<WebSocket> {
-  const ws = new WebSocket(url, token ? ["quorem", `bearer.${token}`] : ["quorem"], {
-    headers: { Origin: "https://example.test", ...(cookie ? { Cookie: cookie } : {}) },
+  const ws = new WebSocket(url, ["quorem-hibernate"], {
+    headers: { Origin: "https://example.test", ...(cookie ? { Cookie: cookie } : {}), ...(token ? { "x-fixture-session": token } : {}) },
   });
   sockets.push(ws);
   const queue: string[] = [];
@@ -164,11 +164,7 @@ async function start(bus: PostgresFanout, id: string): Promise<string> {
       resolve: async (request) => {
         const url = new URL(request.url);
         if (url.pathname !== "/match") return undefined;
-        const token = (request.headers.get("sec-websocket-protocol") ?? "")
-          .split(",")
-          .map((x) => x.trim())
-          .find((x) => x.startsWith("bearer."))
-          ?.slice(7);
+        const token = request.headers.get("x-fixture-session");
         return {
           mode: "match",
           security: {
@@ -262,6 +258,14 @@ void test("credential expiry, grant rotation and terminal snapshot close sockets
   await next(rotated);
   const rotationClose = once(rotated, "close");
   users.set("host-token", "socket-member");
+  await delay(2100);
+  await b.publish(`/matches/${room.id}`, {
+    id: crypto.randomUUID(),
+    aggregateId: room.id,
+    version: "0",
+    type: "match.updated",
+    occurredAt: new Date().toISOString(),
+  });
   assert.equal((await rotationClose)[0], 1008);
   users.set("host-token", "socket-host");
   const terminal = await connect(`${base}/match`, "host-token");
@@ -506,9 +510,6 @@ void test("verified guest grants recheck real revocation without retaining token
         const principal = await authenticateGuestRequest(
           request.headers,
           "match",
-          async () => {
-            throw new IdentityError("unauthorized");
-          },
           { lookup: (kind, hash) => readers.guest(kind, hash) },
           { method: "GET", allowedOrigins: ["https://example.test"] },
         );
@@ -547,7 +548,7 @@ void test("verified guest grants recheck real revocation without retaining token
   const base = `ws://127.0.0.1:${addr.port}`;
   const guestWs = await connect(`${base}/guest`, undefined, true, `quorem_guest=${guestToken}`);
   assert.equal((await next(guestWs)).type, "match.updated");
-  const denied = new WebSocket(`${base}/guest`, ["quorem", "bearer.invalid"], {
+  const denied = new WebSocket(`${base}/guest`, ["quorem-hibernate", "bearer.invalid"], {
     headers: { Origin: "https://example.test", Cookie: `quorem_guest=${guestToken}` },
   });
   denied.on("error", () => {});

@@ -135,7 +135,7 @@ void test("engine EOF with a truncated frame closes the session and removes its 
   }
 });
 
-void test("managed verified entitlement opens only quorem protocol without forwarding bearer", async () => {
+void test("managed verified entitlement opens only quorem protocol with cookie verification", async () => {
   const directory = await mkdtemp(join(tmpdir(), "quorem-language-managed-"));
   const log = join(directory, "log");
   await writeFile(

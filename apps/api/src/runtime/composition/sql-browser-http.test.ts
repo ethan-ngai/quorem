@@ -14,11 +14,12 @@ void test(
     try {
       const origin = "http://127.0.0.1:5187",
         source = "SELECT id FROM items WHERE id > 0 ORDER BY id;";
-      async function json(path: string, token?: string, body?: unknown, method = "POST") {
+      async function json(path: string, cookie?: string, body?: unknown, method = "POST") {
         const response = await fetch(origin + path, {
           method,
           headers: {
-            ...(token ? { authorization: `Bearer ${token}` } : {}),
+            origin,
+            ...(cookie ? { cookie } : {}),
             ...(body === undefined ? {} : { "content-type": "application/json" }),
             "idempotency-key": randomUUID(),
           },
@@ -31,11 +32,11 @@ void test(
           );
         return response.json() as Promise<any>;
       }
-      async function result(token: string, workspaceId: string, kind: "run" | "submit") {
-        const submission = await json("/v1/submissions", token, { workspaceId, kind, source });
+      async function result(cookie: string, workspaceId: string, kind: "run" | "submit") {
+        const submission = await json("/v1/submissions", cookie, { workspaceId, kind, source });
         const deadline = Date.now() + 90000;
         while (Date.now() < deadline) {
-          const current = await json(`/v1/submissions/${submission.id}`, token, undefined, "GET");
+          const current = await json(`/v1/submissions/${submission.id}`, cookie, undefined, "GET");
           if (["completed", "failed", "cancelled"].includes(current.state)) {
             assert.equal(current.state, "completed");
             assert.equal(current.verdict, "accepted");
@@ -45,7 +46,7 @@ void test(
         }
         throw new Error("SQL execution did not complete");
       }
-      const { alice, bob } = fixture.bearers;
+      const { alice, bob } = fixture.cookies;
       const problem = await json("/v1/problems/sql-positive-items", alice, undefined, "GET");
       const workspace = await json("/v1/workspaces", alice, {
         problemVersionId: problem.id,

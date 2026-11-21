@@ -205,17 +205,14 @@ void test(
       if (!runtime.server.listening) await once(runtime.server, "listening");
       const base = `http://127.0.0.1:${runtime.server.address().port}`;
       const signature = createHmac("sha256", authSecret).update(token).digest("base64");
-      const auth = await fetch(`${base}/api/auth/token`, {
-        headers: {
-          cookie: `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`,
-          origin: "http://127.0.0.1:5173",
-        },
-      });
-      assert.equal(auth.status, 200);
-      const bearer = (await auth.json()).token;
+      const headers = {
+        cookie: `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`,
+        origin: "http://127.0.0.1:5173",
+        "content-type": "application/json",
+      };
       const workspace = await fetch(`${base}/v1/workspaces`, {
         method: "POST",
-        headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
           problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
           language: "python",
@@ -225,8 +222,7 @@ void test(
       const admitted = await fetch(`${base}/v1/submissions`, {
         method: "POST",
         headers: {
-          authorization: `Bearer ${bearer}`,
-          "content-type": "application/json",
+          ...headers,
           "idempotency-key": randomUUID(),
         },
         body: JSON.stringify({

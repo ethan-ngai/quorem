@@ -24,7 +24,6 @@ export interface StoredSocket {
   resourceId: string;
   lease?: string;
   leaseOwner?: string;
-  hibernating?: boolean;
 }
 export interface SocketAuthority {
   /** Verify the request, authorize the resource and acquire the canonical window lease. */
@@ -212,7 +211,7 @@ export function browserSocketObject<Env>(
           await armSocketAlarm(
             tx,
             Date.now(),
-            record!.hibernating ? record!.grant.expiresAt * 1000 : undefined,
+            record!.grant.expiresAt * 1000,
           );
         });
         storedId = id;
@@ -229,7 +228,7 @@ export function browserSocketObject<Env>(
         return new Response(null, {
           status: 101,
           headers: {
-            "sec-websocket-protocol": record.hibernating ? hibernatingProtocol : "quorem",
+            "sec-websocket-protocol": hibernatingProtocol,
           },
           webSocket: pair[0],
         } as ResponseInit);
@@ -300,18 +299,12 @@ export function browserSocketObject<Env>(
           try {
             const id = attachment(socket);
             const record = id && records.get(key(id));
-            if (record && record.hibernating) {
-              const expiry = record.grant.expiresAt * 1000;
-              if (expiry <= Date.now()) {
-                socket.close(1008, "Access expired");
-                await this.cleanup(socket);
-              } else {
-                next = Math.min(next, expiry);
-              }
-              return;
+            if (!record || record.grant.expiresAt * 1000 <= Date.now()) {
+              socket.close(1008, "Access expired");
+              await this.cleanup(socket);
+            } else {
+              next = Math.min(next, record.grant.expiresAt * 1000);
             }
-            await (await this.ensure(socket)).session.heartbeat();
-            next = Math.min(next, Date.now() + 10_000);
           } catch {
             socket.close(1008, "Access changed");
             await this.cleanup(socket);

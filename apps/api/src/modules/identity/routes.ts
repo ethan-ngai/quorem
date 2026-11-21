@@ -35,6 +35,7 @@ export function mapIdentityError(error: unknown): unknown {
 
 export function identityRoutes(deps: {
   identify: (request: Request) => Promise<Principal | undefined>;
+  renewedCookies?: (request: Request) => readonly string[];
   capabilities: CapabilityReader;
   guests: GuestIdentityReader & { endMatch(hash: string): Promise<boolean> };
 }): Hono {
@@ -51,6 +52,7 @@ export function identityRoutes(deps: {
     return c.json(await deps.capabilities.capabilities(value.userId));
   });
   app.get("/v1/session", async (c) => {
+    c.header("Cache-Control", "no-store");
     let value = await principal(c.req.raw);
     let capabilities: Capabilities;
     if (value.kind === "guest") {
@@ -75,6 +77,8 @@ export function identityRoutes(deps: {
         guestConcurrency: 0,
       };
     } else capabilities = await deps.capabilities.capabilities(value.userId);
+    for (const cookie of deps.renewedCookies?.(c.req.raw) ?? [])
+      c.header("Set-Cookie", cookie, { append: true });
     return c.json({
       ...(value.kind === "managed" ? { authSubject: value.authSubject, avatar: value.avatar } : {}),
       capabilities,

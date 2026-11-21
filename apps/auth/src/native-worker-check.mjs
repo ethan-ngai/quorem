@@ -56,10 +56,8 @@ try {
   const nodeCookie=nodeLogin.headers.getSetCookie().map(value=>value.split(';')[0]).join('; ');
   const workerRead=await fetch(origin+'/api/auth/get-session',{headers:{cookie:nodeCookie,origin}});
   assert.equal((await workerRead.json()).user.id,nodeUser.id);
-  await pool.query('UPDATE quorem_auth."user" SET profile_color_revision=9007199254740992 WHERE id=$1',[user.id]);
-  const unsafe=await fetch(origin+'/api/auth/token',{headers:{cookie,origin}});
-  assert.notEqual(unsafe.status,200);
-  await pool.query('UPDATE quorem_auth."user" SET profile_color_revision=1 WHERE id=$1',[user.id]);
+  const retired=await fetch(origin+'/api/auth/token',{headers:{cookie,origin}});
+  assert.equal(retired.status,410);
   const blocked=await fetch(origin+'/api/auth/update-user',{method:'POST',headers:{cookie,origin,'content-type':'application/json'},body:JSON.stringify({image:'https://evil.test/x'})});
   assert.equal(blocked.status,400,await blocked.text());
   const denied=await fetch(origin+'/internal/session/anything'); assert.equal(denied.status,404);

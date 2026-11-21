@@ -205,12 +205,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       });
       const signature = createHmac("sha256", authSecret).update(token).digest("base64"),
         cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
-      const auth = await fetch(`${base}/api/auth/token`, {
-        headers: { cookie, origin: "http://127.0.0.1:5173" },
-      });
-      expect(auth.status).toBe(200);
-      const bearer = ((await auth.json()) as { token: string }).token,
-        headers = { authorization: `Bearer ${bearer}`, "content-type": "application/json" };
+      const headers = { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" };
       const workspaceResponse = await fetch(`${base}/v1/workspaces`, {
         method: "POST",
         headers,
@@ -277,7 +272,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       const events = new AbortController();
       const signal = AbortSignal.any([events.signal, AbortSignal.timeout(15000)]);
       const response = await fetch(`${base}/v1/submissions/${submission}/events`, {
-        headers: { authorization: `Bearer ${bearer}`, accept: "text/event-stream" },
+        headers: { cookie, origin: "http://127.0.0.1:5173", accept: "text/event-stream" },
         signal,
       });
       expect(response.status).toBe(200);
@@ -285,7 +280,7 @@ it.skipIf(!url || !docker).each(["node", "worker"] as const)(
       let accepted = false;
       const observe = readSubmissionEvents(response.body!, async () => {
         const result = await fetch(`${base}/v1/submissions/${submission}`, {
-          headers: { authorization: `Bearer ${bearer}` },
+          headers: { cookie, origin: "http://127.0.0.1:5173" },
           signal,
         });
         expect(result.status).toBe(200);

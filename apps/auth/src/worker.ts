@@ -11,6 +11,7 @@ import { relayEmail } from "./adapters/relay-email.ts";
 import type { VerificationSender } from "./email-delivery.ts";
 import type { MailConfiguration } from "./platform-config.ts";
 import { accessFetch } from "@quorem/execution/transport/access";
+export { retiredAccountRoute } from "./http.ts";
 
 export interface AuthWorkerEnv {
   DB: { connectionString: string };

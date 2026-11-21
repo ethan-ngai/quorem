@@ -33,7 +33,6 @@ describe("Better Auth account email configuration", () => {
       adapter: undefined,
       emailFlow: socialEmail({} as AuthRepository, origin),
       rateLimit: async () => ({ allowed: true, retryAfter: 0 }),
-      profile: async () => undefined,
       recordAssurance: async () => {},
       checkAssurance: async () => ({ valid: true, strongAt: undefined }),
     };

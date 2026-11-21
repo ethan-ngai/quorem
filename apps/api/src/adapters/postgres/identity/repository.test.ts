@@ -4,7 +4,7 @@ import { createNodePool, withNodeConnection } from "@quorem/database/core";
 import { migrate } from "@quorem/database/migrations";
 import { identityRepository } from "./repository.ts";
 import { capabilityRepository } from "../access/repository.ts";
-import type { Claims } from "../../../modules/identity/model.ts";
+import type { AccountIdentity } from "../../../modules/identity/model.ts";
 
 const url = process.env.QUOREM_IDENTITY_TEST_DATABASE_URL;
 describe.skipIf(!url)("identity and access on disposable PostgreSQL", () => {
@@ -22,7 +22,7 @@ describe.skipIf(!url)("identity and access on disposable PostgreSQL", () => {
     try {
       await migrate(pool, "product", resolve("../../apps/api/migrations"));
       const suffix = crypto.randomUUID();
-      const claims: Claims = {
+      const claims: AccountIdentity = {
         issuer: "https://fixture.test",
         subject: suffix,
         sessionId: "session",
@@ -31,7 +31,6 @@ describe.skipIf(!url)("identity and access on disposable PostgreSQL", () => {
         image: "/photo",
         color: 7,
         colorRevision: 10n,
-        issuedAt: 100,
         expiresAt: 400,
       };
       const run = <T>(fn: (scope: Parameters<typeof identityRepository>[0]) => Promise<T>) =>

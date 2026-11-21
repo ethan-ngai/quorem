@@ -5,6 +5,12 @@ import type { configuration } from "./config.ts";
 
 type Handler = (request: Request) => Promise<Response | undefined>;
 
+/** Retired clients receive a terminal response without entering auth or rate limiting. */
+export function retiredAccountRoute(path: string): Response | undefined {
+  if (path === "/api/auth/token" || path === "/api/auth/jwks")
+    return new Response(null, { status: 410, headers: { "Cache-Control": "no-store" } });
+}
+
 function adoptResponse(context: Context, response: Response) {
   const inherited = new Headers(context.res.headers);
   context.res.headers.delete("set-cookie");
@@ -34,6 +40,8 @@ export function createAuthApp(options: {
   app.all("/api/auth/*", async (context) => {
     const request = context.req.raw;
     const path = new URL(request.url).pathname;
+    const retired = retiredAccountRoute(path);
+    if (retired) return adoptResponse(context, retired);
     let response: Response;
     if (path.startsWith("/api/auth/sudo/"))
       response = (await options.sudo?.(request)) ?? new Response(null, { status: 404 });

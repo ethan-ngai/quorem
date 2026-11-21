@@ -62,13 +62,8 @@ it.skipIf(!url)(
       const base = `http://127.0.0.1:${(runtime.server.address() as AddressInfo).port}`;
       const signature = createHmac("sha256", secret).update(token).digest("base64");
       const cookie = `better-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
-      const auth = await fetch(`${base}/api/auth/token`, {
-        headers: { cookie, origin: "http://127.0.0.1:5173" },
-      });
-      expect(auth.status).toBe(200);
-      const bearer = ((await auth.json()) as { token: string }).token;
       const sessionResponse = await fetch(`${base}/v1/session`, {
-        headers: { authorization: `Bearer ${bearer}` },
+        headers: { cookie, origin: "http://127.0.0.1:5173" },
       });
       expect(sessionResponse.status).toBe(200);
       expect(await sessionResponse.json()).toMatchObject({
@@ -77,7 +72,7 @@ it.skipIf(!url)(
         user: { displayName: user },
       });
       const capabilities = await fetch(`${base}/v1/capabilities`, {
-        headers: { authorization: `Bearer ${bearer}` },
+        headers: { cookie, origin: "http://127.0.0.1:5173" },
       });
       expect(capabilities.status).toBe(200);
       expect(await capabilities.json()).toMatchObject({
@@ -89,7 +84,7 @@ it.skipIf(!url)(
       expect(catalog.headers.get("x-request-id")).toBeTruthy();
       const workspace = await fetch(`${base}/v1/workspaces`, {
         method: "POST",
-        headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+        headers: { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" },
         body: JSON.stringify({
           problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
           language: "python",
@@ -101,7 +96,7 @@ it.skipIf(!url)(
         [crypto.randomUUID(), user],
       );
       const headers = {
-        authorization: `Bearer ${bearer}`,
+        cookie, origin: "http://127.0.0.1:5173",
         "content-type": "application/json",
         "idempotency-key": `node-room-${crypto.randomUUID()}`,
       };
@@ -124,8 +119,8 @@ it.skipIf(!url)(
       const peerBase = `ws://127.0.0.1:${(peerRuntime.server.address() as AddressInfo).port}`;
       const peer = new WebSocket(
         `${peerBase}/v1/interviews/${room}/events`,
-        ["quorem", `bearer.${bearer}`],
-        { headers: { origin: "http://127.0.0.1:5173" } },
+        ["quorem-hibernate"],
+        { headers: { cookie, origin: "http://127.0.0.1:5173" } },
       );
       let resolveInitial!: () => void,
         resolveChanged!: () => void,
@@ -195,8 +190,8 @@ it.skipIf(!url)(
       );
       const socket = new WebSocket(
         `${peerBase}/v1/matches/${matchId}/events`,
-        ["quorem", `bearer.${bearer}`],
-        { headers: { origin: "http://127.0.0.1:5173" } },
+        ["quorem-hibernate"],
+        { headers: { cookie, origin: "http://127.0.0.1:5173" } },
       );
       socket.on("message", (data) => {
         const frame = JSON.parse(frameText(data)) as { receipt?: string };
@@ -207,13 +202,18 @@ it.skipIf(!url)(
       await pool.query('DELETE FROM quorem_auth."session" WHERE id=$1', [session]);
       const revoked = await fetch(`${base}/v1/workspaces`, {
         method: "POST",
-        headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+        headers: { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" },
         body: JSON.stringify({
           problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
           language: "python",
         }),
       });
       expect(revoked.status).toBe(401);
+      await new Promise((resolve) => setTimeout(resolve, 2100));
+      await pool.query(
+        "INSERT INTO match_outbox(id,match_id,version,event_type) VALUES($1,$2,1,'match.updated')",
+        [crypto.randomUUID(), matchId],
+      );
       const [code] = await Promise.race([
         closed,
         new Promise<never>((_, reject) =>

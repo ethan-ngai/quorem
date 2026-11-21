@@ -14,7 +14,7 @@ import { capabilityRepository } from "../../adapters/postgres/access/repository.
 import type { ConnectionScope } from "@quorem/database/core";
 import { languageRuntime } from "@quorem/execution";
 import { createApp } from "../../app.ts";
-import type { ManagedPrincipal, LocalPrincipal, Principal } from "../../modules/identity/model.ts";
+import type { Principal } from "../../modules/identity/model.ts";
 import type { Coordinator } from "../../modules/events/scheduling/scheduling.ts";
 import type { ExecutionWakePublisher } from "../../modules/events/dispatch/ports.ts";
 import { guestRoutes } from "../../modules/identity/guest/routes.ts";
@@ -58,8 +58,9 @@ export interface HttpPorts {
   run: Run;
   submissionNotices?: FanoutSubscriber;
   identify: (request: Request) => Promise<Principal | undefined>;
+  identifyAccount?: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
-  managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>;
+  renewedCookies?: (request: Request) => readonly string[];
   guests: GuestIdentityReader & {
     endMatch(hash: string): Promise<boolean>;
     canBootstrap(hash: string): Promise<boolean>;
@@ -108,7 +109,6 @@ export function composeHttp(ports: HttpPorts) {
       admissionEnabled: ports.guestAdmission,
       trustedPeer: ports.trustedPeer,
       budget,
-      managed: ports.managed,
       guests: ports.guests,
     }),
   );
@@ -116,6 +116,7 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     identityRoutes({
       identify,
+      renewedCookies: ports.renewedCookies,
       guests: ports.guests,
       capabilities: {
         capabilities: (userId) => run((scope) => capabilityRepository(scope).capabilities(userId)),
@@ -171,6 +172,7 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     partyRoutes({
       identify,
+      identifyAccount: ports.identifyAccount,
       parties,
       allowedOrigins: ports.origins,
       admissionEnabled: ports.guestAdmission,

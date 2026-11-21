@@ -2,27 +2,19 @@
 import type { ConnectionScope } from "@quorem/database/core";
 import { ApplicationError } from "../../../application/error.ts";
 import {
-  authenticate,
   guestScopeId,
   IdentityError,
-  type IdentityBindings,
   type Principal,
   type SessionAuthority,
-  type TokenVerifier,
 } from "../../../modules/identity/model.ts";
-import { bearer } from "../../../modules/identity/credentials.ts";
 import { guestCookie, guestTokenHash } from "../../../modules/identity/guest/credentials.ts";
 import {
-  managedGrant,
   reauthorizeGrant,
   type GrantReaders,
   type ManagedGrant,
   type VerifiedGrant,
 } from "../../../modules/identity/grant.ts";
-import {
-  identityRepository,
-  verifiedIdentityReader,
-} from "../../../adapters/postgres/identity/repository.ts";
+import { verifiedIdentityReader } from "../../../adapters/postgres/identity/repository.ts";
 import { guestRepository } from "../../../adapters/postgres/identity/guest.ts";
 import { readInterviewAccess } from "../../../adapters/postgres/interviews/lifecycle/access.ts";
 import { capabilitiesInTransaction } from "../../../adapters/postgres/access/repository.ts";
@@ -40,26 +32,21 @@ import { matchSocketSnapshot } from "../../../modules/events/socket/match.ts";
 import type { Lifecycle } from "../../../modules/matches/lifecycle/model.ts";
 import type { SocketAuthority, StoredSocket } from "./durable.ts";
 import { socketTarget } from "./target.ts";
-import { supportsHibernation } from "./handshake.ts";
 type Run = <T>(f: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const missing = () => new ApplicationError("not_found", "Realtime resource unavailable", 404);
 /** Supply real verifier/session and 20b/19b domain owners from the Worker runtime. */
 export function postgresSocketAuthority(deps: {
   run: Run;
-  verifier: TokenVerifier;
   sessions: SessionAuthority;
+  maxLeaseSeconds?: number;
   matches: Lifecycle;
   parties?: Parties;
   afterPartyPresence?: (party: string) => Promise<void>;
-  socketSession?: (request: Request) => Promise<ManagedGrant | undefined>;
+  socketSession: (request: Request) => Promise<ManagedGrant | undefined>;
   beforeInterviewCommand?: () => Promise<void>;
   afterInterviewCommand?: () => Promise<void>;
 }): SocketAuthority {
-  const { run, verifier, sessions, matches } = deps;
-  const bindings: IdentityBindings = {
-    lookup: (claims) => run((scope) => identityRepository(scope).lookup(claims)),
-    resolve: (claims) => run((scope) => identityRepository(scope).resolve(claims)),
-  };
+  const { run, sessions, matches } = deps;
   const readers: GrantReaders = {
     sessions,
     managed: (grant) => run((scope) => verifiedIdentityReader(scope)(grant)),
@@ -95,26 +82,11 @@ export function postgresSocketAuthority(deps: {
       const target = socketTarget(new URL(request.url).pathname);
       if (target?.mode !== "direct") throw missing();
       const mode = target.stream;
-      const hibernating = !!deps.socketSession && supportsHibernation(request);
-      const token = bearer(request.headers);
-      const cookieGrant = hibernating ? await deps.socketSession?.(request) : undefined;
+      const cookieGrant = await deps.socketSession(request);
       let grant: VerifiedGrant, actor: Principal;
       if (cookieGrant) {
-        if (token !== undefined) {
-          const claims = await verifier.verify(token);
-          if (
-            claims.issuer !== cookieGrant.issuer ||
-            claims.subject !== cookieGrant.subject ||
-            claims.sessionId !== cookieGrant.sessionId
-          )
-            throw new IdentityError("unauthorized");
-        }
         grant = cookieGrant;
         actor = await reauthorizeGrant(grant, readers);
-      } else if (token !== undefined) {
-        const claims = await verifier.verify(token);
-        actor = await authenticate(token, { verify: async () => claims }, sessions, bindings);
-        grant = managedGrant(claims, actor.strongUntil);
       } else {
         const kind = mode === "interview" ? "interview" : "match";
         const credential = guestCookie(request.headers, kind);
@@ -136,12 +108,14 @@ export function postgresSocketAuthority(deps: {
         mode,
         resourceId: target.id,
         grant,
-        hibernating,
       };
-      if (hibernating)
-        record.grant.expiresAt = Math.min(grant.expiresAt, Math.floor(Date.now() / 1000) + 30 * 60);
+      if (deps.maxLeaseSeconds)
+        record.grant.expiresAt = Math.min(
+          grant.expiresAt,
+          Math.floor(Date.now() / 1000) + deps.maxLeaseSeconds,
+        );
       await authorize(record, actor);
-      const expiresAt = record.hibernating ? grant.expiresAt : undefined;
+      const expiresAt = grant.expiresAt;
       record.lease =
         mode === "interview"
           ? await presence.acquire(actor, target.id, expiresAt)
@@ -207,16 +181,6 @@ export function postgresSocketAuthority(deps: {
                   };
                 },
               },
-            }
-          : {}),
-        ...(record.lease && !record.hibernating
-          ? {
-              renew: (actor: Principal) =>
-                record.mode === "interview"
-                  ? presence.renew(actor, record.resourceId, record.lease!)
-                  : record.mode === "party"
-                    ? partyLeases.renew(actor, record.resourceId, record.lease!)
-                    : matchLeases.renew(actor, record.resourceId, record.lease!),
             }
           : {}),
       };

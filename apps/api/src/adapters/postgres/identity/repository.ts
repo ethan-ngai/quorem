@@ -3,7 +3,7 @@ import { product } from "@quorem/database/schema";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
   IdentityError,
-  type Claims,
+  type AccountIdentity,
   type IdentityBindings,
   type ManagedPrincipal,
   type LocalPrincipal,
@@ -13,7 +13,7 @@ const { users, identity_bindings: bindings } = product;
 const transactionOptions = { statementTimeoutMs: 3000, lockTimeoutMs: 1000 };
 async function read(
   tx: Transaction,
-  claims: Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt">,
+  claims: Pick<AccountIdentity, "issuer" | "subject" | "sessionId" | "expiresAt">,
 ) {
   const [row] = await tx
     .select({
@@ -113,7 +113,7 @@ export async function developmentIdentity(
 /** Read a previously verified binding without creating or updating an identity. */
 export function verifiedIdentityReader(scope: ConnectionScope) {
   return async (
-    claims: Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt">,
+    claims: Pick<AccountIdentity, "issuer" | "subject" | "sessionId" | "expiresAt">,
   ): Promise<ManagedPrincipal | null> =>
     scope.transaction(
       { ...transactionOptions, readOnly: true },

@@ -4,6 +4,7 @@ import io
 import json
 import pathlib
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('verify_auth', pathlib.Path(__file__).with_name('verify-production-auth.py'))
@@ -27,21 +28,19 @@ class AuthenticationProbeTests(unittest.TestCase):
                 self_test.assertEqual(request.get_header("User-agent"), "Quorem-Deployment-Probe/1.0")
                 calls.append(request)
                 route = request.full_url.removeprefix('https://quorem.test')
-                if route == '/api/auth/token':
-                    return Response(200, {'token': 'private-bearer'})
                 if route == '/v1/session':
-                    self_test.assertEqual(request.get_header('Authorization'), 'Bearer private-bearer')
+                    self_test.assertEqual(request.get_header('Cookie'), '__Secure-better-auth.session_token=private-session')
                     signed_out = any(item.full_url.endswith('/sign-out') for item in calls)
                     return Response(revoked_status if signed_out else api_status, {'user': {'id': 'fixture'}})
                 return Response(200, {})
 
         self_test = self
         try:
-            with patch.object(probe.urllib.request, 'build_opener', return_value=Opener()), contextlib.redirect_stdout(output):
+            with patch.object(probe.urllib.request, 'build_opener', return_value=Opener()), patch.object(probe.http.cookiejar, 'CookieJar', return_value=[SimpleNamespace(name='__Secure-better-auth.session_token', value='private-session')]), contextlib.redirect_stdout(output):
                 probe.verify('https://quorem.test', 'fixture-user', 'private-password')
         finally:
             self.assertNotIn('private-password', output.getvalue())
-            self.assertNotIn('private-bearer', output.getvalue())
+            self.assertNotIn('private-session', output.getvalue())
             self.assertEqual(sum(item.full_url.endswith('/sign-out') for item in calls), 1)
         return calls
 

@@ -2,11 +2,11 @@ import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import type { configuration } from "./config.ts";
-import { createAuthMiddleware, getSessionFromCtx, APIError } from "better-auth/api";
+import { createAuthEndpoint, createAuthMiddleware, getSessionFromCtx, APIError } from "better-auth/api";
 import { google, apple, github, cognito } from "better-auth/social-providers";
 import type { socialEmail } from "./social-email.ts";
 import { accountEmails } from "./emails/content.ts";
-import { jwt, username, lastLoginMethod } from "better-auth/plugins";
+import { username, lastLoginMethod } from "better-auth/plugins";
 import {
   emailSchema,
   usernameSchema,
@@ -22,11 +22,6 @@ export function createAuth(options: {
     subject: string,
     policy: { limit: number; seconds: number },
   ): Promise<{ allowed: boolean; retryAfter: number }>;
-  profile(
-    id: string,
-  ): Promise<
-    { profile_color: number; profile_color_revision: number | string | bigint } | undefined
-  >;
   recordAssurance(sessionId: string): Promise<void>;
   checkAssurance(
     sessionId: string,
@@ -339,6 +334,25 @@ export function createAuth(options: {
       ipAddress: { ipAddressHeaders: ["x-quorem-peer-ip"] },
     },
     plugins: [
+      {
+        id: "browser-session",
+        endpoints: {
+          signedBrowserSession: createAuthEndpoint.serverOnly(
+            { method: "GET", requireHeaders: true },
+            async (context) => {
+              const token = await context.getSignedCookie(
+                context.context.authCookies.sessionToken.name,
+                context.context.secret,
+              );
+              if (!token) return null;
+              return {
+                token,
+                updateAge: context.context.sessionConfig.updateAge,
+              };
+            },
+          ),
+        },
+      },
       lastLoginMethod({
         // Username login is supplied by a separate plugin; classify it with credentials.
         customResolveMethod: (ctx) => (ctx.path === "/sign-in/username" ? "email" : null),
@@ -375,34 +389,6 @@ export function createAuth(options: {
           ]
         : []),
       ...(config.method === "password" ? [username({ immutableUsername: false })] : []),
-      jwt({
-        jwks: {
-          keyPairConfig: { alg: "EdDSA", crv: "Ed25519" },
-          rotationInterval: 86400,
-          gracePeriod: 600,
-        },
-        jwt: {
-          issuer: config.origin,
-          audience: "quorem-api",
-          expirationTime: "5m",
-          definePayload: async ({ user, session }) => {
-            const profile = await options.profile(user.id);
-            const colorRevision = Number(profile?.profile_color_revision ?? 0);
-            if (!Number.isSafeInteger(colorRevision))
-              throw new Error("Profile revision exceeds safe integer range");
-            return {
-              color: profile?.profile_color ?? 0,
-              colorRevision,
-              emailVerified: user.emailVerified === true,
-              image: user.image?.startsWith("/api/auth/profile-photos/") ? user.image : "",
-              name:
-                user.name ||
-                ("username" in user && typeof user.username === "string" ? user.username : ""),
-              sessionId: session.id,
-            };
-          },
-        },
-      }),
     ],
   });
   const handler = service.handler;

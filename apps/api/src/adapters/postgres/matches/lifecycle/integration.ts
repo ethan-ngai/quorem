@@ -991,7 +991,7 @@ void test(
     const base = `ws://127.0.0.1:${(server.address() as { port: number }).port}`;
     const sockets: InstanceType<typeof WebSocket>[] = [];
     const connect = async (path: string) => {
-      const ws = new WebSocket(base + path, ["quorem"], {
+      const ws = new WebSocket(base + path, ["quorem-hibernate"], {
         headers: { origin: "https://example.test" },
       });
       sockets.push(ws);

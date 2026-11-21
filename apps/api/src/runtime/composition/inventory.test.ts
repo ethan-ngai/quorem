@@ -9,7 +9,6 @@ const ports: HttpPorts = {
   run: unavailable,
   submissionNotices: { subscribe: unavailable },
   identify: unavailable,
-  managed: unavailable,
   guests: { lookup: unavailable, endMatch: unavailable, canBootstrap: unavailable },
   origins: [],
   trustedPeer: () => undefined,

@@ -61,20 +61,7 @@ export async function hostedAcceptance(
   const token = env.EXECUTION_DRAIN_SECRET;
   if (!token || token.length < 32 || /\s/.test(token))
     throw new Error("Invalid staged drain credentials");
-  const headers = { origin: browser, "content-type": "application/json", authorization: "" };
-  async function refreshToken() {
-    const response = await send(`${api}/api/auth/token`, {
-      headers: { cookie: env.HONO_STAGE_SESSION_COOKIE, origin: browser },
-      redirect: "error",
-      signal: AbortSignal.timeout(30000),
-    });
-    if (response.status !== 200) throw new Error("Stage token exchange failed");
-    const bearer = (await json(response)).token;
-    if (typeof bearer !== "string" || !bearer || bearer.length > 16384 || /\s/.test(bearer))
-      throw new Error("Invalid stage bearer");
-    headers.authorization = `Bearer ${bearer}`;
-  }
-  await refreshToken();
+  const headers = { origin: browser, cookie: env.HONO_STAGE_SESSION_COOKIE, "content-type": "application/json" };
   const workspaceResponse = await send(`${api}/v1/workspaces`, {
     method: "POST",
     headers,
@@ -176,20 +163,11 @@ export async function hostedAcceptance(
       }
       await drained.body?.cancel();
     }
-    let response = await send(`${api}/v1/submissions/${submission}`, {
+    const response = await send(`${api}/v1/submissions/${submission}`, {
       headers,
       redirect: "error",
       signal: AbortSignal.timeout(30000),
     });
-    if (response.status === 401) {
-      await response.body?.cancel();
-      await refreshToken();
-      response = await send(`${api}/v1/submissions/${submission}`, {
-        headers,
-        redirect: "error",
-        signal: AbortSignal.timeout(30000),
-      });
-    }
     if (response.status !== 200) {
       const error = new Error("Stage result unavailable");
       error.status = response.status;

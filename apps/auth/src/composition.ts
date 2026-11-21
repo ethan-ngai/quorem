@@ -50,28 +50,45 @@ export function composeAuth(options: {
       emailFlow: socialEmail(repository, config.origin, socialSender),
       accountMail: mail ? accountMailer(mail) : undefined,
       rateLimit: (scope, subject, policy) => repository.rateLimit(scope, subject, policy),
-      profile: (id) => repository.profile(id),
       recordAssurance: (id) => repository.recordAssurance(id),
       checkAssurance: (id, subject) => repository.sessionAuthority(id, subject),
     });
   const auth = makeAuth();
   const cookieSession = {
     present: (request: Request) => Boolean(getSessionCookie(request)),
-    async read(headers: Headers) {
-      const current = await auth.api.getSession({ headers, query: { disableRefresh: true } });
-      if (!current || !current.user.emailVerified || current.session.userId !== current.user.id)
+    async read(headers: Headers, refresh: boolean) {
+      const signed = await auth.api.signedBrowserSession({ headers });
+      if (!signed) return;
+      const current = await repository.browserSession(signed.token);
+      if (!current) return;
+      const renewal =
+        refresh &&
+        signed.updateAge > 0 &&
+        current.updatedAt + signed.updateAge <= Math.floor(Date.now() / 1000)
+          ? await auth.api.getSession({ headers, returnHeaders: true })
+          : undefined;
+      if (
+        renewal &&
+        (!renewal.response?.user.emailVerified || renewal.response.session.id !== current.sessionId)
+      )
         return;
-      const profile = await repository.profile(current.user.id);
       return {
         issuer: config.origin,
-        subject: current.user.id,
-        sessionId: current.session.id,
-        expiresAt: Math.floor(new Date(current.session.expiresAt).getTime() / 1000),
+        subject: current.subject,
+        sessionId: current.sessionId,
+        expiresAt: renewal
+          ? Math.floor(new Date(renewal.response!.session.expiresAt).getTime() / 1000)
+          : current.expiresAt,
         emailVerified: true as const,
-        name: current.user.name,
-        image: current.user.image?.startsWith("/api/auth/profile-photos/") ? current.user.image : "",
-        color: profile?.profile_color ?? 0,
-        colorRevision: profile?.profile_color_revision ?? 0n,
+        name: current.name,
+        image:
+          current.image && /^\/api\/auth\/profile-photos\/[a-f0-9-]{36}$/.test(current.image)
+            ? current.image
+            : "",
+        color: current.color,
+        colorRevision: current.colorRevision,
+        strongAt: current.strongAt,
+        setCookies: renewal?.headers.getSetCookie() ?? [],
       };
     },
   };
