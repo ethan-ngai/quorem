@@ -22,7 +22,7 @@ Evidence: fresh/backfill/sealing/atomic rollback/role/revision tests on disposab
 
 ## Remaining release gates
 
-Actual Cognito callback, email verification/reset and Google federation require cloud evidence under #15. Local auth tests exercise the real Better Auth handler with fixture sessions, redirects, JWT/JWKS and logout. Publication validates metadata/cases; it does not automatically compile or judge newly authored reference/editorial sources. Administrators must verify those artifacts before public release. Public sandbox isolation/cloud deployment remains separately gated.
+Actual Cognito callback, email verification/reset and Google federation require cloud evidence under #15. Local auth tests exercise the real Better Auth handler with fixture sessions, redirects and logout. Publication validates metadata/cases; it does not automatically compile or judge newly authored reference/editorial sources. Administrators must verify those artifacts before public release. Public sandbox isolation/cloud deployment remains separately gated.
 
 ## Private libraries
 

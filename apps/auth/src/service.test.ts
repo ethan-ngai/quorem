@@ -4,7 +4,7 @@ import { migrateAuth } from "./migrations";
 import { describe, it, expect } from "vitest";
 const databaseURL = process.env.AUTH_TEST_DATABASE_URL;
 describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () => {
-  it("starts Cognito PKCE, mints verified application JWT, and revokes logout", async () => {
+  it("starts Cognito PKCE, reads the signed session and revokes it on logout", async () => {
     Object.assign(process.env, {
       APP_ENV: "local",
       AUTH_ORIGIN: "http://127.0.0.1:5174",
@@ -52,7 +52,7 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
       );
       await database.query('UPDATE "user" SET image=$2 WHERE id=$1', [
         id,
-        "/api/auth/profile-photos/example.webp",
+        "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
       ]);
       await database.query(
         'INSERT INTO "session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES($1,$2,$3,NOW()+interval \'1 hour\',NOW(),NOW())',
@@ -60,21 +60,23 @@ describe.skipIf(!databaseURL)("managed service with disposable PostgreSQL", () =
       );
       const signature = createHmac("sha256", config.secret).update(sessionToken).digest("base64");
       const cookie = `better-auth.session_token=${encodeURIComponent(`${sessionToken}.${signature}`)}`;
-      const response = await call("token", "GET", undefined, cookie);
-      expect(response.status).toBe(200);
-      const token = ((await response.json()) as { token: string }).token;
-      const payload = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64url").toString(),
-      ) as Record<string, unknown>;
-      expect(payload.sub).toBe(id);
-      expect(payload.sessionId).toBe(sessionId);
-      expect(payload.image).toBe("/api/auth/profile-photos/example.webp");
-      expect(payload.emailVerified).toBe(true);
-      expect(payload.aud).toBe("quorem-api");
-      expect(Number(payload.exp) - Number(payload.iat)).toBe(300);
-      expect((await call("jwks")).status).toBe(200);
+      const headers = new Headers({ cookie });
+      expect(await runtime.cookieSession.read(headers, false)).toMatchObject({
+        subject: id,
+        sessionId,
+        image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
+        emailVerified: true,
+      });
+      expect(
+        await runtime.cookieSession.read(new Headers({ cookie: cookie + "bad-signature" }), false),
+      ).toBeUndefined();
+      for (const path of ["token", "jwks"])
+        expect(
+          (await runtime.app.fetch(new Request(`${config.origin}/api/auth/${path}`, { headers })))
+            .status,
+        ).toBe(410);
       expect((await call("sign-out", "POST", {}, cookie)).status).toBe(200);
-      expect((await call("token", "GET", undefined, cookie)).status).toBe(401);
+      expect(await runtime.cookieSession.read(headers, false)).toBeUndefined();
       expect(
         (await database.query('SELECT 1 FROM "session" WHERE id=$1', [sessionId])).rowCount,
       ).toBe(0);

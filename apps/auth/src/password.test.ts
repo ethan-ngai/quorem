@@ -67,15 +67,9 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
         .getSetCookie()
         .map((value) => value.split(";")[0])
         .join("; ");
-      const tokenResponse = await call("token", "GET", undefined, cookie);
-      expect(tokenResponse.status).toBe(200);
-      const token = ((await tokenResponse.json()) as { token: string }).token;
-      const payload = JSON.parse(
-        Buffer.from(token.split(".")[1], "base64url").toString(),
-      ) as Record<string, unknown>;
-      expect(payload.sub).toBe(accounts[0].subject);
-      expect(payload.emailVerified).toBe(true);
-      expect(payload.aud).toBe("quorem-api");
+      const headers = new Headers({ cookie });
+      const session = await runtime.cookieSession.read(headers, false);
+      expect(session).toMatchObject({ subject: accounts[0].subject, emailVerified: true });
       expect(
         (
           await call("sign-up/email", "POST", {
@@ -87,9 +81,9 @@ describe.skipIf(!databaseURL)("local credential service with disposable PostgreS
         ).status,
       ).toBe(400);
       expect((await call("sign-out", "POST", {}, cookie)).status).toBe(200);
-      expect((await call("token", "GET", undefined, cookie)).status).toBe(401);
+      expect(await runtime.cookieSession.read(headers, false)).toBeUndefined();
       expect(
-        (await database.query('SELECT 1 FROM "session" WHERE id=$1', [payload.sessionId])).rowCount,
+        (await database.query('SELECT 1 FROM "session" WHERE id=$1', [session!.sessionId])).rowCount,
       ).toBe(0);
     } finally {
       if (product) {
