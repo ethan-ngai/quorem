@@ -5,7 +5,7 @@ class Socket {
   static instances: Socket[] = [];
   static OPEN = 1;
   readyState = Socket.OPEN;
-  protocol = "";
+  protocol = "quorem-hibernate";
   onopen?: () => void;
   onclose?: (event: CloseEvent) => void;
   onmessage?: (event: MessageEvent) => void;
@@ -54,7 +54,6 @@ it("keeps a hibernating socket alive without extra HTTP requests", async () => {
   connection.start();
   await Promise.resolve();
   const socket = Socket.instances[0]!;
-  socket.protocol = "quorem-hibernate";
   socket.onopen?.();
   socket.onmessage?.({ data: "quorem:pong" } as MessageEvent);
   await vi.advanceTimersByTimeAsync(360_000);
@@ -69,7 +68,7 @@ it("closes stalled handshakes, fences old frames, and clears the deadline on ope
   connection.start();
   await Promise.resolve();
   const old = Socket.instances[0]!;
-  expect(old.protocols).toEqual(["quorem", "quorem-hibernate"]);
+  expect(old.protocols).toEqual(["quorem-hibernate"]);
   await vi.advanceTimersByTimeAsync(2000);
   expect(onDisconnect).toHaveBeenCalledOnce();
   old.onopen?.();
@@ -110,10 +109,7 @@ it("replaces a silent established socket even when its close handshake never fin
   silent.close = vi.fn();
   await vi.advanceTimersByTimeAsync(20_000);
   silent.onmessage?.({
-    data: JSON.stringify({
-      receipt: "12345678-1234-4123-8123-123456789012",
-      payload: { type: "heartbeat" },
-    }),
+    data: "quorem:pong",
   } as MessageEvent);
   await vi.advanceTimersByTimeAsync(24_999);
   expect(disconnected).not.toHaveBeenCalled();
@@ -123,38 +119,16 @@ it("replaces a silent established socket even when its close handshake never fin
   connection.stop();
 });
 
-it("acknowledges heartbeats without forwarding them to domain event parsers", async () => {
-  const { connection, onMessage, onError, onDisconnect } = setup();
-  connection.start();
-  await Promise.resolve();
-  const socket = Socket.instances[0]!;
-  socket.onopen?.();
-  const receipt = "12345678-1234-4123-8123-123456789012";
-  socket.onmessage?.({
-    data: JSON.stringify({ receipt, payload: { type: "heartbeat" } }),
-  } as MessageEvent);
-  expect(socket.send).toHaveBeenLastCalledWith(JSON.stringify({ type: "receipt", id: receipt }));
-  expect(onMessage).not.toHaveBeenCalled();
-  expect(onError).not.toHaveBeenCalled();
-  expect(onDisconnect).not.toHaveBeenCalled();
-
-  const update = { type: "match.updated", aggregateVersion: "2" };
-  socket.onmessage?.({ data: JSON.stringify({ receipt, payload: update }) } as MessageEvent);
-  expect(onMessage).toHaveBeenCalledOnce();
-  expect(JSON.parse(onMessage.mock.calls[0]![0].data)).toEqual(update);
-  connection.stop();
-});
-
-it("rejects heartbeats without a valid receipt", async () => {
+it("rejects updates without a valid receipt", async () => {
   const { connection, onMessage, onDisconnect } = setup();
   connection.start();
   await Promise.resolve();
   const socket = Socket.instances[0]!;
   socket.onopen?.();
   socket.onmessage?.({
-    data: JSON.stringify({ receipt: "invalid", payload: { type: "heartbeat" } }),
+    data: JSON.stringify({ receipt: "invalid", payload: { type: "match.updated" } }),
   } as MessageEvent);
-  expect(socket.send).not.toHaveBeenCalled();
+  expect(socket.send).toHaveBeenCalledExactlyOnceWith("quorem:ping");
   expect(onMessage).not.toHaveBeenCalled();
   expect(onDisconnect).toHaveBeenCalledOnce();
   connection.stop();

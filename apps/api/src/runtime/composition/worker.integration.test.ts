@@ -70,7 +70,11 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     headers: { cookie },
   });
   expect(cookieSession.status).toBe(200);
-  expect(cookieSession.headers.getSetCookie().some((value) => value.startsWith("better-auth.session_token="))).toBe(true);
+  expect(
+    cookieSession.headers
+      .getSetCookie()
+      .some((value: string) => value.startsWith("better-auth.session_token=")),
+  ).toBe(true);
   expect(await cookieSession.json()).toMatchObject({ authSubject: user, kind: "account" });
   const crossSite = await SELF.fetch("http://127.0.0.1:8765/v1/parties", {
     method: "POST",

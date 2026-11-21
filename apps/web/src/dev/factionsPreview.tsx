@@ -58,7 +58,6 @@ window.fetch = async (url, options) => {
   const path = new URL(request.url).pathname;
   const reply = (value: unknown) =>
     new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
-  if (path === "/api/auth/token") return new Response("", { status: 401 });
   if (path === "/v1/session")
     return reply({
       mode: "development",
