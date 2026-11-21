@@ -4,6 +4,7 @@ class Socket {
   static OPEN = 1;
   static instances: Socket[] = [];
   readyState = 0;
+  protocol = "quorem-hibernate";
   bufferedAmount = 0;
   sent: string[] = [];
   onopen?: () => void;
@@ -17,7 +18,7 @@ class Socket {
     Socket.instances.push(this);
   }
   send(body: string) {
-    if (JSON.parse(body).type !== "receipt") this.sent.push(body);
+    if (body !== "quorem:ping" && JSON.parse(body).type !== "receipt") this.sent.push(body);
   }
   close() {
     this.readyState = 3;
@@ -55,7 +56,7 @@ describe("interview socket", () => {
     const socket = Socket.instances[0]!;
     socket.open();
     expect(String(socket.url)).toBe("ws://localhost:5180/v1/interviews/room/events");
-    expect(socket.protocols).toEqual(["quorem", "quorem-hibernate"]);
+    expect(socket.protocols).toEqual(["quorem-hibernate"]);
     const response = transport.request("pull", { version: 0 });
     const request = JSON.parse(socket.sent[0]!);
     socket.frame({ type: "response", id: request.id, value: { version: 1 } });
@@ -64,7 +65,7 @@ describe("interview socket", () => {
     expect(changed).toHaveBeenLastCalledWith("interview.document");
     for (let tick = 0; tick < 6; tick++) {
       await vi.advanceTimersByTimeAsync(10_000);
-      socket.frame({ type: "heartbeat" });
+      socket.onmessage?.({ data: "quorem:pong" });
     }
     expect(changed).toHaveBeenCalledTimes(2);
     expect(Socket.instances).toHaveLength(1);

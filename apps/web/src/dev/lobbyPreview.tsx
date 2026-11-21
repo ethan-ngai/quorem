@@ -89,7 +89,6 @@ window.fetch = async (url, options) => {
     await new Promise((resolve) => setTimeout(resolve, 1000));
   const reply = (value: unknown) =>
     new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
-  if (path === "/api/auth/token") return new Response("", { status: 401 });
   if (guestJoin) {
     if (path === `/v1/parties/invitations/${party.id}`)
       return reply({

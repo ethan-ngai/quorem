@@ -37,7 +37,7 @@ export function createReconnectingSocket(options: SocketOptions) {
     options.onConnecting?.();
     const valid = () => !stopped && started === generation;
     try {
-      const current = new WebSocket(options.url(), ["quorem", "quorem-hibernate"]);
+      const current = new WebSocket(options.url(), ["quorem-hibernate"]);
       socket = current;
       const owns = () => valid() && socket === current;
       // Browser close handshakes can stall on broken networks; detach before reconnecting.
@@ -57,7 +57,7 @@ export function createReconnectingSocket(options: SocketOptions) {
         clearTimeout(idleTimer);
         if (options.idleTimeout)
           idleTimer = setTimeout(() => {
-            if (current.protocol === "quorem-hibernate" && globalThis.document?.hidden) renewIdle();
+            if (globalThis.document?.hidden) renewIdle();
             else disconnect();
           }, options.idleTimeout);
       };
@@ -69,19 +69,21 @@ export function createReconnectingSocket(options: SocketOptions) {
         clearTimeout(timer);
         reconnect.reset();
         renewIdle();
-        if (current.protocol === "quorem-hibernate") {
-          const ping = () => {
-            if (owns() && current.readyState === WebSocket.OPEN) current.send("quorem:ping");
-          };
-          ping();
-          pingTimer = setInterval(ping, 10_000);
+        if (current.protocol !== "quorem-hibernate") {
+          disconnect();
+          return;
         }
+        const ping = () => {
+          if (owns() && current.readyState === WebSocket.OPEN) current.send("quorem:ping");
+        };
+        ping();
+        pingTimer = setInterval(ping, 10_000);
         options.onOpen();
       };
       current.onmessage = (event) => {
         if (owns()) {
           renewIdle();
-          if (current.protocol === "quorem-hibernate" && event.data === "quorem:pong") return;
+          if (event.data === "quorem:pong") return;
           try {
             if (typeof event.data !== "string") throw new Error("Invalid socket frame");
             const frame: unknown = JSON.parse(event.data);
@@ -95,16 +97,9 @@ export function createReconnectingSocket(options: SocketOptions) {
             )
               throw new Error("Invalid socket receipt");
             current.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
-            // Keepalives belong to the transport, not domain event parsers.
-            const payload = envelope.payload;
-            if (
-              payload &&
-              typeof payload === "object" &&
-              !Array.isArray(payload) &&
-              (payload as { type?: unknown }).type === "heartbeat"
-            )
-              return;
-            options.onMessage(new MessageEvent("message", { data: JSON.stringify(payload) }));
+            options.onMessage(
+              new MessageEvent("message", { data: JSON.stringify(envelope.payload) }),
+            );
           } catch {
             current.close(1002, "Invalid socket frame");
           }
