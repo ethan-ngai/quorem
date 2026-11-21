@@ -21,15 +21,14 @@ void test(
     if (!database || !socket) throw new Error("Fixture database and Docker socket required");
     const fixture = await startBrowserFixture(database, socket);
     const origin = fixture.webOrigin;
-    type Actor = { bearer?: string; cookie?: string };
-    const alice: Actor = { bearer: fixture.bearers.alice };
-    const bob: Actor = { bearer: fixture.bearers.bob };
+    type Actor = { cookie?: string };
+    const alice: Actor = { cookie: fixture.cookies.alice };
+    const bob: Actor = { cookie: fixture.cookies.bob };
     async function response(path: string, actor: Actor, body?: unknown, method = "POST") {
       return fetch(origin + path, {
         method,
         headers: {
           origin,
-          ...(actor.bearer ? { authorization: `Bearer ${actor.bearer}` } : {}),
           ...(actor.cookie ? { cookie: actor.cookie } : {}),
           ...(body === undefined ? {} : { "content-type": "application/json" }),
           "idempotency-key": randomUUID(),

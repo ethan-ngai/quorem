@@ -7,7 +7,6 @@ import { createNodePool, withNodeConnection, type ConnectionScope } from "@quore
 import { createNodeRuntime } from "@quorem/auth/node";
 import { authPeerRequest, validPeer } from "@quorem/auth/peer";
 import { IdentityError, type SessionAuthority } from "../modules/identity/model.ts";
-import { jwtVerifier } from "../adapters/identity/jwt.ts";
 import { nodeLocalIdentity } from "../adapters/identity/node-local.ts";
 import { developmentIdentity } from "../adapters/postgres/identity/repository.ts";
 import { sqsQueue } from "../adapters/delivery/sqs.ts";
@@ -76,13 +75,6 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       <T>(fn: (scope: ConnectionScope) => Promise<T>) =>
         withNodeConnection(pool, { lifetimeMs: 30000, signal }, fn);
     const run = runWith();
-    const origin = auth.config.origin;
-    const verifier = jwtVerifier({
-      issuer: origin,
-      audience: "quorem-api",
-      jwksURL: new URL("/api/auth/jwks", origin).href,
-      fetch: async (input, init) => auth.app.fetch(new Request(input, init)),
-    });
     const sessions: SessionAuthority = {
       async check(id, subject) {
         try {
@@ -245,7 +237,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const streamBudget = requestBudget(limit);
     const build = (signal?: AbortSignal, peer?: string) => {
       const db = runWith(signal),
-        identity = composeIdentity(db, verifier, sessions, allowed, auth.cookieSession);
+        identity = composeIdentity(db, allowed, auth.cookieSession);
       const identify =
         identityMode === "local"
           ? async (request: Request) =>
@@ -262,7 +254,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         trustedPeer: () => peer,
       });
       composed.app.route("/", auth.app);
-      return { ...composed, run: db };
+      return { ...composed, run: db, socketSession: identity.socketSession };
     };
     const server = serve({
       hostname: host,
@@ -313,7 +305,9 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     const setup = build();
     const authority = postgresSocketAuthority({
       run,
-      verifier,
+      socketSession: setup.socketSession,
+      // A stopped Node process can't release its leases.
+      maxLeaseSeconds: 30 * 60,
       sessions,
       matches: setup.matches,
       parties: setup.parties,

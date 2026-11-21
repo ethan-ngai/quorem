@@ -332,7 +332,7 @@ export async function startBrowserFixture(database: string, socket: string) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     if (!ready) throw new Error("Browser fixture frontend unavailable");
-    const bearers: Record<string, string> = {};
+    const cookies: Record<string, string> = {};
     for (const username of ["alice", "bob"]) {
       const signedIn = await fetch(`${webOrigin}/api/auth/sign-in/username`, {
         method: "POST",
@@ -346,19 +346,12 @@ export async function startBrowserFixture(database: string, socket: string) {
         .map((value) => value.split(";", 1)[0])
         .join("; ");
       if (!cookie) throw new Error("Fixture session unavailable");
-      const issued = await fetch(`${webOrigin}/api/auth/token`, {
+      const session = await fetch(`${webOrigin}/v1/session`, {
         headers: { cookie, origin: webOrigin },
         signal: AbortSignal.timeout(5000),
       });
-      if (!issued.ok) throw new Error("Fixture bearer unavailable");
-      const token = ((await issued.json()) as { token?: string }).token;
-      if (!token) throw new Error("Fixture bearer unavailable");
-      const session = await fetch(`${webOrigin}/v1/session`, {
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(5000),
-      });
       if (!session.ok) throw new Error("Fixture session unavailable");
-      bearers[username] = token;
+      cookies[username] = cookie;
     }
     if (
       [runner, verifier, vite].some(
@@ -376,7 +369,7 @@ export async function startBrowserFixture(database: string, socket: string) {
       apiOrigin,
       webOrigin,
       credentialsFile: join(temp, "credentials.json"),
-      bearers,
+      cookies,
       close: finish,
       failure,
     };

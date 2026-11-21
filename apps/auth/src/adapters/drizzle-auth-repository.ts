@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@quorem/database/schema";
 import type { ConnectionScope } from "@quorem/database/core";
 import type { AuthRepository } from "../auth-repository.ts";
@@ -44,22 +44,42 @@ export function drizzleAuthRepository(run: RunScope): AuthRepository {
         }),
       );
     },
-    profile(id) {
+    browserSession(token) {
       return run((connection) =>
-        connection.transaction(
-          { ...options, readOnly: true },
-          async (tx) =>
-            (
-              await tx
-                .select({
-                  profile_color: user.profile_color,
-                  profile_color_revision: user.profile_color_revision,
-                })
-                .from(user)
-                .where(sql`${user.id}=${id}`)
-                .limit(1)
-            )[0],
-        ),
+        connection.transaction({ ...options, readOnly: true }, async (tx) => {
+          const [row] = await tx
+            .select({
+              sessionId: session.id,
+              subject: user.id,
+              expiresAt: session.expiresAt,
+              updatedAt: session.updatedAt,
+              name: user.name,
+              image: user.image,
+              color: user.profile_color,
+              colorRevision: user.profile_color_revision,
+              strongAt: assurance.strong_at,
+            })
+            .from(session)
+            .innerJoin(user, eq(user.id, session.userId))
+            .leftJoin(assurance, eq(assurance.session_id, session.id))
+            .where(
+              and(
+                eq(session.token, token),
+                eq(user.emailVerified, true),
+                sql`${session.expiresAt} > clock_timestamp()`,
+              ),
+            )
+            .limit(1);
+          if (!row) return;
+          return {
+            ...row,
+            expiresAt: Math.floor(new Date(row.expiresAt).getTime() / 1000),
+            updatedAt: Math.floor(new Date(row.updatedAt).getTime() / 1000),
+            strongAt: row.strongAt
+              ? Math.floor(new Date(row.strongAt).getTime() / 1000)
+              : undefined,
+          };
+        }),
       );
     },
     recordAssurance(id) {

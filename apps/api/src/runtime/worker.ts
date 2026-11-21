@@ -5,14 +5,12 @@ import { judgingCapacity, CASE_LANES, JUDGING_DEFAULTS } from "@quorem/execution
 import { DurableObject } from "cloudflare:workers";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
 import { sql } from "drizzle-orm";
-import { workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
+import { retiredAccountRoute, workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
 import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
 import {
   IdentityError,
   type SessionAuthority,
-  type TokenVerifier,
 } from "../modules/identity/model.ts";
-import { jwtVerifier } from "../adapters/identity/jwt.ts";
 import { failureSummary } from "../application/error.ts";
 import {
   cloudflareBinding,
@@ -207,34 +205,8 @@ function admissionWake(env: Env, deferred: boolean): ReturnType<typeof wake> {
   };
 }
 
-let verifierCache: { origin: string; database: string; verifier: TokenVerifier } | undefined;
 function makeSecurity(env: Env, signal?: AbortSignal, run?: ReturnType<typeof runFor>) {
-  const auth = workerRuntime(env, signal, undefined, run ?? runFor(env, signal, 15000)),
-    origin = required(env.AUTH_ORIGIN);
-  if (
-    !verifierCache ||
-    verifierCache.origin !== origin ||
-    verifierCache.database !== env.DB.connectionString
-  ) {
-    verifierCache = {
-      origin,
-      database: env.DB.connectionString,
-      verifier: jwtVerifier({
-        issuer: origin,
-        audience: "quorem-api",
-        jwksURL: new URL("/api/auth/jwks", origin).href,
-        // Internal key discovery must not consume the public endpoint's shared IP budget.
-        fetch: async (_input, init) =>
-          workerRuntime(
-            env,
-            init?.signal ?? undefined,
-            undefined,
-            runFor(env, init?.signal ?? undefined, 15000),
-          ).auth.api.getJwks({ asResponse: true }),
-      }),
-    };
-  }
-  const verifier = verifierCache.verifier;
+  const auth = workerRuntime(env, signal, undefined, run ?? runFor(env, signal, 15000));
   const sessions: SessionAuthority = {
     async check(id, subject) {
       try {
@@ -247,7 +219,7 @@ function makeSecurity(env: Env, signal?: AbortSignal, run?: ReturnType<typeof ru
       }
     },
   };
-  return { auth, verifier, sessions };
+  return { auth, sessions };
 }
 function makeHttp(
   env: Env,
@@ -259,7 +231,7 @@ function makeHttp(
   const run = connection ?? runFor(env, request.signal),
     security = makeSecurity(env, request.signal, connection),
     allowed = origins(env);
-  const identity = composeIdentity(run, security.verifier, security.sessions, allowed, security.auth.cookieSession);
+  const identity = composeIdentity(run, allowed, security.auth.cookieSession);
   const result = composeHttp({
     run,
     ...identity,
@@ -290,7 +262,7 @@ function socketAuthority(env: Env) {
   const run = runFor(env),
     security = makeSecurity(env),
     allowed = origins(env);
-  const identity = composeIdentity(run, security.verifier, security.sessions, allowed, security.auth.cookieSession);
+  const identity = composeIdentity(run, allowed, security.auth.cookieSession);
   const composed = composeHttp({
     run,
     ...identity,
@@ -308,7 +280,6 @@ function socketAuthority(env: Env) {
   });
   return postgresSocketAuthority({
     run,
-    verifier: security.verifier,
     sessions: security.sessions,
     matches: composed.matches,
     parties: composed.parties,
@@ -317,21 +288,7 @@ function socketAuthority(env: Env) {
       await cloudflareCoordinator(env.DEADLINES).wake(shard);
       if (env.APP_ENV === "production") await scheduleMaintenance(env);
     },
-    async socketSession(request) {
-      const issuer = required(env.AUTH_ORIGIN);
-      if (request.headers.get("origin") !== issuer || !request.headers.has("cookie")) return;
-      const current = await security.auth.auth.api.getSession({ headers: request.headers });
-      if (!current || !current.user.emailVerified || current.session.userId !== current.user.id)
-        return;
-      return {
-        kind: "managed",
-        issuer,
-        subject: current.user.id,
-        sessionId: current.session.id,
-        expiresAt: Math.floor(new Date(current.session.expiresAt).getTime() / 1000),
-        strongUntil: 0,
-      };
-    },
+    socketSession: identity.socketSession,
     beforeInterviewCommand:
       env.APP_ENV === "production" ? () => scheduleMaintenance(env) : undefined,
     afterInterviewCommand: async () => {
@@ -525,7 +482,6 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
 let budget: ReturnType<typeof requestBudget> | undefined;
 let streamBudget: ReturnType<typeof requestBudget> | undefined;
 let privateBudget: ReturnType<typeof requestBudget> | undefined;
-const retiredPresence = "__Secure-quorem-retired-presence=1";
 const runtime = {
   async fetch(
     request: Request,
@@ -546,24 +502,10 @@ const runtime = {
     try {
       const path = new URL(request.url).pathname,
         target = socketTarget(path);
-      if (env.APP_ENV === "production" && path === "/v1/presence/heartbeat") {
-        const headers = new Headers({ "cache-control": "no-store" });
-        if (request.method === "POST" && request.headers.get("origin") === env.AUTH_ORIGIN)
-          headers.set(
-            "set-cookie",
-            `${retiredPresence}; Max-Age=90; Path=/api/auth/token; Secure; HttpOnly; SameSite=Strict`,
-          );
-        return new Response(null, { status: 410, headers });
-      }
-      if (env.APP_ENV === "production" && request.method === "GET" && path === "/api/auth/token") {
-        const cookies = request.headers.get("cookie");
-        // An obsolete tab can keep minting tokens even when its presence request is rejected.
-        const obsolete =
-          request.headers.get("x-quorem-auth-client") !== "room-sockets" &&
-          cookies?.split(";").some((cookie) => cookie.trim() === retiredPresence);
-        if (!cookies || obsolete)
-          return new Response(null, { status: 401, headers: { "cache-control": "no-store" } });
-      }
+      const retiredAuth = retiredAccountRoute(path);
+      if (retiredAuth) return retiredAuth;
+      if (env.APP_ENV === "production" && path === "/v1/presence/heartbeat")
+        return new Response(null, { status: 410, headers: { "cache-control": "no-store" } });
       if (target && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
         const response = await routeSocket(env, request, target);
         if (target.stream === "party" && response.status === 101) await publish(["party"]);

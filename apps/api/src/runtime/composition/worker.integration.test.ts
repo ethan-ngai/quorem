@@ -8,7 +8,11 @@ import worker, { type Env } from "../worker.ts";
 import { assertRuntimeTestDatabase } from "./test-database.ts";
 
 it("rejects obsolete production presence pings without a database binding", async () => {
-  const production = { APP_ENV: "production", AUTH_ORIGIN: "https://quorem.app" } as unknown as Env;
+  const production = {
+    APP_ENV: "production",
+    AUTH_ORIGIN: "https://quorem.app",
+    ALLOWED_ORIGINS: "https://quorem.app",
+  } as unknown as Env;
   const response = await worker.fetch(
     new Request("https://quorem.app/v1/presence/heartbeat", {
       method: "POST",
@@ -17,14 +21,17 @@ it("rejects obsolete production presence pings without a database binding", asyn
     production,
   );
   expect(response.status).toBe(410);
-  const marker = response.headers.get("set-cookie")?.split(";")[0];
-  expect(marker).toBe("__Secure-quorem-retired-presence=1");
-  for (const headers of [undefined, { cookie: marker! }]) {
-    const token = await worker.fetch(
-      new Request("https://quorem.app/api/auth/token", { headers }),
-      production,
-    );
-    expect(token.status).toBe(401);
+  const oldSocket = await worker.fetch(
+    new Request(`https://quorem.app/v1/parties/${crypto.randomUUID()}/events`, {
+      headers: { origin: "https://quorem.app", upgrade: "websocket", "sec-websocket-protocol": "quorem" },
+    }),
+    production,
+  );
+  expect(oldSocket.status).toBe(400);
+  const headers = { cookie: "unrelated=value", "x-quorem-auth-client": "room-sockets" };
+  for (const path of ["/api/auth/token", "/api/auth/jwks"]) {
+    const token = await worker.fetch(new Request(`https://quorem.app${path}`, { headers }), production);
+    expect(token.status).toBe(410);
   }
 });
 
@@ -44,7 +51,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
         sql`INSERT INTO quorem_auth."user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(${user},${user},${user + "@example.test"},true,NOW(),NOW())`,
       );
       await tx.execute(
-        sql`INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES(${session},${token},${user},NOW()+interval '1 hour',NOW(),NOW())`,
+        sql`INSERT INTO quorem_auth."session"(id,token,"userId","expiresAt","createdAt","updatedAt") VALUES(${session},${token},${user},NOW()+interval '1 hour',NOW()-interval '2 days',NOW()-interval '2 days')`,
       );
     }),
   );
@@ -63,6 +70,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     headers: { cookie },
   });
   expect(cookieSession.status).toBe(200);
+  expect(cookieSession.headers.getSetCookie().some((value) => value.startsWith("better-auth.session_token="))).toBe(true);
   expect(await cookieSession.json()).toMatchObject({ authSubject: user, kind: "account" });
   const crossSite = await SELF.fetch("http://127.0.0.1:8765/v1/parties", {
     method: "POST",
@@ -75,23 +83,18 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   });
   expect(health.status).toBe(200);
   expect(health.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:5173");
-  const auth = await SELF.fetch("http://127.0.0.1:8765/api/auth/token", {
-    headers: { cookie, origin: "http://127.0.0.1:5173" },
-  });
-  expect(auth.status).toBe(200);
-  const bearer = ((await auth.json()) as { token: string }).token;
   const catalog = await SELF.fetch("http://127.0.0.1:8765/v1/problems");
   expect(catalog.status).toBe(200);
   for (let i = 0; i < 20; i++) {
     const authorized = await SELF.fetch("http://127.0.0.1:8765/v1/problems", {
-      headers: { authorization: `Bearer ${bearer}` },
+      headers: { cookie, origin: "http://127.0.0.1:5173" },
     });
     expect(authorized.status).toBe(200);
     await authorized.body?.cancel();
   }
   const workspace = await SELF.fetch("http://127.0.0.1:8765/v1/workspaces", {
     method: "POST",
-    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+    headers: { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" },
     body: JSON.stringify({
       problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
       language: "python",
@@ -107,7 +110,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     ),
   );
   const headers = {
-    authorization: `Bearer ${bearer}`,
+    cookie, origin: "http://127.0.0.1:5173",
     "content-type": "application/json",
     "idempotency-key": "worker-runtime-room",
   };
@@ -122,7 +125,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   expect(created.status, await created.clone().text()).toBe(201);
   const room = ((await created.json()) as { id: string }).id;
   const snapshot = await SELF.fetch(`http://127.0.0.1:8765/v1/interviews/${room}`, {
-    headers: { authorization: `Bearer ${bearer}` },
+    headers: { cookie, origin: "http://127.0.0.1:5173" },
   });
   expect(snapshot.status).toBe(200);
   const value = (await snapshot.json()) as { document: { epoch: string; source: string } };
@@ -140,7 +143,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     headers: {
       upgrade: "websocket",
       origin: "http://127.0.0.1:5173",
-      "sec-websocket-protocol": `quorem,bearer.${bearer}`,
+      "sec-websocket-protocol": "quorem-hibernate", cookie,
     },
   });
   expect(interviewUpgrade.status).toBe(101);
@@ -178,7 +181,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
         headers: {
           upgrade: "websocket",
           origin: "http://127.0.0.1:5173",
-          "sec-websocket-protocol": `quorem,bearer.${bearer}`,
+          "sec-websocket-protocol": "quorem-hibernate", cookie,
           "x-quorem-socket-scope": crypto.randomUUID(),
         },
       }),
@@ -189,7 +192,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       upgrade: "websocket",
       origin: "http://127.0.0.1:8765",
       cookie,
-      "sec-websocket-protocol": "quorem,quorem-hibernate",
+      "sec-websocket-protocol": "quorem-hibernate",
     },
   });
   expect(hibernating.status).toBe(101);
@@ -239,7 +242,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       upgrade: "websocket",
       origin: "http://127.0.0.1:8765",
       cookie,
-      "sec-websocket-protocol": "quorem,quorem-hibernate",
+      "sec-websocket-protocol": "quorem-hibernate",
     },
   });
   expect(partyUpgrade.status).toBe(101);
@@ -294,7 +297,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
       headers: {
         upgrade: "websocket",
         origin: "http://127.0.0.1:5173",
-        "sec-websocket-protocol": `quorem,bearer.${bearer}`,
+        "sec-websocket-protocol": "quorem-hibernate", cookie,
         "x-quorem-socket-scope": crypto.randomUUID(),
       },
     },
@@ -330,7 +333,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   peer.accept();
   await peerReady;
   const updated = await SELF.fetch(`http://127.0.0.1:8765/v1/interviews/${room}/document`, {
-    headers: { authorization: `Bearer ${bearer}` },
+    headers: { cookie, origin: "http://127.0.0.1:5173" },
   });
   const document = (await updated.json()) as { epoch: string; version: number; source: string };
   interviewSocket.send(
@@ -435,7 +438,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
     const resumed = new Promise<void>((resolve) =>
       interviewSocket.addEventListener("message", () => resolve(), { once: true }),
     );
-    expect(await runDurableObjectAlarm(interviewStub)).toBe(true);
+    interviewSocket.send(JSON.stringify({ id: "evicted-peers", type: "peers" }));
     await resumed;
   }
   interviewSocket.close();
@@ -606,7 +609,7 @@ it("runs native auth, catalog, workspace and durable socket through composition"
   expect((await SELF.fetch(eventsUrl, { headers })).status).toBe(401);
   const revoked = await SELF.fetch("http://127.0.0.1:8765/v1/workspaces", {
     method: "POST",
-    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+    headers: { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" },
     body: JSON.stringify({
       problemVersionId: "e91ec728-4597-5dfb-9d19-7c4ba17138b7",
       language: "python",

@@ -3,7 +3,6 @@ import {
   env,
   SELF,
   runDurableObjectAlarm,
-  evictDurableObject,
   runInDurableObject,
 } from "cloudflare:test";
 import { expect, it } from "vitest";
@@ -63,7 +62,8 @@ it.skipIf(!database)(
           headers: {
             upgrade: "websocket",
             origin: "https://example.test",
-            "sec-websocket-protocol": `quorem,bearer.${token}`,
+            "sec-websocket-protocol": "quorem-hibernate",
+            "x-fixture-session": token,
           },
         },
       );
@@ -189,17 +189,8 @@ it.skipIf(!database)(
         );
       }),
     );
-    const namespace = (
-      env as unknown as {
-        SOCKET: {
-          idFromName(name: string): unknown;
-          get(id: unknown): Parameters<typeof runDurableObjectAlarm>[0];
-        };
-      }
-    ).SOCKET;
-    await Promise.all(
-      shards.map((shard) => runDurableObjectAlarm(namespace.get(namespace.idFromName(shard)))),
-    );
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    for (const socket of sockets) socket.send(JSON.stringify({ id: "revoked", type: "peers" }));
     expect(await Promise.all(closed)).toEqual([1008, 1008, 1008, 1008]);
     for (let attempt = 0; attempt < 100; attempt++) {
       const n = await run((scope) =>
@@ -260,7 +251,8 @@ it.skipIf(!database)(
         headers: {
           upgrade: "websocket",
           origin,
-          "sec-websocket-protocol": `quorem,bearer.${token}`,
+          "sec-websocket-protocol": "quorem-hibernate",
+            "x-fixture-session": token,
         },
       });
     expect((await connect(id, good, "https://evil.test")).status).toBe(403);
@@ -323,7 +315,7 @@ it.skipIf(!database)(
         headers: {
           upgrade: "websocket",
           origin: "https://example.test",
-          "sec-websocket-protocol": "quorem",
+          "sec-websocket-protocol": "quorem-hibernate",
           cookie: `quorem_guest=${token}`,
         },
       });
@@ -385,7 +377,7 @@ it.skipIf(!database)("rehydrates guest scope and closes after guest revocation",
       headers: {
         upgrade: "websocket",
         origin: "https://example.test",
-        "sec-websocket-protocol": "quorem",
+        "sec-websocket-protocol": "quorem-hibernate",
         cookie: `quorem_interview_guest=${token}`,
       },
     },
@@ -408,14 +400,7 @@ it.skipIf(!database)("rehydrates guest scope and closes after guest revocation",
       );
     }),
   );
-  const namespace = (
-    env as unknown as {
-      SOCKET: {
-        idFromName(name: string): unknown;
-        get(id: unknown): Parameters<typeof runDurableObjectAlarm>[0];
-      };
-    }
-  ).SOCKET;
-  await runDurableObjectAlarm(namespace.get(namespace.idFromName(shard)));
+  await new Promise((resolve) => setTimeout(resolve, 2100));
+  socket.send(JSON.stringify({ id: "revoked", type: "peers" }));
   expect(await closed).toBe(1008);
 });

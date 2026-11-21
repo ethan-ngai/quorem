@@ -84,7 +84,7 @@ void test(
   },
 );
 void test(
-  "fixture cookie authorizes Node and workerd, and revocation invalidates its bearer",
+  "fixture cookie authorizes Node and workerd, and revocation invalidates the session",
   { skip: !url, timeout: 120000 },
   async () => {
     assertStageDatabase(url!, "local-test");
@@ -240,22 +240,16 @@ void test(
         await sleep(100);
       }
       assert.equal(ready, true);
-      const bearers: string[] = [];
+      const cookie = actor.sessionCookie;
       for (const base of [nodeBase, origin]) {
-        const token: Response = await fetch(`${base}/api/auth/token`, {
-          headers: { cookie: actor.sessionCookie, origin: "http://127.0.0.1:5173" },
-        });
-        assert.equal(token.status, 200);
-        const bearer = ((await token.json()) as { token: string }).token;
-        bearers.push(bearer);
         const identity = await fetch(`${base}/v1/session`, {
-          headers: { authorization: `Bearer ${bearer}` },
+          headers: { cookie, origin: "http://127.0.0.1:5173" },
         });
         assert.equal(identity.status, 200);
         assert.equal(((await identity.json()) as { user: { role: string } }).user.role, "user");
         const workspace: Response = await fetch(`${base}/v1/workspaces`, {
           method: "POST",
-          headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json" },
+          headers: { cookie, origin: "http://127.0.0.1:5173", "content-type": "application/json" },
           body: JSON.stringify({
             problemVersionId: actor.problemVersionId,
             language: actor.language,
@@ -267,11 +261,11 @@ void test(
       await actor.dispose();
       actor = undefined;
       await sleep(3000);
-      for (const [i, base] of [nodeBase, origin].entries())
+      for (const base of [nodeBase, origin])
         assert.equal(
           (
             await fetch(`${base}/v1/session`, {
-              headers: { authorization: `Bearer ${bearers[i]}` },
+              headers: { cookie },
             })
           ).status,
           401,

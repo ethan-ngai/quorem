@@ -14,7 +14,6 @@ const env = {
 };
 function fixture({
   failAdmission = false,
-  badToken = false,
   badFrame = false,
   lostNotice = false,
   leaveFailures = 0,
@@ -34,7 +33,7 @@ function fixture({
     constructor(url, protocols, options) {
       super();
       assert.match(url, /^wss:/);
-      assert.equal(protocols[0], "quorem");
+      assert.equal(protocols[0], "quorem-hibernate");
       assert.equal(options.origin, env.HONO_STAGE_BROWSER_ORIGIN);
       queueMicrotask(() => {
         this.readyState = 1;
@@ -85,8 +84,7 @@ function fixture({
     },
     fetch: async (url, init) => {
       const path = new URL(url).pathname;
-      if (path === "/api/auth/token")
-        return Response.json({ token: badToken ? "bad token" : `fixture-token-${++requests}` });
+      assert.match(init.headers.cookie, /^cookie-[12]$/);
       if (path === "/v1/parties")
         return Response.json({ party: { id: room }, inviteUrl: "/invite/example" }, { status: 201 });
       if (path === `/v1/matches/${room}`)
@@ -126,7 +124,7 @@ function fixture({
         return Response.json({});
       if (path === `/v1/parties/${room}/leave`) {
         leaves.push({
-          actor: init.headers.authorization,
+          actor: init.headers.cookie,
           key: init.headers["idempotency-key"],
         });
         if (leaves.length <= leaveFailures) return new Response(null, { status: 503 });
@@ -178,12 +176,10 @@ void test("partial admission failure still closes sockets and revokes sessions",
   assert.equal(f.state().closed, 2);
 });
 
-void test("rejects whitespace tokens and malformed socket frames", async () => {
-  for (const options of [{ badToken: true }, { badFrame: true }]) {
-    const f = fixture(options);
-    await assert.rejects(runStageWorkload(env, f.deps));
-    assert.equal(f.state().disposed, f.state().actors);
-  }
+void test("rejects malformed socket frames", async () => {
+  const f = fixture({ badFrame: true });
+  await assert.rejects(runStageWorkload(env, f.deps));
+  assert.equal(f.state().disposed, f.state().actors);
 });
 
 void test("lost result notice reconnects and refreshes snapshot without polling", async () => {

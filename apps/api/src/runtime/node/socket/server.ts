@@ -5,6 +5,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { frameText } from "../../../adapters/events/fanout/common.ts";
 import { SocketSession } from "../../../modules/events/socket/session.ts";
 import { mapIdentityError } from "../../../modules/identity/routes.ts";
+import { hibernatingProtocol, socketHandshake } from "../../worker/socket/handshake.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import type { SocketTransport } from "../../../modules/events/socket/ports.ts";
 type SessionOptions = Omit<ConstructorParameters<typeof SocketSession>[0], "transport"> & {
@@ -70,7 +71,7 @@ export function installNodeSockets(
     maxPayload: 256 * 1024,
     perMessageDeflate: false,
     clientTracking: true,
-    handleProtocols: (protocols) => (protocols.has("quorem") ? "quorem" : false),
+    handleProtocols: (protocols) => (protocols.has(hibernatingProtocol) ? hibernatingProtocol : false),
   });
   let stopping = false;
   const pending = new Set<AbortController>();
@@ -84,22 +85,11 @@ export function installNodeSockets(
     void job.finally(() => cleanup.delete(job));
   };
   const upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    const origin = req.headers.origin;
     const originCount = req.rawHeaders.filter(
       (_, index) => index % 2 === 0 && req.rawHeaders[index].toLowerCase() === "origin",
     ).length;
-    const offered = (req.headers["sec-websocket-protocol"] ?? "")
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean);
-    if (
-      stopping ||
-      !origin ||
-      originCount !== 1 ||
-      !options.origins.includes(origin) ||
-      req.method !== "GET" ||
-      (offered.length > 0 && !offered.includes("quorem"))
-    ) {
+    const request = requestOf(req);
+    if (stopping || originCount !== 1 || socketHandshake(request, options.origins)) {
       socket.destroy();
       return;
     }
@@ -125,7 +115,6 @@ export function installNodeSockets(
           ),
         ]);
       try {
-        const request = requestOf(req);
         const resolution = options.resolve(request, controller.signal).then((value) => {
           if (controller.signal.aborted || stopping) {
             releaseSafely(value?.release);
@@ -190,6 +179,7 @@ export function installNodeSockets(
           });
           ws.on("message", (data, binary) => {
             if (binary) session.close(1008, "Invalid command");
+            else if (frameText(data) === "quorem:ping") ws.send("quorem:pong");
             else session.receive(frameText(data));
           });
           ws.on("error", () => session.close(1011, "Socket unavailable"));
@@ -203,7 +193,11 @@ export function installNodeSockets(
               return;
             }
             alive = false;
-            void session.heartbeat();
+            if (initial.expiresAt !== undefined && initial.expiresAt <= Date.now()) {
+              session.close(1008, "Access expired");
+              return;
+            }
+            ws.ping();
           }, heartbeat);
           interval.unref();
           ws.once("close", () => clearInterval(interval));

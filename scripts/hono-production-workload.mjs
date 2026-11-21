@@ -15,20 +15,8 @@ export async function benchmarkProductionWorkload(env, send = fetch) {
     const actors = [];
     for (const account of fixture.actors) {
       const cookie = account.cookie;
-      const tokenResponse = await send("https://quorem.app/api/auth/token", {
-        headers: { cookie, origin: "https://quorem.app" },
-        redirect: "error",
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!tokenResponse.ok) {
-        await tokenResponse.body?.cancel();
-        throw new Error("Benchmark actor authentication failed");
-      }
-      const { token } = await tokenResponse.json();
-      if (typeof token !== "string" || !token || token.length > 16384 || /\s/.test(token))
-        throw new Error("Invalid benchmark actor token");
       const headers = {
-        authorization: `Bearer ${token}`,
+        cookie,
         origin: "https://quorem.app",
         "content-type": "application/json",
       };

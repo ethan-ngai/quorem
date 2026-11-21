@@ -60,7 +60,7 @@ export async function runStageWorkload(env, deps = {}) {
         method,
         headers: {
           origin: browser,
-          ...(actor?.token ? { authorization: `Bearer ${actor.token}` } : { cookie: actor.cookie }),
+          cookie: actor.cookie,
           ...(body !== undefined ? { "content-type": "application/json" } : {}),
           ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         },
@@ -142,8 +142,9 @@ export async function runStageWorkload(env, deps = {}) {
     sockets.push(entry);
     async function open() {
       remaining();
-      const socket = new Socket(url.href, ["quorem", `bearer.${actor.token}`], {
+      const socket = new Socket(url.href, ["quorem-hibernate"], {
         origin: browser,
+        headers: { cookie: actor.cookie },
         handshakeTimeout: remaining(),
         maxPayload: 262144,
       });
@@ -226,17 +227,6 @@ export async function runStageWorkload(env, deps = {}) {
       });
       const actor = { fixture, cookie: fixture.sessionCookie };
       actors.push(actor);
-      const auth = await request(actor, "/api/auth/token");
-      if (
-        typeof auth.token !== "string" ||
-        !auth.token ||
-        auth.token.length > 16384 ||
-        /\s/.test(auth.token)
-      )
-        throw new Error("Invalid fixture token");
-      if (actors.some((other) => other !== actor && other.token === auth.token))
-        throw new Error("Duplicate actor identity");
-      actor.token = auth.token;
     }
     for (let i = 0; i < size; i++) {
       const host = actors[2 * i],
@@ -322,9 +312,7 @@ export async function runStageWorkload(env, deps = {}) {
             headers: {
               origin: browser,
               accept: "text/event-stream",
-              ...(job.actor.token
-                ? { authorization: `Bearer ${job.actor.token}` }
-                : { cookie: job.actor.cookie }),
+              cookie: job.actor.cookie,
             },
             signal: AbortSignal.any([activeSignal, stream.signal]),
           });

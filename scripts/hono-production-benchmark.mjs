@@ -42,10 +42,7 @@ export async function benchmarkProductionPython(
     };
     const session = fixture.actors[0].cookie;
     const common = { origin: site, "content-type": "application/json" };
-    const { token } = await call("/api/auth/token", 200, { ...common, cookie: session });
-    if (typeof token !== "string" || !token || token.length > 16384 || /\s/.test(token))
-      throw new Error("Invalid benchmark token");
-    const headers = { ...common, authorization: `Bearer ${token}` };
+    const headers = { ...common, cookie: session };
     const { id: workspaceId } = await call("/v1/workspaces", 201, headers, {
       problemVersionId: version,
       language: "python",

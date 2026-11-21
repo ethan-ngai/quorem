@@ -3,8 +3,7 @@ import { Hono } from "hono";
 import { guestSetCookie } from "./cookie.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import { allowPublicGuestRequest, type GuestRequestBudget } from "../../access/guest.ts";
-import { IdentityError, type ManagedPrincipal, type LocalPrincipal } from "../model.ts";
-import { bearer } from "../credentials.ts";
+import { IdentityError } from "../model.ts";
 import {
   authenticateGuestRequest,
   guestCookie,
@@ -25,7 +24,6 @@ interface Dependencies {
     endMatch(hash: string): Promise<boolean>;
     canBootstrap(hash: string): Promise<boolean>;
   };
-  managed(token: string): Promise<ManagedPrincipal | LocalPrincipal>;
 }
 function originAllowed(request: Request, origins: readonly string[]): string {
   const origin = request.headers.get("origin");
@@ -64,8 +62,8 @@ export function guestRoutes(deps: Dependencies): Hono {
         503,
       );
     const origin = originAllowed(c.req.raw, deps.allowedOrigins);
-    const credential = await identity(async () => bearer(c.req.raw.headers));
-    if (credential !== undefined) await identity(() => deps.managed(credential));
+    if (c.req.raw.headers.has("authorization"))
+      throw new ApplicationError("unauthenticated", "Invalid credentials", 401);
     const existing = await identity(async () => guestCookie(c.req.raw.headers, "match"));
     if (existing !== undefined && validGuestToken(existing)) {
       const hash = await guestTokenHash(existing);
@@ -87,7 +85,6 @@ export function guestRoutes(deps: Dependencies): Hono {
       authenticateGuestRequest(
         c.req.raw.headers,
         "match",
-        (token) => deps.managed(token),
         deps.guests,
         { method: c.req.method, allowedOrigins: deps.allowedOrigins },
       ),

@@ -1,6 +1,5 @@
 /** @file credentials.ts @description Guest credential parsing and precedence. @module identity */
-import { bearer } from '../credentials.ts';
-import { IdentityError, type GuestPrincipal, type ManagedPrincipal, type LocalPrincipal, type Principal } from '../model.ts';
+import { IdentityError, type GuestPrincipal } from '../model.ts';
 
 export type GuestKind = 'match' | 'interview';
 export class GuestOriginDenied extends Error {}
@@ -35,9 +34,8 @@ export async function guestTokenHash(token: string): Promise<string> {
   if (!validGuestToken(token)) throw new IdentityError('unauthorized');
   return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token))), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
-export async function authenticateGuestRequest(headers: Headers, kind: GuestKind, managed: (token: string) => Promise<ManagedPrincipal | LocalPrincipal>, guests: GuestIdentityReader, policy: { method: string; allowedOrigins: readonly string[] }): Promise<Principal | null> {
-  const credential = bearer(headers);
-  if (credential !== undefined) return managed(credential);
+export async function authenticateGuestRequest(headers: Headers, kind: GuestKind, guests: GuestIdentityReader, policy: { method: string; allowedOrigins: readonly string[] }): Promise<GuestPrincipal | null> {
+  if (headers.has("authorization")) throw new IdentityError("unauthorized");
   const token = guestCookie(headers, kind);
   if (token === undefined) return null;
   if (!guestOriginAllowed(policy.method, headers.get('origin'), policy.allowedOrigins)) throw new GuestOriginDenied();

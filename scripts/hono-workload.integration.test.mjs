@@ -35,7 +35,7 @@ void test(
               );
             }
           }
-          const tokens = [fixture.bearers.alice, fixture.bearers.bob];
+          const cookies = [fixture.cookies.alice, fixture.cookies.bob];
           const result = await runStageWorkload(
             {
               HONO_STAGE_API_ORIGIN: "https://api-stage.example.com",
@@ -46,14 +46,12 @@ void test(
               matchCount: 1,
               WebSocket: LoopbackSocket,
               createActor: async () => ({
-                sessionCookie: tokens.shift(),
+                sessionCookie: cookies.shift(),
                 problemVersionId: version,
                 acceptedSource,
                 dispose: async () => {},
               }),
               fetch: async (url, init) => {
-                if (url.endsWith("/api/auth/token"))
-                  return Response.json({ token: init.headers.cookie });
                 const headers = new Headers(init.headers);
                 headers.set("origin", fixture.webOrigin);
                 return fetch(url.replace("https://api-stage.example.com", fixture.apiOrigin), {

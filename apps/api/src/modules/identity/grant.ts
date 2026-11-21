@@ -3,14 +3,14 @@ import { sudoExpiresAt } from "@quorem/contracts/auth-policy";
 import {
   IdentityError,
   guestScopeId,
-  type Claims,
+  type AccountIdentity,
   type GuestPrincipal,
   type ManagedPrincipal,
   type SessionAuthority,
 } from "./model.ts";
 
 /** Stored only in trusted server storage; never sent to a browser or socket attachment. */
-export type ManagedGrant = Pick<Claims, "issuer" | "subject" | "sessionId" | "expiresAt"> & {
+export type ManagedGrant = Pick<AccountIdentity, "issuer" | "subject" | "sessionId" | "expiresAt"> & {
   kind: "managed";
   strongUntil: number;
 };
@@ -27,8 +27,8 @@ export interface GrantReaders {
   managed(grant: ManagedGrant): Promise<ManagedPrincipal | null>;
   guest(kind: "match" | "interview", hash: string): Promise<GuestPrincipal | null>;
 }
-/** Only call after token verification; profile claims and bearer bytes are deliberately discarded. */
-export function managedGrant(claims: Claims, strongUntil: number): ManagedGrant {
+/** Persist verified session metadata without the browser credential. */
+export function managedGrant(claims: AccountIdentity, strongUntil: number): ManagedGrant {
   return {
     kind: "managed",
     issuer: claims.issuer,

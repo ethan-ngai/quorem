@@ -31,11 +31,11 @@ void test("rejects untrusted origins and releases a late upgrade lease", async (
   assert.ok(addr && typeof addr !== "string");
   const url = `ws://127.0.0.1:${addr.port}`;
   try {
-    const denied = new WebSocket(url, ["quorem"], { headers: { Origin: "https://evil.test" } });
+    const denied = new WebSocket(url, ["quorem-hibernate"], { headers: { Origin: "https://evil.test" } });
     denied.on("error", () => {});
     await new Promise<void>((resolve) => denied.once("close", () => resolve()));
     assert.equal(called, 0);
-    const pending = new WebSocket(url, ["quorem"], { headers: { Origin: "https://example.test" } });
+    const pending = new WebSocket(url, ["quorem-hibernate"], { headers: { Origin: "https://example.test" } });
     pending.on("error", () => {});
     await delay(20);
     pending.terminate();

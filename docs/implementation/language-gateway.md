@@ -10,7 +10,7 @@ Issue [#70](https://github.com/ethan-ngai/quorem/issues/70). Python parity first
 
 Browser → authenticated WebSocket → Go admission/framing → isolated engine stdin/stdout. `EngineFactory` keeps container creation outside session policy; an ECS or other worker adapter can replace Docker without changing admission rules.
 
-- Managed ownership comes from the API's verified `/v1/session`, never the `user` query. Exact Origin check, bearer subprotocol, revalidation every 15 seconds. Development fixture identities require explicit opt-in and loopback.
+- Managed ownership comes from the API's verified `/v1/session`, never the `user` query. Exact Origin check, session-cookie authentication and revalidation every 15 seconds. Development fixture identities require explicit opt-in and loopback.
 - One engine per owner **within this gateway process**. Explicit takeover waits for teardown. Failed cleanup keeps its capacity reservation; reconnect can retry it.
 - Default eight reserved sessions, configurable `LANGUAGE_MAX_SESSIONS` (1–256). Total connections (including pending upgrades) bounded to twice capacity before identity calls.
 - Five-minute inactivity expiry, configurable `LANGUAGE_IDLE_TIMEOUT` using Go duration syntax. Incoming valid editor messages refresh activity.

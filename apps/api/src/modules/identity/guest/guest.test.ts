@@ -11,8 +11,7 @@ const origin = 'https://quorem.test';
 const token = newGuestToken();
 const principal: GuestPrincipal = { kind: 'guest', userId: 'guest', displayName: 'Guest', admin: false, emailVerified: false, sessionId: 'hash', strongUntil: 0, credentialExpiresAt: 9999999999, scope: { kind: 'match', matchId: 'm1' } };
 const guests = { lookup: async () => principal, endMatch: async () => true, canBootstrap: async () => true };
-const managed = async () => { throw new IdentityError('unauthorized'); };
-const app = (budget = { allow: async () => true }) => createApp({ allowedOrigins: [origin], requestId: () => 'request' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget, guests, managed }));
+const app = (budget = { allow: async () => true }) => createApp({ allowedOrigins: [origin], requestId: () => 'request' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget, guests }));
 
 describe('guest credential and policy', () => {
   it('issues canonical opaque tokens, hashes consistently and rejects duplicates', async () => {
@@ -23,18 +22,16 @@ describe('guest credential and policy', () => {
     expect(await guestTokenHash('A'.repeat(43))).toBe('0f007385b6f9d4b7eeb2748605afe1a984a0a3bfa3f014d09e2a784ce9e5cd1a');
     expect(() => guestCookie(new Headers({ cookie: `quorem_guest=${token}; quorem_guest=${token}` }), 'match')).toThrow(IdentityError);
   });
-  it('never falls back to cookies after bearer or websocket credential failure', async () => {
-    for (const [name, value] of [['authorization', 'Bearer invalid'], ['authorization', 'Basic invalid'], ['sec-websocket-protocol', 'bearer.one, bearer.two']]) {
+  it('rejects authorization headers on guest cookie requests', async () => {
+    for (const [name, value] of [['authorization', 'Bearer invalid'], ['authorization', 'Basic invalid']]) {
       const headers = new Headers({ cookie: `quorem_guest=${token}` }); headers.set(name, value);
-      await expect(authenticateGuestRequest(headers, 'match', managed, guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(IdentityError);
+      await expect(authenticateGuestRequest(headers, 'match', guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(IdentityError);
     }
-    const account = { kind: 'local' as const, userId: 'account', displayName: 'Account', admin: false, emailVerified: true, sessionId: 'local', strongUntil: 0 };
-    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}`, 'sec-websocket-protocol': 'quorem, bearer.valid' }), 'match', async () => account, guests, { method: 'GET', allowedOrigins: [origin] })).toEqual(account);
-    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'interview', managed, guests, { method: 'GET', allowedOrigins: [origin] })).toBeNull();
-    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_interview_guest=${token}` }), 'interview', managed, guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(IdentityError);
-    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'match', managed, guests, { method: 'POST', allowedOrigins: [origin] })).rejects.toBeInstanceOf(GuestOriginDenied);
-    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}`, origin: 'https://evil.test' }), 'match', managed, guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(GuestOriginDenied);
-    expect((await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}`, origin }), 'match', managed, guests, { method: 'POST', allowedOrigins: [origin] }))?.kind).toBe('guest');
+    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'interview', guests, { method: 'GET', allowedOrigins: [origin] })).toBeNull();
+    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_interview_guest=${token}` }), 'interview', guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(IdentityError);
+    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'match', guests, { method: 'POST', allowedOrigins: [origin] })).rejects.toBeInstanceOf(GuestOriginDenied);
+    await expect(authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}`, origin: 'https://evil.test' }), 'match', guests, { method: 'GET', allowedOrigins: [origin] })).rejects.toBeInstanceOf(GuestOriginDenied);
+    expect((await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}`, origin }), 'match', guests, { method: 'POST', allowedOrigins: [origin] }))?.kind).toBe('guest');
     expect(guestMayAccess(principal, { kind: 'match', id: 'm1' })).toBe(true);
     expect(guestMayAccess(principal, { kind: 'match', id: 'm2' })).toBe(false);
     expect(guestMayAccess(principal, { kind: 'interview', id: 'm1' })).toBe(false);
@@ -45,7 +42,7 @@ describe('guest credential and policy', () => {
   it('authenticates party credentials without ending the session after a round', async () => {
     const party = { ...principal, scope: { kind: 'party' as const, partyId: 'p1' } };
     const sessions = { lookup: async () => party, endMatch: async () => false };
-    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'match', managed, sessions, { method: 'GET', allowedOrigins: [origin] })).toEqual(party);
+    expect(await authenticateGuestRequest(new Headers({ cookie: `quorem_guest=${token}` }), 'match', sessions, { method: 'GET', allowedOrigins: [origin] })).toEqual(party);
     expect(await readMatchGuestSession(party, sessions)).toEqual({ kind: 'active', principal: party });
   });
   it('fails closed for missing peer and budget outage', async () => {
@@ -59,7 +56,7 @@ describe('guest credential and policy', () => {
     expect(response.headers.get('x-request-id')).toBe('request');
     expect(response.headers.get('set-cookie')).toMatch(/^quorem_guest=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Strict; Max-Age=86400; Secure$/);
     const localOrigin = 'http://localhost:5173';
-    const local = createApp({ allowedOrigins: [localOrigin], requestId: () => 'local' }).route('/', guestRoutes({ allowedOrigins: [localOrigin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests, managed }));
+    const local = createApp({ allowedOrigins: [localOrigin], requestId: () => 'local' }).route('/', guestRoutes({ allowedOrigins: [localOrigin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests }));
     const localResponse = await local.request('/v1/guest-sessions', { method: 'POST', headers: { origin: localOrigin } });
     expect(localResponse.headers.get('set-cookie')).not.toContain('Secure');
     expect((await app().request('/v1/guest-sessions', { method: 'POST' })).status).toBe(403);
@@ -69,14 +66,14 @@ describe('guest credential and policy', () => {
   it('preserves unclaimed or live bootstrap credentials and replaces rejected ones', async () => {
     for (const [reusable, expectedCookie] of [[true, false], [false, true]] as const) {
       let received = '';
-      const route = createApp({ allowedOrigins: [origin], requestId: () => 'bootstrap' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, canBootstrap: async (hash) => { received = hash; return reusable; } }, managed }));
+      const route = createApp({ allowedOrigins: [origin], requestId: () => 'bootstrap' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, canBootstrap: async (hash) => { received = hash; return reusable; } } }));
       const response = await route.request('/v1/guest-sessions', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}` } });
       expect(response.status).toBe(204);
       expect(received).toBe(await guestTokenHash(token));
       expect(response.headers.has('set-cookie')).toBe(expectedCookie);
       if (expectedCookie) expect(response.headers.get('set-cookie')).not.toContain(`quorem_guest=${token};`);
     }
-    const unavailable = createApp({ allowedOrigins: [origin], requestId: () => 'bootstrap' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, canBootstrap: async () => { throw new Error('down'); } }, managed }));
+    const unavailable = createApp({ allowedOrigins: [origin], requestId: () => 'bootstrap' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, canBootstrap: async () => { throw new Error('down'); } } }));
     expect((await unavailable.request('/v1/guest-sessions', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}` } })).status).toBe(503);
   });
   it('reconciles a match guest session without granting access on an outage', async () => {
@@ -89,12 +86,12 @@ describe('guest credential and policy', () => {
     const response = await app().request('/v1/guest-sessions/end', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}` } });
     expect(response.status).toBe(204);
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
-    const active = createApp({ allowedOrigins: [origin], requestId: () => 'active' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, endMatch: async () => false }, managed }));
+    const active = createApp({ allowedOrigins: [origin], requestId: () => 'active' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { ...guests, endMatch: async () => false } }));
     const conflict = await active.request('/v1/guest-sessions/end', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}` } });
     expect(conflict.status).toBe(409);
     expect(conflict.headers.has('set-cookie')).toBe(false);
     let lookups = 0;
-    const expired = createApp({ allowedOrigins: [origin], requestId: () => 'expired' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { lookup: async () => ++lookups === 1 ? principal : null, endMatch: async () => false, canBootstrap: async () => true }, managed }));
+    const expired = createApp({ allowedOrigins: [origin], requestId: () => 'expired' }).route('/', guestRoutes({ allowedOrigins: [origin], admissionEnabled: true, trustedPeer: () => '127.0.0.1', budget: { allow: async () => true }, guests: { lookup: async () => ++lookups === 1 ? principal : null, endMatch: async () => false, canBootstrap: async () => true } }));
     expect((await expired.request('/v1/guest-sessions/end', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}` } })).status).toBe(401);
     expect((await app().request('/v1/guest-sessions/end', { method: 'POST', headers: { origin, cookie: `quorem_guest=${token}; quorem_guest=${token}` } })).status).toBe(401);
   });

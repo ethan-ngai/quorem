@@ -1,7 +1,6 @@
 /** @file routes.ts @description Persistent party HTTP transport. @module parties */
 import { allowPublicGuestRequest, type GuestRequestBudget } from "../access/guest.ts";
 import { guestCookie, guestOriginAllowed } from "../identity/guest/credentials.ts";
-import { bearer } from "../identity/credentials.ts";
 import { IdentityError } from "../identity/model.ts";
 import { jsonObjectBody } from "../../application/json-body.ts";
 import { Hono } from "hono";
@@ -13,6 +12,7 @@ import { normalizePartySettings, type Parties } from "./model.ts";
 export function partyRoutes(deps: {
   parties: Parties;
   identify(request: Request): Promise<Principal | undefined>;
+  identifyAccount?(request: Request): Promise<Principal | undefined>;
   allowedOrigins: readonly string[];
   admissionEnabled: boolean;
   trustedPeer(): string | undefined;
@@ -73,20 +73,19 @@ export function partyRoutes(deps: {
     const origin = c.req.raw.headers.get("origin");
     if (!origin || !guestOriginAllowed("POST", origin, deps.allowedOrigins))
       throw new ApplicationError("forbidden", "Origin denied", 403);
-    let credential: string | undefined, authorization: string | undefined;
+    let credential: string | undefined;
     try {
       credential = guestCookie(c.req.raw.headers, "match");
-      authorization = bearer(c.req.raw.headers);
     } catch (error) {
       if (error instanceof IdentityError)
         throw new ApplicationError("unauthenticated", "Invalid credentials", 401);
       throw error;
     }
-    if (authorization !== undefined || c.req.raw.headers.has("x-dev-user")) {
-      const who = await actor(c.req.raw);
-      if (who.kind !== "guest")
-        throw new ApplicationError("forbidden", "Use your account to join", 403);
-    }
+    const who = c.req.raw.headers.has("x-dev-user")
+      ? await actor(c.req.raw)
+      : await identifyRequest(async (request) => deps.identifyAccount?.(request), c.req.raw);
+    if (who && who.kind !== "guest")
+      throw new ApplicationError("forbidden", "Use your account to join", 403);
     if (!credential)
       throw new ApplicationError("unauthenticated", "Start a guest session first", 401);
     const input = await jsonObjectBody(c.req.raw, 4096, { emptyObject: true });

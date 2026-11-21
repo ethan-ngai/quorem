@@ -77,8 +77,6 @@ jobs:
           vp -C packages/execution run typecheck
           vp -C packages/execution run test
           vp -C packages/execution run test:workerd
-          vp -C apps/api run test:identity:node
-          vp -C apps/api run test:identity:workers
       - name: Isolated native database fixtures
         run: |
           for database in quorem_factions_test quorem_hono_schema_test quorem_hono_primitives_test quorem_hono_identity_test quorem_hono_admin_test quorem_hono_catalog_test quorem_hono_authoring_test quorem_hono_workspace_test quorem_hono_scheduling_test quorem_hono_party_test quorem_hono_review_test quorem_hono_admission_test quorem_hono_cli_test quorem_hono_question_state_test quorem_hono_canonical_test quorem_hono_approaches_test quorem_hono_benchmark_test; do

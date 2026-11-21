@@ -1,7 +1,7 @@
 /** Native test composition with a cryptographic fixture issuer and real PostgreSQL domain owners. */
 import { jwtVerify } from "jose";
 import { withWorkerConnection, type ConnectionScope } from "@quorem/database/core";
-import { IdentityError, type Claims } from "../../../modules/identity/model.ts";
+import { IdentityError } from "../../../modules/identity/model.ts";
 import { matchLifecycle } from "../../../adapters/postgres/matches/lifecycle/repository.ts";
 import { prearmReceipts } from "../../../adapters/postgres/events/scheduling/prearm.ts";
 import { postgresSocketAuthority } from "./authority.ts";
@@ -39,36 +39,32 @@ export class BrowserSocketFixture extends browserSocketObject<Env>((env) => {
       run,
       matches,
       sessions: { check: async () => ({}) },
-      verifier: {
-        async verify(token): Promise<Claims> {
-          try {
-            const { payload } = await jwtVerify(
-              token,
-              new TextEncoder().encode("0123456789abcdef0123456789abcdef"),
-              { issuer: "socket-test" },
-            );
-            if (
-              typeof payload.sub !== "string" ||
-              typeof payload.sid !== "string" ||
-              typeof payload.exp !== "number"
-            )
-              throw new Error("claims");
-            return {
-              issuer: "socket-test",
-              subject: payload.sub,
-              sessionId: payload.sid,
-              expiresAt: payload.exp,
-              issuedAt: 0,
-              emailVerified: true,
-              name: "Fixture",
-              image: "",
-              color: 0,
-              colorRevision: 0n,
-            };
-          } catch (error) {
-            throw new IdentityError("unauthorized", error);
-          }
-        },
+      async socketSession(request) {
+        const token = request.headers.get("x-fixture-session");
+        if (!token) return;
+        try {
+          const { payload } = await jwtVerify(
+            token,
+            new TextEncoder().encode("0123456789abcdef0123456789abcdef"),
+            { issuer: "socket-test" },
+          );
+          if (
+            typeof payload.sub !== "string" ||
+            typeof payload.sid !== "string" ||
+            typeof payload.exp !== "number"
+          )
+            throw new Error("claims");
+          return {
+            kind: "managed" as const,
+            issuer: "socket-test",
+            subject: payload.sub,
+            sessionId: payload.sid,
+            expiresAt: payload.exp,
+            strongUntil: 0,
+          };
+        } catch (error) {
+          throw new IdentityError("unauthorized", error);
+        }
       },
     }),
   };

@@ -2,7 +2,7 @@
 
 Ledger: [#218](https://github.com/ethan-ngai/quorem/issues/218).
 
-The browser starts the cookie-authenticated profile read with the session request. It admits that profile only when its auth subject matches the bearer accepted by the API and the current bearer; a mismatch triggers a fresh read. JWT name, photo and color are display hints after server validation. Tokens and capabilities are never persisted.
+The browser reads the account session and profile using the same-origin HttpOnly cookie. Product identity and avatar data come from the authorized session response. A profile with a different account subject triggers a fresh read.
 
 A tab-local avatar hint can appear, without controls, while the session is checked. Hints expire after 24 hours; sign-in and sign-out invalidate other tabs' hints when browser storage is available. A session resolved as another account replaces the hint. External account changes or unavailable storage can leave a stale hint visible until verification completes.
 

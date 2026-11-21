@@ -17,9 +17,6 @@ export interface AccountIdentity {
   colorRevision: bigint;
   expiresAt: number;
 }
-export interface Claims extends AccountIdentity {
-  issuedAt: number;
-}
 interface PrincipalFields {
   userId: string;
   displayName: string;
@@ -49,29 +46,13 @@ export interface IdentityBindings {
 export interface SessionAuthority {
   check(sessionId: string, subject: string, signal?: AbortSignal): Promise<{ strongAt?: number }>;
 }
-export interface TokenVerifier {
-  verify(token: string, signal?: AbortSignal): Promise<Claims>;
-}
 
-export async function authenticate(
-  token: string,
-  verifier: TokenVerifier,
-  authority: SessionAuthority,
-  bindings: IdentityBindings,
-  signal?: AbortSignal,
-): Promise<ManagedPrincipal> {
-  const claims = await verifier.verify(token, signal);
-  return authenticateAccount(claims, authority, bindings, signal);
-}
-
-/** Resolve a verified account credential and retain live session assurance. */
-export async function authenticateAccount(
+/** Resolve product identity from a verified live account session. */
+export async function bindAccount(
   claims: AccountIdentity,
-  authority: SessionAuthority,
   bindings: IdentityBindings,
-  signal?: AbortSignal,
+  strongAt?: number,
 ): Promise<ManagedPrincipal> {
-  const session = await authority.check(claims.sessionId, claims.subject, signal);
   let principal: ManagedPrincipal;
   try {
     const existing = await bindings.lookup(claims);
@@ -82,7 +63,6 @@ export async function authenticateAccount(
   }
   const now = Math.floor(Date.now() / 1000);
   if (claims.expiresAt <= now) throw new IdentityError("unauthorized");
-  const strongAt = session.strongAt;
   return {
     ...principal,
     kind: "managed",
