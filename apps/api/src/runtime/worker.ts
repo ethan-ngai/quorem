@@ -259,7 +259,7 @@ function makeHttp(
   const run = connection ?? runFor(env, request.signal),
     security = makeSecurity(env, request.signal, connection),
     allowed = origins(env);
-  const identity = composeIdentity(run, security.verifier, security.sessions, allowed);
+  const identity = composeIdentity(run, security.verifier, security.sessions, allowed, security.auth.cookieSession);
   const result = composeHttp({
     run,
     ...identity,
@@ -290,7 +290,7 @@ function socketAuthority(env: Env) {
   const run = runFor(env),
     security = makeSecurity(env),
     allowed = origins(env);
-  const identity = composeIdentity(run, security.verifier, security.sessions, allowed);
+  const identity = composeIdentity(run, security.verifier, security.sessions, allowed, security.auth.cookieSession);
   const composed = composeHttp({
     run,
     ...identity,

@@ -6,7 +6,7 @@ export class IdentityError extends Error {
     this.kind = kind;
   }
 }
-export interface Claims {
+export interface AccountIdentity {
   issuer: string;
   subject: string;
   sessionId: string;
@@ -15,8 +15,10 @@ export interface Claims {
   image: string;
   color: number;
   colorRevision: bigint;
-  issuedAt: number;
   expiresAt: number;
+}
+export interface Claims extends AccountIdentity {
+  issuedAt: number;
 }
 interface PrincipalFields {
   userId: string;
@@ -26,7 +28,12 @@ interface PrincipalFields {
   sessionId: string;
   strongUntil: number;
 }
-export type ManagedPrincipal = PrincipalFields & { kind: "managed"; credentialExpiresAt: number };
+export type ManagedPrincipal = PrincipalFields & {
+  kind: "managed";
+  credentialExpiresAt: number;
+  authSubject?: string;
+  avatar?: { name: string; image: string; color: number };
+};
 export type LocalPrincipal = PrincipalFields & { kind: "local"; credentialExpiresAt?: never };
 export type GuestScope = { kind: "match"; matchId: string } | { kind: "party"; partyId: string } | { kind: "interview"; interviewId: string };
 /** Stable resource binding for guest reauthorization. */
@@ -36,8 +43,8 @@ export function guestScopeId(scope: GuestScope): string {
 export type GuestPrincipal = PrincipalFields & { kind: "guest"; scope: GuestScope; admin: false; emailVerified: false; strongUntil: 0; credentialExpiresAt: number };
 export type Principal = ManagedPrincipal | LocalPrincipal | GuestPrincipal;
 export interface IdentityBindings {
-  lookup(claims: Claims): Promise<{ principal: ManagedPrincipal; current: boolean } | null>;
-  resolve(claims: Claims): Promise<ManagedPrincipal>;
+  lookup(claims: AccountIdentity): Promise<{ principal: ManagedPrincipal; current: boolean } | null>;
+  resolve(claims: AccountIdentity): Promise<ManagedPrincipal>;
 }
 export interface SessionAuthority {
   check(sessionId: string, subject: string, signal?: AbortSignal): Promise<{ strongAt?: number }>;
@@ -54,6 +61,16 @@ export async function authenticate(
   signal?: AbortSignal,
 ): Promise<ManagedPrincipal> {
   const claims = await verifier.verify(token, signal);
+  return authenticateAccount(claims, authority, bindings, signal);
+}
+
+/** Resolve a verified account credential and retain live session assurance. */
+export async function authenticateAccount(
+  claims: AccountIdentity,
+  authority: SessionAuthority,
+  bindings: IdentityBindings,
+  signal?: AbortSignal,
+): Promise<ManagedPrincipal> {
   const session = await authority.check(claims.sessionId, claims.subject, signal);
   let principal: ManagedPrincipal;
   try {
@@ -69,6 +86,8 @@ export async function authenticate(
   return {
     ...principal,
     kind: "managed",
+    authSubject: claims.subject,
+    avatar: { name: claims.name, image: claims.image, color: claims.color },
     credentialExpiresAt: claims.expiresAt,
     strongUntil: sudoExpiresAt(strongAt, now),
   };

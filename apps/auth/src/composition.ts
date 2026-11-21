@@ -17,6 +17,7 @@ import { createMailIntentService } from "./mail-intent.ts";
 import { createMailRepository } from "./mail-repository.ts";
 import { drizzleAuthRepository } from "./adapters/drizzle-auth-repository.ts";
 import { scopedDrizzleAdapter } from "./adapters/scoped-drizzle.ts";
+import { getSessionCookie } from "better-auth/cookies";
 
 type RunScope = <T>(callback: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 export function composeAuth(options: {
@@ -54,6 +55,26 @@ export function composeAuth(options: {
       checkAssurance: (id, subject) => repository.sessionAuthority(id, subject),
     });
   const auth = makeAuth();
+  const cookieSession = {
+    present: (request: Request) => Boolean(getSessionCookie(request)),
+    async read(headers: Headers) {
+      const current = await auth.api.getSession({ headers, query: { disableRefresh: true } });
+      if (!current || !current.user.emailVerified || current.session.userId !== current.user.id)
+        return;
+      const profile = await repository.profile(current.user.id);
+      return {
+        issuer: config.origin,
+        subject: current.user.id,
+        sessionId: current.session.id,
+        expiresAt: Math.floor(new Date(current.session.expiresAt).getTime() / 1000),
+        emailVerified: true as const,
+        name: current.user.name,
+        image: current.user.image?.startsWith("/api/auth/profile-photos/") ? current.user.image : "",
+        color: profile?.profile_color ?? 0,
+        colorRevision: profile?.profile_color_revision ?? 0n,
+      };
+    },
+  };
   const registration =
     config.registration && mail
       ? createRegistrationHandler({ repository: mailRepository, mail, origin: config.origin })
@@ -86,6 +107,7 @@ export function composeAuth(options: {
     auth,
     makeAuth,
     repository,
+    cookieSession,
     registration,
     app: createAuthApp({ config, auth, registration, profile, sudo }),
   };
