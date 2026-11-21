@@ -3,6 +3,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { armSocketAlarm } from "./schedule.ts";
 import { hibernatingProtocol, socketHandshake } from "./handshake.ts";
+import { roomScope } from "./target.ts";
 import { ApplicationError } from "../../../application/error.ts";
 import { mapIdentityError } from "../../../modules/identity/routes.ts";
 import { IdentityError } from "../../../modules/identity/model.ts";
@@ -16,12 +17,13 @@ import type { Notice } from "../../../modules/events/dispatch/ports.ts";
 import type { Principal } from "../../../modules/identity/model.ts";
 import type { VerifiedGrant } from "../../../modules/identity/grant.ts";
 
-type Mode = "interview" | "match" | "party";
+type Mode = "interview" | "match" | "party" | "team";
 /** Private server storage; attachment contains only its opaque key. */
 export interface StoredSocket {
   grant: VerifiedGrant;
   mode: Mode;
   resourceId: string;
+  team?: number;
   lease?: string;
   leaseOwner?: string;
 }
@@ -190,7 +192,7 @@ export function browserSocketObject<Env>(
           // The match authority checks party scope and round membership before issuing a lease.
           (record.grant.kind === "guest" &&
             record.grant.resourceId !== record.resourceId &&
-            !(record.mode === "match" && record.grant.scope === "party"))
+            !((record.mode === "match" || record.mode === "team") && record.grant.scope === "party"))
         )
           throw new IdentityError("unauthorized");
         if (new TextEncoder().encode(JSON.stringify(record)).length > 24 * 1024)
@@ -279,7 +281,8 @@ export function browserSocketObject<Env>(
         this.state.getWebSockets().map(async (socket) => {
           try {
             const { record } = await this.ensure(socket);
-            if (record.resourceId === notice.aggregateId) this.listeners.get(socket)?.(notice);
+            if (roomScope(record.resourceId, record.team) === notice.aggregateId)
+              this.listeners.get(socket)?.(notice);
           } catch {
             socket.close(1008, "Access changed");
             await this.cleanup(socket);

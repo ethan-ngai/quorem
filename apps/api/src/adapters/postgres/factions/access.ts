@@ -5,7 +5,13 @@ import type { Principal } from "../../../modules/identity/model.ts";
 import { lockMatch, requireMatchMember } from "../matches/lifecycle/repository.ts";
 import { matchSubmissionDeadline } from "../matches/rules/ledger.ts";
 import { ApplicationError } from "../../../application/error.ts";
-export async function lockTeam(tx: Transaction, actor: Principal, id: string, active = false) {
+export async function lockTeam(
+  tx: Transaction,
+  actor: Principal,
+  id: string,
+  active = false,
+  expectedTeam?: number,
+) {
   const match = await lockMatch(tx, id);
   await requireMatchMember(tx, actor, id);
   const row = (
@@ -27,7 +33,11 @@ export async function lockTeam(tx: Transaction, actor: Principal, id: string, ac
     JOIN matches m ON m.id=p.match_id JOIN workspaces w ON w.id=t.workspace_id JOIN users u ON u.id=p.owner_id
     WHERE p.match_id=${id}::uuid AND p.owner_id=${actor.userId} FOR UPDATE OF t`)
   ).rows[0];
-  if (match.mode !== "factions" || !row)
+  if (
+    match.mode !== "factions" ||
+    !row ||
+    (expectedTeam !== undefined && row.team !== expectedTeam)
+  )
     throw new ApplicationError("not_found", "Team unavailable", 404);
   if (active && !row.active)
     throw new ApplicationError("invalid_transition", "Team actions are closed", 409);
@@ -37,5 +47,22 @@ export async function lockTeam(tx: Transaction, actor: Principal, id: string, ac
     version: Number(row.version),
     rules: match.settings.rules,
   };
+}
+/** Validate the frozen roster without loading or locking the shared document. */
+export async function authorizeTeamSocket(
+  tx: Transaction,
+  actor: Principal,
+  id: string,
+  team: number,
+) {
+  await requireMatchMember(tx, actor, id);
+  const result = await tx.execute(sql`
+    SELECT 1 FROM match_participants p
+    JOIN matches m ON m.id=p.match_id
+    JOIN match_teams t ON t.match_id=p.match_id AND t.team=p.team
+    WHERE p.match_id=${id}::uuid AND p.owner_id=${actor.userId} AND p.team=${team}
+      AND m.mode='factions' AND m.state IN ('waiting','active','finalizing')
+  `);
+  if (!result.rows.length) throw new ApplicationError("not_found", "Team unavailable", 404);
 }
 export type TeamAccess = Awaited<ReturnType<typeof lockTeam>>;

@@ -10,7 +10,11 @@ export async function teamPeers(
   team: TeamAccess,
 ): Promise<TeamPeer[]> {
   const rows = await tx.execute<{ peer: TeamPeer }>(
-    sql`SELECT p.payload || jsonb_build_object('userId',u.participant_id,'name',u.display_name,'color',u.profile_color) AS peer FROM team_document_presence p JOIN users u ON u.id=p.owner_id WHERE p.match_id=${id}::uuid AND p.team=${team.team} AND p.expires_at>clock_timestamp() AND p.payload->>'epoch'=${team.epoch} ORDER BY p.owner_id,p.client_id`,
+    sql`SELECT p.payload || jsonb_build_object('userId',u.participant_id,'name',u.display_name,
+      'color',u.profile_color,'expiresInMs',GREATEST(0,CEIL(EXTRACT(EPOCH FROM p.expires_at-statement_timestamp())*1000))) AS peer
+      FROM team_document_presence p JOIN users u ON u.id=p.owner_id
+      WHERE p.match_id=${id}::uuid AND p.team=${team.team} AND p.expires_at>statement_timestamp()
+        AND p.payload->>'epoch'=${team.epoch} ORDER BY p.owner_id,p.client_id`,
   );
   return rows.rows.map((r) => r.peer);
 }

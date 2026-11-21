@@ -28,10 +28,13 @@ import { matchSocketLeases } from "../../../adapters/postgres/matches/socket/lea
 import { partySocketLeases } from "../../../adapters/postgres/parties/socket-leases.ts";
 import type { Parties } from "../../../modules/parties/model.ts";
 import { interviewCommands } from "../../../modules/events/socket/interview.ts";
+import { teamCommands } from "../../../modules/events/socket/team.ts";
+import type { Factions } from "../../../modules/factions/model.ts";
+import type { CommandHandler } from "../../../modules/events/socket/ports.ts";
 import { matchSocketSnapshot } from "../../../modules/events/socket/match.ts";
 import type { Lifecycle } from "../../../modules/matches/lifecycle/model.ts";
 import type { SocketAuthority, StoredSocket } from "./durable.ts";
-import { socketTarget } from "./target.ts";
+import { roomScope, socketTarget } from "./target.ts";
 type Run = <T>(f: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const missing = () => new ApplicationError("not_found", "Realtime resource unavailable", 404);
 /** Supply real verifier/session and 20b/19b domain owners from the Worker runtime. */
@@ -41,10 +44,11 @@ export function postgresSocketAuthority(deps: {
   maxLeaseSeconds?: number;
   matches: Lifecycle;
   parties?: Parties;
+  factions?: Factions;
   afterPartyPresence?: (party: string) => Promise<void>;
   socketSession: (request: Request) => Promise<ManagedGrant | undefined>;
-  beforeInterviewCommand?: () => Promise<void>;
-  afterInterviewCommand?: () => Promise<void>;
+  beforeCollaborationWrite?: () => Promise<void>;
+  afterCollaborationWrite?: (stream: "interview" | "team") => Promise<void>;
 }): SocketAuthority {
   const { run, sessions, matches } = deps;
   const readers: GrantReaders = {
@@ -72,10 +76,45 @@ export function postgresSocketAuthority(deps: {
       );
       return `${access.role}:${access.questionEpoch}:${access.state}`;
     }
+    if (record.mode === "team") {
+      if (!record.team || !deps.factions) throw missing();
+      await deps.factions.authorizeSocket(actor, record.resourceId, record.team);
+      return roomScope(record.resourceId, record.team);
+    }
     if (record.mode === "party") return (await readParty(actor, record.resourceId)).version;
     const value = (await matches.read(actor, record.resourceId)) as { version?: unknown };
     if (typeof value?.version !== "string") throw missing();
     return value.version;
+  }
+  function commands(record: StoredSocket): CommandHandler | undefined {
+    const stream = record.mode;
+    if (stream !== "interview" && stream !== "team") return;
+    const handler =
+      stream === "interview"
+        ? interviewCommands(record.resourceId, {
+            documents: interviewDocumentCommands(run),
+            presence,
+            monitoring: interviewMonitoring(run),
+          })
+        : deps.factions &&
+          record.team &&
+          teamCommands(record.resourceId, record.team, deps.factions);
+    if (!handler) throw missing();
+    return {
+      async execute(actor, command, signal) {
+        const writes = ["push", "presence", "rule-event"].includes(command.type);
+        if (writes) await deps.beforeCollaborationWrite?.();
+        const result = await handler.execute(actor, command, signal);
+        if (writes) {
+          try {
+            await deps.afterCollaborationWrite?.(stream);
+          } catch {
+            /* Durable outbox repair remains armed. */
+          }
+        }
+        return result;
+      },
+    };
   }
   return {
     async issue(request) {
@@ -107,6 +146,7 @@ export function postgresSocketAuthority(deps: {
       const record: StoredSocket = {
         mode,
         resourceId: target.id,
+        ...(target.team === undefined ? {} : { team: target.team }),
         grant,
       };
       if (deps.maxLeaseSeconds)
@@ -121,7 +161,7 @@ export function postgresSocketAuthority(deps: {
           ? await presence.acquire(actor, target.id, expiresAt)
           : mode === "party"
             ? await partyLeases.acquire(actor, target.id, expiresAt)
-            : await matchLeases.acquire(actor, target.id, expiresAt);
+            : await matchLeases.acquire(actor, target.id, expiresAt, target.team);
       record.leaseOwner = actor.userId;
       if (mode === "party") await deps.afterPartyPresence?.(target.id);
       return record;
@@ -136,36 +176,7 @@ export function postgresSocketAuthority(deps: {
           }),
           authorize: (actor) => authorize(record, actor),
         },
-        ...(record.mode === "interview"
-          ? {
-              commands: (() => {
-                const commands = interviewCommands(record.resourceId, {
-                  documents: interviewDocumentCommands(run),
-                  presence,
-                  monitoring: interviewMonitoring(run),
-                });
-                return {
-                  async execute(
-                    actor: Principal,
-                    command: Parameters<typeof commands.execute>[1],
-                    signal: AbortSignal,
-                  ) {
-                    const changes = ["push", "presence", "rule-event"].includes(command.type);
-                    if (changes) await deps.beforeInterviewCommand?.();
-                    const result = await commands.execute(actor, command, signal);
-                    if (changes && deps.afterInterviewCommand) {
-                      try {
-                        await deps.afterInterviewCommand();
-                      } catch {
-                        /* Durable outbox repair remains armed. */
-                      }
-                    }
-                    return result;
-                  },
-                };
-              })(),
-            }
-          : {}),
+        commands: commands(record),
         ...(record.mode === "match"
           ? { snapshot: matchSocketSnapshot(record.resourceId, matches) }
           : {}),
@@ -189,8 +200,8 @@ export function postgresSocketAuthority(deps: {
       if (!record.lease || !record.leaseOwner) return;
       if (record.mode === "interview")
         await releaseInterviewLease(run, record.resourceId, record.leaseOwner, record.lease);
-      if (record.mode === "match")
-        await matchLeases.release(record.leaseOwner, record.resourceId, record.lease);
+      if (record.mode === "match" || record.mode === "team")
+        await matchLeases.release(record.leaseOwner, record.resourceId, record.lease, record.team);
       if (record.mode === "party") {
         await partyLeases.release(record.leaseOwner, record.resourceId, record.lease);
         await deps.afterPartyPresence?.(record.resourceId);

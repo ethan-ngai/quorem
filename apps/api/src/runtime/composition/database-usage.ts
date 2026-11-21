@@ -48,6 +48,7 @@ export function databaseRoute(path: string): string {
   if (path === "/api/auth/get-session") return "auth.session";
   if (path.startsWith("/api/auth/")) return "auth";
   if (/^\/v1\/submissions(?:\/|$)/.test(path)) return "submission";
+  if (/^\/v1\/matches\/[^/]+\/team(?:\/|$)/.test(path)) return "team";
   if (path.startsWith("/internal/runner/")) return "runner";
   if (path.startsWith("/internal/verification/")) return "verification";
   if (/^\/v1\/matches(?:\/|$)/.test(path)) return "match";

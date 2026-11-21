@@ -9,7 +9,7 @@ import { ApplicationError } from "../../../application/error.ts";
 import { lockMatchOwner } from "../matches/lifecycle/repository.ts";
 import { fingerprint } from "../matches/lifecycle/crypto.ts";
 import { validateGuest, lockParty } from "../parties/store.ts";
-import { lockTeam, type TeamAccess } from "./access.ts";
+import { authorizeTeamSocket, lockTeam, type TeamAccess } from "./access.ts";
 import { teamLobby, organizeTeams } from "./lobby.ts";
 import { pullTeamDocument, pushTeamDocument } from "./document.ts";
 import { teamPeers, publishTeamPresence } from "./presence.ts";
@@ -130,14 +130,20 @@ export function factionRepository(
         await lockMatchOwner(tx, actor);
         return teamSnapshot(tx, id, await lockTeam(tx, actor, id));
       }),
-    command: (actor, id, key, action, body) =>
-      action === "pull" || action === "presence"
+    authorizeSocket: (actor, id, team) =>
+      run((scope) =>
+        scope.transaction({ statementTimeoutMs: 3000, lockTimeoutMs: 1000, readOnly: true }, (tx) =>
+          authorizeTeamSocket(tx, actor, id, team),
+        ),
+      ),
+    command: (actor, id, key, action, body, expectedTeam) =>
+      action === "pull" || action === "presence" || action === "peers"
         ? transaction(async (tx) => {
             await lockMatchOwner(tx, actor);
-            const team = await lockTeam(tx, actor, id, action === "presence");
-            return action === "pull"
-              ? pullTeamDocument(tx, id, team, body)
-              : publishTeamPresence(tx, id, actor.userId, team, body);
+            const team = await lockTeam(tx, actor, id, action === "presence", expectedTeam);
+            if (action === "pull") return pullTeamDocument(tx, id, team, body);
+            if (action === "peers") return teamPeers(tx, id, team);
+            return publishTeamPresence(tx, id, actor.userId, team, body);
           })
         : command(
             actor,
@@ -145,9 +151,9 @@ export function factionRepository(
             key,
             "factions:" + action,
             body,
-            (tx) => lockTeam(tx, actor, id),
+            (tx) => lockTeam(tx, actor, id, false, expectedTeam),
             async (tx) => {
-              const team = await lockTeam(tx, actor, id, action !== "pull");
+              const team = await lockTeam(tx, actor, id, true, expectedTeam);
               if (action === "push") return pushTeamDocument(tx, id, team, body);
               return teamVoteCommand(tx, actor, id, team, action, body, executor);
             },

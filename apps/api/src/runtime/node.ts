@@ -14,9 +14,9 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { cloudflarePull } from "../adapters/delivery/cloudflare.ts";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
 import { submissionEventId } from "../adapters/events/submission-events.ts";
-import { noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
+import { noticeChannel, noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
-import { socketTarget } from "./worker/socket/target.ts";
+import { roomScope, socketTarget } from "./worker/socket/target.ts";
 import { installNodeSockets } from "./node/socket/server.ts";
 import { nodeCoordinator } from "../adapters/scheduling/shells.ts";
 import { drainDeadlines, matchDeadlineShard } from "../modules/events/scheduling/scheduling.ts";
@@ -26,6 +26,7 @@ import { prearmReceipts } from "../adapters/postgres/events/scheduling/prearm.ts
 import { reconcileScheduledMatch } from "../adapters/postgres/matches/reconcile/repository.ts";
 import { postgresDispatch, recoverExecutionIntents } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
+import { noticeStreams } from "../modules/events/dispatch/ports.ts";
 import { startNodeNotifications } from "./composition/node-notifications.ts";
 import { composeIdentity } from "./composition/identity.ts";
 import { composeHttp } from "./composition/http.ts";
@@ -184,7 +185,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     disposers.push(() => recovery.close());
     const dispatch = async () => {
       await recoverAll([
-        ...(["interview", "match", "party", "submission"] as const).map(
+        ...noticeStreams.map(
           (name) => () => publishBatch(store, notices, wake, name),
         ),
         async () => {
@@ -311,8 +312,11 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       sessions,
       matches: setup.matches,
       parties: setup.parties,
+      factions: setup.factions,
       afterPartyPresence: (id) => deadlines.wake(matchDeadlineShard(id, shards)),
-      afterInterviewCommand: dispatch,
+      afterCollaborationWrite: async (stream) => {
+        await publishBatch(store, notices, wake, stream);
+      },
     });
     const heartbeatMs = boundedInt(env.SOCKET_HEARTBEAT_MS, 15000, 120000);
     if (heartbeatMs < 1000) throw new Error("Invalid socket heartbeat");
@@ -330,15 +334,10 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
           await authority.release(record);
           throw error;
         }
-        const prefix = {
-          interview: "interviews",
-          match: "matches",
-          party: "parties",
-        }[record.mode];
         return {
           ...opened,
           mode: record.mode,
-          subscription: socketSubscription(fanout, `/${prefix}/${record.resourceId}`),
+          subscription: socketSubscription(fanout, noticeChannel(record.mode, roomScope(record.resourceId, record.team))),
           release: () => authority.release(record),
         };
       },

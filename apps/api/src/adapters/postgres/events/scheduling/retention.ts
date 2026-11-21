@@ -4,7 +4,7 @@ import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { purgeGuestMatchData } from "./guest-retention.ts";
 import { guestLobbyClosed } from "../../matches/review/lifetime.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-const outboxes = ["interview_outbox", "match_outbox", "party_outbox", "submission_outbox"] as const;
+const outboxes = ["interview_outbox", "match_outbox", "party_outbox", "team_outbox", "submission_outbox"] as const;
 // A late settlement can outlive ordinary admission-based retention.
 const reviewHold = sql`EXISTS (
   SELECT 1 FROM matches m WHERE m.id=s.match_id AND s.kind='submit' AND s.match_sequence IS NOT NULL

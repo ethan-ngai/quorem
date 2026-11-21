@@ -93,6 +93,7 @@ export type TeamPeer = {
   epoch: string;
   anchor: number;
   head: number;
+  expiresInMs?: number;
 };
 export type TeamSnapshot = {
   team: number;

@@ -39,9 +39,9 @@ import {
   recoveryWorkDue,
 } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
-import type { Notice, NoticeStream, Stream } from "../modules/events/dispatch/ports.ts";
+import { noticeStreams, type Notice, type NoticeStream, type Stream } from "../modules/events/dispatch/ports.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
-import { socketTarget, type SocketTarget } from "./worker/socket/target.ts";
+import { roomScope, socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { composeHttp } from "./composition/http.ts";
@@ -138,15 +138,17 @@ function notices(env: Env) {
       socketStub(env, stream, notice.aggregateId).publish(notice),
   };
 }
-const realtimeStreams = ["submission", "interview", "match", "party"] as const;
 function affectedStreams(path: string): readonly Stream[] {
   if (path.startsWith("/api/auth/") || path === "/v1/recommendation-feedback") return [];
   if (path === "/v1/presence/heartbeat") return ["match", "party"];
+  if (/^\/v1\/matches\/[^/]+\/team\/pull$/.test(path)) return [];
+  if (/^\/v1\/matches\/[^/]+\/team\/(?:push|presence)$/.test(path)) return ["team"];
+  if (/^\/v1\/matches\/[^/]+\/team\//.test(path)) return ["team", "match", "party", "submission"];
   if (/^\/v1\/(?:parties|matches)(?:\/|$)/.test(path)) return ["match", "party", "submission"];
   if (/^\/v1\/(?:interviews|interview-invites)(?:\/|$)/.test(path))
     return ["interview", "submission"];
-  if (/^\/v1\/submissions\/[^/]+\/cancel$/.test(path)) return [...realtimeStreams, "execution"];
-  return realtimeStreams;
+  if (/^\/v1\/submissions\/[^/]+\/cancel$/.test(path)) return [...noticeStreams, "execution"];
+  return noticeStreams;
 }
 async function publishStreams(
   env: Env,
@@ -283,16 +285,17 @@ function socketAuthority(env: Env) {
     sessions: security.sessions,
     matches: composed.matches,
     parties: composed.parties,
+    factions: composed.factions,
     async afterPartyPresence(id) {
       const shard = matchDeadlineShard(id, boundedInt(env.DEADLINE_SHARDS, 1, 256));
       await cloudflareCoordinator(env.DEADLINES).wake(shard);
       if (env.APP_ENV === "production") await scheduleMaintenance(env);
     },
     socketSession: identity.socketSession,
-    beforeInterviewCommand:
+    beforeCollaborationWrite:
       env.APP_ENV === "production" ? () => scheduleMaintenance(env) : undefined,
-    afterInterviewCommand: async () => {
-      await publishBatch(postgresDispatch(run), notices(env), wake(env), "interview");
+    afterCollaborationWrite: async (stream) => {
+      await publishBatch(postgresDispatch(run), notices(env), wake(env), stream);
     },
   });
 }
@@ -305,7 +308,7 @@ const SocketObject = browserSocketObject<Env>((env) => {
       async issue(request) {
         const record = await base.issue(request);
         record.resourceId = record.resourceId.toLowerCase();
-        if (request.headers.get("x-quorem-socket-scope") !== record.resourceId) {
+        if (request.headers.get("x-quorem-socket-scope") !== roomScope(record.resourceId, record.team)) {
           await base.release(record);
           throw new IdentityError("unauthorized");
         }
@@ -325,11 +328,13 @@ export class BrowserSockets extends SocketObject {
   }
 
   override async fetch(request: Request): Promise<Response> {
-    const id = submissionEventId(new URL(request.url).pathname);
+    const path = new URL(request.url).pathname;
+    const id = submissionEventId(path);
+    const operation = id ? "submission.open" : socketTarget(path)?.stream === "team" ? "team.open" : "room.open";
     return measureDatabase(
       this.bindings.APP_ENV === "production",
       "socket",
-      id ? "submission.open" : "room.open",
+      operation,
       async () => {
         if (!id) return super.fetch(request);
         if (request.headers.get("x-quorem-submission-scope") !== id)
@@ -407,7 +412,7 @@ async function repairWorker(
   const queue = wake(env);
   const deadlines = cloudflareCoordinator(env.DEADLINES);
   let pending = false;
-  const streams = [...realtimeStreams, "execution"] as const;
+  const streams = [...noticeStreams, "execution"] as const;
   await recoverAll([
     ...streams.map((stream) => async () => {
       if (stream === "execution") await recoverExecutionIntents(run);
@@ -433,7 +438,7 @@ async function repairWorker(
       : []),
   ]);
   if (!trackPending) return null;
-  const due = await recoveryWorkDue(run, realtimeStreams);
+  const due = await recoveryWorkDue(run, noticeStreams);
   return pending ? Math.min(Date.now() + 60_000, due ?? Infinity) : due;
 }
 
@@ -472,7 +477,7 @@ async function routeSocket(env: Env, request: Request, target: SocketTarget): Pr
   const rejected = socketHandshake(request, origins(env));
   if (rejected) return new Response(null, { status: rejected });
   if (target.mode === "invalid") return new Response(null, { status: 404 });
-  const { id } = target;
+  const id = roomScope(target.id, target.team);
   const headers = new Headers(request.headers);
   headers.delete("x-quorem-socket-scope");
   headers.set("x-quorem-socket-scope", id);
@@ -552,7 +557,7 @@ const runtime = {
               (peer) =>
                 localJudgingDrain(
                   peer,
-                  (terminal) => publish(terminal ? realtimeStreams : ["submission"]),
+                  (terminal) => publish(terminal ? noticeStreams : ["submission"]),
                   judgingCapacity(env as unknown as Record<string, string | undefined>),
                   {
                     profile,
@@ -571,7 +576,7 @@ const runtime = {
               ? await handlers.runner(request)
               : await handlers.source(request);
             if (response.ok) {
-              if (path === "/internal/runner/promote") await publish(realtimeStreams);
+              if (path === "/internal/runner/promote") await publish(noticeStreams);
               else if (path === "/internal/runner/claim" || path === "/internal/runner/yield")
                 await publish(["submission"]);
             }

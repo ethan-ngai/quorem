@@ -1,6 +1,7 @@
 /** @file ports.ts @description Durable notice dispatch boundaries. @module events */
-export type Stream = "interview" | "match" | "party" | "submission" | "execution";
-export type NoticeStream = Exclude<Stream, "execution">;
+export const noticeStreams = ["submission", "interview", "match", "party", "team"] as const;
+export type NoticeStream = (typeof noticeStreams)[number];
+export type Stream = NoticeStream | "execution";
 export interface Notice {
   id: string;
   aggregateId: string;

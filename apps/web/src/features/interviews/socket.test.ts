@@ -61,6 +61,7 @@ describe("interview socket", () => {
     const request = JSON.parse(socket.sent[0]!);
     socket.frame({ type: "response", id: request.id, value: { version: 1 } });
     await expect(response).resolves.toEqual({ version: 1 });
+    socket.frame({ type: "changed" });
     socket.frame({ type: "changed", kind: "interview.document" });
     expect(changed).toHaveBeenLastCalledWith("interview.document");
     for (let tick = 0; tick < 6; tick++) {

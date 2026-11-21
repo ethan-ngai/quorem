@@ -40,6 +40,7 @@ const button = (text: string) =>
   [...container.querySelectorAll("button")].find((b) => b.textContent?.includes(text))!;
 it("admits one pending request and disables expired ballots", async () => {
   const vote = fixture();
+  const onExpire = vi.fn();
   let finish!: () => void;
   const onVote = vi.fn(
     () =>
@@ -56,6 +57,7 @@ it("admits one pending request and disables expired ballots", async () => {
         serverNow={Date.now()}
         onVote={onVote}
         onCancel={async () => {}}
+        onExpire={onExpire}
       />,
     ),
   );
@@ -70,6 +72,8 @@ it("admits one pending request and disables expired ballots", async () => {
   await act(async () => vi.advanceTimersByTime(30000));
   expect(button("Approve").disabled).toBe(true);
   expect(button("Reject").disabled).toBe(true);
+  await act(async () => vi.advanceTimersByTime(2000));
+  expect(onExpire).toHaveBeenCalledOnce();
   await act(async () => button("Approve").click());
   expect(onVote).toHaveBeenCalledTimes(1);
 });

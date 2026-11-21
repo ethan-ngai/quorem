@@ -7,16 +7,19 @@ import type {
 export interface FanoutPublisher {
   publish(channel: string, notice: Notice): Promise<void>;
 }
+const prefix: Record<NoticeStream, string> = {
+  interview: "interviews",
+  match: "matches",
+  party: "parties",
+  team: "teams",
+  submission: "submissions",
+};
+export const noticeChannel = (stream: NoticeStream, id: string) => `/${prefix[stream]}/${id}`;
+
 export function noticePublisher(bus: FanoutPublisher): NoticePublisher {
-  const prefix: Record<NoticeStream, string> = {
-    interview: "interviews",
-    match: "matches",
-    party: "parties",
-    submission: "submissions",
-  };
   return {
     async publish(stream, notice) {
-      await bus.publish(`/${prefix[stream]}/${notice.aggregateId}`, notice);
+      await bus.publish(noticeChannel(stream, notice.aggregateId), notice);
     },
   };
 }

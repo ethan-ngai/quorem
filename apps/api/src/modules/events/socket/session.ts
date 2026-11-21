@@ -50,7 +50,7 @@ export class SocketSession {
     subscription: SocketSubscription;
     commands?: CommandHandler;
     snapshot?: SocketSnapshotSource;
-    mode: "interview" | "match" | "party";
+    mode: "interview" | "match" | "party" | "team";
     now?: () => number;
     renew?: (p: Principal) => Promise<boolean>;
   };
@@ -226,7 +226,9 @@ export class SocketSession {
   }
   notice(n: Notice) {
     if (this.closed) return;
-    this.noticeKind = n.type;
+    // Coalescing different invalidations requires refreshing every affected view.
+    if (!this.dirty) this.noticeKind = n.type;
+    else if (this.noticeKind !== n.type) this.noticeKind = undefined;
     this.dirty = true;
     void this.refresh();
   }
@@ -239,7 +241,7 @@ export class SocketSession {
         const kind = this.noticeKind;
         this.noticeKind = undefined;
         const { principal: p, stamp } = await this.authorized();
-        if (this.deps.mode === "interview")
+        if (this.deps.mode === "interview" || this.deps.mode === "team")
           await this.send({ type: "changed", ...(kind ? { kind } : {}) });
         else if (this.deps.snapshot) {
           const snapshot = await this.deadline((signal) => this.deps.snapshot!.read(p, signal));
@@ -322,7 +324,7 @@ export class SocketSession {
         /* Normal command parser reports invalid JSON. */
       }
     }
-    if (this.deps.mode !== "interview" || !this.deps.commands) {
+    if (!this.deps.commands) {
       this.close(1008, "Commands unavailable");
       return;
     }

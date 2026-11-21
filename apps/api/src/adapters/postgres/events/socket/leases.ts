@@ -41,7 +41,7 @@ export async function acquireSocketLease(
     sql`INSERT INTO realtime_presence_leases(id,topic,subject,expires_at) SELECT ${id}::uuid,${topic},${subject},${expires} WHERE ${guard} AND ${expires}>clock_timestamp() RETURNING id`,
   );
   if (!inserted.rows.length) throw new ApplicationError("not_found", "Socket unavailable", 404);
-  if (!topic.startsWith("/parties/"))
+  if (!topic.startsWith("/parties/") && !topic.startsWith("/teams/"))
     await tx.execute(
       sql`INSERT INTO platform_presence_leases(owner_id,window_id,expires_at) VALUES(${subject},${id}::uuid,clock_timestamp()+interval '90 seconds') ON CONFLICT(owner_id,window_id) DO UPDATE SET expires_at=excluded.expires_at`,
     );

@@ -37,6 +37,7 @@ export default defineConfig({
     testTimeout: 30000,
     include: [
       "src/runtime/composition/worker.integration.test.ts",
+      "src/runtime/composition/worker.factions.test.ts",
       "src/runtime/composition/worker.queue.test.ts",
       "src/runtime/composition/worker.peer.test.ts",
       "src/runtime/composition/judging-connections.workerd.test.ts",

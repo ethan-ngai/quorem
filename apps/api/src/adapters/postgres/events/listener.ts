@@ -5,6 +5,7 @@ const channels = [
   "quorem_interview_outbox",
   "quorem_match_outbox",
   "quorem_party_outbox",
+  "quorem_team_outbox",
   "quorem_submission_outbox",
 ] as const;
 /** Reconnection and periodic repair belong to the caller; notifications are only hints. */

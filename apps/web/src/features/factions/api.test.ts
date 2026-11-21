@@ -2,7 +2,7 @@
 import { beforeEach, expect, test, vi } from "vitest";
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock("../../api/client", () => ({ api: () => ({ GET: get, POST: post }) }));
-import { factionLobby, organizeFactions, teamRequest } from "./api";
+import { factionLobby, organizeFactions, readTeam } from "./api";
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
@@ -21,5 +21,5 @@ test("validates lobby responses and uses typed organization route", async () => 
 });
 test("rejects malformed team response", async () => {
   get.mockResolvedValue({ response: { ok: true }, data: { team: 1 } });
-  await expect(teamRequest("match")).rejects.toThrow();
+  await expect(readTeam("match")).rejects.toThrow();
 });

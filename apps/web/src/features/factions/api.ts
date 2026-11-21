@@ -1,5 +1,6 @@
 /** @file api.ts @description Authenticated team requests with stable command identities. @module factions */
 import { z } from "zod";
+import type { TeamSnapshot } from "@quorem/contracts/factions";
 import { api } from "../../api/client";
 import { randomUUID } from "../../randomUUID";
 
@@ -13,9 +14,6 @@ export class TeamError extends Error {
 }
 const object = z.record(z.string(), z.unknown());
 const position = z.object({ epoch: z.string(), version: z.number().int().nonnegative() });
-const updates = position.extend({
-  updates: z.array(z.object({ clientID: z.string(), changes: z.array(z.unknown()) })),
-});
 const peer = position.extend({
   clientID: z.string(),
   userId: z.string(),
@@ -23,6 +21,7 @@ const peer = position.extend({
   color: z.number().nullish(),
   anchor: z.number(),
   head: z.number(),
+  expiresInMs: z.number().nonnegative().optional(),
 });
 const documentPosition = {
   documentEpoch: z.string(),
@@ -41,11 +40,6 @@ const actionInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("reset"), ...documentPosition }),
   z.object({ kind: z.literal("language"), language: z.string(), ...documentPosition }),
 ]);
-const presenceInput = position.extend({
-  clientID: z.string(),
-  anchor: z.number().int(),
-  head: z.number().int(),
-});
 const vote = z.object({
   id: z.string(),
   proposerId: z.string(),
@@ -68,54 +62,41 @@ const snapshot = z.object({
   peers: z.array(peer),
   latestSubmissionId: z.string().optional(),
 });
-export async function teamRequest<T>(
+export async function readTeam(id: string, signal?: AbortSignal): Promise<TeamSnapshot> {
+  const result = await api().GET("/v1/matches/{id}/team", { params: { path: { id } }, signal });
+  if (!result.response.ok)
+    throw new TeamError(
+      result.error?.error?.code ?? "unavailable",
+      result.error?.error?.message ?? "Faction unavailable",
+    );
+  return snapshot.parse(result.data) as TeamSnapshot;
+}
+
+export async function teamRequest(
   id: string,
-  action?: string,
-  body?: unknown,
-  key = randomUUID(),
-): Promise<T> {
-  const client = api(),
-    params = { path: { id }, header: { "Idempotency-Key": key } };
-  const input = body ?? {};
+  action: "propose" | "vote" | "cancel",
+  body: unknown,
+) {
+  const client = api();
+  const params = { path: { id }, header: { "Idempotency-Key": randomUUID() } };
   let result;
   switch (action) {
-    case undefined:
-      result = await client.GET("/v1/matches/{id}/team", { params: { path: { id } } });
-      break;
-    case "pull":
-      result = await client.POST("/v1/matches/{id}/team/pull", {
-        params,
-        body: position.parse(input),
-      });
-      break;
-    case "push":
-      result = await client.POST("/v1/matches/{id}/team/push", {
-        params,
-        body: updates.parse(input),
-      });
-      break;
-    case "presence":
-      result = await client.POST("/v1/matches/{id}/team/presence", {
-        params,
-        body: presenceInput.parse(input),
-      });
-      break;
     case "propose":
       result = await client.POST("/v1/matches/{id}/team/propose", {
         params,
-        body: z.object({ action: actionInput }).parse(input),
+        body: z.object({ action: actionInput }).parse(body),
       });
       break;
     case "vote":
       result = await client.POST("/v1/matches/{id}/team/vote", {
         params,
-        body: z.object({ id: z.string(), approve: z.boolean() }).parse(input),
+        body: z.object({ id: z.string(), approve: z.boolean() }).parse(body),
       });
       break;
     case "cancel":
       result = await client.POST("/v1/matches/{id}/team/cancel", {
         params,
-        body: z.object({ id: z.string() }).parse(input),
+        body: z.object({ id: z.string() }).parse(body),
       });
       break;
     default:
@@ -125,14 +106,7 @@ export async function teamRequest<T>(
     const detail = result.error?.error;
     throw new TeamError(detail?.code ?? "unavailable", detail?.message ?? "Faction action failed");
   }
-  const schema = !action
-    ? snapshot
-    : action === "pull" || action === "push"
-      ? updates
-      : action === "presence"
-        ? z.array(peer)
-        : vote;
-  return schema.parse(result.data) as T;
+  return vote.parse(result.data);
 }
 
 const lobby = z.object({

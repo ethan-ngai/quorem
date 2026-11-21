@@ -10,9 +10,9 @@ The server freezes the action, source, rule version and exact cost. Majority exe
 
 Votes use a persistent nonmodal toast: explicit costs, tally, deadline, approve/reject, proposer cancellation and recoverable minimization. Frozen submitted code can be inspected without moving editor focus. Expired actions disable locally; the server owns the deadline.
 
-Transport: authenticated team HTTP endpoints under `/v1/parties/:id/teams` and `/v1/matches/:id/team`. Document pulls poll every 750ms while mounted; snapshots poll every second. Presence and read-only pulls do not create durable idempotency receipts. Document writes and vote actions do. Judging dispatch uses the existing durable execution intent and post-commit wake.
+The editor uses the shared interview command transport at `/v1/matches/:id/team/:team/events`. The server checks the frozen roster before admission, commands and notices. Team edits, ballots, submissions and cursors enqueue private invalidations in the same transaction as the write. Document sync pulls missed versions on reconnect. Snapshot reads occur on entry, reconnect and relevant changes. Cursors publish on activity and expire locally. Idle keepalives use Cloudflare hibernation. Judging dispatch retains the existing execution intent and post-commit wake.
 
-Migration: `080_factions.sql`. Local verification uses disposable `quorem_factions_test` via `QUOREM_FACTIONS_TEST_DATABASE_URL`; schema parity uses the separate `quorem_hono_schema_test`. Never point truncating tests at development data.
+The team outbox is created by migration `118_team_outbox.sql`. Local verification uses disposable `quorem_factions_test` via `QUOREM_FACTIONS_TEST_DATABASE_URL`; schema parity uses the separate `quorem_hono_schema_test`. Never point truncating tests at development data.
 
 Ledger: [#622](https://github.com/ethan-ngai/quorem/issues/622).
 

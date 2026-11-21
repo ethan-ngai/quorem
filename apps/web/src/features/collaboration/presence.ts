@@ -27,6 +27,7 @@ export type CollaborationPresence = {
   epoch: string;
   anchor: number;
   head: number;
+  expiresInMs?: number;
 };
 const receivedPresence = StateEffect.define<CollaborationPresence[]>();
 
@@ -37,14 +38,13 @@ export function presenceExtension(
   clientID: string,
   onPeers?: (peers: CollaborationPresence[]) => void,
   onDisconnect?: () => void,
-  renewIdle = true,
 ) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
       labels = new Map<string, CursorLabel>();
       timer: ReturnType<typeof setTimeout> | undefined;
-      heartbeat?: ReturnType<typeof setInterval>;
+      expiry?: ReturnType<typeof setTimeout>;
       disposed = false;
       reading = false;
       readAgain = false;
@@ -54,10 +54,6 @@ export function presenceExtension(
         this.stop = transport.onChange(() => {
           void this.read();
         });
-        if (renewIdle)
-          this.heartbeat = setInterval(() => {
-            void this.publish();
-          }, 10_000);
         this.stopStatus = transport.onStatus((connected) => {
           if (!connected) onDisconnect?.();
           if (connected && !this.disposed) this.schedule();
@@ -89,10 +85,26 @@ export function presenceExtension(
         }
       }
       receive(peers: CollaborationPresence[]) {
+        const now = Date.now();
+        this.show(
+          peers.map((peer) => ({
+            peer,
+            at: peer.expiresInMs === undefined ? Infinity : now + Math.max(0, peer.expiresInMs),
+          })),
+        );
+      }
+      show(entries: { peer: CollaborationPresence; at: number }[]) {
+        clearTimeout(this.expiry);
+        const now = Date.now();
+        const visible = entries.filter(({ at }) => at > now);
+        const peers = visible.map(({ peer }) => peer);
         onPeers?.(peers);
         const active = new Set(peers.map((peer) => peer.clientID));
         for (const id of this.labels.keys()) if (!active.has(id)) this.labels.delete(id);
         this.view.dispatch({ effects: receivedPresence.of(peers) });
+        const next = Math.min(...visible.map(({ at }) => at));
+        if (Number.isFinite(next))
+          this.expiry = setTimeout(() => this.show(visible), Math.max(1, next - now));
       }
       async publish() {
         if (this.disposed || sendableUpdates(this.view.state).length) return;
@@ -165,7 +177,7 @@ export function presenceExtension(
       destroy() {
         this.disposed = true;
         clearTimeout(this.timer);
-        clearInterval(this.heartbeat);
+        clearTimeout(this.expiry);
         this.stop();
         this.stopStatus();
       }

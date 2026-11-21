@@ -23,12 +23,16 @@ export function teamActionLabel(action: TeamAction) {
 }
 function Countdown({ expiresAt, onExpire }: { expiresAt: number; onExpire: () => void }) {
   const [now, setNow] = useState(Date.now());
+  const reported = useRef(false);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   useEffect(() => {
-    if (now >= expiresAt) onExpire();
+    if (now >= expiresAt && !reported.current) {
+      reported.current = true;
+      onExpire();
+    }
   }, [now, expiresAt, onExpire]);
   return (
     <span className="persistent-action-toast-countdown">
@@ -44,6 +48,7 @@ export function TeamVoteToast({
   serverNow,
   onVote,
   onCancel,
+  onExpire,
 }: {
   vote: TeamVote;
   identity: string;
@@ -51,6 +56,7 @@ export function TeamVoteToast({
   serverNow: number;
   onVote: (id: string, approve: boolean) => Promise<void>;
   onCancel: (id: string) => Promise<void>;
+  onExpire?: () => void;
 }) {
   const [localExpiry] = useState(() => Date.now() + vote.expiresAt - serverNow);
   const [operation, setOperation] = useState<"approve" | "reject" | "cancel">();
@@ -86,7 +92,13 @@ export function TeamVoteToast({
     >
       <div className="persistent-action-toast-context">
         <span>{proposerName} proposed</span>
-        <Countdown expiresAt={localExpiry} onExpire={() => setExpired(true)} />
+        <Countdown
+          expiresAt={localExpiry}
+          onExpire={() => {
+            setExpired(true);
+            onExpire?.();
+          }}
+        />
       </div>
       <div className="persistent-action-toast-summary">
         <span className="persistent-action-toast-cost">

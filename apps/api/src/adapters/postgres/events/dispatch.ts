@@ -13,6 +13,7 @@ const tables = {
   interview: "interview_outbox",
   match: "match_outbox",
   party: "party_outbox",
+  team: "team_outbox",
   submission: "submission_outbox",
   execution: "execution_dispatch_intents",
 } as const;
@@ -20,6 +21,7 @@ const aggregate = {
   interview: "session_id",
   match: "match_id",
   party: "party_id",
+  team: "match_id",
   submission: "submission_id",
 } as const;
 const txn = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
@@ -59,7 +61,10 @@ export function postgresDispatch(run: Scope): DispatchStore {
       const available = execution ? sql`AND available_at <= clock_timestamp()` : sql``;
       const fields = execution
         ? sql`q.job_id::text AS "jobId"`
-        : sql`q.${sql.raw(aggregate[stream])}::text AS "aggregateId", ${stream === "match" ? sql`q.version::text` : sql`q.sequence::text`} AS version, ${stream === "interview" || stream === "match" ? sql`q.event_type` : sql`${stream + ".updated"}`} AS type, q.occurred_at::text AS "occurredAt"`;
+        : sql`${stream === "team" ? sql`q.match_id::text || ':' || q.team::text` : sql`q.${sql.raw(aggregate[stream])}::text`} AS "aggregateId",
+            ${stream === "match" ? sql`q.version::text` : sql`q.sequence::text`} AS version,
+            ${stream === "interview" || stream === "match" || stream === "team" ? sql`q.event_type` : sql`${stream + ".updated"}`} AS type,
+            q.occurred_at::text AS "occurredAt"`;
       const token = crypto.randomUUID();
       return run((scope) =>
         scope.transaction(txn, async (tx) => {

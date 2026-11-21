@@ -2436,6 +2436,34 @@ export const party_outbox = pgTable(
     }).onDelete("cascade"),
   ],
 );
+export const team_outbox = pgTable(
+  "team_outbox",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    sequence: bigint({ mode: "bigint" }).generatedAlwaysAsIdentity({
+      name: "team_outbox_sequence_seq",
+    }),
+    match_id: uuid().notNull(),
+    team: smallint().notNull(),
+    event_type: text().notNull(),
+    occurred_at: timestamp({ withTimezone: true, mode: "string" })
+      .default(sql`clock_timestamp()`)
+      .notNull(),
+    published_at: timestamp({ withTimezone: true, mode: "string" }),
+    dispatch_token: uuid(),
+    dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
+  },
+  (t) => [
+    index("team_outbox_pending").on(t.sequence).where(sql`published_at IS NULL`),
+    unique("team_outbox_sequence_key").on(t.sequence),
+    check("team_outbox_team_check", sql`team >= 1 AND team <= 4`),
+    foreignKey({
+      columns: [t.match_id],
+      foreignColumns: [matches.id],
+      name: "team_outbox_match_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
 export const party_members = pgTable(
   "party_members",
   {

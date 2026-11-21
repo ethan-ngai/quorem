@@ -123,16 +123,17 @@ export function composeHttp(ports: HttpPorts) {
       },
     }),
   );
+  const factions = factionRepository(
+    run,
+    teamActionExecutor(paidTeamActions(options)),
+    () => ports.execution.wake(0),
+    deadline,
+  );
   app.route(
     "/",
     factionRoutes({
       identify,
-      factions: factionRepository(
-        run,
-        teamActionExecutor(paidTeamActions(options)),
-        () => ports.execution.wake(0),
-        deadline,
-      ),
+      factions,
     }),
   );
   app.route("/", dashboardRoutes({ identify, read: playerDashboard(run) }));
@@ -207,5 +208,5 @@ export function composeHttp(ports: HttpPorts) {
     "/",
     interviewExecutionRoutes({ ...execution, commit: postgresInterviewAdmission(run, options) }),
   );
-  return { app, matches, parties };
+  return { app, matches, parties, factions };
 }

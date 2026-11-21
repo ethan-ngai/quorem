@@ -9,11 +9,13 @@ export interface Factions {
     body: Record<string, unknown>,
   ): Promise<unknown>;
   read(actor: Principal, id: string): Promise<unknown>;
+  authorizeSocket(actor: Principal, id: string, team: number): Promise<void>;
   command(
     actor: Principal,
     id: string,
     key: string,
     action: string,
     body: Record<string, unknown>,
+    expectedTeam?: number,
   ): Promise<unknown>;
 }

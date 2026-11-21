@@ -4,32 +4,29 @@ import type { OdysseyProgress } from "@quorem/contracts";
 import type { EditorLanguage } from "../editor/editorLanguages";
 /** @file collaboration.ts @description Team transport around shared document and cursor primitives. @module factions */
 import { randomUUID } from "../../randomUUID";
-import {
-  createDocumentSync,
-  type CollaborationStatus,
-  type DocumentUpdates,
-} from "../collaboration/documentSync";
+import { createDocumentSync, type CollaborationStatus } from "../collaboration/documentSync";
+import { createCommandSocket } from "../realtime/commandSocket";
 import { presenceExtension } from "../collaboration/presence";
-import type { TeamSnapshot, TeamPeer } from "@quorem/contracts/factions";
-import { teamRequest, TeamError } from "./api";
+import type { TeamSnapshot } from "@quorem/contracts/factions";
+import { TeamError } from "./api";
 export function createTeamCollaboration(
   id: string,
   initial: TeamSnapshot,
   onStatus: (status: CollaborationStatus) => void,
+  refreshSnapshot: () => void,
 ) {
   const clientID = randomUUID();
-  const listeners = new Set<(kind?: string) => void>();
-  const statuses = new Set<(connected: boolean) => void>();
+  const transport = createCommandSocket({
+    path: `/v1/matches/${encodeURIComponent(id)}/team/${initial.team}/events`,
+    label: "Faction",
+    error: (code, _status, message) => new TeamError(code, message),
+  });
   let odyssey: { progress: OdysseyProgress; language: EditorLanguage } | undefined;
-  let peers: TeamPeer[] = initial.peers;
-  let timer: ReturnType<typeof setInterval> | undefined;
+  let connected = false;
   const sync = createDocumentSync({
     document: initial.document,
     clientID,
-    onStatus(status) {
-      onStatus(status);
-      for (const listener of statuses) listener(status === "connected");
-    },
+    onStatus,
     async onSynchronized(document) {
       if (odyssey)
         await synchronizeMethodStubs(
@@ -37,12 +34,12 @@ export function createTeamCollaboration(
           initial.document.epoch,
           odyssey.progress,
           odyssey.language,
-          (body, key) => teamRequest(id, "push", body, key),
+          (push, key) => transport.request("push", { push, key }),
           (error) => error instanceof TeamError && error.code === "stale_version",
         );
     },
-    pull: (position) => teamRequest<DocumentUpdates>(id, "pull", position),
-    push: (push, key) => teamRequest<DocumentUpdates>(id, "push", push, key),
+    pull: (position) => transport.request("pull", position),
+    push: (push, key) => transport.request("push", { push, key }),
     classifyError: (error) =>
       error instanceof TeamError
         ? error.code === "stale_version"
@@ -54,33 +51,33 @@ export function createTeamCollaboration(
               : "retry"
         : "retry",
     onMount() {
-      sync.schedule();
-      timer = setInterval(() => sync.schedule(), 750);
-    },
-    onDestroy() {
-      clearInterval(timer);
+      sync.connectionChanged(connected);
     },
   });
-  const transport = {
-    async request<T>(type: string, body?: Record<string, unknown>): Promise<T> {
-      if (type === "peers") return peers as T;
-      return teamRequest<T>(id, "presence", body?.presence);
-    },
+  function connectionChanged(next: boolean) {
+    connected = next;
+    sync.connectionChanged(next);
+  }
+  transport.onStatus(connectionChanged);
+  transport.onChange((kind) => {
+    if (!kind || kind === "team.document") sync.schedule();
+    if (!kind || kind === "team.snapshot") refreshSnapshot();
+  });
+  const cursors = {
+    ...transport,
     onChange(listener: (kind?: string) => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    onStatus(listener: (connected: boolean) => void) {
-      statuses.add(listener);
-      return () => {
-        statuses.delete(listener);
-      };
+      return transport.onChange((kind) => {
+        if (!kind || kind === "team.presence") listener(kind);
+      });
     },
   };
   return {
     ...sync,
+    start: transport.start,
+    stop() {
+      transport.stop();
+      connectionChanged(false);
+    },
     updateOdyssey(this: void, progress: OdysseyProgress, language: EditorLanguage) {
       odyssey = { progress, language };
       sync.schedule();
@@ -88,12 +85,7 @@ export function createTeamCollaboration(
     extension: [
       sourceFilter,
       sync.extension,
-      presenceExtension(transport, initial.document.epoch, clientID),
+      presenceExtension(cursors, initial.document.epoch, clientID),
     ],
-    update(snapshot: TeamSnapshot) {
-      peers = snapshot.peers;
-      for (const listener of listeners) listener();
-      sync.schedule();
-    },
   };
 }

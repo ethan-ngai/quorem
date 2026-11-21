@@ -16,6 +16,8 @@ import {
 } from "../lifecycle/repository.ts";
 type Run = <T>(f: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 3000, lockTimeoutMs: 1000 };
+const topic = (id: string, team?: number) =>
+  team === undefined ? `/matches/${id}` : `/teams/${id}:${team}`;
 async function authorize(tx: Transaction, actor: Principal, id: string) {
   await lockMatchOwner(tx, actor);
   const host = await lockMatchHost(tx, id);
@@ -27,12 +29,12 @@ export function matchSocketLeases(run: Run) {
   const tx = <T>(f: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, f));
   return {
-    acquire: (actor: Principal, id: string, expiresAt?: number) =>
+    acquire: (actor: Principal, id: string, expiresAt?: number, team?: number) =>
       tx(async (t) => {
         await authorize(t, actor, id);
         return acquireSocketLease(
           t,
-          `/matches/${id}`,
+          topic(id, team),
           actor.userId,
           () => authorize(t, actor, id),
           sql`true`,
@@ -43,7 +45,7 @@ export function matchSocketLeases(run: Run) {
       tx((t) =>
         renewSocketLease(t, `/matches/${id}`, actor.userId, lease, () => authorize(t, actor, id)),
       ),
-    release: (owner: string, id: string, lease: string) =>
-      tx((t) => releaseSocketLease(t, `/matches/${id}`, owner, lease)),
+    release: (owner: string, id: string, lease: string, team?: number) =>
+      tx((t) => releaseSocketLease(t, topic(id, team), owner, lease)),
   };
 }

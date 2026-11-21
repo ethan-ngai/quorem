@@ -12,7 +12,7 @@ import { LoadingIndicator } from "../../ui/Spinner";
 import { PersistentNotice } from "../../ui/PersistentNotice";
 import { TeamVoteToast } from "./TeamVoteToast";
 import { createTeamCollaboration } from "./collaboration";
-import { teamRequest } from "./api";
+import { readTeam, teamRequest } from "./api";
 import type { ReactNode } from "react";
 export function FactionWorkspace({
   match,
@@ -29,9 +29,9 @@ export function FactionWorkspace({
 }) {
   const query = useQuery({
     queryKey: ["team", match.id, identity],
-    queryFn: () => teamRequest<TeamSnapshot>(match.id),
+    queryFn: ({ signal }) => readTeam(match.id, signal),
     enabled: !review,
-    refetchInterval: 1000,
+    refetchOnReconnect: false,
     retry: false,
   });
   // Keep the existing team editor during review, even if a team refresh was in flight.
@@ -95,11 +95,19 @@ function TeamWorkspace({
   const [seed] = useState(initial);
   const [status, setStatus] = useState<CollaborationStatus>("connecting");
   const [error, setError] = useState<string>();
+  const [expiredVote, setExpiredVote] = useState<string>();
   const controller = useMemo(
-    () => createTeamCollaboration(match.id, seed, setStatus),
-    [match.id, seed],
+    () =>
+      createTeamCollaboration(match.id, seed, setStatus, () => {
+        void client.invalidateQueries({ queryKey: ["team", match.id, identity] });
+      }),
+    [client, match.id, identity, seed],
   );
-  useEffect(() => controller.update(snapshot), [controller, snapshot]);
+  useEffect(() => {
+    if (review) return;
+    controller.start();
+    return () => controller.stop();
+  }, [controller, review]);
   const refresh = () => client.invalidateQueries({ queryKey: ["team", match.id, identity] });
   async function propose(action: TeamAction | { kind: "submit" }) {
     await teamRequest(match.id, "propose", { action });
@@ -107,7 +115,7 @@ function TeamWorkspace({
   }
   async function documentAction(kind: "reset" | "language", language?: string) {
     if (!(await controller.flush())) throw new Error("Wait for your edits to synchronize");
-    const current = await teamRequest<TeamSnapshot>(match.id);
+    const current = await readTeam(match.id);
     const position = {
       documentEpoch: current.document.epoch,
       documentVersion: current.document.version,
@@ -124,7 +132,7 @@ function TeamWorkspace({
       setError(e instanceof Error ? e.message : "Faction action failed");
     }
   }
-  const activeVote = snapshot.votes.find((v) => v.state === "pending");
+  const activeVote = snapshot.votes.find((v) => v.state === "pending" && v.id !== expiredVote);
   return (
     <WorkspacePage
       match={match}
@@ -196,6 +204,7 @@ function TeamWorkspace({
                     "Faction member"
                   }
                   serverNow={snapshot.serverNow}
+                  onExpire={() => setExpiredVote(activeVote.id)}
                   onVote={async (id, approve) => {
                     await teamRequest(match.id, "vote", { id, approve });
                     await refresh();
