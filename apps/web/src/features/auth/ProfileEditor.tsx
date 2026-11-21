@@ -16,7 +16,6 @@ import { emailSchema, optionalNameSchema, usernameSchema } from "@quorem/contrac
 import { fetchAuthCapabilities } from "./capabilities";
 import { AccountRateLimitError, updateAccount, requestEmailChange, listAccounts } from "./account";
 import { fetchProfile, type AccountProfile } from "./profile";
-import { resetToken } from "./session";
 import { UsernameRules } from "./UsernameRules";
 import { useCooldown } from "../../ui/useCooldown";
 import "./profile-editor.css";
@@ -92,7 +91,6 @@ export function ProfileEditor({
         editing === "name" ? parsedName.data! : profile.name,
         editing === "username" ? parsedUsername.data : undefined,
       );
-      resetToken();
       client.setQueryData(["account-profile", userId], await fetchProfile());
       await client.invalidateQueries({ queryKey: ["auth-session"] });
       setEditing(null);

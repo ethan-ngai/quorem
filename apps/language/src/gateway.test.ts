@@ -32,9 +32,10 @@ async function start(port: number, extra: NodeJS.ProcessEnv) {
   child.kill();
   throw new Error(`gateway startup timed out ${output}`);
 }
-function open(port: number, path: string, protocols?: string[]) {
-  return new WebSocket(`ws://127.0.0.1:${port}${path}`, protocols, {
+function open(port: number, path: string, token?: string) {
+  return new WebSocket(`ws://127.0.0.1:${port}${path}`, token ? ["quorem"] : undefined, {
     origin: "http://localhost:5173",
+    ...(token && { headers: { cookie: `better-auth.session_token=${token}` } }),
   });
 }
 function status(socket: WebSocket): Promise<number> {
@@ -57,10 +58,10 @@ void test("managed gateway separates access denial from authority outage", async
     API_IDENTITY_URL: `http://127.0.0.1:${authorityPort}`,
   });
   try {
-    assert.equal(await status(open(18084, "/lsp", ["quorem", "bearer.token"])), 403);
+    assert.equal(await status(open(18084, "/lsp", "token")), 403);
     responseStatus = 503;
-    assert.equal(await status(open(18084, "/lsp", ["quorem", "bearer.token"])), 503);
-    assert.equal(await status(open(18084, "/lsp?language=java", ["quorem", "bearer.token"])), 400);
+    assert.equal(await status(open(18084, "/lsp", "token")), 503);
+    assert.equal(await status(open(18084, "/lsp?language=java", "token")), 400);
   } finally {
     child.kill("SIGTERM");
     await new Promise((resolve) => child.once("exit", resolve));
@@ -162,7 +163,7 @@ void test("managed verified entitlement opens only quorem protocol without forwa
     LANGUAGE_FAKE_LOG: log,
   });
   try {
-    const socket = open(18087, "/lsp", ["quorem", "bearer.secret-token"]);
+    const socket = open(18087, "/lsp", "secret-token");
     socket.on("error", () => {});
     await new Promise<void>((resolve) => socket.once("open", resolve));
     assert.equal(socket.protocol, "quorem");
@@ -199,14 +200,14 @@ void test("pending identity requests respect the upgrade limit", async () => {
     AUTH_ORIGIN: "http://localhost:5173",
     API_IDENTITY_URL: `http://127.0.0.1:${port}`,
   });
-  const first = open(18088, "/lsp", ["quorem", "bearer.one"]),
-    second = open(18088, "/lsp", ["quorem", "bearer.two"]);
+  const first = open(18088, "/lsp", "one"),
+    second = open(18088, "/lsp", "two");
   first.on("error", () => {});
   second.on("error", () => {});
   try {
     for (let i = 0; i < 100 && requests < 2; i++) await delay(10);
     assert.equal(requests, 2);
-    assert.equal(await status(open(18088, "/lsp", ["quorem", "bearer.three"])), 503);
+    assert.equal(await status(open(18088, "/lsp", "three")), 503);
   } finally {
     first.terminate();
     second.terminate();
@@ -249,7 +250,7 @@ void test(
       PATH: `${directory}:${process.env.PATH}`,
     });
     try {
-      const socket = open(18089, "/lsp", ["quorem", "bearer.token"]);
+      const socket = open(18089, "/lsp", "token");
       socket.on("error", () => {});
       await new Promise<void>((resolve) => socket.once("open", resolve));
       const closed = new Promise<number>((resolve) => socket.once("close", resolve));

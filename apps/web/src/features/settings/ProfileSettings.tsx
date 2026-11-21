@@ -16,7 +16,7 @@ import { ProfileEditor } from "../auth/ProfileEditor";
 import { PasskeySettings } from "../auth/PasskeySettings";
 import { AccountAvatar } from "../navigation/AccountAvatar";
 import { participantColor, participantColors } from "../collaboration/participantColor";
-import { resetToken, fetchSession } from "../auth/session";
+import { fetchSession } from "../auth/session";
 import { LoadingIndicator } from "../../ui/Spinner";
 
 export function ProfileSettings({
@@ -53,7 +53,6 @@ export function ProfileSettings({
     try {
       const updated = await updateProfileColor(color);
       client.setQueryData(["account-profile", userId], updated);
-      resetToken();
       await fetchSession();
     } catch (cause) {
       setError(authErrorMessage(cause, "Color update unavailable. Try again."));

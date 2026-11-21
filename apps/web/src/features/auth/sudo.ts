@@ -1,6 +1,5 @@
 /** @file sudo.ts @description Shared, deduplicated sudo prompt and server-owned expiry. @module auth */
 import { AuthError } from "./errors";
-import { resetToken } from "./session";
 export type SudoStatus = {
   userId: string;
   until: number;
@@ -44,7 +43,6 @@ export function cancelSudo() {
 /** Only successful server verification resumes the protected action. */
 export async function completeSudo() {
   if (!prompt) return;
-  resetToken();
   const status = await sudoRequest<SudoStatus>("status");
   if (status.userId !== prompt.status.userId)
     throw new AuthError("Account changed. Reload before continuing.");

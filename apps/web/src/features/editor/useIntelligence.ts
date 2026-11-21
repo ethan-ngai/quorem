@@ -1,7 +1,6 @@
 /** @file useIntelligence.ts @description Browser-first language sessions with an optional hosted experiment. @module editor */
 import type { EditorLanguage } from "./editorLanguages";
 import { hostedIntelligenceEnabled } from "./intelligenceConfig";
-import { token } from "../auth/session";
 import { hoverTooltips, signatureHelp, serverDiagnostics } from "@codemirror/lsp-client";
 import { pythonLanguage } from "@codemirror/lang-python";
 import type { Extension } from "@codemirror/state";
@@ -100,15 +99,13 @@ export function useIntelligence(
       setStatus("paused");
     }
 
-    async function connect() {
+    function connect() {
       if (disposed || !isActive() || socket) return;
       setStatus("connecting");
       const url = new URL(import.meta.env.VITE_LANGUAGE_URL ?? "ws://127.0.0.1:8081/lsp");
       url.searchParams.set("user", identity);
       url.searchParams.set("takeover", "1");
-      const bearer = await token();
-      if (disposed || socket || !isActive()) return;
-      const active = new WebSocket(url, bearer ? ["quorem", `bearer.${bearer}`] : []);
+      const active = new WebSocket(url, ["quorem"]);
       socket = active;
       const connection = languageTransport(active);
       transport = connection;

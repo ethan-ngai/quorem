@@ -10,7 +10,6 @@ import { emailSchema, passwordSchema } from "@quorem/contracts/auth";
 import { Brand } from "../../ui/Icon";
 import { LoginShowcase } from "./LoginShowcase";
 import { useTheme } from "../editor/useTheme";
-import { resetToken } from "./session";
 import { useCooldown } from "../../ui/useCooldown";
 import { AccountRateLimitError, requestPasswordReset, finishPasswordReset } from "./account";
 import "./auth.css";
@@ -44,7 +43,6 @@ export function PasswordReset() {
     setBusy(true);
     try {
       await finishPasswordReset(token, password);
-      resetToken();
       setPassword("");
       setConfirmation("");
       setDone(true);

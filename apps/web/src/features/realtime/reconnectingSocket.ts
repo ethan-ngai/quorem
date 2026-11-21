@@ -1,11 +1,9 @@
 /** @file reconnectingSocket.ts @description Authenticated socket lifetime, retry and stale-callback fencing. @module realtime */
-import { token, tokenExpiresAt } from "../auth/session";
 import { createReconnectScheduler } from "./reconnectScheduler";
 
 type SocketOptions = {
   url: () => string | URL;
   timeout: number;
-  authenticate?: boolean;
   idleTimeout?: number;
   onConnecting?: () => void;
   onOpen: () => void;
@@ -22,12 +20,10 @@ export function createReconnectingSocket(options: SocketOptions) {
   let generation = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
-  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   function clearTimers() {
     clearTimeout(timer);
     clearTimeout(idleTimer);
-    clearTimeout(refreshTimer);
     clearInterval(pingTimer);
   }
   const reconnect = createReconnectScheduler(
@@ -35,18 +31,13 @@ export function createReconnectingSocket(options: SocketOptions) {
     (callback, delay) => setTimeout(callback, delay),
     (timer) => clearTimeout(timer),
   );
-  async function connect(renewing = false) {
+  function connect() {
     if (stopped) return;
     const started = generation;
-    if (!renewing) options.onConnecting?.();
+    options.onConnecting?.();
     const valid = () => !stopped && started === generation;
     try {
-      const bearer = options.authenticate === false ? undefined : await token();
-      const expires = bearer ? tokenExpiresAt() : undefined;
-      if (!valid()) return;
-      const protocols = ["quorem", "quorem-hibernate"];
-      if (bearer) protocols.push(`bearer.${bearer}`);
-      const current = new WebSocket(options.url(), protocols);
+      const current = new WebSocket(options.url(), ["quorem", "quorem-hibernate"]);
       socket = current;
       const owns = () => valid() && socket === current;
       // Browser close handshakes can stall on broken networks; detach before reconnecting.
@@ -85,14 +76,6 @@ export function createReconnectingSocket(options: SocketOptions) {
           ping();
           pingTimer = setInterval(ping, 10_000);
         }
-        if (expires && current.protocol !== "quorem-hibernate")
-          refreshTimer = setTimeout(
-            () => {
-              // Renewal stays quiet until a connection attempt fails.
-              if (detach()) void connect(true);
-            },
-            Math.max(1000, expires - Date.now() - 30_000),
-          );
         options.onOpen();
       };
       current.onmessage = (event) => {

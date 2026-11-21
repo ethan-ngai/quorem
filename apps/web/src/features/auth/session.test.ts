@@ -4,38 +4,29 @@ afterEach(() => {
   vi.resetModules();
 });
 describe("account identity transport", () => {
-  it("uses avatar claims only from the bearer accepted by the session endpoint", async () => {
+  it("loads the account and avatar through one cookie-authenticated request", async () => {
     vi.stubGlobal("window", { location: { origin: "http://127.0.0.1:5174" } });
-    const payload = btoa(
-      JSON.stringify({
-        sub: "subject-a",
-        name: "Alice",
-        color: 3,
-        image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
-        exp: Math.floor(Date.now() / 1000) + 300,
-      }),
-    ).replace(/=/g, "");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (request: string | Request) =>
-        typeof request === "string"
-          ? Response.json({ token: `header.${payload}.signature` })
-          : Response.json({
-              mode: "managed",
-              kind: "account",
-              user: { id: "product-id", displayName: "Alice", role: "user", emailVerified: true },
-            }),
-      ),
-    );
-    const { fetchSession } = await import("./session");
-    expect(await fetchSession()).toMatchObject({
-      authSubject: "subject-a",
-      avatar: {
-        name: "Alice",
-        color: 3,
-        image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
-      },
+    const avatar = {
+      name: "Alice",
+      color: 3,
+      image: "/api/auth/profile-photos/12345678-1234-1234-1234-123456789abc",
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.url).toBe("http://127.0.0.1:5174/v1/session");
+      expect(request.credentials).toBe("same-origin");
+      expect(request.headers.get("Authorization")).toBeNull();
+      return Response.json({
+        mode: "managed",
+        kind: "account",
+        authSubject: "subject-a",
+        avatar,
+        user: { id: "product-id", displayName: "Alice", role: "user", emailVerified: true },
+      });
     });
+    vi.stubGlobal("fetch", fetch);
+    const { fetchSession } = await import("./session");
+    expect(await fetchSession()).toMatchObject({ authSubject: "subject-a", avatar });
+    expect(fetch).toHaveBeenCalledOnce();
   });
   it("anonymous requests never fall back to a fixture account", async () => {
     vi.stubGlobal("window", { location: { origin: "http://127.0.0.1:5174" } });
@@ -53,23 +44,6 @@ describe("account identity transport", () => {
     await authenticatedFetch(
       new Request("http://127.0.0.1:5174/v1/session", { headers: { "X-Dev-User": "alice" } }),
     );
-  });
-  it("verified application bearer removes fixture headers", async () => {
-    vi.stubGlobal("window", { location: { origin: "http://127.0.0.1:5174" } });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (request: string | Request) => {
-        if (typeof request === "string") return Response.json({ token: "server-issued-token" });
-        expect(request.headers.get("X-Dev-User")).toBeNull();
-        expect(request.headers.get("Authorization")).toBe("Bearer server-issued-token");
-        return Response.json({
-          mode: "managed",
-          user: { id: "immutable", role: "user", emailVerified: true },
-        });
-      }),
-    );
-    const { fetchSession } = await import("./session");
-    expect((await fetchSession())?.user.id).toBe("immutable");
   });
   it("password sign in submits cookie credentials then reloads the authenticated application", async () => {
     const assign = vi.fn();
@@ -135,30 +109,6 @@ describe("account identity transport", () => {
     await expect(signIn(true)).rejects.toThrow("Sign in unavailable");
     expect(fetch).toHaveBeenCalledOnce();
   });
-  it("a token request started before logout cannot restore the previous bearer", async () => {
-    let finishToken: ((response: Response) => void) | undefined;
-    let tokenRequests = 0;
-    vi.stubGlobal("location", { assign: vi.fn() });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((path: string) => {
-        if (path === "/api/auth/sign-out") return Promise.resolve(Response.json({ success: true }));
-        tokenRequests++;
-        if (tokenRequests === 1)
-          return new Promise<Response>((resolve) => {
-            finishToken = resolve;
-          });
-        return Promise.resolve(new Response("{}", { status: 401 }));
-      }),
-    );
-    const { token, signOut } = await import("./session");
-    const previous = token();
-    await signOut();
-    finishToken!(Response.json({ token: "revoked-bearer" }));
-    expect(await previous).toBeUndefined();
-    expect(await token()).toBeUndefined();
-    expect(tokenRequests).toBe(2);
-  });
   it("returns to local work after login without accepting external destinations", async () => {
     const { signInDestination } = await import("./session");
     expect(signInDestination("?returnTo=%2Fpractice%2Frun-widths")).toBe("/practice/run-widths");
@@ -178,83 +128,37 @@ describe("account identity transport", () => {
   });
 });
 
-describe("anonymous token polling", () => {
-  it("caches missing account credentials until an explicit auth change", async () => {
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("{}", { status: 401 }))
-      .mockResolvedValueOnce(Response.json({ token: "signed-in" }));
-    vi.stubGlobal("fetch", fetch);
-    const { token, resetToken } = await import("./session");
-    expect(await token()).toBeUndefined();
-    expect(await token()).toBeUndefined();
-    expect(fetch).toHaveBeenCalledTimes(1);
-    resetToken();
-    expect(await token()).toBe("signed-in");
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
-});
-
 describe("session continuity", () => {
-  it("does not turn a token-service outage into an anonymous session", async () => {
+  it("does not turn an identity outage into an anonymous session", async () => {
     vi.stubGlobal("window", { location: { origin: "http://localhost" } });
     const fetch = vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 }));
     vi.stubGlobal("fetch", fetch);
     const { fetchSession } = await import("./session");
-    await expect(fetchSession()).rejects.toThrow("Account temporarily unavailable");
+    await expect(fetchSession()).rejects.toThrow("Account unavailable");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
-  it("propagates token network failures without sending an unauthenticated request", async () => {
+  it("propagates network failures without retrying", async () => {
     const fetch = vi.fn().mockRejectedValue(new TypeError("offline"));
     vi.stubGlobal("fetch", fetch);
     const { authenticatedFetch } = await import("./session");
     await expect(authenticatedFetch("http://localhost/v1/session")).rejects.toThrow("offline");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
-  it("refreshes based on JWT expiry instead of assuming a fresh five-minute token", async () => {
-    const now = Date.now();
-    const jwt = (exp: number) => `header.${btoa(JSON.stringify({ exp }))}.signature`;
-    const nearExpiry = jwt(Math.floor(now / 1000) + 20);
-    const renewed = jwt(Math.floor(now / 1000) + 300);
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ token: nearExpiry }))
-      .mockResolvedValueOnce(Response.json({ token: renewed }));
+  it("sends a protected write once and preserves its body and retry key on denial", async () => {
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.credentials).toBe("same-origin");
+      expect(request.headers.get("Idempotency-Key")).toBe("same-operation");
+      expect(await request.text()).toBe("source snapshot");
+      return new Response(null, { status: 401 });
+    });
     vi.stubGlobal("fetch", fetch);
-    const { token, tokenExpiresAt } = await import("./session");
-    expect(await token()).toBe(nearExpiry);
-    expect(tokenExpiresAt()).toBe((Math.floor(now / 1000) + 20) * 1000);
-    expect(await token()).toBe(renewed);
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
-  it("retries an expired bearer once without changing a submission body or retry key", async () => {
-    const requests: Request[] = [];
-    let credentials = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: string | Request) => {
-        if (typeof input === "string")
-          return Response.json({ token: ++credentials === 1 ? "old" : "new" });
-        requests.push(input);
-        return requests.length === 1
-          ? new Response(null, { status: 401 })
-          : Response.json({ id: "submission" });
-      }),
-    );
     const { authenticatedFetch } = await import("./session");
     const response = await authenticatedFetch("http://localhost/v1/submissions", {
       method: "POST",
       headers: { "Idempotency-Key": "same-operation" },
       body: "source snapshot",
     });
-    expect(response.ok).toBe(true);
-    expect(requests.map((request) => request.headers.get("Authorization"))).toEqual([
-      "Bearer old",
-      "Bearer new",
-    ]);
-    for (const request of requests) {
-      expect(request.headers.get("Idempotency-Key")).toBe("same-operation");
-      expect(await request.text()).toBe("source snapshot");
-    }
+    expect(response.status).toBe(401);
+    expect(fetch).toHaveBeenCalledOnce();
   });
 });

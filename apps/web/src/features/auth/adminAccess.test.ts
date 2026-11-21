@@ -3,7 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { isNotFound, isRedirect } from "@tanstack/react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { requireAdminAccess, requireAdminSession } from "./adminAccess";
-import { resetToken, type Session } from "./session";
+import type { Session } from "./session";
 
 const admin: Session = {
   mode: "managed",
@@ -11,7 +11,6 @@ const admin: Session = {
   user: { id: "admin", displayName: "Admin", emailVerified: true, role: "admin" },
 };
 afterEach(() => {
-  resetToken();
   vi.unstubAllGlobals();
 });
 function rejection(run: () => void) {
@@ -96,7 +95,7 @@ describe("admin admission", () => {
       vi.fn(async () => new Response(null, { status: 503 })),
     );
     await expect(requireAdminAccess(new QueryClient(), "/admin")).rejects.toThrow(
-      "Account temporarily unavailable",
+      "Account unavailable",
     );
   });
 });

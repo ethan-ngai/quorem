@@ -14,27 +14,29 @@ export class IdentityUnavailable extends Error {
   }
 }
 
-/** API session owns bearer verification, revocation and hosted-intelligence entitlement. */
+/** Forward only the account session cookie to the configured authority. */
+export function accountCookie(value: string | undefined): string | undefined {
+  const cookies = value?.split(";").map((part) => part.trim()).filter(
+    (part) => /^(?:__Secure-)?better-auth\.session_token=[^\s;,]+$/.test(part),
+  );
+  if (cookies?.length === 1 && cookies[0]!.length <= 4096) return cookies[0];
+}
+
+/** API session owns verification, revocation and hosted-intelligence entitlement. */
 export async function managedOwner(
-  protocol: string | undefined,
+  cookies: string | undefined,
   origin: string | undefined,
   path: string,
 ): Promise<string | null> {
   if (!process.env.AUTH_ORIGIN || origin !== process.env.AUTH_ORIGIN || path !== "/lsp")
     return null;
-  const tokens = (protocol ?? "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.startsWith("bearer."));
-  if (tokens.length !== 1) return null;
-  const bearer = tokens[0]!.slice(7);
-  if (!bearer || bearer.length > 16384 || /\s/.test(bearer) || !process.env.API_IDENTITY_URL)
-    return null;
+  const cookie = accountCookie(cookies);
+  if (!cookie || !process.env.API_IDENTITY_URL) return null;
   try {
     const endpoint = new URL(process.env.API_IDENTITY_URL);
     endpoint.pathname = `${endpoint.pathname.replace(/\/+$/, "")}/v1/session`;
     const response = await fetch(endpoint, {
-      headers: { Authorization: `Bearer ${bearer}` },
+      headers: { cookie, origin },
       redirect: "error",
       signal: AbortSignal.timeout(3000),
     });
