@@ -1,0 +1,271 @@
+@property --notification-swipe-progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+.notification-trigger {
+  position: relative;
+}
+.notification-badge {
+  position: absolute;
+  inset-block-start: 1px;
+  inset-inline-end: 1px;
+  display: grid;
+  place-items: center;
+  min-inline-size: 14px;
+  min-block-size: 14px;
+  aspect-ratio: 1;
+  padding-inline: 2px;
+  border-radius: 50%;
+  background: var(--color-error);
+  color: white;
+  font: 400 10px/1 var(--font-interface);
+  font-variant-numeric: lining-nums tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.72;
+  transform-origin: center;
+}
+.notification-badge[data-visible="true"] {
+  opacity: 1;
+  scale: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notification-badge {
+    transition:
+      opacity var(--motion-fast) var(--motion-easing),
+      scale var(--motion-fast) var(--motion-easing);
+  }
+  .notification-badge[data-visible="true"] {
+    transition-duration: var(--motion-standard);
+  }
+}
+.notification-popover {
+  --notification-delete-width: 20px;
+  width: min(360px, var(--radix-popover-content-available-width));
+  max-height: var(--radix-popover-content-available-height);
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  padding: var(--space-2);
+}
+.notification-popover header,
+.notification-row,
+.notification-setting {
+  display: flex;
+  align-items: center;
+}
+.notification-popover header {
+  justify-content: space-between;
+  padding-inline-start: var(--space-2);
+}
+.notification-popover h2 {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: 500;
+  margin: 0;
+}
+.notification-popover > p,
+.notification-items li > p {
+  margin: var(--space-2);
+}
+.notification-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.notification-items li {
+  border-top: 1px solid var(--color-border);
+}
+.notification-swipe-scroll {
+  margin-inline: calc(-1 * var(--space-2));
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+}
+.notification-swipe-track {
+  position: relative;
+  inline-size: 150%;
+}
+.notification-swipe-start,
+.notification-swipe-end {
+  position: absolute;
+  inset-block-start: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  pointer-events: none;
+}
+.notification-swipe-start {
+  inset-inline-start: 0;
+  scroll-snap-align: start;
+}
+.notification-swipe-end {
+  inset-inline-end: 0;
+  scroll-snap-align: end;
+}
+.notification-row {
+  --notification-action-size: 28px;
+  --notification-delete-fill: oklch(0.63 0.23 27);
+  --notification-delete-radius: var(--radius-md);
+  position: sticky;
+  inset-inline-start: 0;
+  inline-size: calc(100% / 1.5);
+  gap: var(--space-1);
+  padding: var(--space-2);
+  padding-inline-start: calc(2 * var(--space-2));
+  padding-inline-end: calc(var(--notification-delete-width) + var(--space-1));
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+}
+.notification-description {
+  flex: 1;
+  min-width: 0;
+  margin-inline-start: var(--space-1);
+}
+.notification-description strong {
+  display: block;
+  font-size: var(--text-small);
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notification-type {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-label);
+}
+.notification-type svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+.notification-row .icon-button {
+  --icon-button-size: var(--notification-action-size);
+}
+.notification-row .notification-accept {
+  color: var(--color-success);
+}
+.notification-row .notification-accept:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-success) 12%, transparent);
+  color: var(--color-success);
+}
+.notification-row .notification-decline {
+  color: var(--color-error-button);
+}
+.notification-row .notification-delete {
+  --delete-edge: 0%;
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: var(--notification-delete-width);
+  height: auto;
+  border-radius: 0;
+}
+.notification-row .notification-delete:not(:disabled):is(:hover, :focus-visible) {
+  background: color-mix(in oklch, var(--notification-delete-fill) 94%, black);
+  color: white;
+}
+.notification-swipe-fill {
+  --progress: var(--notification-swipe-progress, 0);
+  --delete-edge: calc(100% - var(--progress) * 100%);
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  align-items: center;
+  grid-template-columns: var(--notification-delete-width);
+  justify-content: end;
+  justify-items: center;
+  pointer-events: none;
+}
+.notification-swipe-fill svg {
+  scale: calc(1 + var(--progress) * 0.45);
+}
+.notification-row :is(.notification-delete, .notification-swipe-fill) {
+  clip-path: inset(
+    0 0 0 var(--delete-edge) round var(--notification-delete-radius) 0 0
+      var(--notification-delete-radius)
+  );
+  background: var(--notification-delete-fill);
+  color: white;
+}
+@supports (clip-path: shape(from 0 0, line to 100% 100%, close)) {
+  .notification-row :is(.notification-delete, .notification-swipe-fill) {
+    --delete-shoulder: min(100%, calc(var(--delete-edge) + var(--notification-delete-radius)));
+    --delete-tangent: calc(var(--notification-delete-radius) / 8);
+    --delete-control: min(100%, calc(var(--delete-edge) + var(--delete-tangent)));
+    clip-path: shape(
+      from var(--delete-shoulder) 0,
+      line to 100% 0,
+      line to 100% 100%,
+      line to var(--delete-shoulder) 100%,
+      curve to var(--delete-edge) calc(100% - var(--notification-delete-radius)) with
+        var(--delete-control) 100% / var(--delete-edge) calc(100% - var(--delete-tangent)),
+      line to var(--delete-edge) var(--notification-delete-radius),
+      curve to var(--delete-shoulder) 0 with var(--delete-edge) var(--delete-tangent) /
+        var(--delete-control) 0,
+      close
+    );
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .notification-row .notification-delete[data-reveal] {
+    --delete-edge: 100%;
+    transition:
+      clip-path var(--motion-standard) var(--motion-easing),
+      background-color var(--motion-fast) var(--motion-easing);
+  }
+  .notification-row .notification-delete[data-reveal]:not(:disabled) {
+    opacity: 1;
+  }
+  .notification-row:is(:hover, :has(:focus-visible)) .notification-delete[data-reveal] {
+    --delete-edge: 0%;
+    transition-duration: 240ms, var(--motion-fast);
+  }
+}
+.notification-row[data-completing] .notification-swipe-fill {
+  clip-path: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notification-swipe-fill {
+    transition: --notification-swipe-progress var(--motion-fast) var(--motion-easing);
+  }
+  .notification-row[data-swiping] .notification-swipe-fill {
+    transition-duration: 48ms;
+    transition-timing-function: linear;
+  }
+}
+.friend-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.notification-setting {
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+}
+.friend-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-2) 0;
+}
+.friend-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+}
+.invite-friends h3 {
+  font-size: var(--text-small);
+}
+.invite-friends .friend-list {
+  max-height: 14rem;
+  overflow: auto;
+}

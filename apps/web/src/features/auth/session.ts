@@ -105,6 +105,20 @@ export async function signOut() {
     body: "{}",
   });
   if (!response.ok) throw new AuthError("Sign out unavailable");
+  // A browser subscription is shared by accounts using this device.
+  if (navigator.serviceWorker) {
+    await navigator.serviceWorker
+      .getRegistration("/")
+      .then(async (registration) => {
+        if (
+          registration?.active?.scriptURL !==
+          new URL("/notification-worker.js", location.origin).href
+        )
+          return;
+        await (await registration.pushManager.getSubscription())?.unsubscribe();
+      })
+      .catch(() => {});
+  }
   invalidateAvatarHints();
   location.assign("/practice");
 }

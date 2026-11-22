@@ -1,7 +1,9 @@
 /** @file common.ts @description Safe cross-instance notice format. @module events */
 import type { Notice } from "../../../modules/events/dispatch/ports.ts";
 export const validChannel = (v: string) =>
-  /^\/(?:(?:matches|interviews|parties|submissions)\/[0-9a-fA-F-]{36}|teams\/[0-9a-fA-F-]{36}:[1-4])$/.test(v);
+  /^\/(?:(?:matches|interviews|parties|submissions)\/[0-9a-fA-F-]{36}|teams\/[0-9a-fA-F-]{36}:[1-4])$/.test(
+    v,
+  );
 export function safeNotice(channel: string, value: unknown): Notice {
   if (!validChannel(channel) || !value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid event notice");
@@ -26,7 +28,20 @@ export function safeNotice(channel: string, value: unknown): Notice {
     !Number.isFinite(Date.parse(occurredAt))
   )
     throw new Error("Invalid event notice");
-  return { id, aggregateId, version, type, occurredAt: new Date(occurredAt).toISOString() };
+  const recipient = n.recipient ?? n.Recipient;
+  if (
+    type === "inbox.changed" &&
+    (typeof recipient !== "string" || !recipient || recipient.length > 256)
+  )
+    throw new Error("Invalid inbox recipient");
+  return {
+    id,
+    aggregateId,
+    version,
+    type,
+    occurredAt: new Date(occurredAt).toISOString(),
+    ...(type === "inbox.changed" && typeof recipient === "string" ? { recipient } : {}),
+  };
 }
 export function wireNotice(channel: string, value: Notice) {
   const n = safeNotice(channel, value);
@@ -36,6 +51,7 @@ export function wireNotice(channel: string, value: Notice) {
     Version: n.version,
     Type: n.type,
     OccurredAt: n.occurredAt,
+    Recipient: n.recipient,
   };
 }
 export function endpoint(raw: string, socket = false): URL {

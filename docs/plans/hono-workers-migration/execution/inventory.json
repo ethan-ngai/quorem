@@ -623,6 +623,66 @@
       "method": "GET",
       "path": "/v1/players/{id}",
       "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/notifications/unread",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notifications/open",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/notifications/{id}",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/notifications/{id}/accept-invite",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/friends",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/friends/{player}",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/friends/{player}",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/parties/{party}/direct-invitations",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/notifications/settings",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/notifications/settings",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/notifications/push-subscription",
+      "registration": "apps/api/src/runtime/composition/http.ts"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/notifications/push-subscription",
+      "registration": "apps/api/src/runtime/composition/http.ts"
     }
   ],
   "websocketCommands": [

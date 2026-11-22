@@ -27,11 +27,14 @@ import { validateSelectedMatchProblem } from "../matches/selection/repository.ts
 import { matchEvent, finishMatch, reconcileMatch } from "../matches/reconcile/repository.ts";
 
 import { uuid, missing, conflict, validateGuest, lockParty, snapshot, reset } from "./store.ts";
+import type { AcceptInvitation } from "../../../modules/notifications/model.ts";
+import { directInvitationParty, removeJoinedInboxInvites } from "../notifications/repository.ts";
 import { transferHost, reconcileParty, scheduleIfReady } from "./reconcile.ts";
 export { reconcileParty } from "./reconcile.ts";
 
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
 const options = { statementTimeoutMs: 5000, lockTimeoutMs: 1000 };
+type PartyCommands = Parties & { acceptDirectInvite: AcceptInvitation };
 export function partyRepository(
   run: Run,
   inviteKey: Uint8Array,
@@ -39,7 +42,7 @@ export function partyRepository(
   shards: number,
   receipts: Receipts,
   guestCreation = false,
-): Parties {
+): PartyCommands {
   const transact = <T>(fn: (tx: Transaction) => Promise<T>) =>
     run((scope) => scope.transaction(options, fn));
   const cipher = inviteCipher(inviteKey);
@@ -84,7 +87,7 @@ export function partyRepository(
               ).rows.length
             )
               throw missing();
-          } else if (route === "join") {
+          } else if (route === "join" || route === "accept-invite") {
             const id = (replay as { id?: string }).id;
             if (!id) throw missing();
             await lockParty(tx, id, who.userId);
@@ -106,7 +109,31 @@ export function partyRepository(
     const shard = parseInt(deadlineId.slice(0, 8), 16) % shards;
     return activateDeadline(receipts, coordinator, shard, (id) => perform({ id, shard }));
   }
-  const repo: Parties = {
+  async function joinParty(
+    tx: Transaction,
+    who: Principal,
+    row: { id: string; settings: PartySettings },
+  ) {
+    if (row.settings.admissionLocked) throw conflict("Party admission is locked");
+    if (
+      (await tx.execute(sql`SELECT 1 FROM party_members WHERE owner_id=${who.userId}`)).rows.length
+    )
+      throw conflict("Leave your current party first");
+    const cap = row.settings.mode === "showdown" ? 2 : 8;
+    const seat = (
+      await tx.execute<{ n: number }>(
+        sql`SELECT COALESCE(min(n),0)::int AS n FROM generate_series(1,${cap}) n WHERE NOT EXISTS(SELECT 1 FROM party_members WHERE party_id=${row.id}::uuid AND seat=n)`,
+      )
+    ).rows[0].n;
+    if (!seat) throw conflict("Party is full");
+    await tx.execute(
+      sql`INSERT INTO party_members(party_id,owner_id,seat) VALUES(${row.id}::uuid,${who.userId},${seat})`,
+    );
+    await reset(tx, row.id);
+    await removeJoinedInboxInvites(tx, who.userId, row.id);
+    return snapshot(tx, row.id);
+  }
+  const repo: PartyCommands = {
     async current(who) {
       return transact(async (tx) => {
         await lockMatchOwner(tx, who);
@@ -221,24 +248,21 @@ export function partyRepository(
           )
         ).rows[0];
         if (!row) throw missing();
-        if (row.settings.admissionLocked) throw conflict("Party admission is locked");
-        if (
-          (await tx.execute(sql`SELECT 1 FROM party_members WHERE owner_id=${who.userId}`)).rows
-            .length
-        )
-          throw conflict("Leave your current party first");
-        const cap = row.settings.mode === "showdown" ? 2 : 8;
-        const seat = (
-          await tx.execute<{ n: number }>(
-            sql`SELECT COALESCE(min(n),0)::int AS n FROM generate_series(1,${cap}) n WHERE NOT EXISTS(SELECT 1 FROM party_members WHERE party_id=${row.id}::uuid AND seat=n)`,
-          )
-        ).rows[0].n;
-        if (!seat) throw conflict("Party is full");
-        await tx.execute(
-          sql`INSERT INTO party_members(party_id,owner_id,seat) VALUES(${row.id}::uuid,${who.userId},${seat})`,
-        );
-        await reset(tx, row.id);
-        return snapshot(tx, row.id);
+        return joinParty(tx, who, row);
+      });
+    },
+    async acceptDirectInvite(who, key, id) {
+      if (who.kind === "guest") throw missing();
+      return command(who, "accept-invite", key, id, async (tx) => {
+        const invite = await directInvitationParty(tx, who.userId, id);
+        const row = (
+          await tx.execute<{ id: string; settings: PartySettings }>(sql`
+          SELECT p.id::text, p.settings FROM parties p JOIN users h ON h.id = p.host_owner_id AND NOT h.disabled
+          WHERE p.id = ${invite.party}::uuid AND p.host_owner_id = ${invite.sender}
+            AND p.disbanded_at IS NULL FOR UPDATE OF p`)
+        ).rows[0];
+        if (!row) throw missing();
+        return joinParty(tx, who, row);
       });
     },
     async joinGuest(raw, credential, inputName) {
@@ -521,6 +545,11 @@ export function partyRepository(
     },
     async join(who, key, token) {
       const value = await repo.join(who, key, token);
+      await wake((value as { id: string }).id);
+      return value;
+    },
+    async acceptDirectInvite(who, key, id) {
+      const value = await repo.acceptDirectInvite(who, key, id);
       await wake((value as { id: string }).id);
       return value;
     },

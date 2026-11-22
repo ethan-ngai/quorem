@@ -1,3 +1,4 @@
+import { notificationDelivery, vapidConfig } from "../adapters/notifications/delivery.ts";
 import { reconcileParty } from "../adapters/postgres/parties/repository.ts";
 /** @file worker.ts @description Worker HTTP, socket and durable recovery composition. @module api */
 import { judgingCapacity, CASE_LANES, JUDGING_DEFAULTS } from "@quorem/execution";
@@ -7,10 +8,7 @@ import { withWorkerConnection, type ConnectionScope } from "@quorem/database/cor
 import { sql } from "drizzle-orm";
 import { retiredAccountRoute, workerRuntime, type AuthWorkerEnv } from "@quorem/auth/worker";
 import { authPeerRequest, cloudflarePeer } from "@quorem/auth/peer";
-import {
-  IdentityError,
-  type SessionAuthority,
-} from "../modules/identity/model.ts";
+import { IdentityError, type SessionAuthority } from "../modules/identity/model.ts";
 import { failureSummary } from "../application/error.ts";
 import {
   cloudflareBinding,
@@ -39,7 +37,12 @@ import {
   recoveryWorkDue,
 } from "../adapters/postgres/events/dispatch.ts";
 import { dispatchBatch, publishBatch } from "../modules/events/dispatch/dispatch.ts";
-import { noticeStreams, type Notice, type NoticeStream, type Stream } from "../modules/events/dispatch/ports.ts";
+import {
+  noticeStreams,
+  type Notice,
+  type NoticeStream,
+  type Stream,
+} from "../modules/events/dispatch/ports.ts";
 import { socketHandshake } from "./worker/socket/handshake.ts";
 import { roomScope, socketTarget, type SocketTarget } from "./worker/socket/target.ts";
 import { browserSocketObject } from "./worker/socket/durable.ts";
@@ -90,6 +93,9 @@ interface CoordinatorNamespace {
   get(id: unknown): CoordinatorStub;
 }
 export interface Env extends AuthWorkerEnv {
+  VAPID_SUBJECT?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
   SOCKETS: SocketNamespace;
   DEADLINES: CoordinatorNamespace;
   EXECUTION_RECOVERY: {
@@ -141,6 +147,9 @@ function notices(env: Env) {
 function affectedStreams(path: string): readonly Stream[] {
   if (path.startsWith("/api/auth/") || path === "/v1/recommendation-feedback") return [];
   if (path === "/v1/presence/heartbeat") return ["match", "party"];
+  if (/^\/v1\/notifications\/[^/]+\/accept-invite$/.test(path)) return ["party"];
+  if (/^\/v1\/(?:notifications|friends)(?:\/|$)/.test(path) || path.endsWith("/direct-invitations"))
+    return [];
   if (/^\/v1\/matches\/[^/]+\/team\/pull$/.test(path)) return [];
   if (/^\/v1\/matches\/[^/]+\/team\/(?:push|presence)$/.test(path)) return ["team"];
   if (/^\/v1\/matches\/[^/]+\/team\//.test(path)) return ["team", "match", "party", "submission"];
@@ -234,7 +243,10 @@ function makeHttp(
     security = makeSecurity(env, request.signal, connection),
     allowed = origins(env);
   const identity = composeIdentity(run, allowed, security.auth.cookieSession);
+  const vapid = vapidConfig(env);
   const result = composeHttp({
+    notificationDelivery: notificationDelivery(runFor(env), notices(env).publish, vapid),
+    pushPublicKey: vapid?.publicKey,
     authIssuer: required(env.AUTH_ORIGIN),
     run,
     ...identity,
@@ -310,7 +322,9 @@ const SocketObject = browserSocketObject<Env>((env) => {
       async issue(request) {
         const record = await base.issue(request);
         record.resourceId = record.resourceId.toLowerCase();
-        if (request.headers.get("x-quorem-socket-scope") !== roomScope(record.resourceId, record.team)) {
+        if (
+          request.headers.get("x-quorem-socket-scope") !== roomScope(record.resourceId, record.team)
+        ) {
           await base.release(record);
           throw new IdentityError("unauthorized");
         }
@@ -332,7 +346,11 @@ export class BrowserSockets extends SocketObject {
   override async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
     const id = submissionEventId(path);
-    const operation = id ? "submission.open" : socketTarget(path)?.stream === "team" ? "team.open" : "room.open";
+    const operation = id
+      ? "submission.open"
+      : socketTarget(path)?.stream === "team"
+        ? "team.open"
+        : "room.open";
     return measureDatabase(
       this.bindings.APP_ENV === "production",
       "socket",
@@ -353,6 +371,11 @@ export class BrowserSockets extends SocketObject {
   }
 
   override publish(notice: Notice): Promise<void> {
+    if (
+      notice.type === "inbox.changed" &&
+      this.submissionNotices.hasSubscribers(`/submissions/${notice.aggregateId}`)
+    )
+      return this.submissionNotices.publish(`/submissions/${notice.aggregateId}`, notice);
     if (notice.type === "submission.updated")
       return this.submissionNotices.publish(`/submissions/${notice.aggregateId}`, notice);
     return super.publish(notice);

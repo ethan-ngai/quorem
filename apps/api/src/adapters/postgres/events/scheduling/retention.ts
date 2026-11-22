@@ -4,7 +4,13 @@ import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import { purgeGuestMatchData } from "./guest-retention.ts";
 import { guestLobbyClosed } from "../../matches/review/lifetime.ts";
 type Run = <T>(fn: (scope: ConnectionScope) => Promise<T>) => Promise<T>;
-const outboxes = ["interview_outbox", "match_outbox", "party_outbox", "team_outbox", "submission_outbox"] as const;
+const outboxes = [
+  "interview_outbox",
+  "match_outbox",
+  "party_outbox",
+  "team_outbox",
+  "submission_outbox",
+] as const;
 // A late settlement can outlive ordinary admission-based retention.
 const reviewHold = sql`EXISTS (
   SELECT 1 FROM matches m WHERE m.id=s.match_id AND s.kind='submit' AND s.match_sequence IS NOT NULL
@@ -30,6 +36,12 @@ export async function retainBatch(run: Run, limit = 128): Promise<number> {
     sql`DELETE FROM recommendation_models WHERE id IN (SELECT id FROM recommendation_models WHERE expires_at<statement_timestamp()-interval '15 days' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );
   statements.push(
+    sql`DELETE FROM inbox_notifications WHERE id IN (
+      SELECT n.id FROM inbox_notifications n JOIN users u ON u.id = n.sender_id
+      LEFT JOIN parties p ON p.id = n.party_id
+      WHERE n.created_at <= statement_timestamp() - interval '14 days' OR u.disabled
+        OR (n.kind = 'match_invite' AND (p.disbanded_at IS NOT NULL OR p.host_owner_id <> n.sender_id))
+      ORDER BY n.created_at FOR UPDATE OF n SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM platform_presence_leases WHERE ctid IN (SELECT ctid FROM platform_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
     sql`DELETE FROM realtime_presence_leases WHERE id IN (SELECT id FROM realtime_presence_leases WHERE expires_at<statement_timestamp()-interval '5 minutes' ORDER BY expires_at FOR UPDATE SKIP LOCKED LIMIT ${limit})`,
   );

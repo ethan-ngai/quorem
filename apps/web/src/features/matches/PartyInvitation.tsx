@@ -5,15 +5,18 @@ import * as Popover from "../../ui/Popover";
 import { ShareActions } from "../../ui/ShareActions";
 import { TextInput } from "../../ui/TextControl";
 import { useShareLink } from "../../ui/useShareLink";
+import { InviteFriends } from "./InviteFriends";
 import { matchModeLabels } from "./ModeIcon";
 
 export function PartyInvitation({
   url,
+  direct,
   locked,
   hostName,
   settings,
 }: {
-  url: string;
+  url?: string;
+  direct?: { actor: string; party: string };
   locked?: boolean;
   hostName?: string;
   settings: Pick<PartySettings, "mode" | "durationMinutes">;
@@ -24,7 +27,7 @@ export function PartyInvitation({
   const data = {
     title: hostName ? `Join ${lobby} · Quorem` : "Quorem match invitation",
     text: `Join ${lobby} on Quorem for a ${settings.durationMinutes}-minute ${mode} match.`,
-    url,
+    url: url ?? "",
   };
   return (
     <Popover.Root>
@@ -42,22 +45,25 @@ export function PartyInvitation({
         >
           <h2>Invite players</h2>
           {locked && <p>Joining is locked. Unlock the lobby to let players in.</p>}
-          <div className="lobby-invitation-link">
-            <TextInput
-              aria-label="Invitation link"
-              value={url}
-              readOnly
-              onFocus={(event) => event.currentTarget.select()}
-            />
-            <ShareActions
-              data={data}
-              copied={copied === url}
-              sharing={sharing}
-              copyLabel="Copy invitation link"
-              onCopy={() => void copy(data)}
-              onShare={() => void share(data)}
-            />
-          </div>
+          {direct && <InviteFriends key={direct.party} {...direct} locked={locked} />}
+          {url && (
+            <div className="lobby-invitation-link">
+              <TextInput
+                aria-label="Invitation link"
+                value={url}
+                readOnly
+                onFocus={(event) => event.currentTarget.select()}
+              />
+              <ShareActions
+                data={data}
+                copied={copied === url}
+                sharing={sharing}
+                copyLabel="Copy invitation link"
+                onCopy={() => void copy(data)}
+                onShare={() => void share(data)}
+              />
+            </div>
+          )}
           <span role="status" className="sr-only">
             {copied === url ? "Invitation link copied." : ""}
           </span>

@@ -226,11 +226,25 @@ export class SocketSession {
   }
   notice(n: Notice) {
     if (this.closed) return;
+    if (n.type === "inbox.changed") {
+      void this.inboxChanged(n.recipient);
+      return;
+    }
     // Coalescing different invalidations requires refreshing every affected view.
     if (!this.dirty) this.noticeKind = n.type;
     else if (this.noticeKind !== n.type) this.noticeKind = undefined;
     this.dirty = true;
     void this.refresh();
+  }
+  private async inboxChanged(owner: string | undefined) {
+    try {
+      const principal = await this.principal();
+      if (!principal || principal.kind === "guest" || principal.userId !== owner) return;
+      const { stamp } = await this.authorized();
+      await this.send({ type: "inbox.changed" }, stamp);
+    } catch (error) {
+      this.fail(error);
+    }
   }
   private async refresh(): Promise<void> {
     if (this.refreshing || this.closed || !this.stop) return;

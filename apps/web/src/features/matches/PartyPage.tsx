@@ -243,9 +243,14 @@ export function PartyPage() {
           <div className="competitive-lobby-heading">
             <h1>Lobby</h1>
             <div className="lobby-heading-actions">
-              {inviteUrl && (
+              {(inviteUrl || (host && account.data?.kind === "account")) && (
                 <PartyInvitation
                   url={inviteUrl}
+                  direct={
+                    host && account.data?.kind === "account"
+                      ? { actor: account.data.user.id, party: party.id }
+                      : undefined
+                  }
                   locked={displayedSettings.admissionLocked}
                   hostName={
                     party.members.find((member) => member.userId === party.hostUserId)?.displayName

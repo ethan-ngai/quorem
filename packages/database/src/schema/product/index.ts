@@ -2455,7 +2455,9 @@ export const team_outbox = pgTable(
     dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (t) => [
-    index("team_outbox_pending").on(t.sequence).where(sql`published_at IS NULL`),
+    index("team_outbox_pending")
+      .on(t.sequence)
+      .where(sql`published_at IS NULL`),
     unique("team_outbox_sequence_key").on(t.sequence),
     check("team_outbox_team_check", sql`team >= 1 AND team <= 4`),
     foreignKey({
@@ -2717,5 +2719,169 @@ export const recommendation_match_selections = pgTable(
       foreignColumns: [matches.id],
     }).onDelete("cascade"),
     index("recommendation_match_retention").on(t.selected_at),
+  ],
+);
+
+export const friendships = pgTable(
+  "friendships",
+  {
+    first_owner_id: text().notNull(),
+    second_owner_id: text().notNull(),
+    requester_id: text().notNull(),
+    accepted_at: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.first_owner_id],
+      foreignColumns: [users.id],
+      name: "friendships_first_owner_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.second_owner_id],
+      foreignColumns: [users.id],
+      name: "friendships_second_owner_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.requester_id],
+      foreignColumns: [users.id],
+      name: "friendships_requester_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.first_owner_id, table.second_owner_id] }),
+    check(
+      "friendships_check",
+      sql`${table.first_owner_id} <> ${table.second_owner_id}
+    AND ${table.requester_id} IN (${table.first_owner_id}, ${table.second_owner_id})`,
+    ),
+    index("friendships_second_owner").on(table.second_owner_id),
+  ],
+);
+
+export const social_blocks = pgTable(
+  "social_blocks",
+  {
+    owner_id: text().notNull(),
+    blocked_owner_id: text().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.owner_id],
+      foreignColumns: [users.id],
+      name: "social_blocks_owner_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.blocked_owner_id],
+      foreignColumns: [users.id],
+      name: "social_blocks_blocked_owner_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.owner_id, table.blocked_owner_id] }),
+    check("social_blocks_check", sql`${table.owner_id} <> ${table.blocked_owner_id}`),
+  ],
+);
+
+export const inbox_notifications = pgTable(
+  "inbox_notifications",
+  {
+    id: uuid().defaultRandom().primaryKey(),
+    owner_id: text().notNull(),
+    sender_id: text().notNull(),
+    kind: text().notNull(),
+    party_id: uuid(),
+    created_at: timestamp({ withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+    read_at: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.owner_id],
+      foreignColumns: [users.id],
+      name: "inbox_notifications_owner_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sender_id],
+      foreignColumns: [users.id],
+      name: "inbox_notifications_sender_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.party_id],
+      foreignColumns: [parties.id],
+      name: "inbox_notifications_party_id_fkey",
+    }).onDelete("cascade"),
+    check(
+      "inbox_notifications_kind_check",
+      sql`${table.kind} IN ('friend_request', 'match_invite')`,
+    ),
+    check(
+      "inbox_notifications_check",
+      sql`(${table.kind} = 'match_invite') = (${table.party_id} IS NOT NULL)`,
+    ),
+    index("inbox_notifications_owner_created").on(table.owner_id, table.created_at.desc()),
+    index("inbox_notifications_created").on(table.created_at),
+    uniqueIndex("inbox_friend_request")
+      .on(table.owner_id, table.sender_id)
+      .where(sql`${table.kind} = 'friend_request'`),
+    uniqueIndex("inbox_match_invite")
+      .on(table.owner_id, table.party_id)
+      .where(sql`${table.kind} = 'match_invite'`),
+  ],
+);
+
+export const notification_preferences = pgTable(
+  "notification_preferences",
+  {
+    owner_id: text().primaryKey(),
+    push_friend_requests: boolean().notNull(),
+    push_match_invites: boolean().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.owner_id],
+      foreignColumns: [users.id],
+      name: "notification_preferences_owner_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
+
+export const push_subscriptions = pgTable(
+  "push_subscriptions",
+  {
+    endpoint: text().primaryKey(),
+    owner_id: text().notNull(),
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    created_at: timestamp({ withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.owner_id],
+      foreignColumns: [users.id],
+      name: "push_subscriptions_owner_id_fkey",
+    }).onDelete("cascade"),
+    index("push_subscriptions_owner").on(table.owner_id),
+  ],
+);
+
+export const social_notification_limits = pgTable(
+  "social_notification_limits",
+  {
+    owner_id: text().notNull(),
+    kind: text().notNull(),
+    window_start: timestamp({ withTimezone: true }).notNull(),
+    count: integer().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.owner_id],
+      foreignColumns: [users.id],
+      name: "social_notification_limits_owner_id_fkey",
+    }).onDelete("cascade"),
+    primaryKey({ columns: [table.owner_id, table.kind] }),
+    check(
+      "social_notification_limits_kind_check",
+      sql`${table.kind} IN ('friend_request', 'match_invite')`,
+    ),
+    check("social_notification_limits_count_check", sql`${table.count} BETWEEN 1 AND 12`),
   ],
 );

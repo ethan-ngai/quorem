@@ -2,6 +2,129 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://quorem.local/schemas/events.v1.json",
   "$defs": {
+    "NotificationKind": {
+      "type": "string",
+      "enum": [
+        "friend_request",
+        "match_invite"
+      ]
+    },
+    "SocialContact": {
+      "type": "object",
+      "required": [
+        "id",
+        "displayName"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "color": {
+          "type": "number"
+        }
+      }
+    },
+    "ContactState": {
+      "type": "string",
+      "enum": [
+        "friend",
+        "incoming",
+        "outgoing",
+        "blocked",
+        "none"
+      ]
+    },
+    "InboxItem": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "sender",
+        "createdAt",
+        "read"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "$ref": "#/$defs/NotificationKind"
+        },
+        "mode": {
+          "$ref": "#/$defs/MatchMode"
+        },
+        "sender": {
+          "$ref": "#/$defs/SocialContact"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "read": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NotificationInbox": {
+      "type": "object",
+      "required": [
+        "items",
+        "unread"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InboxItem"
+          }
+        },
+        "unread": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "PushPreferences": {
+      "type": "object",
+      "required": [
+        "friend_request",
+        "match_invite"
+      ],
+      "properties": {
+        "friend_request": {
+          "type": "boolean"
+        },
+        "match_invite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "NotificationSettings": {
+      "type": "object",
+      "required": [
+        "preferences",
+        "publicKey"
+      ],
+      "properties": {
+        "preferences": {
+          "$ref": "#/$defs/PushPreferences"
+        },
+        "publicKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
     "PlayerIdentity": {
       "type": "object",
       "additionalProperties": false,

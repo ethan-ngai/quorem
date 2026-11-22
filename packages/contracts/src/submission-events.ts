@@ -1,11 +1,14 @@
 /** @file submission-events.ts @description Reads submission invalidations from the SSE response. @module contracts */
 export const submissionChangedEvent = "event: changed\ndata: {}\n\n";
 
+export const inboxChangedEvent = "event: inbox.changed\ndata: {}\n\n";
+
 /** @returns Once the stream closes or the caller cancels it. */
 export async function readSubmissionEvents(
   body: ReadableStream<Uint8Array>,
   onChange: () => void | Promise<void>,
   onActivity: () => void = () => {},
+  onInboxChange: () => void = () => {},
 ) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -21,6 +24,7 @@ export async function readSubmissionEvents(
         const frame = pending.slice(0, end + 2);
         pending = pending.slice(end + 2);
         if (frame === submissionChangedEvent) await onChange();
+        if (frame === inboxChangedEvent) onInboxChange();
       }
       if (pending.length > 1024) throw new Error("Invalid submission event");
     }

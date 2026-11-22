@@ -11,6 +11,9 @@ export class MemoryFanout {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 4096)
       throw new RangeError("Invalid fanout capacity");
   }
+  hasSubscribers(channel: string): boolean {
+    return this.subscriptions.has(channel);
+  }
   async publish(channel: string, value: Notice): Promise<void> {
     if (this.closed) throw new Error("Fanout unavailable");
     const notice = safeNotice(channel, value);

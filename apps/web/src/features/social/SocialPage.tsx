@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useSession } from "../auth/session";
 import { GlobalNav } from "../navigation/GlobalNav";
+import { FriendActions, Friends } from "./Friends";
 import { ParticipantName } from "../collaboration/ParticipantName";
 import { useTheme } from "../editor/useTheme";
 import { LoadingScreen } from "../../ui/LoadingScreen";
@@ -147,6 +148,7 @@ function SocialHome({ actor }: { actor: string }) {
           <LoadingScreen label="Finding rivalries…" inline />
         )}
       </section>
+      <Friends actor={actor} />
       <PlayerDirectory actor={actor} />
     </>
   );
@@ -174,6 +176,10 @@ function PlayerProfile({ actor, id }: { actor: string; id: string }) {
                   self={data.isSelf}
                 />
               </h1>
+              {data.player.username && (
+                <span className="social-muted">@{data.player.username}</span>
+              )}
+              {!data.isSelf && <FriendActions key={id} actor={actor} player={id} />}
             </div>
             <PersistentNotice
               message={profile.isError ? "Profile could not be refreshed." : undefined}

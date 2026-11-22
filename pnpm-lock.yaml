@@ -266,6 +266,9 @@ importers:
       '@aws-sdk/client-sqs':
         specifier: 3.1165.0
         version: 3.1165.0
+      '@block65/webcrypto-web-push':
+        specifier: 2.0.0
+        version: 2.0.0
       '@codemirror/state':
         specifier: 'catalog:'
         version: 6.7.6
@@ -583,6 +586,9 @@ importers:
       '@typescript/vfs':
         specifier: 1.6.6
         version: 1.6.6(supports-color@10.2.2)(typescript@6.0.3)
+      '@use-gesture/react':
+        specifier: 10.3.1
+        version: 10.3.1(react@19.3.1)
       '@valtown/codemirror-continue':
         specifier: ^2.3.2
         version: 2.3.2(@codemirror/language@6.13.1)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(@lezer/common@1.5.5)
@@ -1171,6 +1177,10 @@ packages:
 
   '@blazediff/core@1.10.0':
     resolution: {integrity: sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ==}
+
+  '@block65/webcrypto-web-push@2.0.0':
+    resolution: {integrity: sha512-BMrw8hABq5krABWPy3zFJvBC73HeRkyT/GTZ2AD7wqzo9hd9vO56MstBqjGMIxIw3e4lbRUbYxgihCcfhoTI2g==}
+    engines: {node: '>=22.0.0'}
 
   '@bruits/satteri-android-arm64@0.11.7':
     resolution: {integrity: sha512-ej+1rIKs+yb6/OtcIe1SO22OXjJV0qqUopl5VNZF8Sqc/Pj4m1DXoqBQsPxW5OUYYiDUymIy6hnnn8M78VYk2w==}
@@ -3214,6 +3224,14 @@ packages:
 
   '@ungap/structured-clone@1.4.0':
     resolution: {integrity: sha512-1mEZtMKPM09vDmQt5y7YvmN2+DFTP7Tg0EWXdic8/C6VRnpb33e4ghisCIE3WZjsE2N8mf+QV1Zqh7ZFYLWInQ==}
+
+  '@use-gesture/core@10.3.1':
+    resolution: {integrity: sha512-WcINiDt8WjqBdUXye25anHiNxPc0VOrlT8F6LLkU6cycrOGUDyY/yyFmsg3k8i5OLvv25llc0QC45GhR/C8llw==}
+
+  '@use-gesture/react@10.3.1':
+    resolution: {integrity: sha512-Yy19y6O2GJq8f7CHf7L0nxL8bf4PZCPaVOCgJrusOeFHY1LvHgYXnmnXg6N5iwAnbgbZCDjo60SiM6IPJi9C5g==}
+    peerDependencies:
+      react: '>= 16.8.0'
 
   '@valtown/codemirror-continue@2.3.2':
     resolution: {integrity: sha512-rmzBloQ5aONSmLMGJHCSgDFYUKMrJkDm7fbQb1fVJNICea7uaexUsvlXmfpXo2821YqzxWBDIlbhPVsZ8Inn/w==}
@@ -6263,6 +6281,10 @@ snapshots:
 
   '@blazediff/core@1.10.0': {}
 
+  '@block65/webcrypto-web-push@2.0.0':
+    dependencies:
+      uint8array-extras: 1.6.0
+
   '@bruits/satteri-android-arm64@0.11.7':
     optional: true
 
@@ -7988,6 +8010,13 @@ snapshots:
       - supports-color
 
   '@ungap/structured-clone@1.4.0': {}
+
+  '@use-gesture/core@10.3.1': {}
+
+  '@use-gesture/react@10.3.1(react@19.3.1)':
+    dependencies:
+      '@use-gesture/core': 10.3.1
+      react: 19.3.1
 
   '@valtown/codemirror-continue@2.3.2(@codemirror/language@6.13.1)(@codemirror/state@6.7.6)(@codemirror/view@6.43.15)(@lezer/common@1.5.5)':
     dependencies:

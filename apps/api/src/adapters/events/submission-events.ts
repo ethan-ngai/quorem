@@ -1,5 +1,5 @@
 /** @file submission-events.ts @description Bounded SSE invalidations for authorized submissions. @module judging */
-import { submissionChangedEvent } from "@quorem/contracts/submission-events";
+import { inboxChangedEvent, submissionChangedEvent } from "@quorem/contracts/submission-events";
 import type { FanoutSubscriber } from "./fanout/publisher.ts";
 
 export function submissionEventId(path: string): string | undefined {
@@ -14,6 +14,7 @@ export async function submissionEvents(
   id: string,
   notices: FanoutSubscriber,
   reauthorize: () => Promise<void>,
+  owner?: string,
 ) {
   const lifetime = new AbortController();
   const encoder = new TextEncoder();
@@ -21,6 +22,7 @@ export async function submissionEvents(
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let verifying = false;
   let dirty = false;
+  let inboxDirty = false;
   let unsubscribe: (() => void) | undefined;
   function close() {
     if (lifetime.signal.aborted) return;
@@ -42,18 +44,26 @@ export async function submissionEvents(
     try {
       do {
         const changed = dirty;
+        const inbox = inboxDirty;
         dirty = false;
+        inboxDirty = false;
         await reauthorize();
-        send(changed ? submissionChangedEvent : ": heartbeat\n\n");
-      } while (output && dirty);
+        send(
+          (inbox ? inboxChangedEvent : "") +
+            (changed ? submissionChangedEvent : inbox ? "" : ": heartbeat\n\n"),
+        );
+      } while (output && (dirty || inboxDirty));
     } catch {
       close();
     } finally {
       verifying = false;
     }
   }
-  function notice() {
-    dirty = true;
+  function notice(event: import("../../modules/events/dispatch/ports.ts").Notice) {
+    if (event.type === "inbox.changed") {
+      if (!owner || event.recipient !== owner) return;
+      inboxDirty = true;
+    } else dirty = true;
     void flush();
   }
   request.signal.addEventListener("abort", close, { once: true });
@@ -73,7 +83,8 @@ export async function submissionEvents(
       }
       output = controller;
       dirty = false;
-      send(submissionChangedEvent);
+      send(submissionChangedEvent + (inboxDirty ? inboxChangedEvent : ""));
+      inboxDirty = false;
       heartbeat = setInterval(() => void flush(), 15000);
     },
     cancel() {

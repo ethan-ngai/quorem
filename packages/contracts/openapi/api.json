@@ -15,6 +15,603 @@
     }
   ],
   "paths": {
+    "/v1/notifications/unread": {
+      "get": {
+        "operationId": "getNotificationUnread",
+        "summary": "Get unread notification count",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "unread"
+                  ],
+                  "properties": {
+                    "unread": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/open": {
+      "post": {
+        "operationId": "openNotificationInbox",
+        "summary": "Read inbox and mark delivered notifications read",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationInbox"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/{id}": {
+      "delete": {
+        "operationId": "dismissNotification",
+        "summary": "Delete notification",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/v1/notifications/{id}/accept-invite": {
+      "post": {
+        "operationId": "acceptLobbyNotification",
+        "summary": "Accept a direct lobby invitation",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartySnapshot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/v1/friends": {
+      "get": {
+        "operationId": "listFriends",
+        "summary": "List accepted friends",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SocialContact"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/friends/{player}": {
+      "get": {
+        "operationId": "getFriendship",
+        "summary": "Get the viewer’s relationship to a player",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "state"
+                  ],
+                  "properties": {
+                    "state": {
+                      "$ref": "#/components/schemas/ContactState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "player",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "changeFriendship",
+        "summary": "Mutate a friend relationship",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "player",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "request",
+                      "accept",
+                      "decline",
+                      "remove",
+                      "block",
+                      "unblock"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/parties/{party}/direct-invitations": {
+      "post": {
+        "operationId": "inviteFriendToLobby",
+        "summary": "Invite a friend to a hosted lobby",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "party",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "player"
+                ],
+                "properties": {
+                  "player": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/settings": {
+      "get": {
+        "operationId": "getNotificationSettings",
+        "summary": "Get push preferences and VAPID public key",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettings"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setNotificationSettings",
+        "summary": "Update push preferences",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushPreferences"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/notifications/push-subscription": {
+      "put": {
+        "operationId": "subscribeToPush",
+        "summary": "Register this browser for Web Push",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint",
+                  "p256dh",
+                  "auth"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  },
+                  "p256dh": {
+                    "type": "string"
+                  },
+                  "auth": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "unsubscribeFromPush",
+        "summary": "Remove this browser’s Web Push subscription",
+        "tags": [
+          "Social"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "endpoint"
+                ],
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/social": {
       "get": {
         "operationId": "getSocialOverview",
@@ -5478,6 +6075,129 @@
       }
     },
     "schemas": {
+      "NotificationKind": {
+        "type": "string",
+        "enum": [
+          "friend_request",
+          "match_invite"
+        ]
+      },
+      "SocialContact": {
+        "type": "object",
+        "required": [
+          "id",
+          "displayName"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "color": {
+            "type": "number"
+          }
+        }
+      },
+      "ContactState": {
+        "type": "string",
+        "enum": [
+          "friend",
+          "incoming",
+          "outgoing",
+          "blocked",
+          "none"
+        ]
+      },
+      "InboxItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "sender",
+          "createdAt",
+          "read"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/NotificationKind"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MatchMode"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/SocialContact"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "read": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NotificationInbox": {
+        "type": "object",
+        "required": [
+          "items",
+          "unread"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            }
+          },
+          "unread": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "PushPreferences": {
+        "type": "object",
+        "required": [
+          "friend_request",
+          "match_invite"
+        ],
+        "properties": {
+          "friend_request": {
+            "type": "boolean"
+          },
+          "match_invite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NotificationSettings": {
+        "type": "object",
+        "required": [
+          "preferences",
+          "publicKey"
+        ],
+        "properties": {
+          "preferences": {
+            "$ref": "#/components/schemas/PushPreferences"
+          },
+          "publicKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "PlayerIdentity": {
         "type": "object",
         "additionalProperties": false,

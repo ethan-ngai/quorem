@@ -1,3 +1,6 @@
+import { notificationRoutes } from "../../modules/notifications/routes.ts";
+import { notificationRepository } from "../../adapters/postgres/notifications/repository.ts";
+import type { NotificationChange } from "../../modules/notifications/model.ts";
 import { socialRoutes } from "../../modules/social/routes.ts";
 import { socialRepository } from "../../adapters/postgres/social/repository.ts";
 import { dashboardRoutes } from "../../modules/dashboard/routes.ts";
@@ -63,6 +66,8 @@ export interface HttpPorts {
   identifyAccount?: (request: Request) => Promise<Principal | undefined>;
   origins: readonly string[];
   authIssuer?: string;
+  notificationDelivery?: (change: NotificationChange) => Promise<void>;
+  pushPublicKey?: string;
   renewedCookies?: (request: Request) => readonly string[];
   guests: GuestIdentityReader & {
     endMatch(hash: string): Promise<boolean>;
@@ -183,6 +188,19 @@ export function composeHttp(ports: HttpPorts) {
       admissionEnabled: ports.guestAdmission,
       trustedPeer: ports.trustedPeer,
       budget,
+    }),
+  );
+  app.route(
+    "/",
+    notificationRoutes({
+      identify,
+      inbox: notificationRepository(run),
+      accept: parties.acceptDirectInvite,
+      publicKey: ports.pushPublicKey ?? null,
+      publish(change) {
+        const work = ports.notificationDelivery?.(change);
+        if (work) ports.deferExecution ? ports.deferExecution(work) : void work;
+      },
     }),
   );
   app.route("/", matchLifecycleRoutes({ identify, lifecycle: matches }));

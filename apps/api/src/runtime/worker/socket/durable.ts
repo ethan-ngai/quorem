@@ -192,7 +192,10 @@ export function browserSocketObject<Env>(
           // The match authority checks party scope and round membership before issuing a lease.
           (record.grant.kind === "guest" &&
             record.grant.resourceId !== record.resourceId &&
-            !((record.mode === "match" || record.mode === "team") && record.grant.scope === "party"))
+            !(
+              (record.mode === "match" || record.mode === "team") &&
+              record.grant.scope === "party"
+            ))
         )
           throw new IdentityError("unauthorized");
         if (new TextEncoder().encode(JSON.stringify(record)).length > 24 * 1024)
@@ -210,11 +213,7 @@ export function browserSocketObject<Env>(
           if ((await tx.list({ prefix: "socket:", limit: 1024 })).size >= 1024)
             throw new Error("Socket capacity");
           await tx.put(key(id), record);
-          await armSocketAlarm(
-            tx,
-            Date.now(),
-            record!.grant.expiresAt * 1000,
-          );
+          await armSocketAlarm(tx, Date.now(), record!.grant.expiresAt * 1000);
         });
         storedId = id;
         const pair = new WebSocketPair();
@@ -280,6 +279,11 @@ export function browserSocketObject<Env>(
       await Promise.all(
         this.state.getWebSockets().map(async (socket) => {
           try {
+            if (notice.type === "inbox.changed") {
+              const id = attachment(socket);
+              const record = id && (await this.state.storage.get<StoredSocket>(key(id)));
+              if (!record || record.leaseOwner !== notice.recipient) return;
+            }
             const { record } = await this.ensure(socket);
             if (roomScope(record.resourceId, record.team) === notice.aggregateId)
               this.listeners.get(socket)?.(notice);

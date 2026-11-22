@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { UserRound, ShieldCheck, UsersRound, X } from "lucide-react";
+import { Bell, UserRound, ShieldCheck, UsersRound, X } from "lucide-react";
 import { useRef } from "react";
 import type { Session } from "../auth/session";
 import type { ThemePreference } from "../editor/editorSettings";
@@ -11,11 +11,17 @@ import {
   type WorkspaceSection,
 } from "../editor/components/WorkspaceSettings";
 import { SocialAccounts } from "../auth/SocialAccounts";
+import { PushSettings } from "../notifications/PushSettings";
 import { ProfileSettings } from "./ProfileSettings";
 import { useLocalEditorPreferences } from "./useLocalEditorPreferences";
 import "./settings.css";
 
-export type SettingsSection = WorkspaceSection | "profile" | "security" | "social";
+export type SettingsSection =
+  | WorkspaceSection
+  | "profile"
+  | "security"
+  | "social"
+  | "notifications";
 export function SettingsDialog({
   open,
   section,
@@ -46,8 +52,14 @@ export function SettingsDialog({
         ? "Security & login"
         : section === "social"
           ? "Social accounts"
-          : workspaceSections.find((item) => item.id === section)!.label;
-  const accountSection = section === "profile" || section === "security" || section === "social";
+          : section === "notifications"
+            ? "Notifications"
+            : workspaceSections.find((item) => item.id === section)!.label;
+  const accountSection =
+    section === "profile" ||
+    section === "security" ||
+    section === "social" ||
+    section === "notifications";
   return (
     <Dialog.Root
       open={open}
@@ -105,6 +117,15 @@ export function SettingsDialog({
                     <UsersRound />
                     <span>Social accounts</span>
                   </button>
+                  {session.kind !== "guest" && (
+                    <button
+                      aria-current={section === "notifications" ? "page" : undefined}
+                      onClick={() => onSectionChange("notifications")}
+                    >
+                      <Bell />
+                      <span>Notifications</span>
+                    </button>
+                  )}
                 </div>
               )}
               <div className="settings-category-group">
@@ -135,6 +156,8 @@ export function SettingsDialog({
                 session &&
                 (section === "social" ? (
                   <SocialAccounts userId={session.user.id} />
+                ) : section === "notifications" ? (
+                  <PushSettings key={session.user.id} actor={session.user.id} />
                 ) : (
                   <ProfileSettings
                     userId={session.user.id}

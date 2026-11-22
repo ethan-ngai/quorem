@@ -35,12 +35,18 @@ export function submissionRoutes(deps: {
       const who = await actor(request);
       await (await deps.snapshots.read(who, submissionId)).cancel();
       return c.body(
-        await submissionEvents(request, submissionId, notices, async () => {
-          const current = await actor(request);
-          if (current.userId !== who.userId || current.sessionId !== who.sessionId)
-            throw new ApplicationError("unauthenticated", "Session changed", 401);
-          await (await deps.snapshots.read(current, submissionId)).cancel();
-        }),
+        await submissionEvents(
+          request,
+          submissionId,
+          notices,
+          async () => {
+            const current = await actor(request);
+            if (current.userId !== who.userId || current.sessionId !== who.sessionId)
+              throw new ApplicationError("unauthenticated", "Session changed", 401);
+            await (await deps.snapshots.read(current, submissionId)).cancel();
+          },
+          who.kind === "guest" ? undefined : who.userId,
+        ),
         200,
         {
           "Content-Type": "text/event-stream; charset=utf-8",

@@ -18,6 +18,7 @@ import { useActiveMatch } from "../matches/useActiveMatch";
 import { readPendingCommand } from "../matches/commandRecovery";
 import { useParty } from "../matches/party";
 import { isMatchCreationRequest, matchSignInLocation } from "./matchCreationIntent";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { AccountMenu } from "./AccountMenu";
 import { WorkspaceSidebar } from "./WorkspaceSidebar";
 import "./navigation.css";
@@ -247,6 +248,13 @@ export function GlobalNav({
                   </LoadingButton>
                 </Tooltip>
               )
+            )}
+            {session.data && session.data.kind !== "guest" && (
+              <NotificationBell
+                key={session.data.user.id}
+                actor={session.data.user.id}
+                settings={() => openSettings("notifications")}
+              />
             )}
             <AccountMenu
               triggerRef={profileTrigger}

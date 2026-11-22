@@ -25,6 +25,12 @@ Transport authorization and validation; disposable PostgreSQL eligibility, order
 
 Validation completed locally: 705 web tests passed (two skipped), seven social route/PostgreSQL tests, two HTTP inventory tests, two database migration/checksum tests; API/web/database typechecks and contract generation checks passed. Repository lint: zero errors, 19 pre-existing warnings; focused Social lint clean. DESIGN.md lint: zero errors, one existing primary-color format warning.
 
-Live Vite from the Social worktree: `http://127.0.0.1:5189/social`, using isolated fixture identities and PostgreSQL. Verified desktop/390px, light/dark, search, page reset, profile navigation, empty search and keyboard retry after revoked visibility. Shared table motion retains existing reduced-motion behavior; reduced-motion emulation and hosted/load validation were not run. Migration `079_social_match_lookup.sql` adds the account-to-match lookup index; no production migration/deployment performed.
+Live Vite from the Social worktree: `http://127.0.0.1:5189/social`, using isolated fixture identities and PostgreSQL. Verified desktop/390px, light/dark, search, page reset, profile navigation, empty search and keyboard retry after revoked visibility. Shared table motion retains existing reduced-motion behavior; reduced-motion emulation and hosted/load validation were not run. Current `dev` supplies the account-to-match index. Migration `119_social_identity_lookup.sql` adds the issuer-scoped identity lookup index.
 
 Design audit and username ownership: [Social design audit](../implementation/social-design-audit.md).
+
+## Friend and lobby notifications
+
+The inbox is authoritative in PostgreSQL. Opening it marks the displayed notifications as read. Accepting a direct invite joins the existing party and removes the invite in one transaction. The existing retention job removes notifications at 14 days and removes outdated lobby invites.
+
+The bell refreshes on focus, opening, and signals from existing multiplayer WebSockets, submission streams, or Web Push. Configure Web Push with `VAPID_SUBJECT` (a contact URI), `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the API runtime. Keep the same key pair across releases. Users turn on individual categories in notification settings and enable each browser separately.

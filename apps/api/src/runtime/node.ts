@@ -1,3 +1,4 @@
+import { notificationDelivery, vapidConfig } from "../adapters/notifications/delivery.ts";
 import { reconcileParty } from "../adapters/postgres/parties/repository.ts";
 /** @file node.ts @description Node API, socket and durable dispatch composition. @module api */
 import { serve } from "@hono/node-server";
@@ -14,7 +15,11 @@ import { SQSClient } from "@aws-sdk/client-sqs";
 import { cloudflarePull } from "../adapters/delivery/cloudflare.ts";
 import { PostgresFanout } from "../adapters/events/fanout/postgres.ts";
 import { submissionEventId } from "../adapters/events/submission-events.ts";
-import { noticeChannel, noticePublisher, socketSubscription } from "../adapters/events/fanout/publisher.ts";
+import {
+  noticeChannel,
+  noticePublisher,
+  socketSubscription,
+} from "../adapters/events/fanout/publisher.ts";
 import { postgresSocketAuthority } from "./worker/socket/authority.ts";
 import { roomScope, socketTarget } from "./worker/socket/target.ts";
 import { installNodeSockets } from "./node/socket/server.ts";
@@ -185,9 +190,7 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
     disposers.push(() => recovery.close());
     const dispatch = async () => {
       await recoverAll([
-        ...noticeStreams.map(
-          (name) => () => publishBatch(store, notices, wake, name),
-        ),
+        ...noticeStreams.map((name) => () => publishBatch(store, notices, wake, name)),
         async () => {
           await recoverExecutionIntents(run);
           await publishBatch(store, notices, wake, "execution");
@@ -233,6 +236,12 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
       guestExecution: flag(env.GUEST_EXECUTION),
       localStrongBypass: identityMode === "local",
     };
+    const vapid = vapidConfig(env);
+    const deliverNotification = notificationDelivery(
+      runWith(),
+      (stream, notice) => fanout.publish(noticeChannel(stream, notice.aggregateId), notice),
+      vapid,
+    );
     const limit = boundedInt(env.HTTP_MAX_REQUESTS, 32, 1024);
     const budget = requestBudget(limit);
     const streamBudget = requestBudget(limit);
@@ -253,6 +262,8 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         identify,
         ...basePorts,
         submissionNotices: fanout,
+        notificationDelivery: deliverNotification,
+        pushPublicKey: vapid?.publicKey,
         trustedPeer: () => peer,
       });
       composed.app.route("/", auth.app);
@@ -338,7 +349,10 @@ export async function startNodeRuntime(env: NodeJS.ProcessEnv = process.env) {
         return {
           ...opened,
           mode: record.mode,
-          subscription: socketSubscription(fanout, noticeChannel(record.mode, roomScope(record.resourceId, record.team))),
+          subscription: socketSubscription(
+            fanout,
+            noticeChannel(record.mode, roomScope(record.resourceId, record.team)),
+          ),
           release: () => authority.release(record),
         };
       },

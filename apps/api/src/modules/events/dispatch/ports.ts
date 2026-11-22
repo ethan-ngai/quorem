@@ -8,6 +8,7 @@ export interface Notice {
   version: string;
   type: string;
   occurredAt: string;
+  recipient?: string;
 }
 export interface Claim {
   stream: Stream;

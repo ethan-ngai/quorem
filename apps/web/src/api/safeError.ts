@@ -15,6 +15,9 @@ const specificMessages: Record<string, Record<string, string>> = {
     "Match has started or closed": "This match has already started or closed.",
     "Interview is closed": "This interview has ended.",
     "Lobby admission is locked": "The host has locked this lobby.",
+    "Leave your current party first": "Leave your current lobby before joining another.",
+    "Party is full": "This lobby is full.",
+    "Open your lobby to invite friends.": "Unlock your lobby to invite friends.",
   },
   user_busy: {
     "Another match is active":
@@ -89,6 +92,7 @@ const specificMessages: Record<string, Record<string, string>> = {
   },
   forbidden: { "Account required": "Sign in with an active account to continue." },
   not_found: {
+    "Invitation or player unavailable": "This invitation or player is no longer available.",
     "Player unavailable": "This player is no longer available.",
     "Match not found": "This match is no longer available.",
     "Invitation unavailable": "This invitation is no longer available.",

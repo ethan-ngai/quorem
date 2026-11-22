@@ -1,3 +1,4 @@
+import { notifyInbox } from "../notifications/api";
 /** @file reconnectingSocket.ts @description Authenticated socket lifetime, retry and stale-callback fencing. @module realtime */
 import { createReconnectScheduler } from "./reconnectScheduler";
 
@@ -97,6 +98,10 @@ export function createReconnectingSocket(options: SocketOptions) {
             )
               throw new Error("Invalid socket receipt");
             current.send(JSON.stringify({ type: "receipt", id: envelope.receipt }));
+            if ((envelope.payload as { type?: unknown } | null)?.type === "inbox.changed") {
+              notifyInbox();
+              return;
+            }
             options.onMessage(
               new MessageEvent("message", { data: JSON.stringify(envelope.payload) }),
             );

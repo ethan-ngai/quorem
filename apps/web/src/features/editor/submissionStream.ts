@@ -1,5 +1,6 @@
 /** @file submissionStream.ts @description Reconnects authenticated judge SSE while a result is pending. @module editor */
 import { readSubmissionEvents } from "@quorem/contracts/submission-events";
+import { notifyInbox } from "../notifications/api";
 import { authenticatedFetch } from "../auth/session";
 import { createReconnectScheduler } from "../realtime/reconnectScheduler";
 
@@ -58,6 +59,7 @@ export function submissionStream(id: string, onChange: () => void, onDisconnect:
           onChange();
         },
         () => expectActivity(),
+        notifyInbox,
       );
     } catch {
       // A lost stream reconnects and receives a fresh invalidation.

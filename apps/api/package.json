@@ -16,6 +16,7 @@
   "dependencies": {
     "@aws-crypto/sha256-js": "5.2.0",
     "@aws-sdk/client-sqs": "3.1165.0",
+    "@block65/webcrypto-web-push": "2.0.0",
     "@codemirror/state": "catalog:",
     "@hono/node-server": "2.1.6",
     "@quorem/auth": "workspace:*",
