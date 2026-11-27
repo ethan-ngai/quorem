@@ -17,6 +17,15 @@ SOURCES = {
     "questions": ("neenza/leetcode-problems", "16c26d1bcfdc17a0290f7083e86c4e9387b2e248"),
     "companies": ("liquidslr/leetcode-company-wise-problems", "2b71796266751b4736a7ef180efb6847879166ee"),
 }
+COMPANY_SNAPSHOT_DATE = "2026-10-20"
+COMPANY_ALL_FILE = "5. All.csv"
+COMPANY_WINDOWS = {
+    "1. Thirty Days.csv": "30d",
+    "2. Three Months.csv": "3m",
+    "3. Six Months.csv": "6m",
+    "4. More Than Six Months.csv": "older",
+    COMPANY_ALL_FILE: "all",
+}
 
 
 def archive(repo, commit):
@@ -67,6 +76,37 @@ def stage(questions, company_files):
     return sorted(records.values(), key=lambda x: x["leetcode_id"]), issues
 
 
+def stage_company_evidence(records, company_files):
+    """Keep source windows and rows whose LeetCode ID still needs verification."""
+    ids = {record["source"]["problem_slug"]: record["leetcode_id"] for record in records}
+    rows, issues = [], []
+    for company, filename, content in sorted(company_files):
+        window = COMPANY_WINDOWS[filename.rsplit("/", 1)[-1]]
+        reader = csv.DictReader(io.StringIO(content, newline=""))
+        if not {"Title", "Link", "Frequency"}.issubset(reader.fieldnames or []):
+            issues.append({"kind": "invalid_csv", "file": filename})
+            continue
+        seen = set()
+        for row_number, row in enumerate(reader, 2):
+            slug = problem_slug(row.get("Link") or "")
+            try:
+                frequency = float(row.get("Frequency") or "")
+            except ValueError:
+                frequency = None
+            if not slug or frequency is None or not 0 <= frequency <= 100:
+                issues.append({"kind": "invalid_evidence_row", "file": filename, "row": row_number})
+                continue
+            if slug in seen:
+                issues.append({"kind": "duplicate_evidence_row", "file": filename, "row": row_number})
+                continue
+            seen.add(slug)
+            rows.append({
+                "company": company, "window": window, "frequency": frequency,
+                "leetcodeSlug": slug, "leetcodeId": ids.get(slug), "title": row["Title"],
+            })
+    return rows, issues
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="new local directory for staged JSON and report")
@@ -84,21 +124,34 @@ def main():
     company_files = []
     for name in company_zip.namelist():
         parts = name.split("/")
-        if len(parts) == 3 and parts[2] == "5. All.csv":
+        if len(parts) == 3 and parts[2] in COMPANY_WINDOWS:
             company_files.append((parts[1], name, company_zip.read(name).decode("utf-8-sig")))
-    if not company_files:
+    all_time_files = [file for file in company_files if file[1].endswith(f"/{COMPANY_ALL_FILE}")]
+    if not all_time_files:
         raise ValueError("no company All.csv files found")
-    records, issues = stage(questions, company_files)
+    records, issues = stage(questions, all_time_files)
+    evidence_rows, evidence_issues = stage_company_evidence(records, company_files)
+    source_revisions = {
+        name: {"repository": f"https://github.com/{repo}", "commit": commit}
+        for name, (repo, commit) in SOURCES.items()
+    }
+    evidence = {
+        "source": {**source_revisions["companies"], "snapshotDate": COMPANY_SNAPSHOT_DATE},
+        "identitySource": source_revisions["questions"],
+        "windows": list(COMPANY_WINDOWS.values()),
+        "rows": evidence_rows,
+        "issues": evidence_issues,
+    }
     report = {
-        "sources": {name: {"repository": f"https://github.com/{repo}", "commit": commit} for name, (repo, commit) in SOURCES.items()},
-        "company_files": len(company_files), "questions": len(records),
+        "sources": source_revisions,
+        "company_files": len(all_time_files), "questions": len(records),
         "company_links": sum(len(q["companies"]) for q in records),
         "issues": issues,
         "publication_ready": False,
         "limitations": ["No private tests or reference solutions", "Source content and examples require validation"],
     }
     args.output.mkdir(parents=True)
-    for filename, data in (("questions.json", records), ("report.json", report)):
+    for filename, data in (("questions.json", records), ("report.json", report), ("company-evidence.json", evidence)):
         (args.output / filename).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Staged {len(records)} questions and {report['company_links']} links; {len(issues)} issues in {args.output}")
     return 0

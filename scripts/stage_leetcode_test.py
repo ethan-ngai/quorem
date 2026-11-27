@@ -37,6 +37,22 @@ class StageLeetcodeTest(unittest.TestCase):
         self.assertIsNone(source.problem_slug("https://leetcode.com.evil.test/problems/two-sum"))
         self.assertIsNone(source.problem_slug("https://leetcode.com/problems/two-sum/solutions"))
 
+    def test_company_evidence_preserves_overlapping_windows_and_unknown_ids(self):
+        records = [{"source": {"problem_slug": "known"}, "leetcode_id": 7}]
+        header = "Title,Link,Frequency\n"
+        known = "Known,https://leetcode.com/problems/known,25.5\n"
+        unknown = "Unknown,https://leetcode.com/problems/unknown,50\n"
+        invalid = "Invalid,https://leetcode.com/problems/invalid,nan\n"
+        rows, issues = source.stage_company_evidence(records, [
+            ("Google", "Google/1. Thirty Days.csv", header + known + unknown + invalid + known),
+            ("Google", "Google/2. Three Months.csv", header + known),
+        ])
+        self.assertEqual(
+            [(row["window"], row["leetcodeId"], row["frequency"]) for row in rows],
+            [("30d", 7, 25.5), ("30d", None, 50), ("3m", 7, 25.5)],
+        )
+        self.assertEqual([issue["kind"] for issue in issues], ["invalid_evidence_row", "duplicate_evidence_row"])
+
 
 if __name__ == "__main__":
     unittest.main()
