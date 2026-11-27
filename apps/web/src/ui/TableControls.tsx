@@ -11,11 +11,13 @@ export function TableSortHeader<T extends RowData>({
   children,
   disabled,
   className,
+  onSort,
 }: {
   column: Column<typeof serverTableFeatures, T>;
   children: ReactNode;
   disabled?: boolean;
   className?: string;
+  onSort?: () => void;
 }) {
   const sorted = column.getIsSorted();
   const Icon = sorted === "desc" ? ArrowDown : ArrowUp;
@@ -25,7 +27,11 @@ export function TableSortHeader<T extends RowData>({
       scope="col"
       aria-sort={sorted === "desc" ? "descending" : sorted === "asc" ? "ascending" : "none"}
     >
-      <button type="button" disabled={disabled} onClick={column.getToggleSortingHandler()}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onSort ?? column.getToggleSortingHandler()}
+      >
         {children}
         {sorted && <Icon size={13} aria-hidden="true" />}
       </button>

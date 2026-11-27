@@ -24,7 +24,6 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import { addFilter, catalogSearch, filterValues } from "./catalogSearch";
 import { PracticeTopicAccordion } from "./PracticeTopicAccordion";
 import { PracticeQuestionTable, type PracticeTableState } from "./PracticeQuestionTable";
-import { CompanyRecencySort } from "./CompanyRecency";
 import { PracticeRecommendations } from "./PracticeRecommendations";
 import { defaultCatalogFormat, includedCompany } from "@quorem/contracts/catalog-filter";
 import type { CatalogSearch } from "./catalogSearch";
@@ -184,17 +183,6 @@ export function PracticeBrowser() {
             companies={companies}
             companyFacets={companyFacets}
           />
-          {catalog.data?.companyEvidence && (
-            <CompanyRecencySort
-              active={sort === "company-recent"}
-              toggle={() =>
-                update({
-                  sort: sort === "company-recent" ? "title" : "company-recent",
-                  order: undefined,
-                })
-              }
-            />
-          )}
           {canChooseLibrary && (
             <SegmentedControl
               iconOnly

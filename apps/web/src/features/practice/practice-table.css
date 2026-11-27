@@ -1,0 +1,59 @@
+.practice-table-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.practice-heading-short {
+  display: none;
+}
+
+.data-table :is(.practice-recency, .practice-frequency) {
+  white-space: nowrap;
+}
+
+.data-table .practice-frequency {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-catalog .data-table:has(.practice-frequency) thead th:first-child {
+  width: auto;
+}
+
+.practice-catalog .data-table thead :is(.practice-recency, .practice-frequency, .practice-status) {
+  width: 1%;
+}
+
+@media (max-width: 650px) {
+  .practice-catalog .data-table:has(.practice-frequency) {
+    --table-cell-inline-padding: var(--space-2);
+  }
+
+  .practice-catalog .data-table:has(.practice-frequency) thead th:nth-child(2) {
+    width: 1%;
+  }
+
+  .practice-table-heading > svg {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .practice-catalog .data-table:has(.practice-frequency) {
+    --table-cell-inline-padding: var(--space-1);
+  }
+
+  .practice-catalog .data-table thead th button {
+    gap: var(--space-1);
+  }
+
+  .practice-heading-full,
+  .practice-status > * {
+    display: none;
+  }
+
+  .practice-heading-short {
+    display: inline;
+  }
+}

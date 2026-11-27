@@ -1,5 +1,5 @@
 /** @file CatalogFilter.tsx @description Shared catalog filter popover. @module practice */
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ScrollCue } from "../../ui/ScrollCue";
 import { SearchField } from "../../ui/SearchField";
 import { SegmentedControl } from "../../ui/SegmentedControl";
@@ -34,6 +34,7 @@ export type FilterGroup = { label?: string; options: FilterOption[] };
 
 export function CatalogFilter({
   label,
+  icon,
   selected,
   groups,
   searchPlaceholder,
@@ -42,6 +43,7 @@ export function CatalogFilter({
   onChange,
 }: {
   label: string;
+  icon?: ReactNode;
   selected: string[];
   groups: FilterGroup[];
   searchPlaceholder?: string;
@@ -122,6 +124,7 @@ export function CatalogFilter({
         aria-description={match === "not" && summary ? summary : undefined}
       >
         <span className="practice-filter-label">
+          {icon}
           {label}
           <ContentTransition inline contentKey={summary}>
             {summary && <span className="practice-filter-summary">{summary}</span>}

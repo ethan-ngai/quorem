@@ -1,17 +1,33 @@
 /** @file PracticeQuestionTable.tsx @description Question rows and pagination shared by both practice layouts. @module practice */
 import { createContext, useContext, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
+import {
+  ChartNoAxesColumnIncreasing,
+  CircleCheck,
+  Clock3,
+  FileText,
+  Gauge,
+  type LucideIcon,
+} from "lucide-react";
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { TableRow, Table } from "../../ui/Table";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
-import { CompanyRecencyIcon } from "./CompanyRecency";
 import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogPage } from "./problemQueries";
+import "./practice-table.css";
 
-const columns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
-const FrequencyColumn = createContext(false);
+const sortableColumns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
+const columns = [...sortableColumns, { id: "company-recent" }];
+const CompanyColumns = createContext(false);
+const recencyLabels = {
+  "30d": "30d",
+  "3m": "3mo",
+  "6m": "6mo",
+  older: "6mo+",
+  all: "All time",
+};
 
 /** Round the displayed score while preserving blank cells for missing observations. */
 function roundedFrequency(score?: number) {
@@ -50,23 +66,55 @@ export function PracticeQuestionTable({
   ...page
 }: PracticeRowFilters & TablePageProps & { groupBodies?: ReactNode }) {
   const table = usePracticeTable(page);
-  const showFrequency = !!page.data.companyEvidence;
+  const showCompanyEvidence = !!page.data.companyEvidence;
   return (
-    <FrequencyColumn value={showFrequency}>
+    <CompanyColumns value={showCompanyEvidence}>
       <Table
         className={groupBodies ? "practice-grouped-table" : undefined}
         rowGroups={!!groupBodies}
         label="Practice questions"
         heading={
           <tr>
-            <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
-            <TableSortHeader column={table.getColumn("difficulty")!}>Difficulty</TableSortHeader>
-            {showFrequency && (
-              <th scope="col" className="practice-frequency" title="Source score, 0–100">
-                Frequency
-              </th>
+            <TableSortHeader column={table.getColumn("title")!}>
+              <PracticeHeading icon={FileText} label="Question" />
+            </TableSortHeader>
+            <TableSortHeader column={table.getColumn("difficulty")!}>
+              <PracticeHeading icon={Gauge} label="Difficulty" />
+            </TableSortHeader>
+            {showCompanyEvidence && (
+              <>
+                <TableSortHeader
+                  column={table.getColumn("company-recent")!}
+                  className="practice-recency"
+                  onSort={() => {
+                    if (page.state.sort !== "company-recent")
+                      page.onChange({
+                        ...page.state,
+                        page: 1,
+                        sort: "company-recent",
+                        order: "asc",
+                      });
+                  }}
+                >
+                  <PracticeHeading icon={Clock3} label="Recency" />
+                </TableSortHeader>
+                <th
+                  scope="col"
+                  className="practice-frequency"
+                  aria-label="Frequency"
+                  title="Source score, 0–100"
+                >
+                  <PracticeHeading
+                    icon={ChartNoAxesColumnIncreasing}
+                    label="Frequency"
+                    shortLabel="Freq."
+                  />
+                </th>
+              </>
             )}
-            <th scope="col">Status</th>
+            <th scope="col" aria-label="Status" className="practice-status">
+              <PracticeHeading icon={CircleCheck} label="Status" />
+            </th>
           </tr>
         }
       >
@@ -81,13 +129,36 @@ export function PracticeQuestionTable({
       {!groupBodies && (
         <TablePagination table={table} snapshot={page.placeholder ? page.data : undefined} />
       )}
-    </FrequencyColumn>
+    </CompanyColumns>
+  );
+}
+
+/** Keep heading icons decorative and abbreviate the metric on narrow screens. */
+function PracticeHeading({
+  icon: Icon,
+  label,
+  shortLabel,
+}: {
+  icon: LucideIcon;
+  label: string;
+  shortLabel?: string;
+}) {
+  return (
+    <span className="practice-table-heading">
+      <Icon size={14} aria-hidden="true" />
+      <span className={shortLabel ? "practice-heading-full" : undefined}>{label}</span>
+      {shortLabel && (
+        <span aria-hidden="true" className="practice-heading-short">
+          {shortLabel}
+        </span>
+      )}
+    </span>
   );
 }
 
 /** Span all visible columns in a practice row group. */
 export function usePracticeColumnCount() {
-  return columns.length + 1 + Number(useContext(FrequencyColumn));
+  return sortableColumns.length + 1 + (useContext(CompanyColumns) ? 2 : 0);
 }
 
 /** Keep pagination and group status aligned with the current table. */
@@ -116,7 +187,7 @@ export function PracticeQuestionRows({
   const navigate = useNavigate({ from: "/practice" });
   const solvedIds = new Set(data.solvedIds);
   const observations = data.companyEvidence?.observations;
-  const showFrequency = useContext(FrequencyColumn);
+  const showCompanyEvidence = useContext(CompanyColumns);
   return (
     <>
       {data.items.map((problem) => (
@@ -136,21 +207,23 @@ export function PracticeQuestionRows({
           }}
         >
           <PracticeQuestionCell>
-            <span className="practice-question-title">
-              <Link to="/practice/$slug" params={{ slug: problem.slug }}>
-                {problem.title}
-              </Link>
-              <CompanyRecencyIcon window={observations?.[problem.id]?.window} />
-            </span>
+            <Link to="/practice/$slug" params={{ slug: problem.slug }}>
+              {problem.title}
+            </Link>
             <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
           </PracticeQuestionCell>
           <PracticeQuestionCell>
             <QuestionDifficulty difficulty={problem.difficulty} onFilter={filterDifficulty} />
           </PracticeQuestionCell>
-          {showFrequency && (
-            <PracticeQuestionCell className="practice-frequency">
-              {roundedFrequency(observations?.[problem.id]?.frequency)}
-            </PracticeQuestionCell>
+          {showCompanyEvidence && (
+            <>
+              <PracticeQuestionCell className="practice-recency">
+                {observations?.[problem.id] && recencyLabels[observations[problem.id].window]}
+              </PracticeQuestionCell>
+              <PracticeQuestionCell className="practice-frequency">
+                {roundedFrequency(observations?.[problem.id]?.frequency)}
+              </PracticeQuestionCell>
+            </>
           )}
           <PracticeQuestionCell className="practice-format">
             {(problem.isPrivate || solvedIds.has(problem.id)) && (

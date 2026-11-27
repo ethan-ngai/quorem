@@ -1,7 +1,7 @@
 import { DifficultySegments, type Difficulty } from "../../ui/DifficultySegments";
 import "../../ui/selection-feedback.css";
 import { formatLabel } from "../../ui/formatLabel";
-import { Code2, Database } from "lucide-react";
+import { Building2, Code2, Database, Tags } from "lucide-react";
 import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter, type FilterGroup } from "./CatalogFilter";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
@@ -82,6 +82,7 @@ export function CompanyFilter({
   return (
     <CatalogFilter
       label="Companies"
+      icon={<Building2 size={16} aria-hidden="true" />}
       searchPlaceholder="Search companies"
       selected={selected}
       onChange={(values) => update({ company: values.join(",") || undefined })}
@@ -167,6 +168,7 @@ export function CatalogFilters({
       )}
       <CatalogFilter
         label="Topics"
+        icon={<Tags size={16} aria-hidden="true" />}
         selected={selectedTopics}
         onChange={(values) => update({ topic: values.join(",") || undefined })}
         match={search.topicMatch}
