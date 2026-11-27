@@ -13,6 +13,11 @@ import type { CatalogPage } from "./problemQueries";
 const columns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
 const FrequencyColumn = createContext(false);
 
+/** Round the displayed score while preserving blank cells for missing observations. */
+function roundedFrequency(score?: number) {
+  return score == null ? null : Math.round(score);
+}
+
 export type PracticeTableState = ListState<"title" | "difficulty" | "company-recent">;
 export type PracticeRowFilters = {
   filterTopic: (topic: string) => void;
@@ -57,7 +62,7 @@ export function PracticeQuestionTable({
             <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
             <TableSortHeader column={table.getColumn("difficulty")!}>Difficulty</TableSortHeader>
             {showFrequency && (
-              <th scope="col" className="practice-frequency" title="Source frequency score (0–100)">
+              <th scope="col" className="practice-frequency" title="Source score, 0–100">
                 Frequency
               </th>
             )}
@@ -144,12 +149,7 @@ export function PracticeQuestionRows({
           </PracticeQuestionCell>
           {showFrequency && (
             <PracticeQuestionCell className="practice-frequency">
-              {observations?.[problem.id]?.frequency ?? (
-                <span className="practice-frequency-missing">
-                  <span className="sr-only">Unavailable</span>
-                  <span aria-hidden="true">—</span>
-                </span>
-              )}
+              {roundedFrequency(observations?.[problem.id]?.frequency)}
             </PracticeQuestionCell>
           )}
           <PracticeQuestionCell className="practice-format">
