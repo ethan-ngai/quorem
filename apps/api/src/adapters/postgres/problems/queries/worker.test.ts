@@ -61,6 +61,9 @@ describe.skipIf(!url)("workerd catalog against disposable PostgreSQL", () => {
           companies: "id,name",
           company_tiers: "company_key,tier",
           problem_companies: "problem_id,company_id",
+          company_question_snapshots: "revision,source_url,snapshot_date",
+          company_question_observations:
+            "snapshot_revision,company_id,leetcode_id,window_rank,frequency",
           matches: "id,publication_id,state,rules",
           match_participants: "match_id,owner_id,forfeited,competitor_id",
           match_rule_events: "match_id,competitor_id,kind,resource_key",

@@ -1,0 +1,24 @@
+.company-recency-sort {
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.company-evidence-source,
+.company-evidence-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+
+.company-evidence-source {
+  margin: 0 0 var(--space-2);
+}
+
+.company-evidence-source a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.company-evidence-label {
+  display: block;
+}

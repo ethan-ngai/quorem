@@ -95,6 +95,23 @@ it("keeps the catalog unranked when opening an old recommendation bookmark", asy
   ).toEqual([expect.objectContaining({ sort: "recommended", limit: 5 })]);
 });
 
+it("defaults to recency for one included company and preserves an explicit title sort", async () => {
+  for (const [query, sort] of [
+    ["company=Google", "company-recent"],
+    ["company=Google&sort=title", "title"],
+    ["company=Apple%2CGoogle", undefined],
+    ["company=Google&companyMatch=not", undefined],
+  ] as const) {
+    const client = new QueryClient();
+    await renderPractice(account, `/practice?${query}`, client);
+    const [entry] = client.getQueriesData({ queryKey: ["public-problems"] });
+    expect(entry, query).toBeDefined();
+    const key = entry[0];
+    if (sort === undefined) expect(key.at(-1)).not.toHaveProperty("sort");
+    else expect(key.at(-1)).toHaveProperty("sort", sort);
+  }
+});
+
 it("scopes both recommendations and rows to a bookmarked SQL Odyssey catalog", async () => {
   const client = new QueryClient();
   const html = await renderPractice(account, "/practice?sql=%22true%22&type=odyssey", client);

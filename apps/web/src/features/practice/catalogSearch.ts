@@ -1,4 +1,8 @@
-import { filterMatch, topicGroupSelection } from "@quorem/contracts/catalog-filter";
+import {
+  filterMatch,
+  includedCompany,
+  topicGroupSelection,
+} from "@quorem/contracts/catalog-filter";
 import { pageSizeSchema } from "@quorem/contracts/pagination";
 import type { FilterMatch } from "@quorem/contracts";
 
@@ -14,7 +18,7 @@ export type CatalogSearch = {
   companyMatch?: FilterMatch;
   groupBy?: "topic";
   topicGroup?: string | null;
-  sort?: "difficulty";
+  sort?: "title" | "difficulty" | "company-recent";
   order?: "desc";
   page?: number;
   limit?: number;
@@ -47,8 +51,10 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   if (search.groupBy === "topic") result.groupBy = search.groupBy;
   const topicGroup = topicGroupSelection.safeParse(search.topicGroup);
   if (result.groupBy && topicGroup.success) result.topicGroup = topicGroup.data;
-  if (search.sort === "difficulty") result.sort = search.sort;
-  if (search.order === "desc") result.order = "desc";
+  if (search.sort === "difficulty" || search.sort === "title") result.sort = search.sort;
+  if (search.sort === "company-recent" && includedCompany(result.company, result.companyMatch))
+    result.sort = search.sort;
+  if (search.order === "desc" && result.sort !== "company-recent") result.order = "desc";
   const page = Number(search.page);
   if (Number.isInteger(page) && page > 1 && page <= 10000) result.page = page;
   const limit = Number(search.limit);

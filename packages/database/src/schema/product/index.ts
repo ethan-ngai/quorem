@@ -6,6 +6,7 @@ import {
   text,
   foreignKey,
   timestamp,
+  date,
   index,
   unique,
   uuid,
@@ -1287,6 +1288,55 @@ export const problem_companies = pgTable(
   ],
 );
 
+export const company_question_snapshots = pgTable(
+  "company_question_snapshots",
+  {
+    revision: text().primaryKey(),
+    source_url: text().notNull(),
+    snapshot_date: date().notNull(),
+    content_sha256: text().notNull(),
+  },
+  (table) => [
+    check("company_question_snapshots_revision_check", sql`revision ~ '^[0-9a-f]{40}$'`),
+    check(
+      "company_question_snapshots_content_sha256_check",
+      sql`content_sha256 ~ '^[0-9a-f]{64}$'`,
+    ),
+    index("company_question_snapshots_latest").on(
+      table.snapshot_date.desc(),
+      table.revision.desc(),
+    ),
+  ],
+);
+
+export const company_question_observations = pgTable(
+  "company_question_observations",
+  {
+    snapshot_revision: text()
+      .notNull()
+      .references(() => company_question_snapshots.revision, { onDelete: "cascade" }),
+    company_id: bigint({ mode: "bigint" })
+      .notNull()
+      .references(() => companies.id, { onDelete: "restrict" }),
+    leetcode_id: integer().notNull(),
+    window_rank: smallint().notNull(),
+    frequency: doublePrecision().notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.snapshot_revision, table.company_id, table.leetcode_id, table.window_rank],
+    }),
+    index("company_question_observations_problem").on(
+      table.snapshot_revision,
+      table.leetcode_id,
+      table.company_id,
+    ),
+    check("company_question_observations_leetcode_id_check", sql`leetcode_id > 0`),
+    check("company_question_observations_window_rank_check", sql`window_rank BETWEEN 1 AND 5`),
+    check("company_question_observations_frequency_check", sql`frequency BETWEEN 0 AND 100`),
+  ],
+);
+
 export const guest_request_buckets = pgTable(
   "guest_request_buckets",
   {
@@ -2454,7 +2504,9 @@ export const team_outbox = pgTable(
     dispatch_until: timestamp({ withTimezone: true, mode: "string" }),
   },
   (t) => [
-    index("team_outbox_pending").on(t.sequence).where(sql`published_at IS NULL`),
+    index("team_outbox_pending")
+      .on(t.sequence)
+      .where(sql`published_at IS NULL`),
     unique("team_outbox_sequence_key").on(t.sequence),
     check("team_outbox_team_check", sql`team >= 1 AND team <= 4`),
     foreignKey({

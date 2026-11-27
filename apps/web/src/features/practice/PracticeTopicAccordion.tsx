@@ -38,7 +38,7 @@ function TopicQuestions({
   const [state, setState] = useState<PracticeTableState>({
     page: 1,
     limit: catalogPageSize,
-    sort: filters.sort === "difficulty" ? "difficulty" : "title",
+    sort: filters.sort === "recommended" ? "title" : (filters.sort ?? "title"),
     order: filters.order ?? "asc",
   });
   const query = useQuery(

@@ -24,8 +24,9 @@ import { SegmentedControl } from "../../ui/SegmentedControl";
 import { addFilter, catalogSearch, filterValues } from "./catalogSearch";
 import { PracticeTopicAccordion } from "./PracticeTopicAccordion";
 import { PracticeQuestionTable, type PracticeTableState } from "./PracticeQuestionTable";
+import { CompanyRecencySort } from "./CompanyRecency";
 import { PracticeRecommendations } from "./PracticeRecommendations";
-import { defaultCatalogFormat } from "@quorem/contracts/catalog-filter";
+import { defaultCatalogFormat, includedCompany } from "@quorem/contracts/catalog-filter";
 import type { CatalogSearch } from "./catalogSearch";
 import "../../styles/workspace.css";
 import "./practice.css";
@@ -61,10 +62,17 @@ export function PracticeBrowser() {
     search,
   );
   const { topicGroup, ...browse } = { ...search, ...scope };
-  const { page, limit, sort, order, ...filters } = browse;
+  const { page, limit, sort: explicitSort, order, ...filters } = browse;
+  const company =
+    library === "private" ? undefined : includedCompany(search.company, search.companyMatch);
+  const sort = explicitSort ?? (company && !order ? "company-recent" : undefined);
   const grouped = search.groupBy === "topic";
   const catalog = useQuery(
-    catalogQueryOptions(queryClient, actor, grouped ? { ...filters, limit: 1 } : browse),
+    catalogQueryOptions(
+      queryClient,
+      actor,
+      grouped ? { ...filters, sort, order, limit: 1 } : sort ? { ...browse, sort } : browse,
+    ),
   );
   useEffect(() => {
     if (!catalog.data) return;
@@ -109,7 +117,10 @@ export function PracticeBrowser() {
   const tableState: PracticeTableState = {
     page: page ?? 1,
     limit: limit ?? catalogPageSize,
-    sort: sort ?? "title",
+    sort:
+      sort === "company-recent" && catalog.isSuccess && !catalog.data.companyEvidence
+        ? "title"
+        : (sort ?? "title"),
     order: order ?? "asc",
   };
   const total = catalog.data?.total ?? 0;
@@ -173,6 +184,17 @@ export function PracticeBrowser() {
             companies={companies}
             companyFacets={companyFacets}
           />
+          {catalog.data?.companyEvidence && (
+            <CompanyRecencySort
+              active={sort === "company-recent"}
+              toggle={() =>
+                update({
+                  sort: sort === "company-recent" ? "title" : "company-recent",
+                  order: undefined,
+                })
+              }
+            />
+          )}
           {canChooseLibrary && (
             <SegmentedControl
               iconOnly
@@ -244,7 +266,7 @@ export function PracticeBrowser() {
                     {
                       page: next.page === 1 ? undefined : next.page,
                       limit: next.limit,
-                      sort: next.sort === "title" ? undefined : next.sort,
+                      sort: next.sort === "title" && !company ? undefined : next.sort,
                       order: next.order === "asc" ? undefined : next.order,
                     },
                     { resetScroll: !grouped },

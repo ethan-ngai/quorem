@@ -10,7 +10,7 @@ export interface CatalogFilter {
   companyMatch?: FilterMatch;
   groupBy?: "topic";
   topicGroup?: string | null;
-  sort: "title" | "difficulty" | "recommended";
+  sort: "title" | "difficulty" | "recommended" | "company-recent";
   order: "asc" | "desc";
   library: "" | "global" | "private";
   type: "" | "classic" | "odyssey";

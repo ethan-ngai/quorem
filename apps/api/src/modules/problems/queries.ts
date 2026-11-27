@@ -1,5 +1,5 @@
 /** @file queries.ts @description Catalog validation and authorized query service. @module problems */
-import { catalogQuery, problemId } from "@quorem/contracts/catalog-filter";
+import { catalogQuery, includedCompany, problemId } from "@quorem/contracts/catalog-filter";
 import { parseListQuery } from "../../application/list-query.ts";
 import { ApplicationError } from "../../application/error.ts";
 import type { CatalogFilter, ProblemActor } from "./model.ts";
@@ -24,13 +24,19 @@ export function parseCatalogFilter(q: URLSearchParams): CatalogFilter {
     groupBy,
     topicGroup,
   } = parsed.data;
-  const { page, limit, sort, order } = parseListQuery(q, ["title", "difficulty", "recommended"], {
-    page: 1,
-    limit: 20,
-    sort: "title",
-    order: "asc",
-  });
+  const { page, limit, sort, order } = parseListQuery(
+    q,
+    ["title", "difficulty", "recommended", "company-recent"],
+    {
+      page: 1,
+      limit: 20,
+      sort: "title",
+      order: "asc",
+    },
+  );
   if (sort === "recommended" && (order !== "asc" || page !== 1 || limit > 20 || groupBy))
+    throw invalid();
+  if (sort === "company-recent" && (order !== "asc" || !includedCompany(company, companyMatch)))
     throw invalid();
   if (topicGroup !== undefined && !groupBy) throw invalid();
   return {

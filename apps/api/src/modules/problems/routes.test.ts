@@ -77,3 +77,21 @@ it("rejects cursors and reverse ordering for adaptive ranks", async () => {
     page: 2,
   });
 });
+
+it("limits company recency sorting to one included company", async () => {
+  const { parseCatalogFilter } = await import("./queries.ts");
+  expect(
+    parseCatalogFilter(new URLSearchParams("sort=company-recent&company=Google&page=2")),
+  ).toMatchObject({
+    sort: "company-recent",
+    company: "Google",
+    page: 2,
+  });
+  for (const query of [
+    "",
+    "&company=Google,Apple",
+    "&company=Google&companyMatch=not",
+    "&company=Google&order=desc",
+  ])
+    expect(() => parseCatalogFilter(new URLSearchParams(`sort=company-recent${query}`))).toThrow();
+});

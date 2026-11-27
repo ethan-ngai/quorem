@@ -2,6 +2,12 @@
 import { z } from "zod";
 
 export const defaultCatalogFormat = "classic";
+export const companyEvidenceWindows = ["30d", "3m", "6m", "older", "all"] as const;
+
+/** Recency applies to a single included company. */
+export function includedCompany(company: string | undefined, match: FilterMatch | undefined) {
+  return company && !company.includes(",") && match !== "not" ? company : undefined;
+}
 
 export const problemId = z.guid();
 const selection = (item: z.ZodType) =>

@@ -36,6 +36,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
       versions = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()],
       match = crypto.randomUUID(),
       historical = crypto.randomUUID();
+    const snapshot = crypto.randomUUID().replaceAll("-", "") + uid;
     const sidecar =
       '{"problem":{"examples":[{"args":["public\\u0000value"],"expected":9007199254740993}],"odyssey":{"levels":[{"examples":[{"args":["stage\\u0000value"],"expected":1}]}]}}}';
     try {
@@ -277,6 +278,9 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         companies: "id,name",
         company_tiers: "company_key,tier",
         problem_companies: "problem_id,company_id",
+        company_question_snapshots: "revision,source_url,snapshot_date",
+        company_question_observations:
+          "snapshot_revision,company_id,leetcode_id,window_rank,frequency",
         matches: "id,publication_id,state,rules",
         match_participants: "match_id,owner_id,forfeited,competitor_id",
         match_rule_events: "match_id,competitor_id,kind,resource_key",
@@ -433,6 +437,49 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
               parseCatalogFilter(new URLSearchParams(`q=${uid}&${scope}`)),
             ),
           );
+        const company = `${uid}-evidence`;
+        const leetcodeIds = ids.map((_, i) => 10000000 + (parseInt(uid, 16) % 100000000) * 3 + i);
+        const sourceUrl = `https://example.test/snapshot/${snapshot}`;
+        await pool.query("INSERT INTO company_question_snapshots VALUES($1,$2,'2099-10-20',$3)", [
+          snapshot,
+          sourceUrl,
+          "a".repeat(64),
+        ]);
+        await pool.query("INSERT INTO companies(name) VALUES($1)", [company]);
+        for (const [i, id] of ids.entries())
+          await pool.query("UPDATE problems SET leetcode_id=$1 WHERE id=$2", [leetcodeIds[i], id]);
+        await pool.query(
+          `INSERT INTO company_question_observations
+            SELECT $1,id,lc,window_rank,frequency FROM companies
+            CROSS JOIN (VALUES ($3::int,2,99),($4::int,1,100),($5::int,1,10),($5::int,2,90))
+              AS rows(lc,window_rank,frequency) WHERE name=$2`,
+          [snapshot, company, ...leetcodeIds],
+        );
+        await pool.query(
+          "INSERT INTO problem_companies(problem_id,company_id) SELECT $1,id FROM companies WHERE name=$2",
+          [ids[1], company],
+        );
+        const recent = await catalogIn(`company=${company}&sort=company-recent`);
+        expect(recent.items.map(({ id }: { id: string }) => id)).toEqual([
+          versions[2],
+          versions[0],
+          versions[1],
+        ]);
+        expect(recent.companyEvidence).toEqual({
+          company,
+          sourceUrl,
+          snapshotDate: "2099-10-20",
+          observations: {
+            [versions[2]]: { window: "30d", frequency: 10 },
+            [versions[0]]: { window: "3m", frequency: 99 },
+          },
+        });
+        const nextRecent = await catalogIn(`company=${company}&sort=company-recent&limit=1&page=2`);
+        expect(nextRecent.items[0].id).toBe(versions[0]);
+        expect(Object.keys(nextRecent.companyEvidence.observations)).toEqual([versions[0]]);
+        const excluded = await catalogIn(`company=${company}&companyMatch=not`);
+        expect(excluded.items).toEqual([]);
+        expect(excluded.companyEvidence).toBeUndefined();
         const grouped = await catalogIn("groupBy=topic&limit=2");
         expect(grouped.items.map(({ id }: { id: string }) => id)).toEqual(versions.slice(1));
         expect(grouped.topicGroups).toEqual({ [versions[1]]: "Heap", [versions[2]]: "Heap" });
@@ -752,6 +799,7 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         await pool.query(`DROP ROLE ${role}`);
       }
     } finally {
+      await pool.query("DELETE FROM company_question_snapshots WHERE revision=$1", [snapshot]);
       await pool.end();
     }
   });

@@ -9,6 +9,7 @@ import {
   complexityProjection,
 } from "../editorial-storage.ts";
 import type { FilterMatch } from "@quorem/contracts";
+import { companyEvidenceWindows, includedCompany } from "@quorem/contracts/catalog-filter";
 import { sql, type SQL } from "drizzle-orm";
 import type { ConnectionScope, Transaction } from "@quorem/database/core";
 import {
@@ -40,6 +41,11 @@ import type {
   ProblemActor,
 } from "../../../../modules/problems/model.ts";
 import type { ProblemQueries } from "../../../../modules/problems/ports.ts";
+import {
+  catalogCompanyMembership,
+  joinCompanyEvidence,
+  readCompanySnapshot,
+} from "./company-evidence.ts";
 
 export type ReadScope = <T>(
   read: (scope: Pick<ConnectionScope, "transaction">) => Promise<T>,
@@ -107,7 +113,7 @@ function catalogWhere(actor: ProblemActor | undefined, f: CatalogFilter): SQL {
         f.company,
         f.companyMatch,
         sql`EXISTS (
-          SELECT 1 FROM problem_companies pc JOIN companies c ON c.id=pc.company_id
+          SELECT 1 FROM ${catalogCompanyMembership} pc JOIN companies c ON c.id=pc.company_id
           WHERE pc.problem_id=p.id AND c.name=selected.value
         )`,
       )}`
@@ -210,10 +216,22 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
         ).rows[0].total,
       );
   const direction = sql.raw(f.order === "desc" ? "DESC" : "ASC");
-  const ordering =
-    f.sort === "difficulty"
-      ? sql`${rank} ${direction}, lower(v.title) ${direction}, p.slug ${direction}`
-      : sql`lower(v.title) ${direction}, p.slug ${direction}`;
+  const company =
+    f.sort === "recommended" || f.library === "private"
+      ? undefined
+      : includedCompany(f.company, f.companyMatch);
+  const snapshot = company ? await readCompanySnapshot(tx, company) : undefined;
+  const evidenceJoin = snapshot ? joinCompanyEvidence(snapshot) : sql``;
+  const evidenceProjection = snapshot
+    ? sql`, evidence.window_rank AS "windowRank", evidence.frequency`
+    : sql``;
+  const sortPrefix =
+    f.sort === "company-recent" && snapshot
+      ? sql`evidence.window_rank ASC NULLS LAST, evidence.frequency DESC NULLS LAST, `
+      : f.sort === "difficulty"
+        ? sql`${rank} ${direction}, `
+        : sql``;
+  const ordering = sql`${sortPrefix}lower(v.title) ${direction}, p.slug ${direction}`;
   const requestedOffset = BigInt(f.page - 1) * BigInt(f.limit);
   const offset = (requestedOffset > total ? total : requestedOffset).toString();
   const context =
@@ -250,10 +268,19 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const recommendedIds = recommendations?.slice(0, f.limit).map((item) => item.question.id);
   const progressProjection = viewer ? sql`, ${progress} AS solved` : sql``;
   const rows = (
-    await tx.execute<Projected & { groupLabel?: string | null; solved?: boolean }>(
+    await tx.execute<
+      Projected & {
+        groupLabel?: string | null;
+        solved?: boolean;
+        windowRank?: number;
+        frequency?: number;
+      }
+    >(
       recommendedIds
         ? sql`SELECT ${rowProjection} ${from} WHERE ${where} AND v.id::text IN (SELECT jsonb_array_elements_text(${JSON.stringify(recommendedIds)}::jsonb))`
-        : sql`SELECT ${rowProjection}${groupProjection}${progressProjection} ${from} ${groupJoin} WHERE ${where} ${groupFilter} ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
+        : sql`SELECT ${rowProjection}${groupProjection}${progressProjection}${evidenceProjection} ${from}
+          ${groupJoin} ${evidenceJoin} WHERE ${where} ${groupFilter}
+          ORDER BY ${groupOrdering}${ordering} LIMIT ${f.limit} OFFSET ${offset}::bigint`,
     )
   ).rows;
   if (recommendedIds) {
@@ -292,7 +319,7 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const companyFacets = (
     await tx.execute<{ name: string; tier: string; count: string }>(
       sql`SELECT c.name, COALESCE(ct.tier,'other') AS tier, count(*)::text AS count
-          FROM companies c JOIN problem_companies pc ON pc.company_id=c.id
+          FROM companies c JOIN ${catalogCompanyMembership} pc ON pc.company_id=c.id
           JOIN problems p ON p.id=pc.problem_id JOIN question_publications v ON v.id=p.current_publication_id
           LEFT JOIN company_tiers ct ON ct.company_key=lower(c.name)
           WHERE ${visibility} AND ${catalogKind(f)}
@@ -323,6 +350,28 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
       topicGroups: Object.fromEntries(rows.map(({ id, groupLabel }) => [id, groupLabel ?? null])),
     }),
     ...(viewer && { solvedIds: rows.filter((row) => row.solved).map(({ id }) => id) }),
+    ...(snapshot && {
+      companyEvidence: {
+        company: snapshot.company,
+        snapshotDate: snapshot.snapshotDate,
+        sourceUrl: snapshot.sourceUrl,
+        observations: Object.fromEntries(
+          rows.flatMap(({ id, windowRank, frequency }) =>
+            windowRank && frequency != null
+              ? [
+                  [
+                    id,
+                    {
+                      window: companyEvidenceWindows[windowRank - 1],
+                      frequency: new JsonNumber(String(frequency)),
+                    },
+                  ],
+                ]
+              : [],
+          ),
+        ),
+      },
+    }),
     total: new JsonNumber(String(n)),
     page: new JsonNumber(String(f.page)),
     limit: new JsonNumber(String(f.limit)),

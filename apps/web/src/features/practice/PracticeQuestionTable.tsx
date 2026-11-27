@@ -6,11 +6,12 @@ import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { TableRow, Table } from "../../ui/Table";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
+import { CompanyEvidenceLabel, CompanyEvidenceSource } from "./CompanyRecency";
 import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogPage } from "./problemQueries";
 
 const columns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
-export type PracticeTableState = ListState<"title" | "difficulty">;
+export type PracticeTableState = ListState<"title" | "difficulty" | "company-recent">;
 export type PracticeRowFilters = {
   filterTopic: (topic: string) => void;
   filterDifficulty: (difficulty: string) => void;
@@ -44,6 +45,7 @@ export function PracticeQuestionTable({
   const table = usePracticeTable(page);
   return (
     <>
+      {page.data.companyEvidence && <CompanyEvidenceSource evidence={page.data.companyEvidence} />}
       <Table
         className={groupBodies ? "practice-grouped-table" : undefined}
         rowGroups={!!groupBodies}
@@ -113,6 +115,7 @@ export function PracticeQuestionRows({
             <Link to="/practice/$slug" params={{ slug: problem.slug }}>
               {problem.title}
             </Link>
+            <CompanyEvidenceLabel window={data.companyEvidence?.observations[problem.id]?.window} />
             <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
           </PracticeQuestionCell>
           <PracticeQuestionCell>

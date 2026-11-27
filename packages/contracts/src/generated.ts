@@ -3443,7 +3443,7 @@ export interface operations {
                 q?: string;
                 /** @description Comma-separated values; matches any selected value in this category. Maximum 16 values, 80 characters each. */
                 difficulty?: string;
-                /** @description Group by the first foundational topic before pagination. Available for title and difficulty sorts. */
+                /** @description Group by the first foundational topic before pagination. */
                 groupBy?: "topic";
                 /** @description JSON-encoded group label to show, with null for Other questions. Requires groupBy=topic. */
                 topicGroup?: string;
@@ -3452,8 +3452,8 @@ export interface operations {
                 topic?: string;
                 companyMatch?: components["schemas"]["FilterMatch"];
                 company?: string;
-                /** @description Recommended requires page 1, ascending order, and a limit of at most 20. */
-                sort?: "title" | "difficulty" | "recommended";
+                /** @description Company-recent requires one included company and ascending order. Recommended requires page 1, ascending order, and a limit of at most 20. */
+                sort?: "title" | "difficulty" | "recommended" | "company-recent";
                 order?: "asc" | "desc";
                 page?: number;
                 limit?: number;
@@ -3485,6 +3485,21 @@ export interface operations {
                             tier: "faang" | "top" | "quant" | "mid-tier" | "other";
                             count: number;
                         }[];
+                        /** @description Latest source snapshot for a single included company. Observations are keyed by publication ID. */
+                        companyEvidence?: {
+                            company: string;
+                            /** Format: date */
+                            snapshotDate: string;
+                            /** Format: uri */
+                            sourceUrl: string;
+                            observations: {
+                                [key: string]: {
+                                    /** @enum {string} */
+                                    window: "30d" | "3m" | "6m" | "older" | "all";
+                                    frequency: number;
+                                };
+                            };
+                        };
                         /** @description Group totals and optional account completion counts across all matching pages. Returned for grouped browsing without a selected group. */
                         topicGroupStats?: {
                             label: string | null;

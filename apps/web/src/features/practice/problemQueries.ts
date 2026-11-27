@@ -1,6 +1,7 @@
 import { playerDashboardKey } from "../activity/playerDashboardQuery";
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import type { DevelopmentIdentity, paths, PublishedQuestion } from "@quorem/contracts";
+import { includedCompany } from "@quorem/contracts/catalog-filter";
 import { api, publicApi, requireData } from "../../api/client";
 import { fetchProblem, fetchProblemVersion } from "../editor/api";
 import { catalogKind, type CatalogSearch } from "./catalogSearch";
@@ -56,6 +57,7 @@ const catalogScope = (scope: string, library: CatalogSearch["library"], search: 
     ...catalogKind(search),
     search.groupBy,
     JSON.stringify(search.topicGroup),
+    includedCompany(search.company, search.companyMatch),
   ] as const;
 
 export function invalidatePracticeCatalog(client: QueryClient, identity: DevelopmentIdentity) {

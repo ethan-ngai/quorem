@@ -965,6 +965,32 @@
                         "additionalProperties": false
                       }
                     },
+                    "companyEvidence": {
+                      "type": "object",
+                      "description": "Latest source snapshot for a single included company. Observations are keyed by publication ID.",
+                      "properties": {
+                        "company": { "type": "string" },
+                        "snapshotDate": { "type": "string", "format": "date" },
+                        "sourceUrl": { "type": "string", "format": "uri" },
+                        "observations": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                              "window": {
+                                "type": "string",
+                                "enum": ["30d", "3m", "6m", "older", "all"]
+                              },
+                              "frequency": { "type": "number", "minimum": 0, "maximum": 100 }
+                            },
+                            "required": ["window", "frequency"],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": ["company", "snapshotDate", "sourceUrl", "observations"],
+                      "additionalProperties": false
+                    },
                     "topicGroupStats": {
                       "type": "array",
                       "description": "Group totals and optional account completion counts across all matching pages. Returned for grouped browsing without a selected group.",
@@ -1055,7 +1081,7 @@
           {
             "name": "groupBy",
             "in": "query",
-            "description": "Group by the first foundational topic before pagination. Available for title and difficulty sorts.",
+            "description": "Group by the first foundational topic before pagination.",
             "schema": { "type": "string", "enum": ["topic"] }
           },
           {
@@ -1094,10 +1120,10 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Recommended requires page 1, ascending order, and a limit of at most 20.",
+            "description": "Company-recent requires one included company and ascending order. Recommended requires page 1, ascending order, and a limit of at most 20.",
             "schema": {
               "type": "string",
-              "enum": ["title", "difficulty", "recommended"],
+              "enum": ["title", "difficulty", "recommended", "company-recent"],
               "default": "title"
             }
           },
