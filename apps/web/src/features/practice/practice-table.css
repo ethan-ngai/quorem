@@ -1,11 +1,6 @@
 .practice-table-heading {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.practice-heading-short {
-  display: none;
 }
 
 .data-table :is(.practice-recency, .practice-frequency) {
@@ -33,10 +28,6 @@
   .practice-catalog .data-table:has(.practice-frequency) thead th:nth-child(2) {
     width: 1%;
   }
-
-  .practice-table-heading > svg {
-    display: none;
-  }
 }
 
 @media (max-width: 420px) {
@@ -46,14 +37,5 @@
 
   .practice-catalog .data-table thead th button {
     gap: var(--space-1);
-  }
-
-  .practice-heading-full,
-  .practice-status > * {
-    display: none;
-  }
-
-  .practice-heading-short {
-    display: inline;
   }
 }

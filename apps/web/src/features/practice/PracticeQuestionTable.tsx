@@ -1,14 +1,7 @@
 /** @file PracticeQuestionTable.tsx @description Question rows and pagination shared by both practice layouts. @module practice */
 import { createContext, useContext, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
-import {
-  ChartNoAxesColumnIncreasing,
-  CircleCheck,
-  Clock3,
-  FileText,
-  Gauge,
-  type LucideIcon,
-} from "lucide-react";
+import { ChartNoAxesColumnIncreasing, Clock3, Gauge, type LucideIcon } from "lucide-react";
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { TableRow, Table } from "../../ui/Table";
@@ -75,9 +68,7 @@ export function PracticeQuestionTable({
         label="Practice questions"
         heading={
           <tr>
-            <TableSortHeader column={table.getColumn("title")!}>
-              <PracticeHeading icon={FileText} label="Question" />
-            </TableSortHeader>
+            <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
             <TableSortHeader column={table.getColumn("difficulty")!}>
               <PracticeHeading icon={Gauge} label="Difficulty" />
             </TableSortHeader>
@@ -98,23 +89,16 @@ export function PracticeQuestionTable({
                 >
                   <PracticeHeading icon={Clock3} label="Recency" />
                 </TableSortHeader>
-                <th
-                  scope="col"
-                  className="practice-frequency"
-                  aria-label="Frequency"
-                  title="Source score, 0–100"
-                >
+                <th scope="col" className="practice-frequency" aria-label="Frequency">
                   <PracticeHeading
                     icon={ChartNoAxesColumnIncreasing}
                     label="Frequency"
-                    shortLabel="Freq."
+                    hint="Frequency source score, 0–100"
                   />
                 </th>
               </>
             )}
-            <th scope="col" aria-label="Status" className="practice-status">
-              <PracticeHeading icon={CircleCheck} label="Status" />
-            </th>
+            <th scope="col" aria-label="Status" className="practice-status" />
           </tr>
         }
       >
@@ -133,25 +117,20 @@ export function PracticeQuestionTable({
   );
 }
 
-/** Keep heading icons decorative and abbreviate the metric on narrow screens. */
+/** Give icon-only headings a hover label and accessible name. */
 function PracticeHeading({
   icon: Icon,
   label,
-  shortLabel,
+  hint = label,
 }: {
   icon: LucideIcon;
   label: string;
-  shortLabel?: string;
+  hint?: string;
 }) {
   return (
-    <span className="practice-table-heading">
-      <Icon size={14} aria-hidden="true" />
-      <span className={shortLabel ? "practice-heading-full" : undefined}>{label}</span>
-      {shortLabel && (
-        <span aria-hidden="true" className="practice-heading-short">
-          {shortLabel}
-        </span>
-      )}
+    <span className="practice-table-heading" title={hint}>
+      <Icon size={16} aria-hidden="true" />
+      <span className="sr-only">{label}</span>
     </span>
   );
 }
