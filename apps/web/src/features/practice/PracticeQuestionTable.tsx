@@ -1,16 +1,18 @@
 /** @file PracticeQuestionTable.tsx @description Question rows and pagination shared by both practice layouts. @module practice */
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import { createContext, useContext, type ComponentPropsWithoutRef, type ReactNode } from "react";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { TableRow, Table } from "../../ui/Table";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
-import { CompanyEvidenceLabel, CompanyEvidenceSource } from "./CompanyRecency";
+import { CompanyRecencyIcon } from "./CompanyRecency";
 import { QuestionIndicators } from "./QuestionIndicators";
 import type { CatalogPage } from "./problemQueries";
 
 const columns = [{ accessorKey: "title" }, { accessorKey: "difficulty" }];
+const FrequencyColumn = createContext(false);
+
 export type PracticeTableState = ListState<"title" | "difficulty" | "company-recent">;
 export type PracticeRowFilters = {
   filterTopic: (topic: string) => void;
@@ -43,9 +45,9 @@ export function PracticeQuestionTable({
   ...page
 }: PracticeRowFilters & TablePageProps & { groupBodies?: ReactNode }) {
   const table = usePracticeTable(page);
+  const showFrequency = !!page.data.companyEvidence;
   return (
-    <>
-      {page.data.companyEvidence && <CompanyEvidenceSource evidence={page.data.companyEvidence} />}
+    <FrequencyColumn value={showFrequency}>
       <Table
         className={groupBodies ? "practice-grouped-table" : undefined}
         rowGroups={!!groupBodies}
@@ -54,6 +56,11 @@ export function PracticeQuestionTable({
           <tr>
             <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
             <TableSortHeader column={table.getColumn("difficulty")!}>Difficulty</TableSortHeader>
+            {showFrequency && (
+              <th scope="col" className="practice-frequency" title="Source frequency score (0–100)">
+                Frequency
+              </th>
+            )}
             <th scope="col">Status</th>
           </tr>
         }
@@ -69,8 +76,18 @@ export function PracticeQuestionTable({
       {!groupBodies && (
         <TablePagination table={table} snapshot={page.placeholder ? page.data : undefined} />
       )}
-    </>
+    </FrequencyColumn>
   );
+}
+
+/** Span all visible columns in a practice row group. */
+export function usePracticeColumnCount() {
+  return columns.length + 1 + Number(useContext(FrequencyColumn));
+}
+
+/** Keep pagination and group status aligned with the current table. */
+export function PracticeQuestionSpan(props: ComponentPropsWithoutRef<"td">) {
+  return <PracticeQuestionCell {...props} colSpan={usePracticeColumnCount()} />;
 }
 
 export function PracticeQuestionCell({ children, ...props }: ComponentPropsWithoutRef<"td">) {
@@ -93,6 +110,8 @@ export function PracticeQuestionRows({
 }: PracticeRowFilters & { data: CatalogPage; inert?: boolean }) {
   const navigate = useNavigate({ from: "/practice" });
   const solvedIds = new Set(data.solvedIds);
+  const observations = data.companyEvidence?.observations;
+  const showFrequency = useContext(FrequencyColumn);
   return (
     <>
       {data.items.map((problem) => (
@@ -112,15 +131,27 @@ export function PracticeQuestionRows({
           }}
         >
           <PracticeQuestionCell>
-            <Link to="/practice/$slug" params={{ slug: problem.slug }}>
-              {problem.title}
-            </Link>
-            <CompanyEvidenceLabel window={data.companyEvidence?.observations[problem.id]?.window} />
+            <span className="practice-question-title">
+              <Link to="/practice/$slug" params={{ slug: problem.slug }}>
+                {problem.title}
+              </Link>
+              <CompanyRecencyIcon window={observations?.[problem.id]?.window} />
+            </span>
             <QuestionTopics tags={problem.tags} onFilter={filterTopic} />
           </PracticeQuestionCell>
           <PracticeQuestionCell>
             <QuestionDifficulty difficulty={problem.difficulty} onFilter={filterDifficulty} />
           </PracticeQuestionCell>
+          {showFrequency && (
+            <PracticeQuestionCell className="practice-frequency">
+              {observations?.[problem.id]?.frequency ?? (
+                <span className="practice-frequency-missing">
+                  <span className="sr-only">Unavailable</span>
+                  <span aria-hidden="true">—</span>
+                </span>
+              )}
+            </PracticeQuestionCell>
+          )}
           <PracticeQuestionCell className="practice-format">
             {(problem.isPrivate || solvedIds.has(problem.id)) && (
               <QuestionIndicators

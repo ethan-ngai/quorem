@@ -51,8 +51,12 @@ export function catalogSearch(search: Record<string, unknown>): CatalogSearch {
   if (search.groupBy === "topic") result.groupBy = search.groupBy;
   const topicGroup = topicGroupSelection.safeParse(search.topicGroup);
   if (result.groupBy && topicGroup.success) result.topicGroup = topicGroup.data;
-  if (search.sort === "difficulty" || search.sort === "title") result.sort = search.sort;
-  if (search.sort === "company-recent" && includedCompany(result.company, result.companyMatch))
+  const companySort =
+    result.library !== "private" && includedCompany(result.company, result.companyMatch);
+  if (
+    search.sort === "difficulty" ||
+    (companySort && (search.sort === "title" || search.sort === "company-recent"))
+  )
     result.sort = search.sort;
   if (search.order === "desc" && result.sort !== "company-recent") result.order = "desc";
   const page = Number(search.page);

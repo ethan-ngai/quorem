@@ -3,22 +3,62 @@
   white-space: nowrap;
 }
 
-.company-evidence-source,
-.company-evidence-label {
+.data-table .practice-question-title:has(> .company-recency-icon) > a {
+  display: inline;
+  overflow-wrap: break-word;
+}
+
+.company-recency-icon {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--space-6);
+  block-size: var(--space-6);
+  margin-inline-start: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--color-text-secondary);
+  vertical-align: middle;
+}
+
+.company-recency-icon:is(:hover, [aria-expanded="true"]) {
+  background: var(--color-control-hover);
+  color: var(--color-text);
+}
+
+.company-recency-hint.ui-popover {
+  padding: var(--space-2) var(--space-3);
   font-size: var(--text-small);
 }
 
-.company-evidence-source {
-  margin: 0 0 var(--space-2);
+.data-table .practice-frequency {
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
-.company-evidence-source a {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.15em;
+.practice-catalog .data-table:has(.practice-frequency) thead th:first-child {
+  width: auto;
 }
 
-.company-evidence-label {
-  display: block;
+.practice-catalog
+  .data-table:has(.practice-frequency)
+  thead
+  :is(.practice-frequency, th:last-child) {
+  width: 1%;
+}
+
+@media (max-width: 650px) {
+  .practice-catalog .data-table:has(.practice-frequency) {
+    --table-cell-inline-padding: var(--space-2);
+  }
+
+  .practice-catalog .data-table:has(.practice-frequency) thead th:nth-child(2) {
+    width: 1%;
+  }
+}
+
+.practice-frequency-missing {
+  color: var(--color-text-secondary);
 }

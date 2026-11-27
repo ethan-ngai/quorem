@@ -8,7 +8,8 @@ import { ChevronRight } from "lucide-react";
 import { LoadingButton } from "../../ui/LoadingButton";
 import { LoadingScreen } from "../../ui/LoadingScreen";
 import {
-  PracticeQuestionCell,
+  PracticeQuestionSpan,
+  usePracticeColumnCount,
   PracticeQuestionRows,
   usePracticeTable,
   type PracticeRowFilters,
@@ -52,15 +53,15 @@ function TopicQuestions({
   if (query.isPending)
     return (
       <tr className="practice-topic-message" inert={closing}>
-        <PracticeQuestionCell colSpan={3}>
+        <PracticeQuestionSpan>
           <LoadingScreen inline label="Loading questions…" />
-        </PracticeQuestionCell>
+        </PracticeQuestionSpan>
       </tr>
     );
   if (query.isError)
     return (
       <tr className="practice-topic-message" inert={closing}>
-        <PracticeQuestionCell colSpan={3}>
+        <PracticeQuestionSpan>
           <div className="practice-state" role="alert">
             <p>Questions couldn’t load.</p>
             <LoadingButton
@@ -71,7 +72,7 @@ function TopicQuestions({
               Retry
             </LoadingButton>
           </div>
-        </PracticeQuestionCell>
+        </PracticeQuestionSpan>
       </tr>
     );
   return (
@@ -95,9 +96,9 @@ function TopicPagination(props: Parameters<typeof usePracticeTable>[0] & { closi
   const table = usePracticeTable(props);
   return (
     <tr className="practice-topic-message" inert={props.closing}>
-      <PracticeQuestionCell colSpan={3}>
+      <PracticeQuestionSpan>
         <TablePagination table={table} snapshot={props.placeholder ? props.data : undefined} />
-      </PracticeQuestionCell>
+      </PracticeQuestionSpan>
     </tr>
   );
 }
@@ -122,6 +123,7 @@ export function PracticeTopicAccordion({
     return () => window.clearTimeout(timer);
   }, [closing]);
   const label = group.label ?? "Other";
+  const columnCount = usePracticeColumnCount();
 
   return (
     <TableBody animateChanges={false}>
@@ -130,7 +132,7 @@ export function PracticeTopicAccordion({
         data-exiting={closing || undefined}
         data-animate={animate || undefined}
       >
-        <th scope="rowgroup" colSpan={3}>
+        <th scope="rowgroup" colSpan={columnCount}>
           <button
             type="button"
             aria-expanded={open}
