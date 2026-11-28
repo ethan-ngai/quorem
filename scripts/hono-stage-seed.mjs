@@ -7,7 +7,10 @@ const catalogSeeds = {
     ["093_canonical_topics.sql", "INSERT"],
     ["094_demote_arrays.sql", "UPDATE"],
   ],
-  company_tiers: [["095_company_tiers.sql", "INSERT"]],
+  company_tiers: [
+    ["095_company_tiers.sql", "INSERT"],
+    ["120_cloudflare_company_tier.sql", "INSERT"],
+  ],
 };
 
 export async function verifyCatalogSeed(client, name) {
@@ -26,7 +29,7 @@ export async function verifyCatalogSeed(client, name) {
     }),
   );
   await client.query(
-    `CREATE TEMP TABLE ${fixture} (LIKE ${table} INCLUDING DEFAULTS) ON COMMIT DROP`,
+    `CREATE TEMP TABLE ${fixture} (LIKE ${table} INCLUDING DEFAULTS INCLUDING INDEXES) ON COMMIT DROP`,
   );
   await client.query(seed.join("\n"));
   return (
