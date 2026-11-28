@@ -21,7 +21,7 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | Akuna Capital | [Cached favicon](https://www.google.com/s2/favicons?domain=akunacapital.com&sz=64) |
 | AQR Capital Management | [Artwork](https://www.aqr.com/assets/img/favicon.ico) |
 | Citadel | [Cached favicon](https://www.google.com/s2/favicons?domain=www.citadel.com&sz=64) |
-| DE Shaw | [Artwork](https://www.deshaw.com/inactive-favicon.ico) |
+| DE Shaw | Switch from the [official wordmark](https://www.deshaw.com/img/svg/embedded/logo-white-with-trademark.svg), cropped and weighted for 16 px. |
 | GSA Capital | [Artwork](https://www.gsacapital.com/favicon.ico?favicon.24j4_-350d1v9.ico) |
 | Hudson River Trading | [Cached favicon](https://www.google.com/s2/favicons?domain=www.hudsonrivertrading.com&sz=64) |
 | IMC | [Cached favicon](https://www.google.com/s2/favicons?domain=www.imc.com&sz=64) |
@@ -43,7 +43,7 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | General Motors | [Artwork](https://www.gm.com/content/dam/company/img/us/en/gmcom/v4_webready/favicons/icon-32.png) |
 | Honeywell | [Artwork](https://www.honeywell.com/etc.clientlibs/honeywell/clientlibs/clientlib-common/resources/icons/favicon_HON_48.png) |
 | Hulu | [Artwork](https://assetshuluimcom-a.akamaihd.net/h3o/icons/favicon.ico.png) |
-| IBM | [Artwork](https://www.ibm.com/content/dam/adobe-cms/default-images/icon-32x32.png) |
+| IBM | Transparent 8-bar artwork from the [official positive and reversed color variants](https://www.ibm.com/design/language/ibm-logos/8-bar/#color). |
 | Mastercard | [Cached favicon](https://www.google.com/s2/favicons?domain=www.mastercard.com&sz=64) |
 | McKinsey | [Artwork](https://www.mckinsey.com/favicon.ico) |
 | Morgan Stanley | [Artwork](https://www.morganstanley.com/etc.clientlibs/msdotcomr5/clientlibs/components/site/resources/img/favicon-32x32.png) |
@@ -60,3 +60,5 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | Whatnot | [Cached favicon](https://www.google.com/s2/favicons?domain=www.whatnot.com&sz=64) |
 | Workday | [Artwork](https://www.workday.com/favicon.ico) |
 | Yahoo | [Artwork](https://s.yimg.com/cv/apiv2/default/favicon.ico) |
+
+- [SIG](https://sig.com/favicon.ico) uses the official Susquehanna waves favicon.
