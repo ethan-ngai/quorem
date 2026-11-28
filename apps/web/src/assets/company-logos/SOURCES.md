@@ -65,5 +65,6 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | DRW | [Artwork](https://www.drw.com/img/favicon/favicon-32x32.png?v=3) |
 | Duolingo | [Artwork](https://d35aaqx5ub95lt.cloudfront.net/favicon.ico) |
 | Jump Trading | [Artwork](https://www.jumptrading.com/cdn/68af4da447dcf4db12fcb35f/68af4da447dcf4db12fcb4bd_jump%20logo%20red.webp) |
+| MongoDB | Light and dark leaf marks from [MongoDB brand resources](https://www.mongodb.com/company/newsroom/brand-resources). |
 | OpenAI | Black and white Blossom from the [OpenAI brand kit](https://openai.com/brand/). |
 | SIG | [Susquehanna waves favicon](https://sig.com/favicon.ico) |
