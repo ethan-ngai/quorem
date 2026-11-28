@@ -60,5 +60,10 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | Whatnot | [Cached favicon](https://www.google.com/s2/favicons?domain=www.whatnot.com&sz=64) |
 | Workday | [Artwork](https://www.workday.com/favicon.ico) |
 | Yahoo | [Artwork](https://s.yimg.com/cv/apiv2/default/favicon.ico) |
-
-- [SIG](https://sig.com/favicon.ico) uses the official Susquehanna waves favicon.
+| Coinbase | [Artwork](https://www.coinbase.com/favicon.ico) |
+| CrowdStrike | [Artwork](https://www.crowdstrike.com/etc.clientlibs/crowdstrike/clientlibs/crowdstrike-common/resources/favicon.ico) |
+| DRW | [Artwork](https://www.drw.com/img/favicon/favicon-32x32.png?v=3) |
+| Duolingo | [Artwork](https://d35aaqx5ub95lt.cloudfront.net/favicon.ico) |
+| Jump Trading | [Artwork](https://www.jumptrading.com/cdn/68af4da447dcf4db12fcb35f/68af4da447dcf4db12fcb4bd_jump%20logo%20red.webp) |
+| OpenAI | Black and white Blossom from the [OpenAI brand kit](https://openai.com/brand/). |
+| SIG | [Susquehanna waves favicon](https://sig.com/favicon.ico) |

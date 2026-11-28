@@ -10,6 +10,7 @@ const catalogSeeds = {
   company_tiers: [
     ["095_company_tiers.sql", "INSERT"],
     ["120_cloudflare_company_tier.sql", "INSERT"],
+    ["121_extend_company_tiers.sql", "INSERT"],
   ],
 };
 
