@@ -50,7 +50,7 @@ Most marks are the companies’ published site icons. Cached site icons are mark
 | Oracle | [Artwork](https://www.oracle.com/favicon.ico) |
 | Rippling | [Artwork](https://www.rippling.com/favicons/favicon.svg) |
 | ServiceNow | [Artwork](https://www.servicenow.com/favicon.ico) |
-| Snap | [Artwork](https://images.ctfassets.net/dwtpq5hdcqjg/5S0EwGbv1lNk3uVF25ocBe/bfddb3bbc878432eabc4a2a8b6282e8e/Snap_Inc_Favicon.png?fm=png) |
+| Snap | [Snapchat Ghost artwork](https://help.snapchat.com/hc/en-us/articles/7012349890452-Snapchat-Ghost-Logo-Usage-Guidelines) |
 | SoFi | [Artwork](https://d1kag2khia5c8r.cloudfront.net/apple-touch-icon.png) |
 | Sony | [Cached favicon](https://www.google.com/s2/favicons?domain=www.sony.com&sz=64) |
 | Tencent | [Artwork](https://www.tencent.com/wp-content/themes/tencent-web/assets/favicon/favicon-32x32.png) |
