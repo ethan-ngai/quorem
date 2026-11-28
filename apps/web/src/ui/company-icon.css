@@ -4,7 +4,9 @@
 }
 
 .company-icon img {
-  inline-size: 1rem;
+  inline-size: auto;
+  min-inline-size: 1rem;
+  max-inline-size: 1.75rem;
   block-size: 1rem;
   object-fit: contain;
 }

@@ -4,7 +4,7 @@ import "./company-icon.css";
 const logos = import.meta.glob<string>("../assets/company-logos/*.{png,svg}", {
   eager: true,
   import: "default",
-  query: "?url",
+  query: "?url&no-inline",
 });
 /** Return approved local artwork when available. The surrounding control names the company. */
 export function companyIcon(company: string) {
@@ -20,8 +20,11 @@ export function companyIcon(company: string) {
         src={logo}
         alt=""
         draggable={false}
+        loading="lazy"
       />
-      {dark && <img className="company-icon-dark" src={dark} alt="" draggable={false} />}
+      {dark && (
+        <img className="company-icon-dark" src={dark} alt="" draggable={false} loading="lazy" />
+      )}
     </span>
   );
 }
