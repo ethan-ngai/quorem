@@ -21,7 +21,7 @@ export function companyIcon(company: string) {
     );
 
   const logo = logos[`${file}.png`] ?? logos[`${file}.svg`];
-  const dark = logos[`${file}.dark.svg`];
+  const dark = logos[`${file}.dark.svg`] ?? logos[`${file}.dark.png`];
   if (!logo) return undefined;
   return (
     <span className="company-icon" aria-hidden="true">
