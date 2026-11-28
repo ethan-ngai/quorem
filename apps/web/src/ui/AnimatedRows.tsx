@@ -11,6 +11,7 @@ type Props<Item> = {
   as?: "ul" | "ol" | "tbody" | "span";
   label?: string;
   inline?: boolean;
+  overlayExits?: boolean;
   empty?: ReactNode;
   getKey?: (item: Item) => unknown;
   preserveEdits?: boolean;
@@ -27,6 +28,7 @@ type Snapshot = {
 };
 
 const timing = { duration: Number.parseFloat(motion.standard), easing: motion.easing };
+const overlayTiming = { ...timing, duration: Number.parseFloat(motion.fast) };
 
 function elements(container: HTMLElement) {
   return new Map(
@@ -99,6 +101,7 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
     const after = this.keys();
     const surviving = new Set(after);
     const animate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let overlayBounds: DOMRect | undefined;
     const exits: Exit[] = [];
     let restoreFocus = false;
     let focusKey: number | undefined;
@@ -121,6 +124,17 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
       const size = this.props.inline ? rect.width : rect.height;
       if (!size) continue;
       const copy = row.cloneNode(true) as HTMLElement;
+      if (this.props.overlayExits) {
+        // Keep the exit at its old position without reserving space in the live list.
+        const overlay = (overlayBounds ??= container.getBoundingClientRect());
+        Object.assign(copy.style, {
+          position: "absolute",
+          left: `${rect.left - overlay.left}px`,
+          top: `${rect.top - overlay.top}px`,
+          width: `${rect.width}px`,
+          pointerEvents: "none",
+        });
+      }
       copy.removeAttribute("data-motion-row");
       copy.inert = true;
       copy.setAttribute("aria-hidden", "true");
@@ -145,16 +159,20 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
     const rows = elements(container);
     const sizeProperty = this.props.inline ? "inlineSize" : "blockSize";
     const table = this.props.as === "tbody";
+    const { overlayExits } = this.props;
+    const rowTiming = overlayExits ? overlayTiming : timing;
     for (const { copy, size, before } of snapshot.exits) {
       copy.style.overflow = "clip";
       container.insertBefore(copy, (before === undefined ? null : rows.get(before)) ?? null);
-      const frames = table
-        ? [{ opacity: 1 }, { opacity: 0 }]
-        : [
-            { [sizeProperty]: `${size}px`, opacity: 1 },
-            { [sizeProperty]: "0px", opacity: 0 },
-          ];
-      const animation = copy.animate(frames, timing);
+      const frames = overlayExits
+        ? [{ opacity: 1 }, { opacity: 0, translate: "0 -3px" }]
+        : table
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [
+              { [sizeProperty]: `${size}px`, opacity: 1 },
+              { [sizeProperty]: "0px", opacity: 0 },
+            ];
+      const animation = copy.animate(frames, rowTiming);
       void animation.finished.then(
         () => copy.remove(),
         () => copy.remove(),
@@ -166,7 +184,7 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
           { opacity: 0, translate: "0 -3px" },
           { opacity: 1, translate: "0 0" },
         ],
-        timing,
+        rowTiming,
       );
     }
     if (snapshot.restoreFocus && document.activeElement === document.body) {
@@ -189,6 +207,7 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
       heading,
       className,
       rowClassName,
+      overlayExits,
       label,
       empty,
       renderRow,
@@ -199,7 +218,12 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
     const rowClass =
       Row === "div" ? ["animated-row", rowClassName].filter(Boolean).join(" ") : rowClassName;
     return (
-      <Container ref={this.setContainer} className={className} aria-label={label}>
+      <Container
+        ref={this.setContainer}
+        className={className}
+        aria-label={label}
+        style={overlayExits ? { position: "relative" } : undefined}
+      >
         {heading && this.state.rows.length > 0 && (
           <Heading className="animated-row" data-motion-row={-1}>
             {heading}

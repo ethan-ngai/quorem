@@ -94,6 +94,7 @@ export function CompanyFilter({
         <AnimatedRows
           as="span"
           inline
+          overlayExits
           className="practice-filter-selection"
           heading={
             selected.length > 0 && search.companyMatch === "not" && <CircleSlash size={16} />
