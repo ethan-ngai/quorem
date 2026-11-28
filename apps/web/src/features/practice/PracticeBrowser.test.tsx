@@ -112,6 +112,19 @@ it("defaults to recency for one included company and preserves an explicit title
   }
 });
 
+it("shows company logos without text and describes every selected company", async () => {
+  const html = await renderPractice(
+    null,
+    "/practice?company=Apple%2CGoogle%2CUnknown&companyMatch=not",
+  );
+  const trigger = html.match(/<button[^>]*aria-label="Companies"[^>]*>(.*?)<\/button>/u);
+  expect(trigger?.[0]).toContain('aria-description="Exclude Apple, Google, Unknown"');
+  expect(trigger?.[1]).toContain("apple.svg");
+  expect(trigger?.[1]).toContain("google.svg");
+  expect(trigger?.[1]).toContain("lucide-building");
+  expect(trigger?.[1]?.replace(/<[^>]*>/gu, "")).toBe("");
+});
+
 it("scopes both recommendations and rows to a bookmarked SQL Odyssey catalog", async () => {
   const client = new QueryClient();
   const html = await renderPractice(account, "/practice?sql=%22true%22&type=odyssey", client);

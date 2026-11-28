@@ -209,11 +209,23 @@
   margin-left: auto;
 }
 .practice-filter-trigger {
+  max-inline-size: 100%;
   background: transparent;
 }
 .practice-filter-label {
   display: inline-flex;
   align-items: center;
+}
+.practice-filter-selection {
+  min-inline-size: 0;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.practice-filter-selection > span {
+  display: inline-flex;
+}
+.practice-filter-trigger > .select-field-chevron {
+  flex: none;
 }
 .practice-filter-trigger-icon,
 .practice-filter-choice-icon {

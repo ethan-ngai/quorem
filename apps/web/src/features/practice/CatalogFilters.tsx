@@ -1,7 +1,7 @@
 import { DifficultySegments, type Difficulty } from "../../ui/DifficultySegments";
 import "../../ui/selection-feedback.css";
 import { formatLabel } from "../../ui/formatLabel";
-import { Building2, Code2, Database, Tags } from "lucide-react";
+import { Building2, CircleSlash, Code2, Database, Tags } from "lucide-react";
 import { companyIcon } from "../../ui/CompanyIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter, type FilterGroup } from "./CatalogFilter";
@@ -88,12 +88,14 @@ export function CompanyFilter({
   return (
     <CatalogFilter
       label="Companies"
-      icon={
-        selected.length === 1 ? (
-          companyIcon(selected[0])
-        ) : (
-          <Building2 size={16} aria-hidden="true" />
-        )
+      icon={<Building2 size={16} aria-hidden="true" />}
+      selectionPreview={
+        <>
+          {search.companyMatch === "not" && <CircleSlash size={16} />}
+          {selected.map((name) => (
+            <span key={name}>{companyIcon(name) ?? <Building2 size={16} />}</span>
+          ))}
+        </>
       }
       searchPlaceholder="Search companies"
       alignOptionIcons

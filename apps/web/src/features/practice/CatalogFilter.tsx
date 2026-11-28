@@ -35,6 +35,7 @@ export type FilterGroup = { label?: string; options: FilterOption[] };
 export function CatalogFilter({
   label,
   icon,
+  selectionPreview,
   selected,
   groups,
   searchPlaceholder,
@@ -45,6 +46,7 @@ export function CatalogFilter({
 }: {
   label: string;
   icon?: ReactNode;
+  selectionPreview?: ReactNode;
   selected: string[];
   groups: FilterGroup[];
   searchPlaceholder?: string;
@@ -65,6 +67,10 @@ export function CatalogFilter({
   ]
     .filter(Boolean)
     .join(" ");
+  const showSelectionPreview = selectionPreview != null && selected.length > 0;
+  const selectionDescription = showSelectionPreview
+    ? `${match === "not" ? "Exclude " : ""}${selected.join(", ")}`
+    : summary;
   const term = query.trim().toLowerCase();
   const visibleGroups = groups
     .map((group) => ({
@@ -129,18 +135,24 @@ export function CatalogFilter({
       <Popover.Trigger
         className="select-field practice-filter-trigger"
         aria-label={label}
-        aria-description={summary || undefined}
+        aria-description={selectionDescription || undefined}
       >
-        <span className="practice-filter-label">
-          {icon && (
-            <span className="practice-filter-trigger-icon" aria-hidden="true">
-              {icon}
-            </span>
-          )}
-          <ContentTransition inline contentKey={summary}>
-            {summary ? <span className="practice-filter-summary">{summary}</span> : label}
-          </ContentTransition>
-        </span>
+        {showSelectionPreview ? (
+          <span className="practice-filter-label practice-filter-selection" aria-hidden="true">
+            {selectionPreview}
+          </span>
+        ) : (
+          <span className="practice-filter-label">
+            {icon && (
+              <span className="practice-filter-trigger-icon" aria-hidden="true">
+                {icon}
+              </span>
+            )}
+            <ContentTransition inline contentKey={summary}>
+              {summary ? <span className="practice-filter-summary">{summary}</span> : label}
+            </ContentTransition>
+          </span>
+        )}
         <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />
       </Popover.Trigger>
       <Popover.Portal>
