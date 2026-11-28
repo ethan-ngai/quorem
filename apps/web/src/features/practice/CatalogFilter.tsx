@@ -121,13 +121,12 @@ export function CatalogFilter({
       <Popover.Trigger
         className="select-field practice-filter-trigger"
         aria-label={label}
-        aria-description={match === "not" && summary ? summary : undefined}
+        aria-description={summary || undefined}
       >
         <span className="practice-filter-label">
           {icon}
-          {label}
           <ContentTransition inline contentKey={summary}>
-            {summary && <span className="practice-filter-summary">{summary}</span>}
+            {summary ? <span className="practice-filter-summary">{summary}</span> : label}
           </ContentTransition>
         </span>
         <ChevronDown className="select-field-chevron" size={14} aria-hidden="true" />

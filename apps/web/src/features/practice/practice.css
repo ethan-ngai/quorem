@@ -220,7 +220,6 @@
   margin-inline-end: var(--space-2);
 }
 .practice-filter-summary {
-  margin-inline-start: var(--space-2);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
