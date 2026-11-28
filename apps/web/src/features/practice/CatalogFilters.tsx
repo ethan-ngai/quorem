@@ -2,6 +2,7 @@ import { DifficultySegments, type Difficulty } from "../../ui/DifficultySegments
 import "../../ui/selection-feedback.css";
 import { formatLabel } from "../../ui/formatLabel";
 import { Building2, CircleSlash, Code2, Database, Tags } from "lucide-react";
+import { AnimatedRows } from "../../ui/AnimatedRows";
 import { companyIcon } from "../../ui/CompanyIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter, type FilterGroup } from "./CatalogFilter";
@@ -46,6 +47,7 @@ export function CatalogKindFilters({
   );
 }
 
+const companyFilterLabel = "Companies";
 const companyTiers = [
   ["faang", "FAANG"],
   ["top", "Top Companies"],
@@ -87,15 +89,28 @@ export function CompanyFilter({
     : [{ options: [...companies, ...missing].map((name) => option(name)) }];
   return (
     <CatalogFilter
-      label="Companies"
-      icon={<Building2 size={16} aria-hidden="true" />}
+      label={companyFilterLabel}
       selectionPreview={
-        <>
-          {search.companyMatch === "not" && <CircleSlash size={16} />}
-          {selected.map((name) => (
-            <span key={name}>{companyIcon(name) ?? <Building2 size={16} />}</span>
-          ))}
-        </>
+        <AnimatedRows
+          as="span"
+          inline
+          className="practice-filter-selection"
+          heading={
+            selected.length > 0 && search.companyMatch === "not" && <CircleSlash size={16} />
+          }
+          items={selected.length > 0 ? selected : [null]}
+          getKey={(name) => name}
+          renderRow={(name) =>
+            name === null ? (
+              <>
+                <Building2 size={16} />
+                <span>{companyFilterLabel}</span>
+              </>
+            ) : (
+              (companyIcon(name) ?? <Building2 size={16} />)
+            )
+          }
+        />
       }
       searchPlaceholder="Search companies"
       alignOptionIcons

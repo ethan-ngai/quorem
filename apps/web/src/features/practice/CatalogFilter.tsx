@@ -67,10 +67,10 @@ export function CatalogFilter({
   ]
     .filter(Boolean)
     .join(" ");
-  const showSelectionPreview = selectionPreview != null && selected.length > 0;
-  const selectionDescription = showSelectionPreview
-    ? `${match === "not" ? "Exclude " : ""}${selected.join(", ")}`
-    : summary;
+  const selectionDescription =
+    selectionPreview != null && selected.length > 0
+      ? `${match === "not" ? "Exclude " : ""}${selected.join(", ")}`
+      : summary;
   const term = query.trim().toLowerCase();
   const visibleGroups = groups
     .map((group) => ({
@@ -137,8 +137,8 @@ export function CatalogFilter({
         aria-label={label}
         aria-description={selectionDescription || undefined}
       >
-        {showSelectionPreview ? (
-          <span className="practice-filter-label practice-filter-selection" aria-hidden="true">
+        {selectionPreview != null ? (
+          <span className="practice-filter-label" aria-hidden="true">
             {selectionPreview}
           </span>
         ) : (

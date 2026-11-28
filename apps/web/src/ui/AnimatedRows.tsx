@@ -8,7 +8,7 @@ type Props<Item> = {
   heading?: ReactNode;
   className?: string;
   rowClassName?: string;
-  as?: "ul" | "ol" | "tbody";
+  as?: "ul" | "ol" | "tbody" | "span";
   label?: string;
   inline?: boolean;
   empty?: ReactNode;
@@ -193,15 +193,17 @@ export class AnimatedRows<Item> extends Component<Props<Item>, State<Item>, Snap
       empty,
       renderRow,
     } = this.props;
-    const Row = Container === "tbody" ? "tr" : Container === "div" ? "div" : "li";
+    const Row =
+      Container === "tbody" ? "tr" : Container === "div" || Container === "span" ? Container : "li";
+    const Heading = Container === "span" ? "span" : "div";
     const rowClass =
       Row === "div" ? ["animated-row", rowClassName].filter(Boolean).join(" ") : rowClassName;
     return (
       <Container ref={this.setContainer} className={className} aria-label={label}>
         {heading && this.state.rows.length > 0 && (
-          <div className="animated-row" data-motion-row={-1}>
+          <Heading className="animated-row" data-motion-row={-1}>
             {heading}
-          </div>
+          </Heading>
         )}
         {this.state.rows.map(({ item, key }, index) => (
           <Row className={rowClass} data-motion-row={key} key={key}>
