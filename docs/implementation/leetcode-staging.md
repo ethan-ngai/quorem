@@ -14,7 +14,7 @@ Audit interview-prep coverage with `python3 scripts/audit-company-coverage.py /t
 
 After migrations, run `DATABASE_URL=<operator-url> vp exec node apps/api/src/cli/import-company-evidence.ts /tmp/quorem-leetcode-stage/company-evidence.json` to load verified observations. Imports commit atomically, and retrying the same revision and data is safe. Observations use verified LeetCode IDs even when questions are unpublished. Publishing or revising a question requires no evidence reimport.
 
-Practice defaults to Recent first when one company is included. The catalog ranks by shortest observed window, descending source frequency within that window, then title and slug. Questions with historical tags and no evidence follow. The catalog's `companyEvidence` sidecar carries the source date and page observations for Practice and future interview flows.
+Practice defaults to sorting by recency when one company is included. The catalog breaks ties in the selected sort (recency window, title, or difficulty) by descending source frequency, with missing scores last within each tie. The catalog's `companyEvidence` sidecar carries the source date and page observations for Practice and future interview flows.
 
 This is **not** a Quorem question import or a database migration. It performs no database writes and cannot publish questions. The input lacks private tests and reference solutions, and source extraction can lose statement formatting or mistake SQL schemas for examples. Validate content, fixtures, and execution before any subsequent import or publication. Keep staging files outside the repository. Existing [question JSON import](question-import.md) requires a different, validated format.
 

@@ -225,13 +225,15 @@ async function readCatalog(tx: Transaction, actor: ProblemActor | undefined, f: 
   const evidenceProjection = snapshot
     ? sql`, evidence.window_rank AS "windowRank", evidence.frequency`
     : sql``;
-  const sortPrefix =
+  const titleSort = sql`lower(v.title) ${direction}, `;
+  const frequencySort = snapshot ? sql`evidence.frequency DESC NULLS LAST, ` : sql``;
+  const sortKeys =
     f.sort === "company-recent" && snapshot
-      ? sql`evidence.window_rank ASC NULLS LAST, evidence.frequency DESC NULLS LAST, `
+      ? sql`evidence.window_rank ASC NULLS LAST, ${frequencySort}${titleSort}`
       : f.sort === "difficulty"
-        ? sql`${rank} ${direction}, `
-        : sql``;
-  const ordering = sql`${sortPrefix}lower(v.title) ${direction}, p.slug ${direction}`;
+        ? sql`${rank} ${direction}, ${frequencySort}${titleSort}`
+        : sql`${titleSort}${frequencySort}`;
+  const ordering = sql`${sortKeys}p.slug ${direction}`;
   const requestedOffset = BigInt(f.page - 1) * BigInt(f.limit);
   const offset = (requestedOffset > total ? total : requestedOffset).toString();
   const context =

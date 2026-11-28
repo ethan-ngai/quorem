@@ -477,6 +477,33 @@ describe.skipIf(!url)("catalog against disposable PostgreSQL", () => {
         const nextRecent = await catalogIn(`company=${company}&sort=company-recent&limit=1&page=2`);
         expect(nextRecent.items[0].id).toBe(versions[0]);
         expect(Object.keys(nextRecent.companyEvidence.observations)).toEqual([versions[0]]);
+        const tiedPublication = crypto.randomUUID();
+        await pool.query(
+          `INSERT INTO question_publications(id,problem_id,title,difficulty,statement_markdown,
+            signature,constraints,limits,attribution,odyssey,lossless_public,lossless_fixture,sql_config)
+          SELECT $1,problem_id,'Alpha','easy',statement_markdown,signature,constraints,limits,
+            attribution,odyssey,lossless_public,lossless_fixture,sql_config
+          FROM question_publications WHERE id=$2`,
+          [tiedPublication, versions[2]],
+        );
+        await pool.query("UPDATE problems SET current_publication_id=$1 WHERE id=$2", [
+          tiedPublication,
+          ids[2],
+        ]);
+        for (const sort of ["title", "difficulty"]) {
+          for (const order of ["asc", "desc"]) {
+            const tied = await catalogIn(`company=${company}&sort=${sort}&order=${order}`);
+            expect(tied.items.map(({ id }: { id: string }) => id)).toEqual([
+              versions[0],
+              tiedPublication,
+              versions[1],
+            ]);
+          }
+        }
+        await pool.query("UPDATE problems SET current_publication_id=$1 WHERE id=$2", [
+          versions[2],
+          ids[2],
+        ]);
         const excluded = await catalogIn(`company=${company}&companyMatch=not`);
         expect(excluded.items).toEqual([]);
         expect(excluded.companyEvidence).toBeUndefined();
