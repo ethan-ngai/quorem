@@ -91,7 +91,7 @@ export function PracticeQuestionTable({
                 >
                   <PracticeHeading icon={Clock3} label="Recency" />
                 </TableSortHeader>
-                <Tooltip content="Frequency · Source score, 0–100">
+                <Tooltip content="Frequency">
                   <th
                     scope="col"
                     className="practice-frequency"
