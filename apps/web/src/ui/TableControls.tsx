@@ -12,29 +12,30 @@ export function TableSortHeader<T extends RowData>({
   disabled,
   className,
   onSort,
+  tooltip,
 }: {
   column: Column<typeof serverTableFeatures, T>;
   children: ReactNode;
   disabled?: boolean;
   className?: string;
   onSort?: () => void;
+  tooltip?: string;
 }) {
   const sorted = column.getIsSorted();
   const Icon = sorted === "desc" ? ArrowDown : ArrowUp;
+  const button = (
+    <button type="button" disabled={disabled} onClick={onSort ?? column.getToggleSortingHandler()}>
+      {children}
+      {sorted && <Icon size={13} aria-hidden="true" />}
+    </button>
+  );
   return (
     <th
       className={className}
       scope="col"
       aria-sort={sorted === "desc" ? "descending" : sorted === "asc" ? "ascending" : "none"}
     >
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onSort ?? column.getToggleSortingHandler()}
-      >
-        {children}
-        {sorted && <Icon size={13} aria-hidden="true" />}
-      </button>
+      {tooltip ? <Tooltip content={tooltip}>{button}</Tooltip> : button}
     </th>
   );
 }

@@ -5,6 +5,7 @@ import { ChartNoAxesColumnIncreasing, Clock3, Gauge, type LucideIcon } from "luc
 import { useServerTable, type ListState } from "../../ui/useServerTable";
 import { TablePagination, TableSortHeader } from "../../ui/TableControls";
 import { TableRow, Table } from "../../ui/Table";
+import { Tooltip } from "../../ui/Tooltip";
 import { warmWorkspacePage } from "../editor/preloadWorkspace";
 import { QuestionDifficulty, QuestionTopics } from "./QuestionRowMetadata";
 import { QuestionIndicators } from "./QuestionIndicators";
@@ -69,7 +70,7 @@ export function PracticeQuestionTable({
         heading={
           <tr>
             <TableSortHeader column={table.getColumn("title")!}>Question</TableSortHeader>
-            <TableSortHeader column={table.getColumn("difficulty")!}>
+            <TableSortHeader column={table.getColumn("difficulty")!} tooltip="Difficulty">
               <PracticeHeading icon={Gauge} label="Difficulty" />
             </TableSortHeader>
             {showCompanyEvidence && (
@@ -77,6 +78,7 @@ export function PracticeQuestionTable({
                 <TableSortHeader
                   column={table.getColumn("company-recent")!}
                   className="practice-recency"
+                  tooltip="Recency"
                   onSort={() => {
                     if (page.state.sort !== "company-recent")
                       page.onChange({
@@ -89,13 +91,16 @@ export function PracticeQuestionTable({
                 >
                   <PracticeHeading icon={Clock3} label="Recency" />
                 </TableSortHeader>
-                <th scope="col" className="practice-frequency" aria-label="Frequency">
-                  <PracticeHeading
-                    icon={ChartNoAxesColumnIncreasing}
-                    label="Frequency"
-                    hint="Frequency source score, 0–100"
-                  />
-                </th>
+                <Tooltip content="Frequency · Source score, 0–100">
+                  <th
+                    scope="col"
+                    className="practice-frequency"
+                    aria-label="Frequency"
+                    tabIndex={0}
+                  >
+                    <PracticeHeading icon={ChartNoAxesColumnIncreasing} label="Frequency" />
+                  </th>
+                </Tooltip>
               </>
             )}
             <th scope="col" aria-label="Status" className="practice-status" />
@@ -117,18 +122,10 @@ export function PracticeQuestionTable({
   );
 }
 
-/** Give icon-only headings a hover label and accessible name. */
-function PracticeHeading({
-  icon: Icon,
-  label,
-  hint = label,
-}: {
-  icon: LucideIcon;
-  label: string;
-  hint?: string;
-}) {
+/** Give icon-only headings a an accessible name. */
+function PracticeHeading({ icon: Icon, label, hint = label }: { icon: LucideIcon; label: string }) {
   return (
-    <span className="practice-table-heading" title={hint}>
+    <span className="practice-table-heading">
       <Icon size={16} aria-hidden="true" />
       <span className="sr-only">{label}</span>
     </span>
