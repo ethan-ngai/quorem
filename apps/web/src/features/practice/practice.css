@@ -215,8 +215,12 @@
   display: inline-flex;
   align-items: center;
 }
-.practice-filter-label > svg {
+.practice-filter-trigger-icon,
+.practice-filter-choice-icon {
+  display: inline-flex;
   flex: none;
+}
+.practice-filter-trigger-icon {
   margin-inline-end: var(--space-2);
 }
 .practice-filter-summary {
@@ -311,6 +315,16 @@
     background-color var(--motion-fast) var(--motion-easing),
     border-color var(--motion-fast) var(--motion-easing),
     color var(--motion-fast) var(--motion-easing);
+}
+.practice-filter-choice:has(.practice-filter-choice-icon) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: start;
+}
+.practice-filter-choice:has(.practice-filter-choice-icon) .practice-filter-choice-label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 .practice-filter-count {
   margin-inline-start: var(--space-1);

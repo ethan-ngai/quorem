@@ -1,0 +1,19 @@
+.company-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.company-icon img {
+  inline-size: 1rem;
+  block-size: 1rem;
+  object-fit: contain;
+}
+
+.company-icon-dark,
+:root[data-theme="dark"] .company-icon-light {
+  display: none;
+}
+
+:root[data-theme="dark"] .company-icon-dark {
+  display: block;
+}

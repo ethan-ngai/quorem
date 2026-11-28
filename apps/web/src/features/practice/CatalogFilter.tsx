@@ -29,7 +29,7 @@ const matchModes = [
   },
 ] as const;
 
-type FilterOption = { value: string; label: string; count?: number };
+type FilterOption = { value: string; label: string; count?: number; icon?: ReactNode };
 export type FilterGroup = { label?: string; options: FilterOption[] };
 
 export function CatalogFilter({
@@ -101,7 +101,12 @@ export function CatalogFilter({
               )
             }
           >
-            {option.label}
+            {option.icon && (
+              <span className="practice-filter-choice-icon" aria-hidden="true">
+                {option.icon}
+              </span>
+            )}
+            <span className="practice-filter-choice-label">{option.label}</span>
             {option.count !== undefined && (
               <span className="practice-filter-count" aria-hidden="true">
                 {option.count}
@@ -124,7 +129,11 @@ export function CatalogFilter({
         aria-description={summary || undefined}
       >
         <span className="practice-filter-label">
-          {icon}
+          {icon && (
+            <span className="practice-filter-trigger-icon" aria-hidden="true">
+              {icon}
+            </span>
+          )}
           <ContentTransition inline contentKey={summary}>
             {summary ? <span className="practice-filter-summary">{summary}</span> : label}
           </ContentTransition>

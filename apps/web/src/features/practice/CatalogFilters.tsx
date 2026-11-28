@@ -2,6 +2,7 @@ import { DifficultySegments, type Difficulty } from "../../ui/DifficultySegments
 import "../../ui/selection-feedback.css";
 import { formatLabel } from "../../ui/formatLabel";
 import { Building2, Code2, Database, Tags } from "lucide-react";
+import { companyIcon } from "../../ui/CompanyIcon";
 import { Tooltip } from "../../ui/Tooltip";
 import { CatalogFilter, type FilterGroup } from "./CatalogFilter";
 import { QuestionTypeFilter } from "./QuestionTypeFilter";
@@ -67,7 +68,12 @@ export function CompanyFilter({
   const selected = filterValues(search.company);
   const known = new Set(companies);
   const missing = selected.filter((name) => !known.has(name));
-  const option = (name: string, count?: number) => ({ value: name, label: name, count });
+  const option = (name: string, count?: number) => ({
+    value: name,
+    label: name,
+    count,
+    icon: companyIcon(name),
+  });
   const groups: FilterGroup[] = companyFacets
     ? companyTiers.map(([tier, label]) => ({
         label,
@@ -82,7 +88,13 @@ export function CompanyFilter({
   return (
     <CatalogFilter
       label="Companies"
-      icon={<Building2 size={16} aria-hidden="true" />}
+      icon={
+        selected.length === 1 ? (
+          companyIcon(selected[0])
+        ) : (
+          <Building2 size={16} aria-hidden="true" />
+        )
+      }
       searchPlaceholder="Search companies"
       selected={selected}
       onChange={(values) => update({ company: values.join(",") || undefined })}
