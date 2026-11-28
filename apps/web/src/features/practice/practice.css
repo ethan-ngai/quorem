@@ -223,6 +223,13 @@
 .practice-filter-trigger-icon {
   margin-inline-end: var(--space-2);
 }
+.practice-filter-choice-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-end: var(--space-1);
+  align-items: center;
+  justify-content: center;
+}
 .practice-filter-summary {
   max-width: 180px;
   overflow: hidden;
@@ -242,7 +249,7 @@
 .practice-filter-popover[data-searchable] {
   display: flex;
   flex-direction: column;
-  width: 320px;
+  width: 352px;
   overflow: hidden;
 }
 .practice-filter-search {
@@ -296,6 +303,9 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, max-content));
   gap: var(--space-1);
+}
+.practice-filter-choices[data-align-option-icons] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .practice-filter-choices[data-layout="grid"] .practice-filter-choice {
   padding-inline: var(--space-2);

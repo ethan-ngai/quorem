@@ -38,6 +38,7 @@ export function CatalogFilter({
   selected,
   groups,
   searchPlaceholder,
+  alignOptionIcons = false,
   match = "any",
   onMatchChange,
   onChange,
@@ -47,6 +48,7 @@ export function CatalogFilter({
   selected: string[];
   groups: FilterGroup[];
   searchPlaceholder?: string;
+  alignOptionIcons?: boolean;
   match?: FilterMatch;
   onMatchChange?: (match: FilterMatch) => void;
   onChange: (values: string[]) => void;
@@ -77,7 +79,8 @@ export function CatalogFilter({
       {group.label && <div className="practice-filter-group-label">{group.label}</div>}
       <div
         className="practice-filter-choices"
-        data-layout={group.options.length > 3 ? "grid" : "row"}
+        data-layout={alignOptionIcons || group.options.length > 3 ? "grid" : "row"}
+        data-align-option-icons={alignOptionIcons || undefined}
         role="group"
         aria-label={group.label || label}
       >
@@ -101,7 +104,7 @@ export function CatalogFilter({
               )
             }
           >
-            {option.icon && (
+            {(alignOptionIcons || option.icon) && (
               <span className="practice-filter-choice-icon" aria-hidden="true">
                 {option.icon}
               </span>

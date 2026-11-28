@@ -96,6 +96,7 @@ export function CompanyFilter({
         )
       }
       searchPlaceholder="Search companies"
+      alignOptionIcons
       selected={selected}
       onChange={(values) => update({ company: values.join(",") || undefined })}
       match={search.companyMatch}

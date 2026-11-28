@@ -1,14 +1,22 @@
 .company-icon {
   display: inline-flex;
   flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 .company-icon img {
-  inline-size: auto;
-  min-inline-size: 1rem;
-  max-inline-size: 1.75rem;
+  inline-size: 1rem;
   block-size: 1rem;
   object-fit: contain;
+}
+
+.company-icon-mask {
+  background-color: var(--color-text);
+  mask-mode: luminance;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
 }
 
 .company-icon-dark,

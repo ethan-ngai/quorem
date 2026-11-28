@@ -10,6 +10,16 @@ const logos = import.meta.glob<string>("../assets/company-logos/*.{png,svg}", {
 export function companyIcon(company: string) {
   const key = company.trim().toLowerCase().replace(/\s+/gu, "-");
   const file = `../assets/company-logos/${key}`;
+  const mask = logos[`${file}.mask.png`];
+  if (mask)
+    return (
+      <span
+        className="company-icon company-icon-mask"
+        aria-hidden="true"
+        style={{ maskImage: `url("${mask}")` }}
+      />
+    );
+
   const logo = logos[`${file}.png`] ?? logos[`${file}.svg`];
   const dark = logos[`${file}.dark.svg`];
   if (!logo) return undefined;
